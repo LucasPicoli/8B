@@ -1,0 +1,10 @@
+//! Device-neutral engine for 8BitDo controller configuration.
+//!
+//! The only controller implemented today is the 8BitDo Pro 3 (`devices::pro3`).
+//! See each module for its scope.
+
+/// Returns the crate version string.
+#[must_use]
+pub const fn version() -> &'static str {
+    env!("CARGO_PKG_VERSION")
+}
