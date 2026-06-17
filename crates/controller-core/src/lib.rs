@@ -6,6 +6,7 @@
 pub mod error;
 pub use error::{Error, ErrorCategory, Result};
 
+pub mod model;
 pub mod protocol;
 
 /// Returns the crate version string.

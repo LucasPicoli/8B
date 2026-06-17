@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bspec.local/schema/macro-v1.schema.json",
+  "title": "8BitDo Pro 3 Macro v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "device",
+    "mode",
+    "trigger",
+    "repeat",
+    "steps"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "device": {
+      "type": "string",
+      "const": "8bitdo-pro3"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["xinput", "switch"]
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 15
+    },
+    "trigger": {
+      "$ref": "#/$defs/MacroTrigger"
+    },
+    "repeat": {
+      "$ref": "#/$defs/Repeat"
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 255,
+      "items": {
+        "$ref": "#/$defs/Step"
+      }
+    }
+  },
+  "$defs": {
+    "MacroTrigger": {
+      "type": "string",
+      "enum": [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "select/back",
+        "start/menu",
+        "turbo",
+        "d-pad up",
+        "d-pad down",
+        "d-pad left",
+        "d-pad right",
+        "rp",
+        "lp",
+        "l4",
+        "r4"
+      ]
+    },
+    "StepButton": {
+      "type": "string",
+      "enum": [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "select/back",
+        "start/menu",
+        "d-pad up",
+        "d-pad down",
+        "d-pad left",
+        "d-pad right"
+      ]
+    },
+    "Repeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "interval_ms"],
+      "properties": {
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "interval_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        }
+      }
+    },
+    "Step": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration_ms", "actions"],
+      "properties": {
+        "duration_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535
+        },
+        "actions": {
+          "$ref": "#/$defs/Actions"
+        }
+      }
+    },
+    "Actions": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "buttons": {
+          "$ref": "#/$defs/Buttons"
+        },
+        "left_stick": {
+          "$ref": "#/$defs/StickPosition"
+        },
+        "right_stick": {
+          "$ref": "#/$defs/StickPosition"
+        },
+        "triggers": {
+          "$ref": "#/$defs/TriggerValues"
+        }
+      }
+    },
+    "Buttons": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "press": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepButton"
+          },
+          "uniqueItems": true
+        },
+        "release": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/StepButton"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "StickPosition": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x", "y"],
+      "properties": {
+        "x": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "default": 127
+        },
+        "y": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "default": 127
+        }
+      }
+    },
+    "TriggerValues": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["left", "right"],
+      "properties": {
+        "left": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "default": 0
+        },
+        "right": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255,
+          "default": 0
+        }
+      }
+    }
+  }
+}
