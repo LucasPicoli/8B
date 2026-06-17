@@ -2,7 +2,12 @@
 
 use super::ids::Mode;
 
-/// A single macro step.
+/// A single macro step — in-memory representation mirroring the C++ model.
+///
+/// Canonical macro JSON (per `schemas/macro-v1.schema.json`, with its nested
+/// `repeat` and `actions.buttons.press/release` shape) is produced and consumed
+/// via dedicated converters, not via direct serde derive, which is why this type
+/// intentionally does not derive `Serialize`/`Deserialize`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroStep {
     /// Delay before this step (ms).
@@ -38,7 +43,12 @@ impl Default for MacroStep {
     }
 }
 
-/// A complete macro definition.
+/// A complete macro definition — the in-memory representation mirroring the C++ model.
+///
+/// Canonical macro JSON (per `schemas/macro-v1.schema.json`, with its nested
+/// `repeat` and `actions.buttons.press/release` shape) is produced and consumed
+/// via dedicated converters, not via direct serde derive, which is why this type
+/// intentionally does not derive `Serialize`/`Deserialize`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroDefinition {
     /// Display name (1–15 chars).
