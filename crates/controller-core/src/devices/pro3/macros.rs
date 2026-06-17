@@ -91,8 +91,9 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
             trigger,
             repeat_count,
             interval_ms,
-            // Metadata decode leaves steps empty (filled from the step stream).
-            steps: Vec::new(),
+            // Pre-populate with `max_steps` default entries so callers know how
+            // many steps to read from flash (mirrors C++ `macro.steps.resize(maxSteps)`).
+            steps: vec![MacroStep::default(); usize::from(max_steps)],
             macro_slot,
         });
     }
