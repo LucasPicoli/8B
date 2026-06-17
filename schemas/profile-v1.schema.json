@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bspec.local/schema/profile-v1.schema.json",
+  "title": "8BitDo Pro 3 Profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "name",
+    "version",
+    "kind",
+    "device",
+    "mode",
+    "sticks",
+    "triggers",
+    "vibration",
+    "button_mappings",
+    "macro_refs"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[a-z0-9][a-z0-9._-]*$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 16
+    },
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "8bitdo.pro3.profile"
+    },
+    "device": {
+      "type": "string",
+      "const": "8bitdo-pro3"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "xinput",
+        "switch",
+        "dinput"
+      ]
+    },
+    "preferred_slot": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 3
+    },
+    "sticks": {
+      "$ref": "#/$defs/Sticks"
+    },
+    "triggers": {
+      "type": "object"
+    },
+    "vibration": {
+      "$ref": "#/$defs/Vibration"
+    },
+    "button_mappings": {
+      "type": "array",
+      "maxItems": 22
+    },
+    "macro_refs": {
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "$ref": "#/$defs/MacroRef"
+      }
+    }
+  },
+  "$defs": {
+    "ControlName": {
+      "type": "string",
+      "enum": [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "select/back",
+        "start/menu",
+        "turbo",
+        "home/guide",
+        "d-pad up",
+        "d-pad down",
+        "d-pad left",
+        "d-pad right",
+        "rp",
+        "lp",
+        "l4",
+        "r4"
+      ]
+    },
+    "MacroTrigger": {
+      "type": "string",
+      "enum": [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "select/back",
+        "start/menu",
+        "turbo",
+        "d-pad up",
+        "d-pad down",
+        "d-pad left",
+        "d-pad right",
+        "rp",
+        "lp",
+        "l4",
+        "r4"
+      ]
+    },
+    "RelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/]).+$"
+    },
+    "TargetControlName": {
+      "type": "string",
+      "enum": [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "select/back",
+        "start/menu",
+        "turbo",
+        "home/guide",
+        "d-pad up",
+        "d-pad down",
+        "d-pad left",
+        "d-pad right"
+      ]
+    },
+    "ButtonTarget": {
+      "oneOf": [
+        { "$ref": "#/$defs/TargetControlName" },
+        { "type": "string", "const": "disabled" }
+      ]
+    },
+    "ButtonTargetSwitch": {
+      "oneOf": [
+        { "$ref": "#/$defs/TargetControlName" },
+        { "type": "string", "const": "disabled" },
+        { "type": "string", "const": "screenshot" }
+      ]
+    },
+    "ButtonMapping": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "target"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ControlName"
+        },
+        "target": {
+          "$ref": "#/$defs/ButtonTarget"
+        }
+      }
+    },
+    "ButtonMappingSwitch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "target"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ControlName"
+        },
+        "target": {
+          "$ref": "#/$defs/ButtonTargetSwitch"
+        }
+      }
+    },
+    "Sticks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_min_pct",
+        "left_max_pct",
+        "right_min_pct",
+        "right_max_pct",
+        "invert_left_x",
+        "invert_left_y",
+        "invert_right_x",
+        "invert_right_y",
+        "swap_sticks",
+        "swap_dpad_with_left_stick"
+      ],
+      "properties": {
+        "left_min_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "left_max_pct": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 100
+        },
+        "right_min_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "right_max_pct": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 100
+        },
+        "invert_left_x": {
+          "type": "boolean"
+        },
+        "invert_left_y": {
+          "type": "boolean"
+        },
+        "invert_right_x": {
+          "type": "boolean"
+        },
+        "invert_right_y": {
+          "type": "boolean"
+        },
+        "swap_sticks": {
+          "type": "boolean"
+        },
+        "swap_dpad_with_left_stick": {
+          "type": "boolean"
+        }
+      }
+    },
+    "Vibration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_level",
+        "right_level"
+      ],
+      "properties": {
+        "left_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "right_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        }
+      }
+    },
+    "TriggersAnalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_min_pct",
+        "left_max_pct",
+        "right_min_pct",
+        "right_max_pct",
+        "swap_triggers"
+      ],
+      "properties": {
+        "left_min_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "left_max_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "right_min_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "right_max_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "swap_triggers": {
+          "type": "boolean"
+        }
+      }
+    },
+    "TriggersSwitch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_threshold_pct",
+        "right_threshold_pct",
+        "swap_triggers"
+      ],
+      "properties": {
+        "left_threshold_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "right_threshold_pct": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 90
+        },
+        "swap_triggers": {
+          "type": "boolean"
+        }
+      }
+    },
+    "MacroRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "trigger",
+        "path"
+      ],
+      "properties": {
+        "trigger": {
+          "$ref": "#/$defs/MacroTrigger"
+        },
+        "path": {
+          "$ref": "#/$defs/RelativePath"
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "mode": {
+            "const": "switch"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "triggers": {
+            "$ref": "#/$defs/TriggersSwitch"
+          },
+          "button_mappings": {
+            "type": "array",
+            "maxItems": 22,
+            "items": {
+              "$ref": "#/$defs/ButtonMappingSwitch"
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "triggers": {
+            "$ref": "#/$defs/TriggersAnalog"
+          },
+          "button_mappings": {
+            "type": "array",
+            "maxItems": 22,
+            "items": {
+              "$ref": "#/$defs/ButtonMapping"
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "sticks": {
+            "type": "object",
+            "properties": {
+              "swap_dpad_with_left_stick": {
+                "const": true
+              }
+            },
+            "required": [
+              "swap_dpad_with_left_stick"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "sticks": {
+            "type": "object",
+            "properties": {
+              "invert_left_x": {
+                "const": false
+              },
+              "invert_left_y": {
+                "const": false
+              }
+            },
+            "required": [
+              "invert_left_x",
+              "invert_left_y"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode. Semantic validator requirements not expressible in core JSON Schema: unique macro trigger values in macro_refs, and profile/macro file existence checks. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
+}

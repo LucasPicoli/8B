@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bspec.local/schema/active-layout-v1.schema.json",
+  "title": "8BitDo Pro 3 Active Layout v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "kind",
+    "device",
+    "mode",
+    "active_slots"
+  ],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "8bitdo.pro3.active-layout"
+    },
+    "device": {
+      "type": "string",
+      "const": "8bitdo-pro3"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "xinput",
+        "switch",
+        "dinput"
+      ]
+    },
+    "active_slots": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 3,
+      "patternProperties": {
+        "^[123]$": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^(?!/)(?![A-Za-z]:[\\\\/]).+$"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "description": "active_slots maps hardware slot numbers (1..3) to relative profile JSON paths or null for intentionally empty slots."
+}
