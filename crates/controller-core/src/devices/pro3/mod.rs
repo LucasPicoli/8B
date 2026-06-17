@@ -1,5 +1,6 @@
 //! 8BitDo Pro 3 controller backend.
 
+pub mod macros;
 pub mod profile;
 pub mod tables;
 
@@ -61,21 +62,19 @@ impl ProtocolCodec for Pro3 {
 
     fn decode_macro_metadata(
         &self,
-        _blob: &[u8],
-        _profile_slot: Slot,
+        blob: &[u8],
+        profile_slot: Slot,
     ) -> Result<Vec<MacroDefinition>> {
-        // Implemented in Task 8.
-        Ok(Vec::new())
+        macros::decode_macro_metadata(blob, profile_slot)
     }
 
     fn decode_macro_steps(
         &self,
-        _stream: &[u8],
-        _step_count: usize,
-        _mode: Mode,
+        stream: &[u8],
+        step_count: usize,
+        mode: Mode,
     ) -> Result<Vec<MacroStep>> {
-        // Implemented in Task 8.
-        Ok(Vec::new())
+        macros::decode_macro_steps(stream, step_count, mode)
     }
 }
 

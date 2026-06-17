@@ -321,3 +321,135 @@ pub const SWITCH_ENCODINGS: [ButtonEncodingEntry; SOURCE_BUTTON_COUNT + 1] = [
         variant_identity_encodings: &[],
     },
 ];
+
+// ---------------------------------------------------------------------------
+// Macro Section-4 metadata layout (`record_macro_content_t`, 52B each).
+//
+// Ported from `src/core/macro_decoder.cpp::decodeMetadata`. Section 4 holds, per
+// profile slot, a `record_macro_fun_record_t` (216B): an 8-byte header followed
+// by 4 × 52-byte macro descriptors.
+// ---------------------------------------------------------------------------
+
+/// Base offset of Section 4 in the profile blob (`0x068C`).
+pub const SECTION4_BASE_OFFSET: usize = 0x068C;
+/// Stride between per-profile-slot macro record blocks (216 bytes).
+pub const SECTION4_SLOT_STRIDE: usize = 216;
+/// Size of the per-slot record header (`flag` LE32 + `total_cnt` LE32).
+pub const SECTION4_RECORD_HEADER_SIZE: usize = 8;
+/// Size of a single macro descriptor (`record_macro_content_t`).
+pub const MACRO_DESCRIPTOR_SIZE: usize = 52;
+/// Number of macro descriptor slots per profile slot.
+pub const MACRO_SLOTS_PER_PROFILE: usize = 4;
+
+/// Length of the UTF-16BE name field at the start of a descriptor.
+pub const MACRO_NAME_BYTES: usize = 32;
+/// Offset of the `gamepad_mode` byte within a descriptor.
+pub const MACRO_MODE_OFFSET: usize = 32;
+/// Offset of the `max_steps` LE16 within a descriptor.
+pub const MACRO_MAX_STEPS_OFFSET: usize = 34;
+/// Offset of the `key_map` LE32 (trigger) within a descriptor.
+pub const MACRO_KEY_MAP_OFFSET: usize = 40;
+/// Offset of the `cycles_num` (repeat count) LE32 within a descriptor.
+pub const MACRO_REPEAT_COUNT_OFFSET: usize = 44;
+/// Offset of the `interval_ms` LE32 within a descriptor.
+pub const MACRO_INTERVAL_MS_OFFSET: usize = 48;
+
+/// `gamepad_mode` byte value that denotes `XInput`.
+pub const MACRO_GAMEPAD_MODE_XINPUT: u8 = 3;
+
+// ---------------------------------------------------------------------------
+// Macro step layout (`record_content_t`, 10B each).
+//
+// Ported from `src/core/macro_decoder.cpp::decodeStepStream`.
+// ---------------------------------------------------------------------------
+
+/// Size of a single macro step record (`record_content_t`).
+pub const MACRO_STEP_RECORD_SIZE: usize = 10;
+/// Offset of the `ms_time` LE16 within a step record.
+pub const STEP_MS_TIME_OFFSET: usize = 0;
+/// Offset of the `keys` bitmask LE16 within a step record.
+pub const STEP_KEYS_OFFSET: usize = 2;
+/// Offset of the `trigger_value` LE16 within a step record.
+pub const STEP_TRIGGER_VALUE_OFFSET: usize = 4;
+/// Offset of the `left_joy` LE16 (`(Y<<8)|X`) within a step record.
+pub const STEP_LEFT_JOY_OFFSET: usize = 6;
+/// Offset of the `right_joy` LE16 (`(Y<<8)|X`) within a step record.
+pub const STEP_RIGHT_JOY_OFFSET: usize = 8;
+
+/// Mask preserving the 14 button bits (clears the L2/R2 bits 14–15).
+pub const STEP_BUTTON_BITS_MASK: u16 = 0x3FFF;
+/// `keys` bit flagging L2 pressed in Switch mode (bit 14).
+pub const STEP_SWITCH_L2_MASK: u16 = 0x4000;
+/// `keys` bit flagging R2 pressed in Switch mode (bit 15).
+pub const STEP_SWITCH_R2_MASK: u16 = 0x8000;
+
+/// Default centered stick axis value (matches [`crate::model::MacroStep`]).
+pub const STICK_CENTER: u8 = 127;
+
+/// A canonical step-button name paired with its 16-bit bitmask, ordered by bit
+/// position for deterministic decode output. Ported from
+/// `src/core/macro_models.cpp::kStepButtons`.
+#[derive(Debug, Clone, Copy)]
+pub struct StepButtonEntry {
+    /// Canonical step-button name (e.g. `"bottom face"`).
+    pub name: &'static str,
+    /// 16-bit bitmask flag for this button.
+    pub mask: u16,
+}
+
+/// The 16 step-button bitmask entries, ordered by ascending bit position.
+pub const STEP_BUTTONS: [StepButtonEntry; 16] = [
+    StepButtonEntry { name: "start/menu", mask: 0x0001 }, // bit 0
+    StepButtonEntry { name: "l3", mask: 0x0002 },         // bit 1
+    StepButtonEntry { name: "r3", mask: 0x0004 },         // bit 2
+    StepButtonEntry { name: "select/back", mask: 0x0008 }, // bit 3
+    StepButtonEntry { name: "top face", mask: 0x0010 },   // bit 4
+    StepButtonEntry { name: "left face", mask: 0x0020 },  // bit 5
+    StepButtonEntry { name: "d-pad right", mask: 0x0040 }, // bit 6
+    StepButtonEntry { name: "d-pad left", mask: 0x0080 }, // bit 7
+    StepButtonEntry { name: "d-pad down", mask: 0x0100 }, // bit 8
+    StepButtonEntry { name: "d-pad up", mask: 0x0200 },   // bit 9
+    StepButtonEntry { name: "l1", mask: 0x0400 },         // bit 10
+    StepButtonEntry { name: "r1", mask: 0x0800 },         // bit 11
+    StepButtonEntry { name: "bottom face", mask: 0x1000 }, // bit 12
+    StepButtonEntry { name: "right face", mask: 0x2000 }, // bit 13
+    StepButtonEntry { name: "l2", mask: 0x4000 },         // bit 14
+    StepButtonEntry { name: "r2", mask: 0x8000 },         // bit 15
+];
+
+/// A canonical trigger name paired with its 32-bit `KeyMap` value.
+///
+/// Ported from `src/core/macro_models.cpp::triggerEncodeTable` (all 21
+/// `MacroTrigger` values); used as a reverse lookup for `keyMapToTriggerName`.
+#[derive(Debug, Clone, Copy)]
+pub struct TriggerEntry {
+    /// Canonical trigger name (e.g. `"l1"`).
+    pub name: &'static str,
+    /// 32-bit `KeyMap` value identifying the trigger button.
+    pub key_map: u32,
+}
+
+/// The 21 trigger `KeyMap` entries.
+pub const TRIGGERS: [TriggerEntry; 21] = [
+    TriggerEntry { name: "start/menu", key_map: 0x0000_0001 },
+    TriggerEntry { name: "l3", key_map: 0x0000_0002 },
+    TriggerEntry { name: "r3", key_map: 0x0000_0004 },
+    TriggerEntry { name: "select/back", key_map: 0x0000_0008 },
+    TriggerEntry { name: "top face", key_map: 0x0000_0010 },
+    TriggerEntry { name: "left face", key_map: 0x0000_0020 },
+    TriggerEntry { name: "d-pad right", key_map: 0x0000_0040 },
+    TriggerEntry { name: "d-pad left", key_map: 0x0000_0080 },
+    TriggerEntry { name: "d-pad down", key_map: 0x0000_0100 },
+    TriggerEntry { name: "d-pad up", key_map: 0x0000_0200 },
+    TriggerEntry { name: "l1", key_map: 0x0000_0400 },
+    TriggerEntry { name: "r1", key_map: 0x0000_0800 },
+    TriggerEntry { name: "bottom face", key_map: 0x0000_1000 },
+    TriggerEntry { name: "right face", key_map: 0x0000_2000 },
+    TriggerEntry { name: "l2", key_map: 0x0000_4000 },
+    TriggerEntry { name: "r2", key_map: 0x0000_8000 },
+    TriggerEntry { name: "turbo", key_map: 0x0001_0000 },
+    TriggerEntry { name: "l4", key_map: 0x0020_0000 },
+    TriggerEntry { name: "lp", key_map: 0x0400_0000 },
+    TriggerEntry { name: "rp", key_map: 0x0200_0000 },
+    TriggerEntry { name: "r4", key_map: 0x4000_0000 },
+];
