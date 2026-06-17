@@ -6,7 +6,9 @@ use std::str::FromStr;
 use crate::error::{Error, Result};
 
 /// Operating mode of the controller.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
     /// `XInput` mode (product 0x310b).
@@ -48,7 +50,7 @@ impl FromStr for Mode {
 }
 
 /// A 1-based profile slot (1, 2, or 3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Slot(u8);
 
 impl Slot {
@@ -72,7 +74,7 @@ impl Slot {
 }
 
 /// A 0-based macro slot (0..=3).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct MacroSlot(u8);
 
 impl MacroSlot {
