@@ -6,6 +6,8 @@
 pub mod error;
 pub use error::{Error, ErrorCategory, Result};
 
+pub mod protocol;
+
 /// Returns the crate version string.
 #[must_use]
 pub const fn version() -> &'static str {
