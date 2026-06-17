@@ -13,7 +13,7 @@
 
 use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::{macros::macro_to_canonical_json, Pro3};
-use controller_core::model::{MacroDefinition, Mode, Slot};
+use controller_core::model::{MacroDefinition, MacroStep, Mode, Slot};
 
 #[test]
 fn macro_steps_decode_to_golden_json() {
@@ -46,5 +46,6 @@ fn macro_metadata_decodes_from_section4() {
     assert_eq!(m.repeat_count, 3);
     assert_eq!(m.interval_ms, 100);
     assert_eq!(m.macro_slot, Some(0));
-    assert!(m.steps.is_empty()); // metadata decode leaves steps empty (filled from the stream)
+    assert_eq!(m.steps.len(), 3); // max_steps from descriptor
+    assert!(m.steps.iter().all(|s| *s == MacroStep::default())); // all default-initialised
 }
