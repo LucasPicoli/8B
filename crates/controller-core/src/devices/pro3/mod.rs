@@ -1,7 +1,13 @@
 //! 8BitDo Pro 3 controller backend.
 
-use crate::device::{ControllerSpec, TransportParams, UsbId};
-use crate::model::Mode;
+pub mod profile;
+pub mod tables;
+
+use crate::device::{ControllerSpec, ProtocolCodec, TransportParams, UsbId};
+use crate::error::Result;
+use crate::model::{
+    CanonicalProfileSummary, MacroDefinition, MacroStep, Mode, RawProfilePayload, Slot,
+};
 
 /// The 8BitDo Pro 3 controller backend.
 #[derive(Debug, Clone, Copy, Default)]
@@ -45,6 +51,31 @@ impl ControllerSpec for Pro3 {
             Mode::XInput | Mode::Switch => 0x310B,
             Mode::DInput => 0x6009,
         }
+    }
+}
+
+impl ProtocolCodec for Pro3 {
+    fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
+        profile::map_profile(self, raw)
+    }
+
+    fn decode_macro_metadata(
+        &self,
+        _blob: &[u8],
+        _profile_slot: Slot,
+    ) -> Result<Vec<MacroDefinition>> {
+        // Implemented in Task 8.
+        Ok(Vec::new())
+    }
+
+    fn decode_macro_steps(
+        &self,
+        _stream: &[u8],
+        _step_count: usize,
+        _mode: Mode,
+    ) -> Result<Vec<MacroStep>> {
+        // Implemented in Task 8.
+        Ok(Vec::new())
     }
 }
 
