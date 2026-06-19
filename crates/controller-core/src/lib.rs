@@ -10,6 +10,7 @@ pub mod detect;
 pub mod device;
 pub mod devices;
 pub mod model;
+pub mod orchestrator;
 pub mod protocol;
 pub mod service;
 pub mod transport;
