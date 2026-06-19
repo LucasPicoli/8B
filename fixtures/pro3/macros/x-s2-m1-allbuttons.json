@@ -1,0 +1,37 @@
+{
+  "device": "8bitdo-pro3",
+  "mode": "xinput",
+  "name": "AllButtons",
+  "repeat": {
+    "count": 2,
+    "interval_ms": 200
+  },
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "start/menu",
+            "l3",
+            "r3",
+            "select/back",
+            "top face",
+            "left face",
+            "d-pad right",
+            "d-pad left",
+            "d-pad down",
+            "d-pad up",
+            "l1",
+            "r1",
+            "bottom face",
+            "right face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 30
+    }
+  ],
+  "trigger": "l1",
+  "version": 1
+}

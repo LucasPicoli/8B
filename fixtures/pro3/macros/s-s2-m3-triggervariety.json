@@ -1,0 +1,41 @@
+{
+  "device": "8bitdo-pro3",
+  "mode": "switch",
+  "name": "TrigVariety",
+  "repeat": {
+    "count": 3,
+    "interval_ms": 100
+  },
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "d-pad left"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 25
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        },
+        "left_stick": {
+          "x": 10,
+          "y": 240
+        },
+        "triggers": {
+          "left": 255,
+          "right": 0
+        }
+      },
+      "duration_ms": 25
+    }
+  ],
+  "trigger": "start/menu",
+  "version": 1
+}

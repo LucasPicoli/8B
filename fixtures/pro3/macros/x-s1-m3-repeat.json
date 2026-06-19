@@ -1,0 +1,31 @@
+{
+  "device": "8bitdo-pro3",
+  "mode": "xinput",
+  "name": "Repeat255",
+  "repeat": {
+    "count": 255,
+    "interval_ms": 1000
+  },
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 40
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 40
+    }
+  ],
+  "trigger": "turbo",
+  "version": 1
+}
