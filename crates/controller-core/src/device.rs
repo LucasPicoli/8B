@@ -2,7 +2,7 @@
 
 use crate::error::Result;
 use crate::model::{
-    CanonicalProfileSummary, MacroDefinition, MacroStep, Mode, RawProfilePayload, Slot,
+    CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode, RawProfilePayload, Slot,
 };
 
 /// A supported USB (vendor, product) pair.
@@ -75,4 +75,20 @@ pub trait ProtocolCodec {
         step_count: usize,
         mode: Mode,
     ) -> Result<Vec<MacroStep>>;
+
+    /// Encodes macro steps into the padded wire step stream.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] on an unknown step-button name.
+    fn encode_macro_steps(&self, steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>>;
+
+    /// Encodes a macro's 52-byte Section-4 metadata descriptor.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] on an unknown trigger or step-count overflow.
+    fn encode_macro_metadata(
+        &self,
+        def: &MacroDefinition,
+        macro_slot: MacroSlot,
+    ) -> Result<Vec<u8>>;
 }

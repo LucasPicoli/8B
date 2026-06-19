@@ -56,6 +56,35 @@ pub fn take(buf: &[u8], off: usize, len: usize) -> Result<&[u8]> {
         .ok_or_else(|| Error::Decode(format!("read of {len}B at 0x{off:04X} out of range")))
 }
 
+/// Writes `src` into `buf` starting at `off`.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if `[off, off+src.len())` is out of bounds.
+pub fn put_slice(buf: &mut [u8], off: usize, src: &[u8]) -> Result<()> {
+    let end =
+        off.checked_add(src.len()).ok_or_else(|| Error::Decode("write offset overflow".into()))?;
+    buf.get_mut(off..end)
+        .ok_or_else(|| Error::Decode("write out of bounds".into()))?
+        .copy_from_slice(src);
+    Ok(())
+}
+
+/// Writes a little-endian `u16` at `off`.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if the 2-byte window is out of bounds.
+pub fn put_u16_le(buf: &mut [u8], off: usize, value: u16) -> Result<()> {
+    put_slice(buf, off, &value.to_le_bytes())
+}
+
+/// Writes a little-endian `u32` at `off`.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if the 4-byte window is out of bounds.
+pub fn put_u32_le(buf: &mut [u8], off: usize, value: u32) -> Result<()> {
+    put_slice(buf, off, &value.to_le_bytes())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
