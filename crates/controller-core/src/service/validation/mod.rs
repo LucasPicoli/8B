@@ -15,10 +15,8 @@ use serde_json::Value;
 
 use crate::error::{Error, Result};
 
-// NOTE: the `pub use profile::{validate_all_profiles, validate_profile};` re-export is
-// added by Task 3, when those functions exist. Task 1 shipped only the
-// shared types + schema infra below; `macros`/`profile` were empty stubs.
 pub use macros::validate_macro;
+pub use profile::{validate_all_profiles, validate_profile};
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.
 /// Mirrors the C++ `core::ValidationError`.
@@ -71,8 +69,6 @@ pub(crate) fn macro_validator() -> Result<&'static Validator> {
 ///
 /// # Errors
 /// Returns [`Error::Decode`] if the embedded schema fails to parse or compile.
-// Called from service::validation::profile (Task 3).
-#[allow(dead_code)]
 pub(crate) fn profile_validator() -> Result<&'static Validator> {
     static V: OnceLock<std::result::Result<Validator, String>> = OnceLock::new();
     compiled(&V, PROFILE_SCHEMA_JSON, "profile")
