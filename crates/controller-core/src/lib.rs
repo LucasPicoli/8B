@@ -6,6 +6,7 @@
 pub mod error;
 pub use error::{Error, ErrorCategory, Result};
 
+pub mod detect;
 pub mod device;
 pub mod devices;
 pub mod model;

@@ -20,6 +20,7 @@ nusb.workspace = true
 [dev-dependencies]
 serial_test.workspace = true
 insta.workspace = true
+tempfile = "3"
 
 [lints]
 workspace = true
