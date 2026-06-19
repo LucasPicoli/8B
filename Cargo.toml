@@ -16,6 +16,7 @@ nusb = "0.2"
 clap = { version = "4", features = ["derive"] }
 serial_test = "3"
 insta = { version = "1", features = ["json"] }
+jsonschema = { version = "0.40", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "deny"
