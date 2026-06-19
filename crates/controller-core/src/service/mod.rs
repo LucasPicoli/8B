@@ -4,3 +4,4 @@
 //! trait object, keeping hardware access behind an interface seam.
 
 pub mod read;
+pub mod validation;
