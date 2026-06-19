@@ -78,6 +78,51 @@ fn switch_byte_vectors_match_spec() {
 }
 
 #[test]
+fn compile_profile_embeds_macro_into_section4() {
+    use controller_core::model::{MacroDefinition, MacroSlot, MacroStep};
+    let profile = load("../../fixtures/pro3/xinput-slot1.profile.json");
+    let def = MacroDefinition {
+        name: "GoldenMac".into(),
+        mode: Mode::XInput,
+        trigger: "l1".into(),
+        repeat_count: 3,
+        interval_ms: 100,
+        steps: vec![MacroStep::default(); 3],
+        macro_slot: Some(0),
+    };
+    let blob = Pro3
+        .compile_profile(&profile, Slot::new(1).unwrap(), &[], std::slice::from_ref(&def))
+        .unwrap();
+    // The descriptor lands at Section-4 slot-1 macro-0 = 0x068C + 8 + 0*52 = 0x0694,
+    // byte-exact equal to the standalone encoder, AND decodes back through the verified decoder.
+    assert_eq!(
+        &blob[0x0694..0x0694 + 52],
+        Pro3.encode_macro_metadata(&def, MacroSlot::new(0).unwrap()).unwrap().as_slice()
+    );
+    let metas = Pro3.decode_macro_metadata(&blob, Slot::new(1).unwrap()).unwrap();
+    assert_eq!(metas.len(), 1);
+    assert_eq!(metas[0].name, "GoldenMac");
+    assert_eq!(metas[0].trigger, "l1");
+    assert_eq!(metas[0].repeat_count, 3);
+    assert_eq!(metas[0].interval_ms, 100);
+    assert_eq!(metas[0].macro_slot, Some(0));
+}
+
+#[test]
+fn switch_explicit_turbo_remap_overrides_screenshot_default() {
+    let mut profile = load("../../fixtures/pro3/switch-slot1.profile.json");
+    for m in &mut profile.button_mappings {
+        if m.source == "turbo" {
+            m.target = "l1".into();
+        }
+    }
+    let b = Pro3.compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
+    // turbo is source index 12; entry at 0x00E4 + 12*4 = 0x0114. Switch l1 encoding = 00 04 00 00,
+    // NOT the screenshot default 00 00 40 00.
+    assert_eq!(&b[0x00E4 + 48..0x00E4 + 52], &[0x00, 0x04, 0x00, 0x00]);
+}
+
+#[test]
 fn read_modify_write_preserves_other_slot() {
     // Compile a fresh slot-1 onto the real two-slot xinput.blob; slot-2 bytes must be untouched.
     let base = std::fs::read("../../fixtures/pro3/xinput.blob").unwrap();
