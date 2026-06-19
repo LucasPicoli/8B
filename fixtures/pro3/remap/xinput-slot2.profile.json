@@ -1,0 +1,123 @@
+{
+    "button_mappings": [
+        {
+            "source": "right face",
+            "target": "right face"
+        },
+        {
+            "source": "bottom face",
+            "target": "bottom face"
+        },
+        {
+            "source": "top face",
+            "target": "top face"
+        },
+        {
+            "source": "left face",
+            "target": "left face"
+        },
+        {
+            "source": "l1",
+            "target": "l1"
+        },
+        {
+            "source": "r1",
+            "target": "r1"
+        },
+        {
+            "source": "l2",
+            "target": "l2"
+        },
+        {
+            "source": "r2",
+            "target": "r2"
+        },
+        {
+            "source": "l3",
+            "target": "l3"
+        },
+        {
+            "source": "r3",
+            "target": "r3"
+        },
+        {
+            "source": "select/back",
+            "target": "disabled"
+        },
+        {
+            "source": "start/menu",
+            "target": "disabled"
+        },
+        {
+            "source": "turbo",
+            "target": "turbo"
+        },
+        {
+            "source": "home/guide",
+            "target": "home/guide"
+        },
+        {
+            "source": "d-pad up",
+            "target": "d-pad up"
+        },
+        {
+            "source": "d-pad down",
+            "target": "d-pad down"
+        },
+        {
+            "source": "d-pad left",
+            "target": "d-pad left"
+        },
+        {
+            "source": "d-pad right",
+            "target": "d-pad right"
+        },
+        {
+            "source": "rp",
+            "target": "top face"
+        },
+        {
+            "source": "lp",
+            "target": "disabled"
+        },
+        {
+            "source": "l4",
+            "target": "r1"
+        },
+        {
+            "source": "r4",
+            "target": "disabled"
+        }
+    ],
+    "device": "8bitdo-pro3",
+    "id": "xinput-slot-2-index-1",
+    "kind": "8bitdo.pro3.profile",
+    "macro_refs": [
+    ],
+    "mode": "xinput",
+    "name": "RemapX2",
+    "sticks": {
+        "invert_left_x": true,
+        "invert_left_y": false,
+        "invert_right_x": false,
+        "invert_right_y": true,
+        "left_max_pct": 100,
+        "left_min_pct": 0,
+        "right_max_pct": 100,
+        "right_min_pct": 0,
+        "swap_dpad_with_left_stick": false,
+        "swap_sticks": false
+    },
+    "triggers": {
+        "left_max_pct": 100,
+        "left_min_pct": 0,
+        "right_max_pct": 100,
+        "right_min_pct": 0,
+        "swap_triggers": false
+    },
+    "version": 1,
+    "vibration": {
+        "left_level": 5,
+        "right_level": 5
+    }
+}
