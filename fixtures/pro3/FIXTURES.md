@@ -3,16 +3,18 @@
 ## 1. Purpose and Provenance
 
 These fixtures are produced by `controller-core`'s Plan-2a encoders
-(`compile_profile` for remap profiles, `encode_macro` for macros). Each
-`.blob` and `.steps.bin` is the device-native byte representation; the
-corresponding `.json` is the canonical decoded (human-readable) form.
-Both are byte-exact against the C++ oracle and are verified by
-round-trip tests in `fixture_profiles.rs` and `fixture_macros.rs`.
+(`compile_profile` for remap profiles, `encode_macro_steps` and
+`encode_macro_metadata` for macros). Each `.blob` and `.steps.bin` is
+the device-native byte representation; the corresponding `.json` is the
+canonical decoded (human-readable) form. Both are byte-exact against the
+C++ oracle and are verified by round-trip tests in `fixture_profiles.rs`
+and `fixture_macros.rs`.
 
 To regenerate after changing an encoder, run:
 
 ```
-cargo test --workspace fixture
+cargo test -p controller-core --test fixture_profiles regenerate -- --ignored
+cargo test -p controller-core --test fixture_macros regenerate -- --ignored
 ```
 
 Independent validation is done by loading the device-native bytes into a

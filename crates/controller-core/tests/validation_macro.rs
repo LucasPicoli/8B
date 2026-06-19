@@ -142,3 +142,16 @@ fn duplicate_button_in_press_fails_schema() {
         set_step_buttons(make_valid_macro(), 0, json!(["bottom face", "bottom face"]), json!([]));
     assert!(!validate_macro(&m).unwrap().is_empty());
 }
+
+#[test]
+fn schema_failure_short_circuits_semantics() {
+    // Schema-invalid (unknown macro trigger) AND seeded with a press/release overlap
+    // that the semantic phase WOULD flag if it ran. Schema short-circuits, so the
+    // semantic overlap message must be absent.
+    let mut m = make_valid_macro();
+    m["trigger"] = json!("home/guide"); // not in the macro-trigger enum -> schema rejects
+    let m = set_step_buttons(m, 0, json!(["bottom face"]), json!(["bottom face"]));
+    let errors = validate_macro(&m).unwrap();
+    assert!(!errors.is_empty());
+    assert!(errors.iter().all(|e| !e.reason.contains("appears in both press and release")));
+}

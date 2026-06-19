@@ -175,6 +175,14 @@ fn canonical_xinput(id: &str) -> CanonicalProfile {
     }
 }
 
+#[test]
+fn macro_ref_with_nonexistent_path_is_still_valid() {
+    // Validation is pure (no file I/O): a macro_ref to a non-existent file stays valid.
+    let mut p = make_valid_xinput_profile();
+    p["macro_refs"] = json!([{ "trigger": "l1", "path": "macros/does-not-exist.json" }]);
+    assert!(validate_profile(&p).unwrap().valid);
+}
+
 fn summary_of(canonical: CanonicalProfile, slot: u8, index: u8) -> CanonicalProfileSummary {
     CanonicalProfileSummary {
         id: canonical.id.clone(),
