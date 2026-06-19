@@ -25,15 +25,17 @@ fn step(dur: u16, press: &[&str]) -> MacroStep {
 
 #[allow(clippy::too_many_lines)]
 fn build_macro_fixtures() -> Vec<Fixture> {
-    let all16 = [
+    // The 14 DIGITAL step buttons. l2/r2 are intentionally excluded: their
+    // STEP_BUTTONS masks (0x4000/0x8000) are the L2/R2 trigger-routing bits, so
+    // they are analog-only and never round-trip as digital button names. Their
+    // analog form is covered by the x-s3-m2-sticks-triggers fixture.
+    let digital_buttons = [
         "right face",
         "bottom face",
         "top face",
         "left face",
         "l1",
         "r1",
-        "l2",
-        "r2",
         "l3",
         "r3",
         "select/back",
@@ -69,7 +71,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
                 repeat_count: 2,
                 interval_ms: 200,
                 macro_slot: Some(1),
-                steps: vec![step(30, &all16)],
+                steps: vec![step(30, &digital_buttons)],
             },
         },
         Fixture {
@@ -108,7 +110,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
                 repeat_count: 255,
                 interval_ms: 1000,
                 macro_slot: Some(3),
-                steps: vec![step(40, &["l2"]), step(40, &["r2"])],
+                steps: vec![step(40, &["l1"]), step(40, &["r1"])],
             },
         },
         Fixture {
@@ -206,7 +208,7 @@ fn macro_steps_round_trip_to_committed_json() {
 }
 
 #[test]
-fn macro_metadata_round_trips_in_memory() {
+fn macro_metadata_descriptor_is_52_bytes_with_correct_step_count() {
     for f in build_macro_fixtures() {
         let slot = MacroSlot::new(f.def.macro_slot.unwrap()).unwrap();
         let desc = Pro3.encode_macro_metadata(&f.def, slot).unwrap();
@@ -235,7 +237,8 @@ fn regenerate() {
         if !rt.steps.is_empty() {
             rt.steps = Pro3.decode_macro_steps(&bytes, f.def.steps.len(), f.def.mode).unwrap();
         }
-        let json = serde_json::to_vec_pretty(&macro_to_canonical_json(&rt)).unwrap();
+        let mut json = serde_json::to_vec_pretty(&macro_to_canonical_json(&rt)).unwrap();
+        json.push(b'\n');
         std::fs::write(format!("{DIR}/{}.json", f.stem), json).unwrap();
     }
 }
