@@ -1,23 +1,28 @@
-//! Pro 3 profile decoder — `map_profile`.
+//! Pro 3 profile decoder (`map_profile`) and compiler (`compile_profile`).
 //!
-//! A faithful port of `core::ProfileMapper::mapProfile` from
-//! `src/core/profile_mapper.cpp`. Decodes a raw 2348-byte readback blob into a
-//! [`CanonicalProfileSummary`]. Verified byte-for-byte against golden vectors
-//! captured from live hardware (`tests/golden_profile_decode.rs`).
+//! The decoder is a faithful port of `core::ProfileMapper::mapProfile` from
+//! `src/core/profile_mapper.cpp`. The compiler is a faithful port of
+//! `core::ProfileCompiler::compile` from `src/core/profile_compiler.cpp`.
+//! Both are verified byte-for-byte against golden vectors captured from live
+//! hardware and the C++ reference encoder (`tests/golden_profile_compile.rs`,
+//! `tests/golden_profile_decode.rs`).
 //!
-//! All variable-offset reads go through the bounds-checked [`crate::protocol::bytes`]
-//! accessors so the decoder is panic-free even on truncated or corrupted input.
+//! All variable-offset reads/writes go through the bounds-checked
+//! [`crate::protocol::bytes`] accessors so both codec paths are panic-free
+//! even on truncated or corrupted input.
 
+use crate::devices::pro3::macros::encode_macro_metadata;
 use crate::devices::pro3::tables;
 use crate::devices::pro3::tables::ButtonEncodingEntry;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::{
-    ButtonMapping, CanonicalProfile, CanonicalProfileSummary, Mode, RawProfilePayload, Sticks,
-    Triggers, TriggersAnalog, TriggersSwitch, Vibration,
+    ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, Mode,
+    RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
 };
-use crate::protocol::bytes::{read_u32_le, read_u8, take};
-use crate::protocol::text::decode_utf16be_name;
+use crate::protocol::bytes::{put_slice, put_u16_le, put_u32_le, read_u32_le, read_u8, take};
+use crate::protocol::crc16::crc16_modbus;
+use crate::protocol::text::{decode_utf16be_name, encode_utf16be_name};
 
 /// Detected blob layout: the device stores blobs shifted −2 from canonical.
 #[derive(Debug, Clone, Copy)]
@@ -432,6 +437,388 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
         source_profile_index: raw.source_profile_index,
         canonical,
     })
+}
+
+// ============================================================================
+// Compiler — `compile_profile` (faithful inverse of `map_profile`)
+// ============================================================================
+
+// Device-native (shifted −2) layout offsets used by the compiler.
+// These are the offsets the device expects in the blob it receives.
+// Button-map entries and Section-4 macros are the ONLY exceptions: they
+// live at the canonical (non-shifted) offsets in both directions.
+
+/// Device-native base of the slot-flag/marker blocks (canonical `FLAG_BASE_OFFSET` − 2).
+const DEV_FLAG_BASE: usize = 0x0000;
+/// Stride between flag blocks (same as canonical).
+const DEV_FLAG_STRIDE: usize = tables::FLAG_STRIDE;
+
+/// Device-native offset of the LE16 gamepad-mode field (canonical `MODE_OFFSET` − 2).
+const DEV_MODE_OFFSET: usize = 0x0010;
+/// Device-native base of the per-slot UTF-16BE name fields (canonical `NAME_BASE_OFFSET` − 2).
+const DEV_NAME_BASE: usize = 0x0014;
+
+/// Device-native base of the per-slot vibration-intensity section (canonical
+/// `VIBRATION_SECTION_OFFSET` − 2).
+const DEV_VIB_BASE: usize = 0x0074;
+
+/// Device-native base of the per-slot stick-flag block (canonical − 2).
+const DEV_STICK_FLAG_BASE: usize = 0x0098;
+/// Device-native base of the per-slot stick-data block (canonical `STICK_DATA_OFFSET` − 2).
+const DEV_STICK_DATA_BASE: usize = 0x009C;
+
+/// Device-native base of the per-slot trigger-flag block (canonical − 2).
+const DEV_TRIG_FLAG_BASE: usize = 0x00B0;
+/// Device-native base of the per-slot trigger-data block (canonical `TRIGGER_DATA_OFFSET` − 2).
+const DEV_TRIG_DATA_BASE: usize = 0x00B4;
+
+/// Device-native offset of the Section-3 global marker (canonical `0x00CA` − 2).
+const DEV_SECT3_MARKER: usize = 0x00C8;
+/// Device-native base of the per-slot stick/dpad flags (canonical `SLOT_FLAGS_OFFSET` − 2).
+const DEV_FLAGS_BASE: usize = 0x00CC;
+
+/// Device-native base of the per-slot button-map sub-marker (canonical `0x00E2` − 2).
+const DEV_BTN_MARKER_BASE: usize = 0x00E0;
+/// Button-map entries: NOT shifted (canonical `BUTTON_MAP_BASE_OFFSET` = `0x00E4`).
+const DEV_BTN_DATA_BASE: usize = tables::BUTTON_MAP_BASE_OFFSET; // 0x00E4
+
+/// Section-4 macro base: NOT shifted (canonical `SECTION4_BASE_OFFSET` = `0x068C`).
+const DEV_SECT4_BASE: usize = tables::SECTION4_BASE_OFFSET; // 0x068C
+
+/// Device-native base of Section 5 vibration motor range (canonical `0x0916` − 2).
+const DEV_SECT5_BASE: usize = 0x0914;
+
+/// Device-native offset of the CRC field (canonical `0x000E` − 2).
+const DEV_CRC_OFFSET: usize = 0x000C;
+
+/// Mode LE16 encoding: Switch.
+const MODE_SWITCH: u16 = 0x0000;
+/// Mode LE16 encoding: `DInput`.
+const MODE_DINPUT: u16 = 0x0001;
+/// Mode LE16 encoding: `XInput`.
+const MODE_XINPUT: u16 = 0x0003;
+
+/// Converts a percent (0..=100) to the stick raw byte using `qRound` semantics
+/// (round-half-up for non-negative values, clamp to `0..=STICK_RAW_MAX`).
+fn percent_to_stick_byte(pct: i32) -> u8 {
+    let clamped = pct.clamp(0, 100);
+    // qRound: round(clamped * 128 / 100) — use f64 to match C++ qRound(double).
+    let raw = (f64::from(clamped) * f64::from(tables::STICK_RAW_MAX) / 100.0 + 0.5).floor();
+    // Safe: raw in [0.0, 128.0], representable as u8.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let byte = raw.clamp(0.0, f64::from(tables::STICK_RAW_MAX)) as u8;
+    byte
+}
+
+/// Converts a percent (0..=100) to the trigger raw byte using `qRound` semantics
+/// (round-half-up, clamp to `0..=TRIGGER_RAW_MAX`).
+fn percent_to_trigger_byte(pct: i32) -> u8 {
+    let clamped = pct.clamp(0, 100);
+    let raw = (f64::from(clamped) * f64::from(tables::TRIGGER_RAW_MAX) / 100.0 + 0.5).floor();
+    // Safe: raw in [0.0, 255.0], representable as u8.
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let byte = raw.clamp(0.0, f64::from(tables::TRIGGER_RAW_MAX)) as u8;
+    byte
+}
+
+/// Maps a canonical control name to its 0-based index in the encoding tables.
+///
+/// Returns `usize::MAX` (sentinel for "not found") rather than panicking.
+fn control_name_to_index(name: &str) -> usize {
+    encodings_for(Mode::XInput).iter().position(|e| e.source == name).unwrap_or(usize::MAX)
+}
+
+/// Picks the write-mode encoding table for `mode`.
+const fn encodings_for(mode: Mode) -> &'static [tables::ButtonEncodingEntry] {
+    match mode {
+        Mode::Switch => &tables::SWITCH_ENCODINGS,
+        _ => &tables::XINPUT_ENCODINGS,
+    }
+}
+
+/// Returns the on-wire write encoding for a target control name.
+///
+/// The variant set wins for `XInput` face buttons (right/left/bottom face carry
+/// alternate encodings that the official app always writes when any remap is
+/// active). `disabled`/`screenshot` are handled by the caller's remap logic.
+///
+/// # Errors
+/// Returns [`Error::Validation`] when `name` is not in the mode's encoding table.
+fn write_encoding(name: &str, mode: Mode) -> Result<[u8; 4]> {
+    encodings_for(mode)
+        .iter()
+        .find(|e| e.source == name)
+        .map(|e| e.variant_identity_encodings.first().copied().unwrap_or(e.encoding))
+        .ok_or_else(|| Error::Validation(format!("unknown target control: {name}")))
+}
+
+/// Compiles a [`CanonicalProfile`] into the device-native 2348-byte blob.
+///
+/// The compiler is a faithful, section-by-section port of
+/// `core::ProfileCompiler::compile` from `src/core/profile_compiler.cpp`.
+/// The produced blob is shifted −2 from the canonical layout (no 2-byte prefix),
+/// with button-map entries (`0x00E4`) and Section-4 macros (`0x068C`) as the
+/// only non-shifted exceptions.
+///
+/// `base_blob` is used as the read-modify-write baseline when its length equals
+/// [`tables::EXPECTED_PROFILE_SIZE`]; otherwise a zeroed blob is used. Only
+/// the sections belonging to `target_slot` are overwritten; other slots are
+/// preserved as-is from `base_blob`.
+///
+/// `macros` carries the resolved [`MacroDefinition`] items for the target slot.
+///
+/// # Errors
+/// Returns [`Error::Validation`] on an unknown control/trigger name, an
+/// out-of-range slot, or an encoding overflow.
+// The function is a faithful section-by-section port of a single C++ function;
+// splitting it would hurt readability more than it helps.
+#[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
+pub fn compile_profile(
+    profile: &CanonicalProfile,
+    target_slot: Slot,
+    base_blob: &[u8],
+    macros: &[MacroDefinition],
+) -> Result<Vec<u8>> {
+    // Start from base (read-modify-write) or a fresh zeroed buffer.
+    let mut buf = if base_blob.len() == tables::EXPECTED_PROFILE_SIZE {
+        base_blob.to_vec()
+    } else {
+        vec![0u8; tables::EXPECTED_PROFILE_SIZE]
+    };
+
+    let s = target_slot.get();
+    let idx = usize::from(s - 1);
+
+    // --- Section 0: flags, mode, name ---
+
+    // Active-slot marker at the target flag block (device-native, shifted −2).
+    let flag_off = DEV_FLAG_BASE + idx * DEV_FLAG_STRIDE;
+    put_slice(&mut buf, flag_off, &tables::SLOT_MARKER)?;
+
+    // Mode LE16.
+    let mode_enc = match profile.mode {
+        Mode::Switch => MODE_SWITCH,
+        Mode::DInput => MODE_DINPUT,
+        Mode::XInput => MODE_XINPUT,
+    };
+    put_u16_le(&mut buf, DEV_MODE_OFFSET, mode_enc)?;
+
+    // UTF-16BE name into the per-slot field.
+    let name_off = DEV_NAME_BASE + idx * tables::NAME_STRIDE;
+    let name_bytes = encode_utf16be_name(&profile.name, tables::NAME_BYTES);
+    put_slice(&mut buf, name_off, &name_bytes)?;
+
+    // --- Section 1: vibration intensity ---
+
+    let vib_off = DEV_VIB_BASE + idx * tables::VIBRATION_SECTION_STRIDE;
+    put_slice(&mut buf, vib_off, &tables::SLOT_MARKER)?;
+
+    // Vibration float = clamp(level, 0, 5) / 5.0 written as IEEE 754 LE.
+    // The i32 value is clamped to 0..=5 before the cast, so cast is exact.
+    #[allow(clippy::cast_precision_loss)]
+    let left_float = (profile.vibration.left_level.clamp(0, tables::VIBRATION_LEVEL_MAX) as f32)
+        / tables::VIBRATION_LEVEL_SCALE;
+    #[allow(clippy::cast_precision_loss)]
+    let right_float = (profile.vibration.right_level.clamp(0, tables::VIBRATION_LEVEL_MAX) as f32)
+        / tables::VIBRATION_LEVEL_SCALE;
+    put_u32_le(&mut buf, vib_off + 4, left_float.to_bits())?;
+    put_u32_le(&mut buf, vib_off + 8, right_float.to_bits())?;
+
+    // --- Section 2A: stick ranges ---
+
+    let stick_flag_off = DEV_STICK_FLAG_BASE + idx * tables::SLOT_DATA_STRIDE;
+    put_slice(&mut buf, stick_flag_off, &tables::SLOT_MARKER)?;
+
+    let stick_data_off = DEV_STICK_DATA_BASE + idx * tables::SLOT_DATA_STRIDE;
+    let sticks = &profile.sticks;
+    put_slice(
+        &mut buf,
+        stick_data_off,
+        &[
+            percent_to_stick_byte(sticks.left_min_pct),
+            percent_to_stick_byte(sticks.left_max_pct),
+            percent_to_stick_byte(sticks.right_min_pct),
+            percent_to_stick_byte(sticks.right_max_pct),
+        ],
+    )?;
+
+    // --- Section 2B: trigger ranges ---
+
+    let trig_flag_off = DEV_TRIG_FLAG_BASE + idx * tables::SLOT_DATA_STRIDE;
+    put_slice(&mut buf, trig_flag_off, &tables::SLOT_MARKER)?;
+
+    let trig_data_off = DEV_TRIG_DATA_BASE + idx * tables::SLOT_DATA_STRIDE;
+    let trig_bytes: [u8; 4] = match &profile.triggers {
+        Triggers::Analog(a) => [
+            percent_to_trigger_byte(a.left_min_pct),
+            percent_to_trigger_byte(a.left_max_pct),
+            percent_to_trigger_byte(a.right_min_pct),
+            percent_to_trigger_byte(a.right_max_pct),
+        ],
+        Triggers::Switch(sw) => [
+            percent_to_trigger_byte(sw.left_threshold_pct),
+            0xFF,
+            percent_to_trigger_byte(sw.right_threshold_pct),
+            0xFF,
+        ],
+    };
+    put_slice(&mut buf, trig_data_off, &trig_bytes)?;
+
+    // --- Section 3: stick/dpad flags + button map ---
+
+    // Global Section-3 marker (always at device-native 0x00C8).
+    put_slice(&mut buf, DEV_SECT3_MARKER, &tables::SLOT_MARKER)?;
+
+    // Per-slot flags (stride 8: [4B marker][2B flags][2B pad]).
+    let slot_flags_off = DEV_FLAGS_BASE + idx * tables::SLOT_DATA_STRIDE;
+    let sticks = &profile.sticks;
+    let mut flags0: u8 = 0;
+    let mut flags1: u8 = 0;
+    if sticks.invert_left_x {
+        flags0 |= 0x01;
+    }
+    if sticks.invert_left_y {
+        flags0 |= 0x02;
+    }
+    if sticks.invert_right_x {
+        flags0 |= 0x04;
+    }
+    if sticks.invert_right_y {
+        flags0 |= 0x08;
+    }
+    if sticks.swap_sticks {
+        flags0 |= 0x10;
+    }
+    let swap_triggers = match &profile.triggers {
+        Triggers::Analog(a) => a.swap_triggers,
+        Triggers::Switch(sw) => sw.swap_triggers,
+    };
+    if swap_triggers {
+        flags0 |= 0x80;
+    }
+    if sticks.swap_dpad_with_left_stick {
+        flags1 |= 0x01;
+    }
+    put_slice(&mut buf, slot_flags_off, &[flags0, flags1])?;
+
+    // Inter-slot marker after each slot's flags (slots 1 and 2 only).
+    if s < 3 {
+        put_slice(&mut buf, slot_flags_off + 4, &tables::SLOT_MARKER)?;
+    }
+
+    // Button-map sub-marker (device-native 0x00E0 + idx*0x5C).
+    let btn_marker_off = DEV_BTN_MARKER_BASE + idx * tables::BUTTON_MAP_SLOT_STRIDE;
+    put_slice(&mut buf, btn_marker_off, &tables::SLOT_MARKER)?;
+
+    // Build remap-override lookup: source_index → 4-byte wire encoding.
+    // Faithful port of C++ `populateSection3` inner loop.
+    let mode = profile.mode;
+    let mut remap_overrides: Vec<Option<[u8; 4]>> = vec![None; tables::SOURCE_BUTTON_COUNT];
+    for mapping in &profile.button_mappings {
+        let source_idx = control_name_to_index(&mapping.source);
+        if source_idx >= tables::SOURCE_BUTTON_COUNT {
+            continue;
+        }
+        let enc = if mapping.target == "disabled" {
+            tables::NULL_ENCODING
+        } else if mapping.target == "screenshot" && mode == Mode::Switch {
+            [0x00, 0x00, 0x40, 0x00]
+        } else if mapping.target == "screenshot" {
+            // XInput: "screenshot" is not a valid XInput target; treat as identity.
+            write_encoding(&mapping.source, mode)?
+        } else {
+            write_encoding(&mapping.target, mode)?
+        };
+        // Remap for home/guide is silently forced to identity (encoder parity with
+        // the decoder which always returns identity for index 13).
+        let forced = if source_idx == tables::HOME_GUIDE_INDEX {
+            Some(write_encoding("home/guide", mode)?)
+        } else {
+            Some(enc)
+        };
+        if let Some(slot) = remap_overrides.get_mut(source_idx) {
+            *slot = forced;
+        }
+    }
+
+    // Switch turbo default override (index 12): screenshot encoding when not remapped.
+    let switch_turbo_default: Option<[u8; 4]> =
+        if mode == Mode::Switch { Some([0x00, 0x00, 0x40, 0x00]) } else { None };
+
+    // Write 22 button entries (button-map section is NOT shifted — canonical 0x00E4).
+    let entry_base = DEV_BTN_DATA_BASE + idx * tables::BUTTON_MAP_SLOT_STRIDE;
+    for i in 0..tables::SOURCE_BUTTON_COUNT {
+        let entry_off = entry_base + i * tables::BUTTON_ENTRY_BYTES;
+        let enc = remap_overrides.get(i).copied().flatten().unwrap_or_else(|| {
+            if i == 12 {
+                // Turbo (index 12): apply switch turbo default when in Switch mode.
+                switch_turbo_default.unwrap_or_else(|| {
+                    write_encoding("turbo", mode).unwrap_or(tables::NULL_ENCODING)
+                })
+            } else {
+                write_encoding(encodings_for(mode).get(i).map_or("", |e| e.source), mode)
+                    .unwrap_or(tables::NULL_ENCODING)
+            }
+        });
+        put_slice(&mut buf, entry_off, &enc)?;
+    }
+
+    // --- Section 4: macro metadata ---
+
+    let sect4_base = DEV_SECT4_BASE + idx * tables::SECTION4_SLOT_STRIDE;
+    put_slice(&mut buf, sect4_base, &tables::SLOT_MARKER)?;
+    put_u32_le(
+        &mut buf,
+        sect4_base + 4,
+        u32::try_from(tables::MACRO_SLOTS_PER_PROFILE)
+            .map_err(|_| Error::Validation("macro slot count overflow".into()))?,
+    )?;
+    // Zero the descriptor region (208 bytes = 4 × 52).
+    let desc_region_size = tables::MACRO_SLOTS_PER_PROFILE * tables::MACRO_DESCRIPTOR_SIZE;
+    put_slice(
+        &mut buf,
+        sect4_base + tables::SECTION4_RECORD_HEADER_SIZE,
+        &vec![0u8; desc_region_size],
+    )?;
+    // Write each provided macro descriptor into its slot.
+    for m in macros {
+        let slot_idx = usize::from(m.macro_slot.unwrap_or(0));
+        if slot_idx >= tables::MACRO_SLOTS_PER_PROFILE {
+            continue;
+        }
+        let macro_slot = MacroSlot::new(
+            u8::try_from(slot_idx)
+                .map_err(|_| Error::Validation("macro slot index overflow".into()))?,
+        )?;
+        let descriptor = encode_macro_metadata(m, macro_slot)?;
+        let desc_off = sect4_base
+            + tables::SECTION4_RECORD_HEADER_SIZE
+            + slot_idx * tables::MACRO_DESCRIPTOR_SIZE;
+        put_slice(&mut buf, desc_off, &descriptor)?;
+    }
+
+    // --- Section 5: vibration motor range ---
+
+    // Stride for section 5 is 8 bytes per slot (not 216).
+    let sect5_off = DEV_SECT5_BASE + idx * 8;
+    put_slice(&mut buf, sect5_off, &tables::SLOT_MARKER)?;
+    // Default motor range: L_start=1, L_end=100, R_start=1, R_end=100.
+    // The last byte may be truncated by the 2348-byte buffer end — put_slice handles this via
+    // its bounds check; we use individual puts to only write what fits.
+    let range_off = sect5_off + 4;
+    put_slice(&mut buf, range_off, &[1u8, 100u8])?;
+    // R range: only write if it fits within EXPECTED_PROFILE_SIZE.
+    if range_off + 4 <= tables::EXPECTED_PROFILE_SIZE {
+        put_slice(&mut buf, range_off + 2, &[1u8, 100u8])?;
+    }
+
+    // --- CRC (final step) ---
+    // Zero the 4-byte CRC field, compute CRC-16/MODBUS over whole buffer, write LE16.
+    put_u32_le(&mut buf, DEV_CRC_OFFSET, 0)?;
+    let crc = crc16_modbus(&buf);
+    put_u16_le(&mut buf, DEV_CRC_OFFSET, crc)?;
+
+    Ok(buf)
 }
 
 #[cfg(test)]

@@ -2,7 +2,8 @@
 
 use crate::error::Result;
 use crate::model::{
-    CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode, RawProfilePayload, Slot,
+    CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
+    RawProfilePayload, Slot,
 };
 
 /// A supported USB (vendor, product) pair.
@@ -90,5 +91,22 @@ pub trait ProtocolCodec {
         &self,
         def: &MacroDefinition,
         macro_slot: MacroSlot,
+    ) -> Result<Vec<u8>>;
+
+    /// Compiles a canonical profile into the device-native 2348-byte blob.
+    ///
+    /// `base_blob` (when 2348 bytes) is the read-modify-write baseline whose
+    /// non-target slots are preserved; otherwise a fresh zeroed blob is used.
+    /// `macros` are already-resolved Section-4 descriptors for the target slot.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] on an unknown control/trigger name, an
+    /// out-of-range slot, or an encoding overflow.
+    fn compile_profile(
+        &self,
+        profile: &CanonicalProfile,
+        target_slot: Slot,
+        base_blob: &[u8],
+        macros: &[MacroDefinition],
     ) -> Result<Vec<u8>>;
 }
