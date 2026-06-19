@@ -44,7 +44,7 @@ pub fn build_upload_packet(offset: u16, chunk: &[u8], payload_offset: usize) -> 
     p[1] = 0x04;
     p[2] = 0x02;
     p[3] = 0x00;
-    // chunk size as LE16 at offset 6; len <= 46 (PACKET_LEN - 18), fits in u16
+    // chunk size as LE16 at offset 6; len <= PACKET_LEN - payload_offset (<= 48), fits in u16
     #[allow(clippy::cast_possible_truncation)]
     let len_bytes = (len as u16).to_le_bytes();
     p[6] = len_bytes[0];
