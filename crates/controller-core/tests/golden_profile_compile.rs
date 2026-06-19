@@ -81,7 +81,7 @@ fn switch_byte_vectors_match_spec() {
 fn read_modify_write_preserves_other_slot() {
     // Compile a fresh slot-1 onto the real two-slot xinput.blob; slot-2 bytes must be untouched.
     let base = std::fs::read("../../fixtures/pro3/xinput.blob").unwrap();
-    let p = load("../../fixtures/pro3/xinput-slot2.profile.json"); // arbitrary slot-1 payload
+    let p = load("../../fixtures/pro3/xinput-slot2.profile.json"); // slot-2 fixture compiled into slot-1 (exercises that any profile compiles into any slot)
     let out = Pro3.compile_profile(&p, Slot::new(1).unwrap(), &base, &[]).unwrap();
     // Slot-2 name field (0x0034) and slot-2 button map (0x0140 region) are preserved verbatim.
     assert_eq!(&out[0x0034..0x0054], &base[0x0034..0x0054]);
