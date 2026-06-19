@@ -102,10 +102,14 @@ fn read_blob_chunks(session: &mut Session, payload_offset: usize) -> Result<Vec<
         let chunk_size = (PROFILE_SIZE - offset).min(UPLOAD_CHUNK);
         let filler = vec![0xCCu8; chunk_size];
         #[allow(clippy::cast_possible_truncation)]
-        let pkt = build_upload_packet(offset as u16, &filler, payload_offset);
+        let offset_u16 = offset as u16;
+        #[allow(clippy::cast_possible_truncation)]
+        let chunk_size_u16 = chunk_size as u16;
+        let pkt = build_upload_packet(offset_u16, &filler, payload_offset);
         let resp = session.send_recv(&pkt)?;
-        let chunk = decode_upload_response(&resp)?;
-        blob.extend_from_slice(&chunk.payload);
+        // Validate the echoed offset/size against what we requested (matches C++).
+        let payload = decode_upload_response(&resp, offset_u16, chunk_size_u16)?;
+        blob.extend_from_slice(&payload);
         offset += chunk_size;
     }
     if blob.len() != PROFILE_SIZE {

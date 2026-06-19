@@ -35,7 +35,8 @@ pub const fn build_slot_select(slot_select_value: u8) -> [u8; PACKET_LEN] {
 /// Builds a `PROFILE_UPLOAD` request for `chunk` at `offset`.
 ///
 /// `payload_offset` is 18 (XInput/Switch) or 16 (`DInput`). CRC-16/MODBUS is taken
-/// over the canonical payload window `[18..18+len]`.
+/// over the payload window `[payload_offset..payload_offset+len]` (the 0xCC bytes),
+/// matching C++ `buildUploadPacket`.
 #[must_use]
 pub fn build_upload_packet(offset: u16, chunk: &[u8], payload_offset: usize) -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];
@@ -62,38 +63,49 @@ pub fn build_upload_packet(offset: u16, chunk: &[u8], payload_offset: usize) -> 
             dst.copy_from_slice(src);
         }
     }
-    // CRC-16/MODBUS over canonical window [18..18+len]
-    let crc = p.get(18..18 + len).map_or_else(|| crc16_modbus(&[]), crc16_modbus);
+    // CRC-16/MODBUS over the 0xCC payload region at `payload_offset` (NOT canonical 18).
+    // C++ `buildUploadPacket` CRCs `uploadPayload` written at `hostPayloadOffset` — for
+    // DInput (offset 16) this differs from [18..]. (The WRITE builder uses canonical 18;
+    // the UPLOAD/read builder uses payload_offset. Keep them distinct.)
+    let crc =
+        p.get(payload_offset..payload_offset + len).map_or_else(|| crc16_modbus(&[]), crc16_modbus);
     let crc_bytes = crc.to_le_bytes();
     p[8] = crc_bytes[0];
     p[9] = crc_bytes[1];
     p
 }
 
-/// One decoded `PROFILE_UPLOAD` response chunk.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UploadChunk {
-    /// Echoed payload size.
-    pub size: u16,
-    /// Echoed blob offset.
-    pub offset: u16,
-    /// Extracted payload bytes.
-    pub payload: Vec<u8>,
-}
-
-/// Decodes a `PROFILE_UPLOAD` response (header `02 04 04`, payload at `[18..18+size]`).
+/// Decodes a `PROFILE_UPLOAD` response and extracts the payload chunk.
+///
+/// Validates (matching C++ `decodeUploadChunk`): `resp.len() >= 64`; header
+/// `[0..3] == [02 04 04]`; command echo `[4] == 0x02`; echoed size at `[6..8]`
+/// equals `expected_chunk_size`; echoed offset at `[14..16]` equals
+/// `expected_offset`. Returns `resp[18..18+echo_size]`.
 ///
 /// # Errors
-/// Returns [`Error::Decode`] if the header is wrong or the payload window is short.
-pub fn decode_upload_response(resp: &[u8]) -> Result<UploadChunk> {
+/// Returns [`Error::Decode`] on any header/echo mismatch or truncated payload.
+pub fn decode_upload_response(
+    resp: &[u8],
+    expected_offset: u16,
+    expected_chunk_size: u16,
+) -> Result<Vec<u8>> {
     let header = take(resp, 0, 3)?;
-    if header != [0x02, 0x04, 0x04] {
+    if header != [0x02, 0x04, 0x04] || take(resp, 4, 1)? != [0x02] {
         return Err(Error::Decode("unexpected upload response header".to_owned()));
     }
-    let size = read_u16_le(resp, 6)?;
-    let offset = read_u16_le(resp, 14)?;
-    let payload = take(resp, 18, size as usize)?.to_vec();
-    Ok(UploadChunk { size, offset, payload })
+    let echo_size = read_u16_le(resp, 6)?;
+    let echo_offset = read_u16_le(resp, 14)?;
+    if echo_offset != expected_offset {
+        return Err(Error::Decode(format!(
+            "upload echo offset mismatch: expected 0x{expected_offset:04X}, got 0x{echo_offset:04X}"
+        )));
+    }
+    if echo_size != expected_chunk_size {
+        return Err(Error::Decode(format!(
+            "upload echo size mismatch: expected {expected_chunk_size}, got {echo_size}"
+        )));
+    }
+    Ok(take(resp, 18, usize::from(echo_size))?.to_vec())
 }
 
 /// Builds a `QUERY_STATUS` (`CMD 0x07`) packet.
@@ -209,6 +221,20 @@ mod tests {
         assert_eq!(u16::from_le_bytes([pkt[6], pkt[7]]), 45); // chunk size
         assert_eq!(&pkt[10..12], &[0x2C, 0x09]); // profile sig
         assert_eq!(&pkt[18..18 + 45], &chunk); // payload at offset 18
+                                               // CRC over the 0xCC payload region [18..63].
+        assert_eq!(u16::from_le_bytes([pkt[8], pkt[9]]), crc16_modbus(&[0xCCu8; 45]));
+    }
+    #[test]
+    fn upload_packet_dinput_crc_is_over_payload_offset() {
+        // DInput payload_offset = 16. CRC must be over the 0xCC bytes at [16..61]
+        // (all 0xCC), NOT the canonical [18..63] (which would include 2 trailing 0x00).
+        let chunk = [0xCCu8; 45];
+        let pkt = build_upload_packet(0, &chunk, 16);
+        assert_eq!(&pkt[16..16 + 45], &chunk); // payload at offset 16
+        assert_eq!(u16::from_le_bytes([pkt[8], pkt[9]]), crc16_modbus(&[0xCCu8; 45]));
+        // And it must NOT equal the (buggy) canonical-window CRC, which mixes in NULs.
+        let canonical = crc16_modbus(&pkt[18..18 + 45]);
+        assert_ne!(u16::from_le_bytes([pkt[8], pkt[9]]), canonical);
     }
     #[test]
     fn decode_response_extracts_payload() {
@@ -217,8 +243,26 @@ mod tests {
         resp[6..8].copy_from_slice(&4u16.to_le_bytes()); // echo size
         resp[14..16].copy_from_slice(&8u16.to_le_bytes()); // echo offset
         resp[18..22].copy_from_slice(&[1, 2, 3, 4]);
-        let c = decode_upload_response(&resp).unwrap();
-        assert_eq!((c.size, c.offset, c.payload.as_slice()), (4, 8, &[1, 2, 3, 4][..]));
+        let payload = decode_upload_response(&resp, 8, 4).unwrap();
+        assert_eq!(payload.as_slice(), &[1, 2, 3, 4][..]);
+    }
+    #[test]
+    fn decode_response_rejects_wrong_command_echo() {
+        let mut resp = vec![0u8; 64];
+        // header ok but byte[4] != 0x02 (e.g. a slot-select ack).
+        resp[0..5].copy_from_slice(&[0x02, 0x04, 0x04, 0x00, 0x14]);
+        resp[6..8].copy_from_slice(&4u16.to_le_bytes());
+        resp[14..16].copy_from_slice(&8u16.to_le_bytes());
+        assert!(decode_upload_response(&resp, 8, 4).is_err());
+    }
+    #[test]
+    fn decode_response_rejects_echo_offset_or_size_mismatch() {
+        let mut resp = vec![0u8; 64];
+        resp[0..5].copy_from_slice(&[0x02, 0x04, 0x04, 0x00, 0x02]);
+        resp[6..8].copy_from_slice(&4u16.to_le_bytes());
+        resp[14..16].copy_from_slice(&8u16.to_le_bytes());
+        assert!(decode_upload_response(&resp, 99, 4).is_err()); // offset mismatch
+        assert!(decode_upload_response(&resp, 8, 45).is_err()); // size mismatch
     }
 
     #[test]
