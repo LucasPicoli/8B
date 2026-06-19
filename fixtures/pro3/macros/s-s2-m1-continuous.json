@@ -1,0 +1,33 @@
+{
+  "device": "8bitdo-pro3",
+  "mode": "switch",
+  "name": "Continuous",
+  "repeat": {
+    "count": 4294967295,
+    "interval_ms": 16
+  },
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "right face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 30
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 30
+    }
+  ],
+  "trigger": "r2",
+  "version": 1
+}

@@ -1,0 +1,43 @@
+{
+  "device": "8bitdo-pro3",
+  "mode": "xinput",
+  "name": "SticksTrig",
+  "repeat": {
+    "count": 1,
+    "interval_ms": 0
+  },
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        },
+        "left_stick": {
+          "x": 200,
+          "y": 30
+        },
+        "triggers": {
+          "left": 255,
+          "right": 128
+        }
+      },
+      "duration_ms": 100
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        },
+        "right_stick": {
+          "x": 64,
+          "y": 192
+        }
+      },
+      "duration_ms": 0
+    }
+  ],
+  "trigger": "r4",
+  "version": 1
+}

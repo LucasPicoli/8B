@@ -1,0 +1,48 @@
+{
+  "device": "8bitdo-pro3",
+  "mode": "xinput",
+  "name": "Buttons",
+  "repeat": {
+    "count": 1,
+    "interval_ms": 0
+  },
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 50
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "top face",
+            "r1"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 100
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "d-pad up",
+            "l1"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 0
+    }
+  ],
+  "trigger": "rp",
+  "version": 1
+}
