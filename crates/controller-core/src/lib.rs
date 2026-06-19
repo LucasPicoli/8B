@@ -11,6 +11,7 @@ pub mod device;
 pub mod devices;
 pub mod model;
 pub mod protocol;
+pub mod service;
 pub mod transport;
 
 /// Returns the crate version string.
