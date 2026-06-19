@@ -1,6 +1,8 @@
 /target
 **/*.rs.bk
 
-# Agent/planning docs — kept local, never committed
+# Agent/planning docs — kept local, never committed.
+# Tracked privately in the .private/ overlay repo (github.com/LucasPicoli/8B-Private).
 AGENTS.md
 /docs/
+/.private/
