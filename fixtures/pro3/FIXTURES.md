@@ -116,7 +116,7 @@ etc.) refer to physical position, not the letter label.
 | invert_right_x       | false |
 | invert_right_y       | false |
 | swap_sticks          | false |
-| swap_dpad_with_left  | false |
+| swap_dpad_with_left_stick | false |
 
 #### Triggers
 
@@ -182,7 +182,7 @@ etc.) refer to physical position, not the letter label.
 | invert_right_x       | false |
 | invert_right_y       | true  |
 | swap_sticks          | false |
-| swap_dpad_with_left  | false |
+| swap_dpad_with_left_stick | false |
 
 #### Triggers
 
@@ -248,7 +248,7 @@ etc.) refer to physical position, not the letter label.
 | invert_right_x       | false |
 | invert_right_y       | false |
 | swap_sticks          | true  |
-| swap_dpad_with_left  | false |
+| swap_dpad_with_left_stick | false |
 
 #### Triggers
 
@@ -314,7 +314,7 @@ etc.) refer to physical position, not the letter label.
 | invert_right_x       | false |
 | invert_right_y       | false |
 | swap_sticks          | false |
-| swap_dpad_with_left  | false |
+| swap_dpad_with_left_stick | false |
 
 #### Triggers (Switch — threshold only)
 
@@ -378,7 +378,7 @@ etc.) refer to physical position, not the letter label.
 | invert_right_x       | false |
 | invert_right_y       | false |
 | swap_sticks          | false |
-| swap_dpad_with_left  | false |
+| swap_dpad_with_left_stick | false |
 
 #### Triggers (Switch — threshold only)
 
@@ -442,7 +442,7 @@ etc.) refer to physical position, not the letter label.
 | invert_right_x       | false |
 | invert_right_y       | false |
 | swap_sticks          | false |
-| swap_dpad_with_left  | true  |
+| swap_dpad_with_left_stick | true  |
 
 #### Triggers (Switch — threshold only)
 
