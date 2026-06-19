@@ -13,9 +13,12 @@
 use serde_json::{json, Map, Value};
 
 use crate::devices::pro3::tables;
-use crate::error::Result;
-use crate::model::{MacroDefinition, MacroStep, Mode, Slot};
-use crate::protocol::bytes::{read_u16_le, read_u32_le, read_u8, take};
+use crate::error::{Error, Result};
+use crate::model::{MacroDefinition, MacroSlot, MacroStep, Mode, Slot};
+use crate::protocol::bytes::{
+    put_slice, put_u16_le, put_u32_le, read_u16_le, read_u32_le, read_u8, take,
+};
+use crate::protocol::text::encode_utf16be_name;
 
 /// Converts a 16-bit step-button bitmask to canonical names, ordered by bit
 /// position. Port of `macro_models.cpp::bitmaskToStepButtonNames`.
@@ -175,6 +178,144 @@ pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec
     }
 
     Ok(result)
+}
+
+// ---------------------------------------------------------------------------
+// Encoder helpers (reverse lookups over the same tables the decoder reads).
+// ---------------------------------------------------------------------------
+
+/// Returns the 16-bit step-button bitmask for a canonical name.
+///
+/// # Errors
+/// Returns [`Error::Validation`] if `name` is not in [`tables::STEP_BUTTONS`].
+fn step_button_mask(name: &str) -> Result<u16> {
+    tables::STEP_BUTTONS
+        .iter()
+        .find(|e| e.name == name)
+        .map(|e| e.mask)
+        .ok_or_else(|| Error::Validation(format!("unknown step button: {name}")))
+}
+
+/// Returns the 32-bit `KeyMap` value for a canonical trigger name.
+///
+/// # Errors
+/// Returns [`Error::Validation`] if `name` is not in [`tables::TRIGGERS`].
+fn trigger_key_map(name: &str) -> Result<u32> {
+    tables::TRIGGERS
+        .iter()
+        .find(|e| e.name == name)
+        .map(|e| e.key_map)
+        .ok_or_else(|| Error::Validation(format!("unknown macro trigger: {name}")))
+}
+
+/// Maps a [`Mode`] to the `gamepad_mode` descriptor byte.
+fn macro_mode_byte(mode: Mode) -> u8 {
+    if mode == Mode::XInput {
+        tables::MACRO_GAMEPAD_MODE_XINPUT
+    } else {
+        0
+    }
+}
+
+/// Encodes `steps` into the padded wire step stream.
+///
+/// Each step is encoded as a 10-byte `record_content_t` (all fields LE16).
+/// The output is zero-padded to the next 32-byte boundary; empty input
+/// produces an empty `Vec`. Faithful port of `macro_encoder.cpp::encodeStepStream`.
+///
+/// # Errors
+/// Returns [`Error::Validation`] if any `step.pressed_buttons` entry is unknown.
+pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
+    if steps.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let raw_len = steps.len() * tables::MACRO_STEP_RECORD_SIZE;
+    let padded_len = if raw_len % 32 == 0 { raw_len } else { (raw_len / 32 + 1) * 32 };
+    let mut out = vec![0u8; padded_len];
+
+    let is_xinput = mode == Mode::XInput;
+
+    for (i, step) in steps.iter().enumerate() {
+        let base = i * tables::MACRO_STEP_RECORD_SIZE;
+
+        // Build button bitmask from canonical names.
+        let mut keys: u16 = 0;
+        for name in &step.pressed_buttons {
+            keys |= step_button_mask(name)?;
+        }
+
+        // Mode-specific L2/R2 routing.
+        let trigger_value: u16 = if is_xinput {
+            // XInput: trigger_value carries (L2<<8)|R2; clear bits 14–15 in keys.
+            keys &= tables::STEP_BUTTON_BITS_MASK;
+            (u16::from(step.trigger_left) << 8) | u16::from(step.trigger_right)
+        } else {
+            // Switch: encode L2/R2 as bits 14–15 in keys; trigger_value unused.
+            if step.trigger_left > 0 {
+                keys |= tables::STEP_SWITCH_L2_MASK;
+            }
+            if step.trigger_right > 0 {
+                keys |= tables::STEP_SWITCH_R2_MASK;
+            }
+            0
+        };
+
+        let left_joy: u16 = (u16::from(step.left_stick_y) << 8) | u16::from(step.left_stick_x);
+        let right_joy: u16 = (u16::from(step.right_stick_y) << 8) | u16::from(step.right_stick_x);
+
+        put_u16_le(&mut out, base + tables::STEP_MS_TIME_OFFSET, step.duration_ms)?;
+        put_u16_le(&mut out, base + tables::STEP_KEYS_OFFSET, keys)?;
+        put_u16_le(&mut out, base + tables::STEP_TRIGGER_VALUE_OFFSET, trigger_value)?;
+        put_u16_le(&mut out, base + tables::STEP_LEFT_JOY_OFFSET, left_joy)?;
+        put_u16_le(&mut out, base + tables::STEP_RIGHT_JOY_OFFSET, right_joy)?;
+    }
+
+    Ok(out)
+}
+
+/// Encodes a macro's 52-byte Section-4 metadata descriptor (`record_macro_content_t`).
+///
+/// The descriptor is zero-initialized then individual fields are written at their
+/// canonical offsets. Faithful port of `macro_encoder.cpp::encodeMetadata`.
+///
+/// # Errors
+/// Returns [`Error::Validation`] if `def.trigger` is unknown or if
+/// `def.steps.len()` overflows `u16`, or if the `macro_slot` offset overflows `u16`.
+pub fn encode_macro_metadata(def: &MacroDefinition, macro_slot: MacroSlot) -> Result<Vec<u8>> {
+    let mut out = vec![0u8; tables::MACRO_DESCRIPTOR_SIZE];
+
+    // [0..32] UTF-16BE name, truncated/padded to MACRO_NAME_BYTES.
+    let name_bytes = encode_utf16be_name(&def.name, tables::MACRO_NAME_BYTES);
+    put_slice(&mut out, 0, &name_bytes)?;
+
+    // [32] gamepad_mode; [33] stays 0.
+    out.get_mut(tables::MACRO_MODE_OFFSET)
+        .map(|b| *b = macro_mode_byte(def.mode))
+        .ok_or_else(|| Error::Decode("macro descriptor too small for mode byte".into()))?;
+
+    // [34..36] max_steps LE16.
+    let max_steps = u16::try_from(def.steps.len())
+        .map_err(|_| Error::Validation("step count overflows u16".into()))?;
+    put_u16_le(&mut out, tables::MACRO_MAX_STEPS_OFFSET, max_steps)?;
+
+    // [36..38] offset LE16 = macro_slot_index * 4096.
+    let offset_u32 = u32::from(macro_slot.get()) * 4096;
+    let offset = u16::try_from(offset_u32)
+        .map_err(|_| Error::Validation("macro slot offset overflows u16".into()))?;
+    put_u16_le(&mut out, tables::MACRO_OFFSET_FIELD_OFFSET, offset)?;
+
+    // [40..44] key_map LE32.
+    let key_map = trigger_key_map(&def.trigger)?;
+    put_u32_le(&mut out, tables::MACRO_KEY_MAP_OFFSET, key_map)?;
+
+    // [44..48] cycles_num LE32.
+    put_u32_le(&mut out, tables::MACRO_REPEAT_COUNT_OFFSET, def.repeat_count)?;
+
+    // [48..52] interval_ms LE32.
+    put_u32_le(&mut out, tables::MACRO_INTERVAL_MS_OFFSET, def.interval_ms)?;
+
+    Ok(out)
 }
 
 /// Serializes a [`MacroDefinition`] to canonical macro JSON matching

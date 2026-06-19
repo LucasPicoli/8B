@@ -7,7 +7,7 @@ pub mod tables;
 use crate::device::{ControllerSpec, ProtocolCodec, TransportParams, UsbId};
 use crate::error::Result;
 use crate::model::{
-    CanonicalProfileSummary, MacroDefinition, MacroStep, Mode, RawProfilePayload, Slot,
+    CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode, RawProfilePayload, Slot,
 };
 
 /// The 8BitDo Pro 3 controller backend.
@@ -75,6 +75,18 @@ impl ProtocolCodec for Pro3 {
         mode: Mode,
     ) -> Result<Vec<MacroStep>> {
         macros::decode_macro_steps(stream, step_count, mode)
+    }
+
+    fn encode_macro_steps(&self, steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
+        macros::encode_macro_steps(steps, mode)
+    }
+
+    fn encode_macro_metadata(
+        &self,
+        def: &MacroDefinition,
+        macro_slot: MacroSlot,
+    ) -> Result<Vec<u8>> {
+        macros::encode_macro_metadata(def, macro_slot)
     }
 }
 

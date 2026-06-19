@@ -22,6 +22,20 @@ pub fn decode_utf16be_name(bytes: &[u8]) -> String {
     String::from_utf16_lossy(&units)
 }
 
+/// Encodes `name` as UTF-16BE into a `field_len`-byte buffer.
+///
+/// Each UTF-16 code unit is written big-endian, truncated to fit `field_len`,
+/// then zero-padded. Inverse of [`decode_utf16be_name`]. Panic-free (no indexing):
+/// `chunks_exact_mut` + `zip` naturally stop at the shorter of the buffer and the name.
+#[must_use]
+pub fn encode_utf16be_name(name: &str, field_len: usize) -> Vec<u8> {
+    let mut out = vec![0u8; field_len];
+    for (chunk, unit) in out.chunks_exact_mut(2).zip(name.encode_utf16()) {
+        chunk.copy_from_slice(&unit.to_be_bytes());
+    }
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {

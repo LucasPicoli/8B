@@ -347,6 +347,8 @@ pub const MACRO_NAME_BYTES: usize = 32;
 pub const MACRO_MODE_OFFSET: usize = 32;
 /// Offset of the `max_steps` LE16 within a descriptor.
 pub const MACRO_MAX_STEPS_OFFSET: usize = 34;
+/// Offset of the `offset` LE16 (step-stream page address) within a descriptor.
+pub const MACRO_OFFSET_FIELD_OFFSET: usize = 36;
 /// Offset of the `key_map` LE32 (trigger) within a descriptor.
 pub const MACRO_KEY_MAP_OFFSET: usize = 40;
 /// Offset of the `cycles_num` (repeat count) LE32 within a descriptor.
