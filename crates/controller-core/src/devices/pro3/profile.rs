@@ -743,6 +743,8 @@ pub fn compile_profile(
         };
         // Remap for home/guide is silently forced to identity (encoder parity with
         // the decoder which always returns identity for index 13).
+        // home/guide is forced to identity; an invalid explicit target still errors via
+        // write_encoding above (pre-validated upstream in Plan 2b).
         let forced = if source_idx == tables::HOME_GUIDE_INDEX {
             Some(write_encoding("home/guide", mode)?)
         } else {
