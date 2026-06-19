@@ -10,7 +10,9 @@
     {
       "actions": {
         "buttons": {
-          "press": [],
+          "press": [
+            "l1"
+          ],
           "release": []
         }
       },
@@ -19,7 +21,9 @@
     {
       "actions": {
         "buttons": {
-          "press": [],
+          "press": [
+            "r1"
+          ],
           "release": []
         }
       },
