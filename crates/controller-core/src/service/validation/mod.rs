@@ -15,10 +15,10 @@ use serde_json::Value;
 
 use crate::error::{Error, Result};
 
-// NOTE: the `pub use macros::validate_macro;` and
-// `pub use profile::{validate_all_profiles, validate_profile};` re-exports are
-// added by Tasks 2 and 3, when those functions exist. Task 1 ships only the
-// shared types + schema infra below; `macros`/`profile` are empty stubs.
+// NOTE: the `pub use profile::{validate_all_profiles, validate_profile};` re-export is
+// added by Task 3, when those functions exist. Task 1 shipped only the
+// shared types + schema infra below; `macros`/`profile` were empty stubs.
+pub use macros::validate_macro;
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.
 /// Mirrors the C++ `core::ValidationError`.
@@ -51,12 +51,10 @@ pub struct ValidationSummary {
 }
 
 /// The embedded macro schema (Draft 2020-12), compiled once.
-// Used by macro_validator(); callers added by Tasks 2 & 3.
-#[allow(dead_code)]
+// Used by macro_validator().
 const MACRO_SCHEMA_JSON: &str = include_str!("../../../../../schemas/macro-v1.schema.json");
 /// The embedded profile schema (Draft 2020-12), compiled once.
-// Used by profile_validator(); callers added by Tasks 2 & 3.
-#[allow(dead_code)]
+// Used by profile_validator().
 const PROFILE_SCHEMA_JSON: &str = include_str!("../../../../../schemas/profile-v1.schema.json");
 
 /// Lazily compiles the macro schema validator (process-wide, once).
@@ -64,8 +62,6 @@ const PROFILE_SCHEMA_JSON: &str = include_str!("../../../../../schemas/profile-v
 /// # Errors
 /// Returns [`Error::Decode`] if the embedded schema fails to parse or compile
 /// (a build-time invariant; never expected at runtime).
-// Called from service::validation::macros (Task 2).
-#[allow(dead_code)]
 pub(crate) fn macro_validator() -> Result<&'static Validator> {
     static V: OnceLock<std::result::Result<Validator, String>> = OnceLock::new();
     compiled(&V, MACRO_SCHEMA_JSON, "macro")
@@ -83,7 +79,6 @@ pub(crate) fn profile_validator() -> Result<&'static Validator> {
 }
 
 /// Compile-once helper shared by both validators.
-#[allow(dead_code)]
 fn compiled<'a>(
     cell: &'a OnceLock<std::result::Result<Validator, String>>,
     schema_json: &str,
@@ -103,7 +98,6 @@ fn compiled<'a>(
 /// is the `jsonschema` crate's message (schema messages are not asserted
 /// verbatim — only semantic messages are byte-significant).
 // Called from service::validation::macros and ::profile (Tasks 2 & 3).
-#[allow(dead_code)]
 pub(crate) fn schema_errors(validator: &Validator, value: &Value) -> Vec<ValidationError> {
     validator
         .iter_errors(value)
