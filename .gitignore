@@ -1,2 +1,6 @@
 /target
 **/*.rs.bk
+
+# Agent/planning docs — kept local, never committed
+AGENTS.md
+/docs/
