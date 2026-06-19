@@ -521,11 +521,21 @@ fn percent_to_trigger_byte(pct: i32) -> u8 {
     byte
 }
 
-/// Maps a canonical control name to its 0-based index in the encoding tables.
+/// Maps a canonical source-button name to its 0-based index in `mode`'s button table.
+///
+/// Only scans the 22 physical source entries (`0..SOURCE_BUTTON_COUNT`) so the
+/// Switch-only trailing `screenshot` target entry can never be matched as a source
+/// index. Both mode tables share identical source ordering for indices 0..22, so
+/// this is behaviour-preserving today while hardening the lookup against future
+/// table divergence.
 ///
 /// Returns `usize::MAX` (sentinel for "not found") rather than panicking.
-fn control_name_to_index(name: &str) -> usize {
-    encodings_for(Mode::XInput).iter().position(|e| e.source == name).unwrap_or(usize::MAX)
+fn control_name_to_index(name: &str, mode: Mode) -> usize {
+    encodings_for(mode)
+        .iter()
+        .take(tables::SOURCE_BUTTON_COUNT)
+        .position(|e| e.source == name)
+        .unwrap_or(usize::MAX)
 }
 
 /// Picks the write-mode encoding table for `mode`.
@@ -715,7 +725,7 @@ pub fn compile_profile(
     let mode = profile.mode;
     let mut remap_overrides: Vec<Option<[u8; 4]>> = vec![None; tables::SOURCE_BUTTON_COUNT];
     for mapping in &profile.button_mappings {
-        let source_idx = control_name_to_index(&mapping.source);
+        let source_idx = control_name_to_index(&mapping.source, mode);
         if source_idx >= tables::SOURCE_BUTTON_COUNT {
             continue;
         }
@@ -724,7 +734,9 @@ pub fn compile_profile(
         } else if mapping.target == "screenshot" && mode == Mode::Switch {
             [0x00, 0x00, 0x40, 0x00]
         } else if mapping.target == "screenshot" {
-            // XInput: "screenshot" is not a valid XInput target; treat as identity.
+            // XInput: "screenshot" is not a valid XInput target; write the source's
+            // variant-first write encoding (the same encoding the source would get
+            // unmapped — equivalent to identity for XInput face buttons).
             write_encoding(&mapping.source, mode)?
         } else {
             write_encoding(&mapping.target, mode)?
@@ -803,8 +815,9 @@ pub fn compile_profile(
     let sect5_off = DEV_SECT5_BASE + idx * 8;
     put_slice(&mut buf, sect5_off, &tables::SLOT_MARKER)?;
     // Default motor range: L_start=1, L_end=100, R_start=1, R_end=100.
-    // The last byte may be truncated by the 2348-byte buffer end — put_slice handles this via
-    // its bounds check; we use individual puts to only write what fits.
+    // For slot 3 the 4 range bytes land at 0x0928..0x092C, which fits exactly
+    // within the 2348-byte buffer — no truncation occurs. The `<= EXPECTED_PROFILE_SIZE`
+    // guard below is a defensive bound check, not an actual truncation path.
     let range_off = sect5_off + 4;
     put_slice(&mut buf, range_off, &[1u8, 100u8])?;
     // R range: only write if it fits within EXPECTED_PROFILE_SIZE.
