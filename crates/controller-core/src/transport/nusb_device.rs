@@ -350,19 +350,28 @@ impl crate::transport::DeviceIo for NusbDevice {
                     );
                 }
                 Ok(blob) => {
-                    let mut active: Vec<String> = Vec::new();
+                    // C++ `decodeSlotMarkerFromUploadResponse` reports the LOWEST active
+                    // slot as a single digit ("1"/"2"/"3"), and the probe is "verified"
+                    // only when such a marker is found. Match that exactly.
+                    let mut found: Option<u8> = None;
                     for s in 1u8..=3 {
                         if let Ok(slot) = Slot::new(s) {
                             if is_slot_active(&blob, slot).unwrap_or(false) {
-                                active.push(s.to_string());
+                                found = Some(s);
+                                break;
                             }
                         }
                     }
-                    readiness.active_slot_marker =
-                        if active.is_empty() { "unknown".to_owned() } else { active.join(",") };
-                    readiness.active_slot_marker_verified = true;
-                    "Supported 8BitDo Pro 3 detected and active slot marker verified."
-                        .clone_into(&mut readiness.message);
+                    if let Some(s) = found {
+                        readiness.active_slot_marker = s.to_string();
+                        readiness.active_slot_marker_verified = true;
+                        "Supported 8BitDo Pro 3 detected and active slot marker verified."
+                            .clone_into(&mut readiness.message);
+                    } else {
+                        "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: \
+                         no recognizable slot marker."
+                            .clone_into(&mut readiness.message);
+                    }
                 }
             },
         }
