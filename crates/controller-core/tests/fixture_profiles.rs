@@ -103,6 +103,39 @@ fn spec_byte_vectors_for_tricky_remaps() {
     assert_ne!(entry(&b, 1, 12), [0x00, 0x00, 0x40, 0x00]);
 }
 
+#[test]
+fn home_guide_remap_attempt_is_forced_to_identity() {
+    // Clone a valid profile and try to remap home/guide(13) -> top face.
+    let mut p = load_profile("xinput-slot1");
+    for m in &mut p.button_mappings {
+        if m.source == "home/guide" {
+            m.target = "top face".to_owned();
+        }
+    }
+    let b = Pro3.compile_profile(&p, Slot::new(1).unwrap(), &[], &[]).unwrap();
+
+    // The home/guide entry must equal the home/guide identity encoding, NOT top face's.
+    let base = 0x00E4 + 13 * 4;
+    let entry = [b[base], b[base + 1], b[base + 2], b[base + 3]];
+    let identity = Pro3
+        .compile_profile(&load_profile("xinput-slot1"), Slot::new(1).unwrap(), &[], &[])
+        .unwrap();
+    let identity_entry =
+        [identity[base], identity[base + 1], identity[base + 2], identity[base + 3]];
+    assert_eq!(entry, identity_entry, "home/guide remap must be forced to identity");
+
+    // And it decodes back to home/guide.
+    let raw = RawProfilePayload {
+        payload: b,
+        source_slot: 1,
+        source_profile_index: 0,
+        mode_hint: Mode::XInput,
+    };
+    let decoded = Pro3.map_profile(&raw).unwrap().canonical;
+    let hg = decoded.button_mappings.iter().find(|m| m.source == "home/guide").unwrap();
+    assert_eq!(hg.target, "home/guide");
+}
+
 /// Regenerate committed blobs from authored JSON. Ignored in normal runs.
 /// Run: `cargo test -p controller-core --test fixture_profiles regenerate -- --ignored`
 #[test]
