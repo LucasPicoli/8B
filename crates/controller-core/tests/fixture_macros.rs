@@ -242,3 +242,17 @@ fn regenerate() {
         std::fs::write(format!("{DIR}/{}.json", f.stem), json).unwrap();
     }
 }
+
+/// Plan 2b tie-in: every committed macro fixture is a valid macro per the
+/// validation service (schema + semantic). Guards the catalog against drift
+/// that would slip past the byte/round-trip checks but fail validation.
+#[test]
+fn every_macro_fixture_passes_validation() {
+    for f in build_macro_fixtures() {
+        let json: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(format!("{DIR}/{}.json", f.stem)).unwrap())
+                .unwrap();
+        let errors = controller_core::service::validation::validate_macro(&json).unwrap();
+        assert!(errors.is_empty(), "{}: {:?}", f.stem, errors);
+    }
+}
