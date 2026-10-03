@@ -50,6 +50,22 @@ pub struct WriteResult {
 }
 
 impl WriteResult {
+    /// A successful result.
+    #[must_use]
+    pub fn success(mode: Mode, slot: Slot, message: impl Into<String>) -> Self {
+        Self {
+            success: true,
+            message: message.into(),
+            error_category: ErrorCategory::None,
+            mode,
+            slot: slot.get(),
+            profile_id: String::new(),
+            rollback_attempted: false,
+            rollback_succeeded: false,
+            backup_file_path: None,
+        }
+    }
+
     /// A failed result with no rollback.
     #[must_use]
     pub fn failure(

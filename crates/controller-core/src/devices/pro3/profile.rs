@@ -827,13 +827,19 @@ pub fn compile_profile(
         put_slice(&mut buf, range_off + 2, &[1u8, 100u8])?;
     }
 
-    // --- CRC (final step) ---
-    // Zero the 4-byte CRC field, compute CRC-16/MODBUS over whole buffer, write LE16.
-    put_u32_le(&mut buf, DEV_CRC_OFFSET, 0)?;
-    let crc = crc16_modbus(&buf);
-    put_u16_le(&mut buf, DEV_CRC_OFFSET, crc)?;
-
+    seal_crc(&mut buf)?;
     Ok(buf)
+}
+
+/// Recomputes the blob CRC: zeroes the 4-byte CRC field, runs CRC-16/MODBUS over the
+/// whole buffer and writes the result as LE16. Run it after every edit to a blob.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if `buf` is too short to hold the CRC field.
+pub(super) fn seal_crc(buf: &mut [u8]) -> Result<()> {
+    put_u32_le(buf, DEV_CRC_OFFSET, 0)?;
+    let crc = crc16_modbus(buf);
+    put_u16_le(buf, DEV_CRC_OFFSET, crc)
 }
 
 #[cfg(test)]

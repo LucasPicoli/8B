@@ -113,4 +113,28 @@ pub trait ProtocolCodec {
         base_blob: &[u8],
         macros: &[MacroDefinition],
     ) -> Result<Vec<u8>>;
+
+    /// Like [`Self::compile_profile`], but keeps the macro descriptors `base_blob` already
+    /// holds for `target_slot`, byte for byte, instead of clearing them.
+    ///
+    /// # Errors
+    /// Same as [`Self::compile_profile`].
+    fn compile_profile_keep_macros(
+        &self,
+        profile: &CanonicalProfile,
+        target_slot: Slot,
+        base_blob: &[u8],
+    ) -> Result<Vec<u8>>;
+
+    /// Returns `base_blob` with `slot` deactivated. Macros and other slots stay as read.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] if `base_blob` is not a full profile blob.
+    fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>>;
+
+    /// Checks a button remap request for `mode`.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] with a message fit to show to the user.
+    fn validate_remap(&self, mode: Mode, source: &str, target: &str) -> Result<()>;
 }

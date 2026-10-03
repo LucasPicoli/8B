@@ -1,5 +1,6 @@
 //! 8BitDo Pro 3 controller backend.
 
+pub mod edit;
 pub mod macros;
 pub mod profile;
 pub mod tables;
@@ -112,6 +113,23 @@ impl ProtocolCodec for Pro3 {
         macros: &[MacroDefinition],
     ) -> Result<Vec<u8>> {
         profile::compile_profile(profile, target_slot, base_blob, macros)
+    }
+
+    fn compile_profile_keep_macros(
+        &self,
+        profile: &CanonicalProfile,
+        target_slot: Slot,
+        base_blob: &[u8],
+    ) -> Result<Vec<u8>> {
+        edit::compile_profile_keep_macros(profile, target_slot, base_blob)
+    }
+
+    fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
+        edit::deactivate_profile(base_blob, slot)
+    }
+
+    fn validate_remap(&self, mode: Mode, source: &str, target: &str) -> Result<()> {
+        edit::validate_remap(mode, source, target)
     }
 }
 
