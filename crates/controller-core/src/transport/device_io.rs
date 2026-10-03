@@ -3,7 +3,10 @@
 use crate::error::Result;
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 
-/// Device read operations. Write operations are added separately.
+/// Device read and write operations.
+///
+/// Every write method opens its own USB session and releases it before returning,
+/// so callers sequence the protocol steps (slot select, write, apply).
 pub trait DeviceIo {
     /// Reads all on-device profiles for the given mode's product.
     ///
@@ -28,4 +31,63 @@ pub trait DeviceIo {
     /// # Errors
     /// Returns a connection error if no supported device is present.
     fn detect_readiness(&self) -> Result<DeviceReadiness>;
+
+    /// Writes a complete 2348-byte profile blob as 53 chunks, each ACK-checked.
+    ///
+    /// The target slot is encoded in the blob itself, so there is no slot argument.
+    /// [`Self::send_slot_select`] must come first or the device ACKs but ignores the write.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Write`] (with the failed chunk index) on a wrong blob size,
+    /// a transfer failure or a rejected response. Returns a connection error if the
+    /// device cannot be opened.
+    fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()>;
+
+    /// Writes `data` at blob `offset` (the same packet twice, as the protocol requires).
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Write`] on empty data, a transfer failure or a rejected
+    /// response. Returns a connection error if the device cannot be opened.
+    fn write_patch(&self, mode: Mode, offset: u16, data: &[u8]) -> Result<()>;
+
+    /// Sends the slot-select command that must precede any profile write.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Timeout`] on a transfer failure, [`crate::Error::Write`] on a
+    /// rejected response, or a connection error if the device cannot be opened.
+    fn send_slot_select(&self, mode: Mode) -> Result<()>;
+
+    /// Sends `PROFILE_APPLY` to activate what was written.
+    ///
+    /// # Errors
+    /// Same as [`Self::send_slot_select`].
+    fn send_apply(&self, mode: Mode) -> Result<()>;
+
+    /// Sends `QUERY_STATUS`. Disrupts joydev input until the device is reconnected.
+    ///
+    /// # Errors
+    /// Same as [`Self::send_slot_select`].
+    fn query_status(&self, mode: Mode) -> Result<()>;
+
+    /// Erases the 4096-byte flash page of one macro slot.
+    ///
+    /// Passing a macro slot beyond the controller's range is impossible: [`MacroSlot`]
+    /// validates it.
+    ///
+    /// # Errors
+    /// Same as [`Self::send_slot_select`].
+    fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()>;
+
+    /// Erases a macro slot, then writes `stream` (padded step data) in 32-byte chunks.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Write`] if `stream` is empty or not a multiple of 32 bytes,
+    /// plus every error of [`Self::erase_macro`].
+    fn write_macro_stream(
+        &self,
+        mode: Mode,
+        profile_slot: Slot,
+        macro_slot: MacroSlot,
+        stream: &[u8],
+    ) -> Result<()>;
 }

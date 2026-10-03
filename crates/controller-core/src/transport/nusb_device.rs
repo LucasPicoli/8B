@@ -1,10 +1,6 @@
 //! Real USB transport over nusb (interrupt transfers).
 
 use std::path::Path;
-use std::time::Duration;
-
-use nusb::transfer::{Buffer, In, Interrupt, Out};
-use nusb::MaybeFuture as _;
 
 use crate::detect::{is_slot_active, scan_sysfs};
 use crate::device::{ControllerSpec as _, ProtocolCodec as _};
@@ -18,13 +14,13 @@ use crate::protocol::wire::{
     build_query_status, build_read_macro_packet, build_slot_select, build_start_config,
     build_upload_packet, decode_read_macro_response, decode_upload_response,
 };
+use crate::protocol::wire_write::MACRO_PAGE_LEN;
+use crate::transport::nusb_write;
+use crate::transport::session::{Session, READ_TIMEOUT};
+use crate::transport::write_input::{PROFILE_CHUNK as UPLOAD_CHUNK, PROFILE_SIZE};
 
-const VENDOR_ID: u16 = 0x2DC8;
-const TIMEOUT: Duration = Duration::from_millis(1000);
-const PROFILE_SIZE: usize = 0x092C;
-const UPLOAD_CHUNK: usize = 45;
 const MACRO_CHUNK: u16 = 32;
-const MACRO_ERASE_LEN: u16 = 0x1000;
+const MACRO_ERASE_LEN: u16 = MACRO_PAGE_LEN;
 
 /// Real USB transport backed by nusb interrupt transfers.
 pub struct NusbDevice {
@@ -41,43 +37,6 @@ impl NusbDevice {
     /// Never returns an error; signature matches trait expectations.
     pub const fn open() -> Result<Self> {
         Ok(Self { spec: Pro3 })
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Low-level USB helpers
-// ---------------------------------------------------------------------------
-
-struct Session {
-    ep_out: nusb::Endpoint<Interrupt, Out>,
-    ep_in: nusb::Endpoint<Interrupt, In>,
-}
-
-impl Session {
-    fn for_product(product: u16, interface: u8, ep_out_addr: u8, ep_in_addr: u8) -> Result<Self> {
-        let info = nusb::list_devices()
-            .wait()
-            .map_err(|e| Error::Usb(e.to_string()))?
-            .find(|d| d.vendor_id() == VENDOR_ID && d.product_id() == product)
-            .ok_or(Error::NoDevice)?;
-        let device = info.open().wait().map_err(|e| Error::Usb(e.to_string()))?;
-        let iface = device
-            .detach_and_claim_interface(interface)
-            .wait()
-            .map_err(|e| Error::Usb(e.to_string()))?;
-        let out =
-            iface.endpoint::<Interrupt, Out>(ep_out_addr).map_err(|e| Error::Usb(e.to_string()))?;
-        let inp =
-            iface.endpoint::<Interrupt, In>(ep_in_addr).map_err(|e| Error::Usb(e.to_string()))?;
-        Ok(Self { ep_out: out, ep_in: inp })
-    }
-
-    fn send_recv(&mut self, pkt: &[u8; 64]) -> Result<Vec<u8>> {
-        let c = self.ep_out.transfer_blocking(pkt.to_vec().into(), TIMEOUT);
-        c.status.map_err(|_| Error::Timeout)?;
-        let c = self.ep_in.transfer_blocking(Buffer::new(64), TIMEOUT);
-        c.status.map_err(|_| Error::Timeout)?;
-        Ok(c.buffer.get(..c.actual_len).unwrap_or(&c.buffer).to_vec())
     }
 }
 
@@ -184,7 +143,6 @@ impl crate::transport::DeviceIo for NusbDevice {
     /// [`Error::Decode`] on failure.
     fn read_all_profiles(&self, mode: Mode) -> Result<ProfileReadResult> {
         let product = self.spec.product_id_for_mode(mode);
-        let tp = self.spec.transport_params(mode);
 
         // Targets: (mode, slot_select_value). Dispatch on product, not mode:
         // 0x310B → xinput+switch blobs; 0x6009 → dinput only.
@@ -194,7 +152,8 @@ impl crate::transport::DeviceIo for NusbDevice {
             _ => return Err(Error::Usb(format!("unsupported product id 0x{product:04X}"))),
         };
 
-        let mut session = Session::for_product(product, tp.interface, tp.ep_out, tp.ep_in)?;
+        let mut session = Session::for_mode(self.spec, mode, READ_TIMEOUT)?;
+        let payload_offset = session.params.payload_offset;
 
         // Send `START_CONFIG` once for the whole session.
         let _ = session.send_recv(&build_start_config())?;
@@ -204,7 +163,7 @@ impl crate::transport::DeviceIo for NusbDevice {
 
         for &(target_mode, slot_select) in targets {
             let _ = session.send_recv(&build_slot_select(slot_select))?;
-            let blob = read_blob_chunks(&mut session, tp.payload_offset)?;
+            let blob = read_blob_chunks(&mut session, payload_offset)?;
 
             for source_slot in 1u8..=3 {
                 let slot = Slot::new(source_slot)?;
@@ -252,14 +211,8 @@ impl crate::transport::DeviceIo for NusbDevice {
             return Ok(Vec::new());
         }
 
-        let product = self.spec.product_id_for_mode(mode);
-        let tp = self.spec.transport_params(mode);
-
-        let (macro_gamepad_mode, slot_select): (u8, u8) = match mode {
-            Mode::XInput => (0x03, 3),
-            Mode::Switch => (0x00, 0),
-            Mode::DInput => (0x01, 1),
-        };
+        let macro_gamepad_mode = self.spec.macro_gamepad_mode(mode);
+        let slot_select = self.spec.slot_select_value(mode);
 
         // Wire protocol uses 0-based profile slot.
         let ps = profile_slot.get() - 1;
@@ -271,13 +224,14 @@ impl crate::transport::DeviceIo for NusbDevice {
         let flash_base = u16::from(macro_slot_idx) * MACRO_ERASE_LEN;
         let chunk_count = data_bytes.div_ceil(usize::from(MACRO_CHUNK));
 
-        let mut session = Session::for_product(product, tp.interface, tp.ep_out, tp.ep_in)?;
+        let mut session = Session::for_mode(self.spec, mode, READ_TIMEOUT)?;
+        let payload_offset = session.params.payload_offset;
 
         // Prime: `START_CONFIG` → `QUERY_STATUS` → `SLOT_SELECT` → upload×53 → `QUERY_STATUS`
         let _ = session.send_recv(&build_start_config())?;
         let _ = session.send_recv(&build_query_status())?;
         let _ = session.send_recv(&build_slot_select(slot_select))?;
-        let _ = read_blob_chunks(&mut session, tp.payload_offset)?;
+        let _ = read_blob_chunks(&mut session, payload_offset)?;
         let _ = session.send_recv(&build_query_status())?;
 
         let mut result = Vec::with_capacity(data_bytes);
@@ -334,52 +288,83 @@ impl crate::transport::DeviceIo for NusbDevice {
             ..DeviceReadiness::default()
         };
 
-        let tp = self.spec.transport_params(found.mode);
-        let product = self.spec.product_id_for_mode(found.mode);
-        let slot_select: u8 = match found.mode {
-            Mode::XInput => 3,
-            Mode::Switch => 0,
-            Mode::DInput => 1,
-        };
+        let slot_select = self.spec.slot_select_value(found.mode);
 
-        match Session::for_product(product, tp.interface, tp.ep_out, tp.ep_in) {
+        match Session::for_mode(self.spec, found.mode, READ_TIMEOUT) {
             Err(e) => {
                 readiness.message =
                     format!("Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}");
             }
-            Ok(mut session) => match read_blob(&mut session, slot_select, tp.payload_offset) {
-                Err(e) => {
-                    readiness.message = format!(
-                        "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}"
-                    );
-                }
-                Ok(blob) => {
-                    // C++ `decodeSlotMarkerFromUploadResponse` reports the LOWEST active
-                    // slot as a single digit ("1"/"2"/"3"), and the probe is "verified"
-                    // only when such a marker is found. Match that exactly.
-                    let mut found: Option<u8> = None;
-                    for s in 1u8..=3 {
-                        if let Ok(slot) = Slot::new(s) {
-                            if is_slot_active(&blob, slot).unwrap_or(false) {
-                                found = Some(s);
-                                break;
+            Ok(mut session) => {
+                let payload_offset = session.params.payload_offset;
+                match read_blob(&mut session, slot_select, payload_offset) {
+                    Err(e) => {
+                        readiness.message = format!(
+                            "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}"
+                        );
+                    }
+                    Ok(blob) => {
+                        // C++ `decodeSlotMarkerFromUploadResponse` reports the LOWEST active
+                        // slot as a single digit ("1"/"2"/"3"), and the probe is "verified"
+                        // only when such a marker is found. Match that exactly.
+                        let mut found: Option<u8> = None;
+                        for s in 1u8..=3 {
+                            if let Ok(slot) = Slot::new(s) {
+                                if is_slot_active(&blob, slot).unwrap_or(false) {
+                                    found = Some(s);
+                                    break;
+                                }
                             }
                         }
-                    }
-                    if let Some(s) = found {
-                        readiness.active_slot_marker = s.to_string();
-                        readiness.active_slot_marker_verified = true;
-                        "Supported 8BitDo Pro 3 detected and active slot marker verified."
-                            .clone_into(&mut readiness.message);
-                    } else {
-                        "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: \
+                        if let Some(s) = found {
+                            readiness.active_slot_marker = s.to_string();
+                            readiness.active_slot_marker_verified = true;
+                            "Supported 8BitDo Pro 3 detected and active slot marker verified."
+                                .clone_into(&mut readiness.message);
+                        } else {
+                            "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: \
                          no recognizable slot marker."
-                            .clone_into(&mut readiness.message);
+                                .clone_into(&mut readiness.message);
+                        }
                     }
                 }
-            },
+            }
         }
 
         Ok(readiness)
+    }
+
+    fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()> {
+        nusb_write::write_full_profile(self.spec, mode, blob)
+    }
+
+    fn write_patch(&self, mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
+        nusb_write::write_patch(self.spec, mode, offset, data)
+    }
+
+    fn send_slot_select(&self, mode: Mode) -> Result<()> {
+        nusb_write::send_slot_select(self.spec, mode)
+    }
+
+    fn send_apply(&self, mode: Mode) -> Result<()> {
+        nusb_write::send_apply(self.spec, mode)
+    }
+
+    fn query_status(&self, mode: Mode) -> Result<()> {
+        nusb_write::query_status(self.spec, mode)
+    }
+
+    fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
+        nusb_write::erase_macro(self.spec, mode, profile_slot, macro_slot)
+    }
+
+    fn write_macro_stream(
+        &self,
+        mode: Mode,
+        profile_slot: Slot,
+        macro_slot: MacroSlot,
+        stream: &[u8],
+    ) -> Result<()> {
+        nusb_write::write_macro_stream(self.spec, mode, profile_slot, macro_slot, stream)
     }
 }

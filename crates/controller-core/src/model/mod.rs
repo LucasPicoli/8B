@@ -6,7 +6,7 @@ pub mod profile;
 
 pub use ids::{MacroSlot, Mode, Slot};
 pub use macros::{MacroDefinition, MacroStep};
-pub use outcome::DeviceReadiness;
+pub use outcome::{DeviceReadiness, WriteResult};
 pub use profile::{
     ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroRef, ProfileReadResult,
     RawProfilePayload, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,

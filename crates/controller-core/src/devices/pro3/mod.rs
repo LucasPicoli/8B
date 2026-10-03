@@ -54,6 +54,20 @@ impl ControllerSpec for Pro3 {
             Mode::DInput => 0x6009,
         }
     }
+    fn slot_select_value(&self, mode: Mode) -> u8 {
+        match mode {
+            Mode::Switch => 0,
+            Mode::DInput => 1,
+            Mode::XInput => 3,
+        }
+    }
+    fn macro_gamepad_mode(&self, mode: Mode) -> u8 {
+        match mode {
+            Mode::Switch => 0,
+            Mode::DInput => 1,
+            Mode::XInput => 3,
+        }
+    }
 }
 
 impl ProtocolCodec for Pro3 {
@@ -115,5 +129,15 @@ mod tests {
         assert_eq!((d.interface, d.ep_out, d.ep_in, d.payload_offset), (0, 0x02, 0x81, 16));
         assert_eq!(Pro3.blob_size(), 0x092C);
         assert_eq!(Pro3.product_id_for_mode(Mode::DInput), 0x6009);
+    }
+
+    #[test]
+    fn pro3_slot_select_and_macro_mode_values() {
+        assert_eq!(Pro3.slot_select_value(Mode::Switch), 0);
+        assert_eq!(Pro3.slot_select_value(Mode::DInput), 1);
+        assert_eq!(Pro3.slot_select_value(Mode::XInput), 3);
+        assert_eq!(Pro3.macro_gamepad_mode(Mode::XInput), 3);
+        assert_eq!(Pro3.macro_gamepad_mode(Mode::Switch), 0);
+        assert_eq!(Pro3.macro_gamepad_mode(Mode::DInput), 1);
     }
 }

@@ -2,6 +2,9 @@
 pub mod device_io;
 pub mod mock;
 pub mod nusb_device;
+mod nusb_write;
+mod session;
+pub mod write_input;
 
 pub use device_io::DeviceIo;
 pub use mock::MockDevice;

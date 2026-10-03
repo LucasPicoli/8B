@@ -3,3 +3,4 @@ pub mod bytes;
 pub mod crc16;
 pub mod text;
 pub mod wire;
+pub mod wire_write;

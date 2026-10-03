@@ -118,7 +118,7 @@ pub fn read_macros(
 /// - Two blobs (product 0x310b): `XInput` → 0, `Switch` → 1.
 /// - One blob (product 0x6009): any mode → 0.
 /// - Any other blob count → `None`.
-const fn blob_index_for_mode(mode: Mode, blob_count: usize) -> Option<usize> {
+pub(crate) const fn blob_index_for_mode(mode: Mode, blob_count: usize) -> Option<usize> {
     match blob_count {
         2 => match mode {
             Mode::XInput => Some(0),

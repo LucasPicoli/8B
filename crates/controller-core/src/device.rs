@@ -46,6 +46,10 @@ pub trait ControllerSpec {
     fn joydev_name_match(&self) -> &'static str;
     /// USB product id used for `mode`.
     fn product_id_for_mode(&self, mode: Mode) -> u16;
+    /// Value sent in the slot-select command to switch the controller to `mode`.
+    fn slot_select_value(&self, mode: Mode) -> u8;
+    /// Gamepad-mode byte carried by the macro commands for `mode`.
+    fn macro_gamepad_mode(&self, mode: Mode) -> u8;
 }
 
 /// Pure byte-level codec for a controller model (no device I/O).

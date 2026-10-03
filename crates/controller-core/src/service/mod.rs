@@ -4,4 +4,9 @@
 //! trait object, keeping hardware access behind an interface seam.
 
 pub mod read;
+pub mod readback;
+pub mod rollback;
 pub mod validation;
+
+pub use readback::{readback_and_confirm, ConfirmPolicy, ReadbackResult};
+pub use rollback::{attempt_rollback, save_backup, FailedWrite};

@@ -47,7 +47,7 @@ impl ErrorCategory {
 }
 
 /// The crate-wide error type.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum Error {
     /// No supported device is connected.
     #[error("no supported device connected")]
@@ -67,9 +67,25 @@ pub enum Error {
     /// A filesystem operation failed.
     #[error("io error: {0}")]
     Io(String),
+    /// A write to the device failed or was rejected.
+    #[error("write failed: {message}")]
+    Write {
+        /// What went wrong.
+        message: String,
+        /// 0-based index of the chunk that failed, when the failure is tied to one.
+        failed_chunk: Option<usize>,
+        /// Total chunks in the failed write (0 when not chunked).
+        total_chunks: usize,
+    },
 }
 
 impl Error {
+    /// Builds a [`Error::Write`] that is not tied to a chunk.
+    #[must_use]
+    pub fn write(message: impl Into<String>) -> Self {
+        Self::Write { message: message.into(), failed_chunk: None, total_chunks: 0 }
+    }
+
     /// Maps this error to its [`ErrorCategory`] for exit-code selection.
     #[must_use]
     pub const fn category(&self) -> ErrorCategory {
@@ -78,6 +94,7 @@ impl Error {
             Self::Timeout => ErrorCategory::Timeout,
             Self::Decode(_) | Self::Validation(_) => ErrorCategory::ValidationFailure,
             Self::Io(_) => ErrorCategory::ExportFailure,
+            Self::Write { .. } => ErrorCategory::WriteFailure,
         }
     }
 }
@@ -107,5 +124,6 @@ mod tests {
         assert_eq!(Error::NoDevice.category(), ErrorCategory::ConnectionFailure);
         assert_eq!(Error::Timeout.category(), ErrorCategory::Timeout);
         assert_eq!(Error::Decode("x".into()).category(), ErrorCategory::ValidationFailure);
+        assert_eq!(Error::write("x").category(), ErrorCategory::WriteFailure);
     }
 }
