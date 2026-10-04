@@ -61,8 +61,9 @@ impl Session {
     /// # Errors
     /// Returns [`Error::NoDevice`] when no supported controller is attached.
     /// Returns [`Error::UnsupportedModel`] when the pad answers with a model id
-    /// `spec` does not list. Returns [`Error::Usb`] when the node is missing or
-    /// cannot be opened, and the errors of [`Self::send_recv`].
+    /// `spec` does not list. Returns [`Error::PermissionDenied`] when the node may
+    /// not be opened, [`Error::Usb`] when it is missing or fails to open otherwise,
+    /// and the errors of [`Self::send_recv`].
     pub(super) fn open(spec: Pro3, timeout: Duration) -> Result<Self> {
         let found =
             scan_sysfs(Path::new(SYSFS_USB_DEVICES), spec.config_ports()).ok_or(Error::NoDevice)?;
@@ -77,7 +78,7 @@ impl Session {
             .read(true)
             .write(true)
             .open(&node)
-            .map_err(|e| Error::Usb(format!("cannot open {}: {e}", node.display())))?;
+            .map_err(|e| open_error(&node, &e))?;
         let mut session = Self {
             file,
             timeout,
@@ -180,6 +181,15 @@ fn io_error(e: &std::io::Error) -> Error {
     Errno::from_io_error(e).map_or_else(|| Error::Usb(e.to_string()), errno_error)
 }
 
+/// Splits a denied open of the hidraw node from other open failures.
+fn open_error(node: &Path, e: &std::io::Error) -> Error {
+    if e.kind() == std::io::ErrorKind::PermissionDenied {
+        Error::PermissionDenied(node.display().to_string())
+    } else {
+        Error::Usb(format!("cannot open {}: {e}", node.display()))
+    }
+}
+
 /// Checks the model id in a `START_CONFIG` reply against `supported`.
 fn identify(reply: &[u8], supported: &[u16]) -> Result<()> {
     let model = read_u16_le(reply, MODEL_ID_OFFSET)?;
@@ -199,6 +209,17 @@ mod tests {
         let mut reply = vec![0u8; PACKET_LEN];
         reply[MODEL_ID_OFFSET..MODEL_ID_OFFSET + 2].copy_from_slice(&model.to_le_bytes());
         reply
+    }
+
+    #[test]
+    fn denied_open_is_permission_denied() {
+        let node = Path::new("/dev/hidraw3");
+        let denied = std::io::Error::from_raw_os_error(Errno::ACCESS.raw_os_error());
+        assert!(
+            matches!(open_error(node, &denied), Error::PermissionDenied(n) if n == "/dev/hidraw3")
+        );
+        let missing = std::io::Error::from(std::io::ErrorKind::NotFound);
+        assert!(matches!(open_error(node, &missing), Error::Usb(_)));
     }
 
     #[test]

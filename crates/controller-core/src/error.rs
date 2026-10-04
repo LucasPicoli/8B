@@ -56,6 +56,13 @@ pub enum Error {
     /// support. No write is sent to it.
     #[error("unsupported controller model 0x{0:04x}")]
     UnsupportedModel(u16),
+    /// The config hidraw node exists but this user may not open it. The message
+    /// carries the command that installs the udev rule.
+    #[error(
+        "permission denied on {0}; grant access with: {cmd}",
+        cmd = crate::transport::udev::UDEV_MANUAL_COMMAND
+    )]
+    PermissionDenied(String),
     /// A USB-level failure occurred.
     #[error("usb error: {0}")]
     Usb(String),
@@ -98,9 +105,10 @@ impl Error {
     #[must_use]
     pub const fn category(&self) -> ErrorCategory {
         match self {
-            Self::NoDevice | Self::UnsupportedModel(_) | Self::Usb(_) => {
-                ErrorCategory::ConnectionFailure
-            }
+            Self::NoDevice
+            | Self::UnsupportedModel(_)
+            | Self::PermissionDenied(_)
+            | Self::Usb(_) => ErrorCategory::ConnectionFailure,
             Self::Timeout | Self::Disconnected => ErrorCategory::Timeout,
             Self::Decode(_) | Self::Validation(_) => ErrorCategory::ValidationFailure,
             Self::Io(_) => ErrorCategory::ExportFailure,
@@ -133,6 +141,10 @@ mod tests {
     fn error_maps_to_category() {
         assert_eq!(Error::NoDevice.category(), ErrorCategory::ConnectionFailure);
         assert_eq!(Error::UnsupportedModel(0x6012).category(), ErrorCategory::ConnectionFailure);
+        assert_eq!(
+            Error::PermissionDenied("/dev/hidraw3".into()).category(),
+            ErrorCategory::ConnectionFailure
+        );
         assert_eq!(Error::Timeout.category(), ErrorCategory::Timeout);
         assert_eq!(Error::Disconnected.category(), ErrorCategory::Timeout);
         assert_eq!(Error::Decode("x".into()).category(), ErrorCategory::ValidationFailure);

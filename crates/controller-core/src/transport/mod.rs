@@ -4,6 +4,7 @@ pub mod hidraw_device;
 mod hidraw_write;
 pub mod mock;
 mod session;
+pub mod udev;
 pub mod write_input;
 
 pub use device_io::DeviceIo;
