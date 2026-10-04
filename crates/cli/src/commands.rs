@@ -187,7 +187,7 @@ pub fn build_read_macro_err_payload(mode: Mode, slot: u8, err: &Error) -> (Value
 // ---------------------------------------------------------------------------
 
 /// Emits compact JSON to stdout followed by a newline. Mirrors C++ `emitJson`.
-fn emit_json(payload: &Value) {
+pub fn emit_json(payload: &Value) {
     // `Display` for `Value` produces compact JSON.
     println!("{payload}");
 }
