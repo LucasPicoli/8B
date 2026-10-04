@@ -5,36 +5,59 @@ pub mod macros;
 pub mod profile;
 pub mod tables;
 
-use crate::device::{ControllerSpec, ProtocolCodec, TransportParams, UsbId};
+use crate::device::{ConfigPort, ControllerSpec, ProtocolCodec, UsbId};
 use crate::error::Result;
 use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
     RawProfilePayload, Slot,
 };
+use crate::protocol::framing::Framing;
 
 /// The 8BitDo Pro 3 controller backend.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Pro3;
 
-const USB_IDS: [UsbId; 2] =
-    [UsbId { vendor: 0x2DC8, product: 0x310B }, UsbId { vendor: 0x2DC8, product: 0x6009 }];
+const CONFIG_PORTS: [ConfigPort; 3] = [
+    ConfigPort {
+        usb: UsbId { vendor: 0x2DC8, product: 0x310B },
+        mode: Mode::XInput,
+        interface: 2,
+        framing: Framing::Plain,
+    },
+    // Nintendo's id: a genuine Pro Controller enumerates the same, so the transport
+    // checks the model id before it sends anything else.
+    ConfigPort {
+        usb: UsbId { vendor: 0x057E, product: 0x2009 },
+        mode: Mode::Switch,
+        interface: 0,
+        framing: Framing::Wrapped,
+    },
+    ConfigPort {
+        usb: UsbId { vendor: 0x2DC8, product: 0x6009 },
+        mode: Mode::DInput,
+        interface: 0,
+        framing: Framing::Plain,
+    },
+];
+/// `START_CONFIG` model ids of the Pro 3 (the vendor app accepts both).
+const MODEL_IDS: [u16; 2] = [0x6009, 0x600A];
 const MODES: [Mode; 3] = [Mode::XInput, Mode::Switch, Mode::DInput];
 
 impl ControllerSpec for Pro3 {
-    fn usb_ids(&self) -> &[UsbId] {
-        &USB_IDS
+    fn config_ports(&self) -> &[ConfigPort] {
+        &CONFIG_PORTS
+    }
+    fn model_ids(&self) -> &[u16] {
+        &MODEL_IDS
     }
     fn modes(&self) -> &[Mode] {
         &MODES
     }
-    fn transport_params(&self, mode: Mode) -> TransportParams {
+    fn write_payload_offset(&self, mode: Mode) -> usize {
+        // The C++ oracle writes `DInput` payloads at 16; unverified on hardware.
         match mode {
-            Mode::XInput | Mode::Switch => {
-                TransportParams { interface: 2, ep_out: 0x03, ep_in: 0x83, payload_offset: 18 }
-            }
-            Mode::DInput => {
-                TransportParams { interface: 0, ep_out: 0x02, ep_in: 0x81, payload_offset: 16 }
-            }
+            Mode::XInput | Mode::Switch => 18,
+            Mode::DInput => 16,
         }
     }
     fn slot_count(&self) -> u8 {
@@ -48,12 +71,6 @@ impl ControllerSpec for Pro3 {
     }
     fn joydev_name_match(&self) -> &'static str {
         "8BitDo"
-    }
-    fn product_id_for_mode(&self, mode: Mode) -> u16 {
-        match mode {
-            Mode::XInput | Mode::Switch => 0x310B,
-            Mode::DInput => 0x6009,
-        }
     }
     fn slot_select_value(&self, mode: Mode) -> u8 {
         match mode {
@@ -140,13 +157,12 @@ mod tests {
     use crate::model::Mode;
 
     #[test]
-    fn pro3_transport_params_match_spec() {
-        let p = Pro3.transport_params(Mode::XInput);
-        assert_eq!((p.interface, p.ep_out, p.ep_in, p.payload_offset), (2, 0x03, 0x83, 18));
-        let d = Pro3.transport_params(Mode::DInput);
-        assert_eq!((d.interface, d.ep_out, d.ep_in, d.payload_offset), (0, 0x02, 0x81, 16));
+    fn pro3_config_ports_cover_every_mode() {
+        let modes: Vec<Mode> = Pro3.config_ports().iter().map(|p| p.mode).collect();
+        assert_eq!(modes, Pro3.modes());
+        assert_eq!(Pro3.write_payload_offset(Mode::XInput), 18);
+        assert_eq!(Pro3.write_payload_offset(Mode::DInput), 16);
         assert_eq!(Pro3.blob_size(), 0x092C);
-        assert_eq!(Pro3.product_id_for_mode(Mode::DInput), 0x6009);
     }
 
     #[test]

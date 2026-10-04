@@ -11,11 +11,11 @@ use crate::error::{Error, Result};
 )]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
-    /// `XInput` mode (product 0x310b).
+    /// `XInput` mode (USB id `2dc8:310b`).
     XInput,
-    /// Nintendo Switch mode (product 0x310b).
+    /// Nintendo Switch mode (USB id `057e:2009`).
     Switch,
-    /// `DInput` mode (product 0x6009).
+    /// `DInput` mode (USB id `2dc8:6009`).
     DInput,
 }
 

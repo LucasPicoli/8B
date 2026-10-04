@@ -17,7 +17,7 @@ use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::{DeviceReadiness, Mode, Slot};
 use controller_core::orchestrator::profile::{detect_and_read_all, DetectAndReadResult};
 use controller_core::service::read::{read_macros, MacroReadResult};
-use controller_core::transport::nusb_device::NusbDevice;
+use controller_core::transport::hidraw_device::HidrawDevice;
 use controller_core::transport::DeviceIo as _;
 
 // ---------------------------------------------------------------------------
@@ -197,7 +197,7 @@ fn emit_json(payload: &Value) {
 /// # Returns
 /// Process exit code.
 pub fn run_detect() -> i32 {
-    let Ok(dev) = NusbDevice::open() else {
+    let Ok(dev) = HidrawDevice::open() else {
         // open() is currently infallible, but handle defensively.
         let r = DeviceReadiness::default();
         let (payload, code) = build_detect_payload(&r);
@@ -216,7 +216,7 @@ pub fn run_detect() -> i32 {
 /// # Returns
 /// Process exit code.
 pub fn run_read() -> i32 {
-    let Ok(dev) = NusbDevice::open() else {
+    let Ok(dev) = HidrawDevice::open() else {
         // open() is currently infallible, but handle defensively.
         let out = DetectAndReadResult {
             success: false,
@@ -248,7 +248,7 @@ pub fn run_read() -> i32 {
 /// # Returns
 /// Process exit code.
 pub fn run_dump(output_dir: &str) -> i32 {
-    let Ok(dev) = NusbDevice::open() else {
+    let Ok(dev) = HidrawDevice::open() else {
         eprintln!("failed to open device");
         return 1;
     };
@@ -300,7 +300,7 @@ pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
         }
     };
 
-    let Ok(dev) = NusbDevice::open() else {
+    let Ok(dev) = HidrawDevice::open() else {
         let err = Error::NoDevice;
         let (payload, code) = build_read_macro_err_payload(mode, slot, &err);
         eprintln!("{err}");

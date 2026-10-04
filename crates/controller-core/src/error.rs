@@ -52,12 +52,20 @@ pub enum Error {
     /// No supported device is connected.
     #[error("no supported device connected")]
     NoDevice,
+    /// An 8BitDo pad answered `START_CONFIG` with a model id this build does not
+    /// support. No write is sent to it.
+    #[error("unsupported controller model 0x{0:04x}")]
+    UnsupportedModel(u16),
     /// A USB-level failure occurred.
     #[error("usb error: {0}")]
     Usb(String),
     /// A transfer timed out or the device disconnected mid-transfer.
     #[error("device communication timed out")]
     Timeout,
+    /// The device went away mid-session (`EIO` or `ENODEV`), for example after the
+    /// mode switch was moved.
+    #[error("device disconnected")]
+    Disconnected,
     /// Device data was malformed or did not match the expected layout.
     #[error("malformed device data: {0}")]
     Decode(String),
@@ -90,8 +98,10 @@ impl Error {
     #[must_use]
     pub const fn category(&self) -> ErrorCategory {
         match self {
-            Self::NoDevice | Self::Usb(_) => ErrorCategory::ConnectionFailure,
-            Self::Timeout => ErrorCategory::Timeout,
+            Self::NoDevice | Self::UnsupportedModel(_) | Self::Usb(_) => {
+                ErrorCategory::ConnectionFailure
+            }
+            Self::Timeout | Self::Disconnected => ErrorCategory::Timeout,
             Self::Decode(_) | Self::Validation(_) => ErrorCategory::ValidationFailure,
             Self::Io(_) => ErrorCategory::ExportFailure,
             Self::Write { .. } => ErrorCategory::WriteFailure,
@@ -122,7 +132,9 @@ mod tests {
     #[test]
     fn error_maps_to_category() {
         assert_eq!(Error::NoDevice.category(), ErrorCategory::ConnectionFailure);
+        assert_eq!(Error::UnsupportedModel(0x6012).category(), ErrorCategory::ConnectionFailure);
         assert_eq!(Error::Timeout.category(), ErrorCategory::Timeout);
+        assert_eq!(Error::Disconnected.category(), ErrorCategory::Timeout);
         assert_eq!(Error::Decode("x".into()).category(), ErrorCategory::ValidationFailure);
         assert_eq!(Error::write("x").category(), ErrorCategory::WriteFailure);
     }

@@ -6,6 +6,8 @@ use crate::protocol::crc16::crc16_modbus;
 
 const PACKET_LEN: usize = 64;
 const PROFILE_SIG: [u8; 2] = [0x2C, 0x09]; // 0x092C little-endian
+/// Where read requests carry their payload, in every mode.
+pub const READ_PAYLOAD_OFFSET: usize = 18;
 
 /// Builds the `START_CONFIG` packet (`81 04 00 01` + zero padding).
 #[must_use]
@@ -34,41 +36,32 @@ pub const fn build_slot_select(slot_select_value: u8) -> [u8; PACKET_LEN] {
 
 /// Builds a `PROFILE_UPLOAD` request for `chunk` at `offset`.
 ///
-/// `payload_offset` is 18 (XInput/Switch) or 16 (`DInput`). CRC-16/MODBUS is taken
-/// over the payload window `[payload_offset..payload_offset+len]` (the 0xCC bytes),
-/// matching C++ `buildUploadPacket`.
+/// The `0xCC` filler sits at [`READ_PAYLOAD_OFFSET`] in every mode, and the
+/// CRC-16/MODBUS covers it. A `DInput` request with the filler at 16 makes the
+/// device return a repeating 4-byte pattern instead of the blob.
 #[must_use]
-pub fn build_upload_packet(offset: u16, chunk: &[u8], payload_offset: usize) -> [u8; PACKET_LEN] {
+pub fn build_upload_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];
-    let len = chunk.len().min(PACKET_LEN.saturating_sub(payload_offset));
+    let len = chunk.len().min(PACKET_LEN - READ_PAYLOAD_OFFSET);
     p[0] = 0x81;
     p[1] = 0x04;
     p[2] = 0x02;
     p[3] = 0x00;
-    // chunk size as LE16 at offset 6; len <= PACKET_LEN - payload_offset (<= 48), fits in u16
+    // len <= 46, fits in u16
     #[allow(clippy::cast_possible_truncation)]
     let len_bytes = (len as u16).to_le_bytes();
     p[6] = len_bytes[0];
     p[7] = len_bytes[1];
-    // profile sig at offset 10
     p[10] = PROFILE_SIG[0];
     p[11] = PROFILE_SIG[1];
-    // blob offset as LE16 at offset 14
     let off_bytes = offset.to_le_bytes();
     p[14] = off_bytes[0];
     p[15] = off_bytes[1];
-    // copy payload
-    if let Some(dst) = p.get_mut(payload_offset..payload_offset + len) {
-        if let Some(src) = chunk.get(..len) {
-            dst.copy_from_slice(src);
-        }
+    let window = READ_PAYLOAD_OFFSET..READ_PAYLOAD_OFFSET + len;
+    if let (Some(dst), Some(src)) = (p.get_mut(window.clone()), chunk.get(..len)) {
+        dst.copy_from_slice(src);
     }
-    // CRC-16/MODBUS over the 0xCC payload region at `payload_offset` (NOT canonical 18).
-    // C++ `buildUploadPacket` CRCs `uploadPayload` written at `hostPayloadOffset` — for
-    // DInput (offset 16) this differs from [18..]. (The WRITE builder uses canonical 18;
-    // the UPLOAD/read builder uses payload_offset. Keep them distinct.)
-    let crc =
-        p.get(payload_offset..payload_offset + len).map_or_else(|| crc16_modbus(&[]), crc16_modbus);
+    let crc = p.get(window).map_or_else(|| crc16_modbus(&[]), crc16_modbus);
     let crc_bytes = crc.to_le_bytes();
     p[8] = crc_bytes[0];
     p[9] = crc_bytes[1];
@@ -120,6 +113,18 @@ pub const fn build_query_status() -> [u8; PACKET_LEN] {
     p[1] = 0x04;
     p[2] = 0x07;
     p[3] = 0x00;
+    p
+}
+
+/// Builds the input-stream toggle `81 04 07 00 xx`: `resume = false` pauses the
+/// gamepad input stream, `resume = true` resumes it.
+///
+/// The pause is the same packet as [`build_query_status`]. While paused, the
+/// gamepad sends no input, and config replies no longer race the input reports.
+#[must_use]
+pub const fn build_input_stream(resume: bool) -> [u8; PACKET_LEN] {
+    let mut p = build_query_status();
+    p[4] = resume as u8;
     p
 }
 
@@ -216,25 +221,12 @@ mod tests {
     #[test]
     fn upload_packet_has_header_size_and_crc() {
         let chunk = [0xCCu8; 45];
-        let pkt = build_upload_packet(0, &chunk, 18);
+        let pkt = build_upload_packet(0, &chunk);
         assert_eq!(&pkt[0..4], &[0x81, 0x04, 0x02, 0x00]);
         assert_eq!(u16::from_le_bytes([pkt[6], pkt[7]]), 45); // chunk size
         assert_eq!(&pkt[10..12], &[0x2C, 0x09]); // profile sig
         assert_eq!(&pkt[18..18 + 45], &chunk); // payload at offset 18
-                                               // CRC over the 0xCC payload region [18..63].
         assert_eq!(u16::from_le_bytes([pkt[8], pkt[9]]), crc16_modbus(&[0xCCu8; 45]));
-    }
-    #[test]
-    fn upload_packet_dinput_crc_is_over_payload_offset() {
-        // DInput payload_offset = 16. CRC must be over the 0xCC bytes at [16..61]
-        // (all 0xCC), NOT the canonical [18..63] (which would include 2 trailing 0x00).
-        let chunk = [0xCCu8; 45];
-        let pkt = build_upload_packet(0, &chunk, 16);
-        assert_eq!(&pkt[16..16 + 45], &chunk); // payload at offset 16
-        assert_eq!(u16::from_le_bytes([pkt[8], pkt[9]]), crc16_modbus(&[0xCCu8; 45]));
-        // And it must NOT equal the (buggy) canonical-window CRC, which mixes in NULs.
-        let canonical = crc16_modbus(&pkt[18..18 + 45]);
-        assert_ne!(u16::from_le_bytes([pkt[8], pkt[9]]), canonical);
     }
     #[test]
     fn decode_response_extracts_payload() {

@@ -15,8 +15,8 @@ test-utils = []        # exposes MockDevice + fixtures to integration tests
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
-nusb.workspace = true
 jsonschema.workspace = true
+rustix.workspace = true
 
 [dev-dependencies]
 serial_test.workspace = true

@@ -5,6 +5,7 @@ use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
     RawProfilePayload, Slot,
 };
+use crate::protocol::framing::Framing;
 
 /// A supported USB (vendor, product) pair.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,27 +16,29 @@ pub struct UsbId {
     pub product: u16,
 }
 
-/// Per-mode USB transport parameters.
+/// The config interface a controller presents in one current mode.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct TransportParams {
-    /// Interface number to claim.
+pub struct ConfigPort {
+    /// USB id the controller enumerates with in this current mode.
+    pub usb: UsbId,
+    /// The current mode this USB id stands for.
+    pub mode: Mode,
+    /// USB interface number whose hidraw node carries the config reports.
     pub interface: u8,
-    /// Interrupt OUT endpoint address.
-    pub ep_out: u8,
-    /// Interrupt IN endpoint address.
-    pub ep_in: u8,
-    /// Offset into the 64-byte packet where the payload begins.
-    pub payload_offset: usize,
+    /// Framing of config packets on that node.
+    pub framing: Framing,
 }
 
 /// Static description of a controller model.
 pub trait ControllerSpec {
-    /// Supported (vendor, product) pairs.
-    fn usb_ids(&self) -> &[UsbId];
+    /// The config interface of every current mode, one per USB id.
+    fn config_ports(&self) -> &[ConfigPort];
+    /// Model ids the `START_CONFIG` reply carries for this controller.
+    fn model_ids(&self) -> &[u16];
     /// Supported operating modes.
     fn modes(&self) -> &[Mode];
-    /// Transport parameters for `mode`.
-    fn transport_params(&self, mode: Mode) -> TransportParams;
+    /// Where a profile write packet carries its payload when it targets `mode`'s slots.
+    fn write_payload_offset(&self, mode: Mode) -> usize;
     /// Number of profile slots.
     fn slot_count(&self) -> u8;
     /// Number of macro slots per profile slot.
@@ -44,9 +47,7 @@ pub trait ControllerSpec {
     fn blob_size(&self) -> usize;
     /// Substring used to match the joydev device name.
     fn joydev_name_match(&self) -> &'static str;
-    /// USB product id used for `mode`.
-    fn product_id_for_mode(&self, mode: Mode) -> u16;
-    /// Value sent in the slot-select command to switch the controller to `mode`.
+    /// Value sent in the slot-select command (`0x14`) to target `mode`'s slots.
     fn slot_select_value(&self, mode: Mode) -> u8;
     /// Gamepad-mode byte carried by the macro commands for `mode`.
     fn macro_gamepad_mode(&self, mode: Mode) -> u8;

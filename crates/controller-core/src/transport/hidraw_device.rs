@@ -1,4 +1,4 @@
-//! Real USB transport over nusb (interrupt transfers).
+//! Real transport over the hidraw node of the config interface.
 
 use std::path::Path;
 
@@ -11,27 +11,28 @@ use crate::model::{
     Mode, ProfileReadResult, RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, Vibration,
 };
 use crate::protocol::wire::{
-    build_query_status, build_read_macro_packet, build_slot_select, build_start_config,
-    build_upload_packet, decode_read_macro_response, decode_upload_response,
+    build_query_status, build_read_macro_packet, build_slot_select, build_upload_packet,
+    decode_read_macro_response, decode_upload_response,
 };
 use crate::protocol::wire_write::MACRO_PAGE_LEN;
-use crate::transport::nusb_write;
+use crate::transport::hidraw_write;
 use crate::transport::session::{Session, READ_TIMEOUT};
 use crate::transport::write_input::{PROFILE_CHUNK as UPLOAD_CHUNK, PROFILE_SIZE};
 
 const MACRO_CHUNK: u16 = 32;
 const MACRO_ERASE_LEN: u16 = MACRO_PAGE_LEN;
 
-/// Real USB transport backed by nusb interrupt transfers.
-pub struct NusbDevice {
+/// Real transport over hidraw. Works in every current mode; the USB id of the
+/// attached controller picks the node and the framing.
+pub struct HidrawDevice {
     spec: Pro3,
 }
 
-impl NusbDevice {
+impl HidrawDevice {
     /// Opens a handle to the first attached 8BitDo Pro 3.
     ///
-    /// The device is not claimed until an operation is performed — this
-    /// constructor is infallible and just stores the spec.
+    /// The node is not opened until an operation is performed. This constructor
+    /// is infallible and just stores the spec.
     ///
     /// # Errors
     /// Never returns an error; signature matches trait expectations.
@@ -44,17 +45,17 @@ impl NusbDevice {
 // Profile upload helpers (`START_CONFIG` only, never `QUERY_STATUS`)
 // ---------------------------------------------------------------------------
 
-/// Sends `START_CONFIG`, `SLOT_SELECT`, then the 53-chunk upload loop.
+/// Sends `SLOT_SELECT`, then the 53-chunk upload loop. The session already sent
+/// `START_CONFIG`.
 ///
 /// **Never sends `QUERY_STATUS`** — doing so kills joydev until reconnect.
-fn read_blob(session: &mut Session, slot_select: u8, payload_offset: usize) -> Result<Vec<u8>> {
-    let _ = session.send_recv(&build_start_config())?;
+fn read_blob(session: &mut Session, slot_select: u8) -> Result<Vec<u8>> {
     let _ = session.send_recv(&build_slot_select(slot_select))?;
-    read_blob_chunks(session, payload_offset)
+    read_blob_chunks(session)
 }
 
 /// Runs the 53-chunk `PROFILE_UPLOAD` loop and returns the assembled blob.
-fn read_blob_chunks(session: &mut Session, payload_offset: usize) -> Result<Vec<u8>> {
+fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
     let mut blob = Vec::with_capacity(PROFILE_SIZE);
     let mut offset = 0usize;
     while offset < PROFILE_SIZE {
@@ -64,7 +65,7 @@ fn read_blob_chunks(session: &mut Session, payload_offset: usize) -> Result<Vec<
         let offset_u16 = offset as u16;
         #[allow(clippy::cast_possible_truncation)]
         let chunk_size_u16 = chunk_size as u16;
-        let pkt = build_upload_packet(offset_u16, &filler, payload_offset);
+        let pkt = build_upload_packet(offset_u16, &filler);
         let resp = session.send_recv(&pkt)?;
         // Validate the echoed offset/size against what we requested (matches C++).
         let payload = decode_upload_response(&resp, offset_u16, chunk_size_u16)?;
@@ -129,41 +130,33 @@ fn empty_summary(mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
 // `DeviceIo` impl
 // ---------------------------------------------------------------------------
 
-impl crate::transport::DeviceIo for NusbDevice {
-    /// Reads all on-device profiles, dispatching on product id (not mode).
+impl crate::transport::DeviceIo for HidrawDevice {
+    /// Reads the slot banks for target `mode`, from any current mode.
     ///
-    /// Product `0x310B` (`XInput` or `Switch`): reads `XInput` (`slot_select=3`) then
-    /// `Switch` (`slot_select=0`), returning 2 blobs. Product `0x6009` (`DInput`):
-    /// reads `DInput` (`slot_select=1`), returning 1 blob.
+    /// `XInput` or Switch reads the `XInput` bank, then the Switch bank (2 blobs).
+    /// `DInput` reads the `DInput` bank (1 blob).
     ///
-    /// **Never sends `QUERY_STATUS`** — that permanently kills joydev until reconnect.
+    /// **Never sends `QUERY_STATUS`** beyond the session's own pause.
     ///
     /// # Errors
-    /// Returns [`Error::NoDevice`], [`Error::Usb`], [`Error::Timeout`], or
-    /// [`Error::Decode`] on failure.
+    /// Returns [`Error::NoDevice`], [`Error::Usb`], [`Error::Timeout`],
+    /// [`Error::Disconnected`] or [`Error::Decode`] on failure.
     fn read_all_profiles(&self, mode: Mode) -> Result<ProfileReadResult> {
-        let product = self.spec.product_id_for_mode(mode);
-
-        // Targets: (mode, slot_select_value). Dispatch on product, not mode:
-        // 0x310B → xinput+switch blobs; 0x6009 → dinput only.
-        let targets: &[(Mode, u8)] = match product {
-            0x310B => &[(Mode::XInput, 3), (Mode::Switch, 0)],
-            0x6009 => &[(Mode::DInput, 1)],
-            _ => return Err(Error::Usb(format!("unsupported product id 0x{product:04X}"))),
+        let targets: &[Mode] = match mode {
+            Mode::XInput | Mode::Switch => &[Mode::XInput, Mode::Switch],
+            Mode::DInput => &[Mode::DInput],
         };
 
-        let mut session = Session::for_mode(self.spec, mode, READ_TIMEOUT)?;
-        let payload_offset = session.params.payload_offset;
-
-        // Send `START_CONFIG` once for the whole session.
-        let _ = session.send_recv(&build_start_config())?;
+        // The session sends `START_CONFIG` once, to identify the model.
+        let mut session = Session::open(self.spec, READ_TIMEOUT)?;
 
         let mut profiles = Vec::new();
         let mut raw_blobs = Vec::new();
 
-        for &(target_mode, slot_select) in targets {
+        for &target_mode in targets {
+            let slot_select = self.spec.slot_select_value(target_mode);
             let _ = session.send_recv(&build_slot_select(slot_select))?;
-            let blob = read_blob_chunks(&mut session, payload_offset)?;
+            let blob = read_blob_chunks(&mut session)?;
 
             for source_slot in 1u8..=3 {
                 let slot = Slot::new(source_slot)?;
@@ -224,14 +217,12 @@ impl crate::transport::DeviceIo for NusbDevice {
         let flash_base = u16::from(macro_slot_idx) * MACRO_ERASE_LEN;
         let chunk_count = data_bytes.div_ceil(usize::from(MACRO_CHUNK));
 
-        let mut session = Session::for_mode(self.spec, mode, READ_TIMEOUT)?;
-        let payload_offset = session.params.payload_offset;
-
-        // Prime: `START_CONFIG` → `QUERY_STATUS` → `SLOT_SELECT` → upload×53 → `QUERY_STATUS`
-        let _ = session.send_recv(&build_start_config())?;
+        // Prime: `START_CONFIG` (sent by the session) → `QUERY_STATUS` → `SLOT_SELECT`
+        // → upload×53 → `QUERY_STATUS`
+        let mut session = Session::open(self.spec, READ_TIMEOUT)?;
         let _ = session.send_recv(&build_query_status())?;
         let _ = session.send_recv(&build_slot_select(slot_select))?;
-        let _ = read_blob_chunks(&mut session, payload_offset)?;
+        let _ = read_blob_chunks(&mut session)?;
         let _ = session.send_recv(&build_query_status())?;
 
         let mut result = Vec::with_capacity(data_bytes);
@@ -268,10 +259,11 @@ impl crate::transport::DeviceIo for NusbDevice {
     /// Never returns an error; a missing device or probe failure is reflected in
     /// the returned [`DeviceReadiness`] struct.
     fn detect_readiness(&self) -> Result<DeviceReadiness> {
-        let Some(found) = scan_sysfs(Path::new("/sys/bus/usb/devices")) else {
+        let Some(found) = scan_sysfs(Path::new("/sys/bus/usb/devices"), self.spec.config_ports())
+        else {
             return Ok(DeviceReadiness {
-                message: "No supported 8BitDo Pro 3 detected. Connect via USB in \
-                          XInput or DInput mode, then re-run detect."
+                message: "No supported 8BitDo Pro 3 detected. Connect it via USB, \
+                          then re-run detect."
                     .to_owned(),
                 ..DeviceReadiness::default()
             });
@@ -279,7 +271,7 @@ impl crate::transport::DeviceIo for NusbDevice {
 
         let mut readiness = DeviceReadiness {
             supported_device_connected: true,
-            mode: Some(found.mode),
+            mode: Some(found.port.mode),
             active_slot_marker: "unknown".to_owned(),
             vendor_id: found.vendor_id,
             product_id: found.product_id.clone(),
@@ -288,16 +280,19 @@ impl crate::transport::DeviceIo for NusbDevice {
             ..DeviceReadiness::default()
         };
 
-        let slot_select = self.spec.slot_select_value(found.mode);
+        let slot_select = self.spec.slot_select_value(found.port.mode);
 
-        match Session::for_mode(self.spec, found.mode, READ_TIMEOUT) {
+        match Session::open(self.spec, READ_TIMEOUT) {
+            Err(e @ Error::UnsupportedModel(_)) => {
+                readiness.supported_device_connected = false;
+                readiness.message = format!("8BitDo controller found, but not a Pro 3: {e}.");
+            }
             Err(e) => {
                 readiness.message =
                     format!("Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}");
             }
             Ok(mut session) => {
-                let payload_offset = session.params.payload_offset;
-                match read_blob(&mut session, slot_select, payload_offset) {
+                match read_blob(&mut session, slot_select) {
                     Err(e) => {
                         readiness.message = format!(
                             "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}"
@@ -335,27 +330,27 @@ impl crate::transport::DeviceIo for NusbDevice {
     }
 
     fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()> {
-        nusb_write::write_full_profile(self.spec, mode, blob)
+        hidraw_write::write_full_profile(self.spec, mode, blob)
     }
 
     fn write_patch(&self, mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
-        nusb_write::write_patch(self.spec, mode, offset, data)
+        hidraw_write::write_patch(self.spec, mode, offset, data)
     }
 
     fn send_slot_select(&self, mode: Mode) -> Result<()> {
-        nusb_write::send_slot_select(self.spec, mode)
+        hidraw_write::send_slot_select(self.spec, mode)
     }
 
-    fn send_apply(&self, mode: Mode) -> Result<()> {
-        nusb_write::send_apply(self.spec, mode)
+    fn send_apply(&self, _mode: Mode) -> Result<()> {
+        hidraw_write::send_apply(self.spec)
     }
 
-    fn query_status(&self, mode: Mode) -> Result<()> {
-        nusb_write::query_status(self.spec, mode)
+    fn query_status(&self, _mode: Mode) -> Result<()> {
+        hidraw_write::query_status(self.spec)
     }
 
     fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
-        nusb_write::erase_macro(self.spec, mode, profile_slot, macro_slot)
+        hidraw_write::erase_macro(self.spec, mode, profile_slot, macro_slot)
     }
 
     fn write_macro_stream(
@@ -365,6 +360,6 @@ impl crate::transport::DeviceIo for NusbDevice {
         macro_slot: MacroSlot,
         stream: &[u8],
     ) -> Result<()> {
-        nusb_write::write_macro_stream(self.spec, mode, profile_slot, macro_slot, stream)
+        hidraw_write::write_macro_stream(self.spec, mode, profile_slot, macro_slot, stream)
     }
 }

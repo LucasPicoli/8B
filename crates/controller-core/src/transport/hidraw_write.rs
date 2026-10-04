@@ -1,4 +1,4 @@
-//! Write operations of the real USB transport.
+//! Write operations of the real hidraw transport.
 //!
 //! Each function opens its own session (as the C++ `ProfileWriteService` does), builds
 //! packets with [`crate::protocol::wire_write`], and maps failures to the categories
@@ -10,6 +10,7 @@ use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::{MacroSlot, Mode, Slot};
 use crate::protocol::bytes::take;
+use crate::protocol::framing::Framing;
 use crate::protocol::wire::{build_query_status, build_slot_select};
 use crate::protocol::wire_write::{
     build_apply, build_erase_macro, build_write_macro, build_write_packet,
@@ -28,8 +29,18 @@ const CMD_SLOT_SELECT: u8 = 0x14;
 const CMD_APPLY: u8 = 0x06;
 const CMD_QUERY_STATUS: u8 = 0x07;
 
-fn open(spec: Pro3, mode: Mode) -> Result<Session> {
-    Session::for_mode(spec, mode, WRITE_TIMEOUT)
+/// Opens a write session. Refuses in a wrapped current mode (Switch): no wrapped
+/// write has been proven on hardware yet.
+fn open(spec: Pro3) -> Result<Session> {
+    let session = Session::open(spec, WRITE_TIMEOUT)?;
+    if session.framing == Framing::Wrapped {
+        return Err(Error::write(format!(
+            "writes are not supported yet while the controller is in {} mode; \
+             slide the mode switch to XInput or DInput",
+            session.current_mode
+        )));
+    }
+    Ok(session)
 }
 
 fn rejected(what: &str, cause: &Error) -> Error {
@@ -63,8 +74,8 @@ pub(super) fn write_full_profile(spec: Pro3, mode: Mode, blob: &[u8]) -> Result<
     check_profile_blob(blob)?;
     let chunks = plan_profile_chunks();
     let total = chunks.len();
-    let mut session = open(spec, mode)?;
-    let payload_offset = session.params.payload_offset;
+    let payload_offset = spec.write_payload_offset(mode);
+    let mut session = open(spec)?;
     for (i, &(offset, size)) in chunks.iter().enumerate() {
         let send = |session: &mut Session| -> Result<()> {
             let data = take(blob, usize::from(offset), size)?;
@@ -80,8 +91,8 @@ pub(super) fn write_full_profile(spec: Pro3, mode: Mode, blob: &[u8]) -> Result<
 pub(super) fn write_patch(spec: Pro3, mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
     check_patch(data)?;
     let size = len_u16(data.len())?;
-    let mut session = open(spec, mode)?;
-    let packet = build_write_packet(offset, data, session.params.payload_offset);
+    let mut session = open(spec)?;
+    let packet = build_write_packet(offset, data, spec.write_payload_offset(mode));
     for i in 0..PATCH_PACKETS {
         exchange(&mut session, &packet, |r| validate_write_response(r, offset, size))
             .map_err(|e| chunk_failure(i, PATCH_PACKETS, "patch packet", &e))?;
@@ -90,8 +101,8 @@ pub(super) fn write_patch(spec: Pro3, mode: Mode, offset: u16, data: &[u8]) -> R
 }
 
 /// Opens a session, sends one simple command and checks its echo.
-fn command(spec: Pro3, mode: Mode, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
-    let mut session = open(spec, mode)?;
+fn command(spec: Pro3, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
+    let mut session = open(spec)?;
     exchange(&mut session, packet, |r| validate_command_response(r, echo)).map_err(|e| {
         if matches!(e, Error::Decode(_)) {
             rejected(what, &e)
@@ -103,15 +114,15 @@ fn command(spec: Pro3, mode: Mode, packet: &[u8; PACKET_LEN], echo: u8, what: &s
 
 pub(super) fn send_slot_select(spec: Pro3, mode: Mode) -> Result<()> {
     let packet = build_slot_select(spec.slot_select_value(mode));
-    command(spec, mode, &packet, CMD_SLOT_SELECT, "slot select")
+    command(spec, &packet, CMD_SLOT_SELECT, "slot select")
 }
 
-pub(super) fn send_apply(spec: Pro3, mode: Mode) -> Result<()> {
-    command(spec, mode, &build_apply(), CMD_APPLY, "apply")
+pub(super) fn send_apply(spec: Pro3) -> Result<()> {
+    command(spec, &build_apply(), CMD_APPLY, "apply")
 }
 
-pub(super) fn query_status(spec: Pro3, mode: Mode) -> Result<()> {
-    command(spec, mode, &build_query_status(), CMD_QUERY_STATUS, "query status")
+pub(super) fn query_status(spec: Pro3) -> Result<()> {
+    command(spec, &build_query_status(), CMD_QUERY_STATUS, "query status")
 }
 
 /// Wire profile slot: 0-based.
@@ -147,7 +158,7 @@ pub(super) fn erase_macro(
     profile_slot: Slot,
     macro_slot: MacroSlot,
 ) -> Result<()> {
-    let mut session = open(spec, mode)?;
+    let mut session = open(spec)?;
     erase_in_session(&mut session, spec, mode, profile_slot, macro_slot)
 }
 
@@ -162,7 +173,7 @@ pub(super) fn write_macro_stream(
     let total_len = macro_total_len(stream.len(), macro_slot)?;
     let base = macro_flash_base(macro_slot)?;
     let gamepad_mode = spec.macro_gamepad_mode(mode);
-    let mut session = open(spec, mode)?;
+    let mut session = open(spec)?;
     erase_in_session(&mut session, spec, mode, profile_slot, macro_slot)?;
 
     let total = stream.len() / MACRO_CHUNK_LEN;
