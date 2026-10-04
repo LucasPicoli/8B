@@ -6,8 +6,9 @@ use crate::protocol::crc16::crc16_modbus;
 
 const PACKET_LEN: usize = 64;
 const PROFILE_SIG: [u8; 2] = [0x2C, 0x09]; // 0x092C little-endian
-/// Where read requests carry their payload, in every mode.
-pub const READ_PAYLOAD_OFFSET: usize = 18;
+/// Where every request carries its payload and starts its CRC window, in every mode.
+/// The two bytes before it are zero. Official `DInput` writes use 18 too.
+pub const PAYLOAD_OFFSET: usize = 18;
 
 /// Builds the `START_CONFIG` packet (`81 04 00 01` + zero padding).
 #[must_use]
@@ -36,13 +37,13 @@ pub const fn build_slot_select(slot_select_value: u8) -> [u8; PACKET_LEN] {
 
 /// Builds a `PROFILE_UPLOAD` request for `chunk` at `offset`.
 ///
-/// The `0xCC` filler sits at [`READ_PAYLOAD_OFFSET`] in every mode, and the
+/// The `0xCC` filler sits at [`PAYLOAD_OFFSET`] in every mode, and the
 /// CRC-16/MODBUS covers it. A `DInput` request with the filler at 16 makes the
 /// device return a repeating 4-byte pattern instead of the blob.
 #[must_use]
 pub fn build_upload_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];
-    let len = chunk.len().min(PACKET_LEN - READ_PAYLOAD_OFFSET);
+    let len = chunk.len().min(PACKET_LEN - PAYLOAD_OFFSET);
     p[0] = 0x81;
     p[1] = 0x04;
     p[2] = 0x02;
@@ -57,7 +58,7 @@ pub fn build_upload_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
     let off_bytes = offset.to_le_bytes();
     p[14] = off_bytes[0];
     p[15] = off_bytes[1];
-    let window = READ_PAYLOAD_OFFSET..READ_PAYLOAD_OFFSET + len;
+    let window = PAYLOAD_OFFSET..PAYLOAD_OFFSET + len;
     if let (Some(dst), Some(src)) = (p.get_mut(window.clone()), chunk.get(..len)) {
         dst.copy_from_slice(src);
     }

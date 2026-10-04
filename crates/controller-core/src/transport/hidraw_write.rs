@@ -70,16 +70,15 @@ fn exchange(
     validate(&resp)
 }
 
-pub(super) fn write_full_profile(spec: Pro3, mode: Mode, blob: &[u8]) -> Result<()> {
+pub(super) fn write_full_profile(spec: Pro3, blob: &[u8]) -> Result<()> {
     check_profile_blob(blob)?;
     let chunks = plan_profile_chunks();
     let total = chunks.len();
-    let payload_offset = spec.write_payload_offset(mode);
     let mut session = open(spec)?;
     for (i, &(offset, size)) in chunks.iter().enumerate() {
         let send = |session: &mut Session| -> Result<()> {
             let data = take(blob, usize::from(offset), size)?;
-            let packet = build_write_packet(offset, data, payload_offset);
+            let packet = build_write_packet(offset, data);
             let size16 = len_u16(size)?;
             exchange(session, &packet, |r| validate_write_response(r, offset, size16))
         };
@@ -88,11 +87,11 @@ pub(super) fn write_full_profile(spec: Pro3, mode: Mode, blob: &[u8]) -> Result<
     Ok(())
 }
 
-pub(super) fn write_patch(spec: Pro3, mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
+pub(super) fn write_patch(spec: Pro3, offset: u16, data: &[u8]) -> Result<()> {
     check_patch(data)?;
     let size = len_u16(data.len())?;
     let mut session = open(spec)?;
-    let packet = build_write_packet(offset, data, spec.write_payload_offset(mode));
+    let packet = build_write_packet(offset, data);
     for i in 0..PATCH_PACKETS {
         exchange(&mut session, &packet, |r| validate_write_response(r, offset, size))
             .map_err(|e| chunk_failure(i, PATCH_PACKETS, "patch packet", &e))?;

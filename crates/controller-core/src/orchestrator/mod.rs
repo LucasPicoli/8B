@@ -9,4 +9,4 @@ pub mod profile;
 pub mod write;
 
 pub use patch::{StickPatch, TriggerPatch};
-pub use write::{ProfileWriteOrchestrator, REFUSE_DINPUT_WRITES};
+pub use write::ProfileWriteOrchestrator;

@@ -19,15 +19,6 @@ use crate::service::{
 };
 use crate::transport::device_io::DeviceIo;
 
-/// While `true`, every write in `DInput` mode is refused before any device access.
-///
-/// `compile_profile` has no `DInput` branch: it builds the `XInput` blob layout, which lands
-/// 2 bytes early on the wire in `DInput`, and it writes `XInput`-view button values (18 of 22
-/// entries differ from what the official app writes). No `DInput` write from this code has
-/// reached hardware. Set this to `false` once the `DInput` layout and button table are
-/// verified on a controller.
-pub const REFUSE_DINPUT_WRITES: bool = true;
-
 /// What a build step decided.
 pub(super) enum Plan {
     /// Write this blob.
@@ -126,14 +117,6 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         build: impl FnOnce(&ReadbackResult) -> Result<Plan>,
     ) -> WriteResult {
         let fail = |category, message: String| WriteResult::failure(mode, slot, category, message);
-
-        if REFUSE_DINPUT_WRITES && mode == Mode::DInput {
-            return fail(
-                ErrorCategory::ValidationFailure,
-                "Writes in dinput mode are disabled until the dinput blob layout and button table are verified."
-                    .to_owned(),
-            );
-        }
 
         let rb = match readback_and_confirm(self.dev, mode, slot, policy) {
             Ok(rb) => rb,

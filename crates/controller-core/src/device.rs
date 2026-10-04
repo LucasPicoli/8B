@@ -37,8 +37,6 @@ pub trait ControllerSpec {
     fn model_ids(&self) -> &[u16];
     /// Supported operating modes.
     fn modes(&self) -> &[Mode];
-    /// Where a profile write packet carries its payload when it targets `mode`'s slots.
-    fn write_payload_offset(&self, mode: Mode) -> usize;
     /// Number of profile slots.
     fn slot_count(&self) -> u8;
     /// Number of macro slots per profile slot.

@@ -7,13 +7,10 @@
 use crate::error::{Error, Result};
 use crate::protocol::bytes::{read_u16_le, take};
 use crate::protocol::crc16::crc16_modbus;
+use crate::protocol::wire::PAYLOAD_OFFSET;
 
 /// Length of every config packet.
 pub const PACKET_LEN: usize = 64;
-/// Start of the CRC window, in every mode (not the `DInput` payload offset).
-const CRC_START: usize = 18;
-/// Macro data always starts here, in every mode.
-const MACRO_DATA_OFFSET: usize = 18;
 /// Bytes per macro write chunk.
 pub const MACRO_CHUNK_LEN: usize = 32;
 /// Bytes erased per macro slot, and the flash stride between macro slots.
@@ -57,7 +54,8 @@ fn put_payload(p: &mut [u8; PACKET_LEN], at: usize, chunk: &[u8], max: usize) {
 
 /// Stores the CRC-16/MODBUS of `wire[18..18+len]` at bytes 8-9.
 fn stamp_crc(p: &mut [u8; PACKET_LEN], len: usize) {
-    let crc = p.get(CRC_START..CRC_START + len).map_or_else(|| crc16_modbus(&[]), crc16_modbus);
+    let crc =
+        p.get(PAYLOAD_OFFSET..PAYLOAD_OFFSET + len).map_or_else(|| crc16_modbus(&[]), crc16_modbus);
     put16(p, OFF_CRC, crc);
 }
 
@@ -67,15 +65,15 @@ fn len_u16(len: usize) -> u16 {
 
 /// Builds a `PROFILE_WRITE` packet for `chunk` at blob `offset`.
 ///
-/// `payload_offset` is 18 (XInput/Switch) or 16 (`DInput`). The CRC covers
-/// `wire[18..18+chunk.len()]` in every mode, matching C++ `buildWritePacket`.
+/// The payload and its CRC window start at [`PAYLOAD_OFFSET`] in every mode. The C++
+/// oracle put `DInput` payloads at 16; the official app's `DInput` writes use 18.
 #[must_use]
-pub fn build_write_packet(offset: u16, chunk: &[u8], payload_offset: usize) -> [u8; PACKET_LEN] {
+pub fn build_write_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
     let mut p = header(CMD_PROFILE_WRITE, 0x00);
     put16(&mut p, OFF_CHUNK_SIZE, len_u16(chunk.len()));
     put16(&mut p, OFF_SIG_OR_TOTAL, PROFILE_SIG);
     put16(&mut p, OFF_FLASH_OFFSET, offset);
-    put_payload(&mut p, payload_offset, chunk, PACKET_LEN);
+    put_payload(&mut p, PAYLOAD_OFFSET, chunk, PACKET_LEN);
     stamp_crc(&mut p, chunk.len());
     p
 }
@@ -124,7 +122,7 @@ pub fn build_write_macro(
     put16(&mut p, OFF_CHUNK_SIZE, len_u16(MACRO_CHUNK_LEN));
     put16(&mut p, OFF_SIG_OR_TOTAL, total_len);
     put16(&mut p, OFF_FLASH_OFFSET, offset);
-    put_payload(&mut p, MACRO_DATA_OFFSET, chunk, MACRO_CHUNK_LEN);
+    put_payload(&mut p, PAYLOAD_OFFSET, chunk, MACRO_CHUNK_LEN);
     stamp_crc(&mut p, MACRO_CHUNK_LEN);
     p
 }
@@ -228,25 +226,16 @@ mod tests {
     }
 
     #[test]
-    fn write_packet_xinput_layout() {
+    fn write_packet_layout() {
         let chunk = [0xAB; 45];
-        let p = build_write_packet(0x0087, &chunk, 18);
+        let p = build_write_packet(0x0087, &chunk);
         assert_eq!(&p[0..4], &[0x81, 0x04, 0x01, 0x00]);
         assert_eq!(u16::from_le_bytes([p[6], p[7]]), 45);
         assert_eq!(&p[10..12], &[0x2C, 0x09]);
         assert_eq!(u16::from_le_bytes([p[14], p[15]]), 0x0087);
+        assert_eq!(&p[16..18], &[0, 0]);
         assert_eq!(&p[18..63], &chunk);
         assert_eq!(u16::from_le_bytes([p[8], p[9]]), crc16_modbus(&chunk));
-    }
-
-    #[test]
-    fn write_packet_dinput_payload_at_16_crc_over_18() {
-        let chunk: Vec<u8> = (1..=45).collect();
-        let p = build_write_packet(0, &chunk, 16);
-        assert_eq!(&p[16..61], chunk.as_slice());
-        // CRC window starts at 18 in every mode, so it skips the first two payload bytes.
-        assert_eq!(u16::from_le_bytes([p[8], p[9]]), crc16_modbus(&p[18..63]));
-        assert_ne!(u16::from_le_bytes([p[8], p[9]]), crc16_modbus(&chunk));
     }
 
     #[test]

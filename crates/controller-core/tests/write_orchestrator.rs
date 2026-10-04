@@ -14,9 +14,7 @@ use controller_core::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, MacroStep, Mode, ProfileReadResult,
     RawProfilePayload, Slot, Triggers, WriteResult,
 };
-use controller_core::orchestrator::{
-    ProfileWriteOrchestrator, StickPatch, TriggerPatch, REFUSE_DINPUT_WRITES,
-};
+use controller_core::orchestrator::{ProfileWriteOrchestrator, StickPatch, TriggerPatch};
 use controller_core::protocol::crc16::crc16_modbus;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
@@ -28,6 +26,8 @@ const SECTION4: usize = 0x068C;
 const SECTION4_STRIDE: usize = 216;
 const DESCRIPTORS: usize = 8;
 const DESCRIPTOR_SIZE: usize = 52;
+/// Button entry 20 (l4) of slot 3.
+const L4_SLOT3: usize = 0x00E4 + 2 * 0x5C + 20 * 4;
 /// Offset of the CRC field in a blob.
 const CRC: usize = 0x000C;
 
@@ -684,18 +684,30 @@ fn no_device_is_a_connection_failure() {
 }
 
 #[test]
-fn dinput_writes_are_refused_while_the_switch_is_on() {
-    if !REFUSE_DINPUT_WRITES {
-        return; // the dinput table is verified: replace this test with real dinput write tests
-    }
-    let blob = base_blob(Mode::XInput);
+fn dinput_remap_on_the_official_blob_changes_one_entry() {
+    let official = std::fs::read("../../fixtures/pro3/dinput-official.blob").unwrap();
+    // A DInput read returns the DInput bank only.
     let dev = MockDevice::new().with_profiles(
         Mode::DInput,
-        ProfileReadResult { raw_blobs: vec![blob], ..Default::default() },
+        ProfileReadResult { raw_blobs: vec![official.clone()], ..Default::default() },
     );
     let dir = tempfile::tempdir().unwrap();
-    let r =
-        orch(&dev, dir.path()).patch_vibration(Mode::DInput, slot(1), 1, 1, &ConfirmPolicy::Force);
-    assert_failed(&r, ErrorCategory::ValidationFailure);
-    assert!(dev.calls().is_empty());
+
+    let r = orch(&dev, dir.path()).remap_button(
+        Mode::DInput,
+        slot(3),
+        "l4",
+        "bottom face",
+        &ConfirmPolicy::Force,
+    );
+
+    assert!(r.success, "{}", r.message);
+    assert_eq!(ops(&dev), [MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]);
+    let written = writes(&dev).remove(0);
+    // Slot 3's l4 now holds the bottom face value the official app writes in DInput.
+    assert_eq!(&written[L4_SLOT3..L4_SLOT3 + 4], &[0x00, 0x20, 0x00, 0x00]);
+    let changed: Vec<usize> = (0..BLOB_SIZE).filter(|&i| written[i] != official[i]).collect();
+    assert!(changed
+        .iter()
+        .all(|&i| (0x0C..0x10).contains(&i) || (L4_SLOT3..L4_SLOT3 + 4).contains(&i)));
 }

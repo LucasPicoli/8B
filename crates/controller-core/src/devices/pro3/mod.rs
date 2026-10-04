@@ -53,13 +53,6 @@ impl ControllerSpec for Pro3 {
     fn modes(&self) -> &[Mode] {
         &MODES
     }
-    fn write_payload_offset(&self, mode: Mode) -> usize {
-        // The C++ oracle writes `DInput` payloads at 16; unverified on hardware.
-        match mode {
-            Mode::XInput | Mode::Switch => 18,
-            Mode::DInput => 16,
-        }
-    }
     fn slot_count(&self) -> u8 {
         3
     }
@@ -160,8 +153,6 @@ mod tests {
     fn pro3_config_ports_cover_every_mode() {
         let modes: Vec<Mode> = Pro3.config_ports().iter().map(|p| p.mode).collect();
         assert_eq!(modes, Pro3.modes());
-        assert_eq!(Pro3.write_payload_offset(Mode::XInput), 18);
-        assert_eq!(Pro3.write_payload_offset(Mode::DInput), 16);
         assert_eq!(Pro3.blob_size(), 0x092C);
     }
 

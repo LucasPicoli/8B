@@ -329,12 +329,12 @@ impl crate::transport::DeviceIo for HidrawDevice {
         Ok(readiness)
     }
 
-    fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()> {
-        hidraw_write::write_full_profile(self.spec, mode, blob)
+    fn write_full_profile(&self, _mode: Mode, blob: &[u8]) -> Result<()> {
+        hidraw_write::write_full_profile(self.spec, blob)
     }
 
-    fn write_patch(&self, mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
-        hidraw_write::write_patch(self.spec, mode, offset, data)
+    fn write_patch(&self, _mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
+        hidraw_write::write_patch(self.spec, offset, data)
     }
 
     fn send_slot_select(&self, mode: Mode) -> Result<()> {

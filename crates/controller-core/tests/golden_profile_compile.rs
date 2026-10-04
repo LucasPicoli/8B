@@ -132,3 +132,38 @@ fn read_modify_write_preserves_other_slot() {
     assert_eq!(&out[0x0034..0x0054], &base[0x0034..0x0054]);
     assert_eq!(&out[0x0140..0x0140 + 88], &base[0x0140..0x0140 + 88]);
 }
+
+/// A full `DInput` write by the official app, all three slots active, captured over USB.
+/// The payload sits at wire byte 18, as in every other mode.
+const DINPUT_OFFICIAL: &str = "../../fixtures/pro3/dinput-official.blob";
+
+#[test]
+fn dinput_official_write_decodes_to_defaults_and_recompiles_unchanged() {
+    let official = std::fs::read(DINPUT_OFFICIAL).unwrap();
+    for slot in 1..=3u8 {
+        let raw = RawProfilePayload {
+            payload: official.clone(),
+            source_slot: slot,
+            source_profile_index: slot - 1,
+            mode_hint: Mode::DInput,
+        };
+        let profile = Pro3.map_profile(&raw).unwrap().canonical;
+        assert_eq!(profile.mode, Mode::DInput);
+        // The app's default DInput buttons decode through the shared table: every button
+        // maps to itself and the four paddles are unassigned.
+        for m in &profile.button_mappings {
+            let paddle = ["rp", "lp", "l4", "r4"].contains(&m.source.as_str());
+            let want = if paddle { "disabled" } else { m.source.as_str() };
+            assert_eq!(m.target, want, "slot {slot}");
+        }
+        let mut rebuilt = Pro3
+            .compile_profile_keep_macros(&profile, Slot::new(slot).unwrap(), &official)
+            .unwrap();
+        // The struct CRC at 0x0C uses an unknown formula in the official app, and the
+        // firmware does not check it. Every other byte must match.
+        let mut want = official.clone();
+        rebuilt[0x0C..0x10].fill(0);
+        want[0x0C..0x10].fill(0);
+        assert_eq!(rebuilt, want, "slot {slot}");
+    }
+}

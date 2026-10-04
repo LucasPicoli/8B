@@ -20,6 +20,12 @@ cargo test -p controller-core --test fixture_macros regenerate -- --ignored
 Independent validation is done by loading the device-native bytes into a
 gamepad configurator (see Section 2).
 
+One fixture does not come from the encoders. `dinput-official.blob` is a full
+`DInput` write by the official 8BitDo app, all three slots active, captured
+over USB with the payload read at wire byte 18. `golden_profile_compile.rs`
+decodes and recompiles it, and every byte except the struct CRC at `0x0C` must
+match.
+
 ---
 
 ## 2. How to Validate on a Configurator
