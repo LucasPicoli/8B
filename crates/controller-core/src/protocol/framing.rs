@@ -18,7 +18,8 @@ const REQ_CMD: usize = 2;
 const REPLY_CMD_ECHO: usize = 4;
 
 /// How config packets are framed on the wire in one current mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Framing {
     /// Packets go out as built: report `0x81` out, report `0x02` in.
     Plain,

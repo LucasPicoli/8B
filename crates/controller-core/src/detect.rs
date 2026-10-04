@@ -122,7 +122,7 @@ mod tests {
         write(&dir.path().join("7-1/idProduct"), "3109\n"); // receiver: not a config port
         write(&dir.path().join("8-5/idVendor"), "057e\n");
         write(&dir.path().join("8-5/idProduct"), "2009\n");
-        let found = scan_sysfs(dir.path(), Pro3.config_ports()).unwrap();
+        let found = scan_sysfs(dir.path(), &Pro3.description().unwrap().config_ports).unwrap();
         assert_eq!(found.port.mode, Mode::Switch);
         assert_eq!(found.port.framing, Framing::Wrapped);
         assert_eq!(found.product_id, "2009");

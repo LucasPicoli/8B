@@ -1,5 +1,6 @@
 //! Per-controller abstraction seam: static spec + pure protocol codec.
 
+use crate::description::ControllerDescription;
 use crate::error::Result;
 use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
@@ -7,17 +8,21 @@ use crate::model::{
 };
 use crate::protocol::framing::Framing;
 
-/// A supported USB (vendor, product) pair.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// A supported USB (vendor, product) pair. JSON writes each as `"0x2dc8"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UsbId {
     /// USB vendor id.
+    #[serde(deserialize_with = "crate::description::hex_u16")]
     pub vendor: u16,
     /// USB product id.
+    #[serde(deserialize_with = "crate::description::hex_u16")]
     pub product: u16,
 }
 
 /// The config interface a controller presents in one current mode.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ConfigPort {
     /// USB id the controller enumerates with in this current mode.
     pub usb: UsbId,
@@ -29,18 +34,14 @@ pub struct ConfigPort {
     pub framing: Framing,
 }
 
-/// Static description of a controller model.
+/// Protocol bytes of a controller model, plus a pointer to its description.
 pub trait ControllerSpec {
-    /// The config interface of every current mode, one per USB id.
-    fn config_ports(&self) -> &[ConfigPort];
-    /// Model ids the `START_CONFIG` reply carries for this controller.
-    fn model_ids(&self) -> &[u16];
-    /// Supported operating modes.
-    fn modes(&self) -> &[Mode];
-    /// Number of profile slots.
-    fn slot_count(&self) -> u8;
-    /// Number of macro slots per profile slot.
-    fn macro_slot_count(&self) -> u8;
+    /// The model's embedded controller description, parsed once.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Decode`] if the embedded file is malformed. A unit test
+    /// loads every embedded description, so a shipped build never returns it.
+    fn description(&self) -> Result<&'static ControllerDescription>;
     /// Profile blob size in bytes.
     fn blob_size(&self) -> usize;
     /// Substring used to match the joydev device name.

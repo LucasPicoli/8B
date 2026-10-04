@@ -67,38 +67,16 @@ pub fn deactivate_profile(base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
     Ok(blob)
 }
 
-/// Checks a remap request: `source` must be a physical control other than `home/guide`,
-/// `target` a control other than the back paddles, `disabled`, or `screenshot` (Switch only).
+/// Checks a remap request against the Pro 3 description.
+///
+/// `source` must have `can_be_remapped`. `target` must have `can_be_output`, be
+/// `disabled`, or be one of the mode's extra outputs (`screenshot` in Switch).
 ///
 /// # Errors
-/// Returns [`Error::Validation`] with a message fit to show to the user.
+/// Returns [`Error::Validation`] with a message fit to show to the user, or
+/// [`Error::Decode`] if the embedded description is malformed.
 pub fn validate_remap(mode: Mode, source: &str, target: &str) -> Result<()> {
-    let index_of = |name: &str| tables::XINPUT_ENCODINGS.iter().position(|e| e.source == name);
-
-    let Some(source_index) = index_of(source) else {
-        let names: Vec<&str> = tables::XINPUT_ENCODINGS.iter().map(|e| e.source).collect();
-        return Err(Error::Validation(format!(
-            "Invalid source control '{source}'. Valid names: {}.",
-            names.join(", ")
-        )));
-    };
-    if source_index == tables::HOME_GUIDE_INDEX {
-        return Err(Error::Validation(
-            "Cannot remap 'home/guide': that button cannot be remapped.".to_owned(),
-        ));
-    }
-
-    match target {
-        "disabled" => Ok(()),
-        "screenshot" if mode == Mode::Switch => Ok(()),
-        "screenshot" => {
-            Err(Error::Validation("Target 'screenshot' is only valid for switch mode.".to_owned()))
-        }
-        _ if index_of(target).is_some_and(|i| i < tables::NULL_DEFAULT_FIRST_INDEX) => Ok(()),
-        _ => Err(Error::Validation(format!(
-            "Invalid remap target '{target}'. Valid targets: any button except rp, lp, l4 and r4, or 'disabled'."
-        ))),
-    }
+    super::description()?.validate_remap(mode, source, target)
 }
 
 #[cfg(test)]

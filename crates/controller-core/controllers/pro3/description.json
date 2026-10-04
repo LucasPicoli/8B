@@ -1,0 +1,316 @@
+{
+  "display_name": "8BitDo Pro 3",
+  "model_ids": [
+    "0x6009",
+    "0x600a"
+  ],
+  "config_ports": [
+    {
+      "usb": {
+        "vendor": "0x2dc8",
+        "product": "0x310b"
+      },
+      "mode": "xinput",
+      "interface": 2,
+      "framing": "plain"
+    },
+    {
+      "usb": {
+        "vendor": "0x057e",
+        "product": "0x2009"
+      },
+      "mode": "switch",
+      "interface": 0,
+      "framing": "wrapped"
+    },
+    {
+      "usb": {
+        "vendor": "0x2dc8",
+        "product": "0x6009"
+      },
+      "mode": "dinput",
+      "interface": 0,
+      "framing": "plain"
+    }
+  ],
+  "modes": [
+    {
+      "id": "xinput",
+      "trigger_kind": "analog",
+      "extra_outputs": []
+    },
+    {
+      "id": "switch",
+      "trigger_kind": "threshold",
+      "extra_outputs": [
+        {
+          "id": "screenshot",
+          "label": "Screenshot"
+        }
+      ]
+    },
+    {
+      "id": "dinput",
+      "trigger_kind": "analog",
+      "extra_outputs": []
+    }
+  ],
+  "slot_count": 3,
+  "macro_slot_count": 4,
+  "limits": {
+    "profile_name_length": {
+      "min": 1,
+      "max": 16
+    },
+    "macro_name_length": {
+      "min": 1,
+      "max": 15
+    },
+    "macro_steps": {
+      "min": 1,
+      "max": 255
+    },
+    "stick_min_pct": {
+      "min": 0,
+      "max": 90
+    },
+    "stick_max_pct": {
+      "min": 10,
+      "max": 100
+    },
+    "trigger_pct": {
+      "min": 0,
+      "max": 100
+    },
+    "trigger_threshold_pct": {
+      "min": 0,
+      "max": 90
+    },
+    "vibration_level": {
+      "min": 0,
+      "max": 5
+    }
+  },
+  "buttons": [
+    {
+      "id": "right face",
+      "labels": {
+        "xinput": "B",
+        "switch": "A",
+        "dinput": "B"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "bottom face",
+      "labels": {
+        "xinput": "A",
+        "switch": "B",
+        "dinput": "A"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "top face",
+      "labels": {
+        "xinput": "Y",
+        "switch": "X",
+        "dinput": "Y"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "left face",
+      "labels": {
+        "xinput": "X",
+        "switch": "Y",
+        "dinput": "X"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "l1",
+      "labels": {
+        "xinput": "L1",
+        "switch": "L1",
+        "dinput": "L1"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "r1",
+      "labels": {
+        "xinput": "R1",
+        "switch": "R1",
+        "dinput": "R1"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "l2",
+      "labels": {
+        "xinput": "L2",
+        "switch": "L2",
+        "dinput": "L2"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "r2",
+      "labels": {
+        "xinput": "R2",
+        "switch": "R2",
+        "dinput": "R2"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "l3",
+      "labels": {
+        "xinput": "L3",
+        "switch": "L3",
+        "dinput": "L3"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "r3",
+      "labels": {
+        "xinput": "R3",
+        "switch": "R3",
+        "dinput": "R3"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "select/back",
+      "labels": {
+        "xinput": "Select",
+        "switch": "Select",
+        "dinput": "Select"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "start/menu",
+      "labels": {
+        "xinput": "Start",
+        "switch": "Start",
+        "dinput": "Start"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "turbo",
+      "labels": {
+        "xinput": "Turbo",
+        "switch": "Turbo",
+        "dinput": "Turbo"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "home/guide",
+      "labels": {
+        "xinput": "Home",
+        "switch": "Home",
+        "dinput": "Home"
+      },
+      "can_be_remapped": false,
+      "can_be_output": true
+    },
+    {
+      "id": "d-pad up",
+      "labels": {
+        "xinput": "D-pad up",
+        "switch": "D-pad up",
+        "dinput": "D-pad up"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "d-pad down",
+      "labels": {
+        "xinput": "D-pad down",
+        "switch": "D-pad down",
+        "dinput": "D-pad down"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "d-pad left",
+      "labels": {
+        "xinput": "D-pad left",
+        "switch": "D-pad left",
+        "dinput": "D-pad left"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "d-pad right",
+      "labels": {
+        "xinput": "D-pad right",
+        "switch": "D-pad right",
+        "dinput": "D-pad right"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true
+    },
+    {
+      "id": "rp",
+      "labels": {
+        "xinput": "Right paddle",
+        "switch": "Right paddle",
+        "dinput": "Right paddle"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false
+    },
+    {
+      "id": "lp",
+      "labels": {
+        "xinput": "Left paddle",
+        "switch": "Left paddle",
+        "dinput": "Left paddle"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false
+    },
+    {
+      "id": "l4",
+      "labels": {
+        "xinput": "L4",
+        "switch": "L4",
+        "dinput": "L4"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false
+    },
+    {
+      "id": "r4",
+      "labels": {
+        "xinput": "R4",
+        "switch": "R4",
+        "dinput": "R4"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false
+    }
+  ]
+}

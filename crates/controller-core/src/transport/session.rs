@@ -65,8 +65,8 @@ impl Session {
     /// not be opened, [`Error::Usb`] when it is missing or fails to open otherwise,
     /// and the errors of [`Self::send_recv`].
     pub(super) fn open(spec: Pro3, timeout: Duration) -> Result<Self> {
-        let found =
-            scan_sysfs(Path::new(SYSFS_USB_DEVICES), spec.config_ports()).ok_or(Error::NoDevice)?;
+        let found = scan_sysfs(Path::new(SYSFS_USB_DEVICES), &spec.description()?.config_ports)
+            .ok_or(Error::NoDevice)?;
         let node =
             config_hidraw(Path::new(&found.sysfs_path), found.port.interface).ok_or_else(|| {
                 Error::Usb(format!(
@@ -95,7 +95,7 @@ impl Session {
                 return Err(e);
             }
         };
-        identify(&reply, spec.model_ids())?;
+        identify(&reply, &spec.description()?.model_ids)?;
         Ok(session)
     }
 
@@ -223,8 +223,8 @@ mod tests {
     }
 
     #[test]
-    fn identify_accepts_only_listed_models() {
-        let pro3 = Pro3.model_ids();
+    fn identify_accepts_only_listed_models() -> Result<()> {
+        let pro3 = &Pro3.description()?.model_ids;
         assert!(identify(&reply_with(0x6009), pro3).is_ok());
         assert!(identify(&reply_with(0x600A), pro3).is_ok());
         // Ultimate 2: same USB id 2dc8:310b in XInput, different model id.
@@ -233,5 +233,6 @@ mod tests {
             Err(Error::UnsupportedModel(0x6012))
         ));
         assert!(matches!(identify(&[0u8; 10], pro3), Err(Error::Decode(_))));
+        Ok(())
     }
 }

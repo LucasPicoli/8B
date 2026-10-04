@@ -5,59 +5,36 @@ pub mod macros;
 pub mod profile;
 pub mod tables;
 
-use crate::device::{ConfigPort, ControllerSpec, ProtocolCodec, UsbId};
+use std::sync::LazyLock;
+
+use crate::description::ControllerDescription;
+use crate::device::{ControllerSpec, ProtocolCodec};
 use crate::error::Result;
 use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
     RawProfilePayload, Slot,
 };
-use crate::protocol::framing::Framing;
 
 /// The 8BitDo Pro 3 controller backend.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Pro3;
 
-const CONFIG_PORTS: [ConfigPort; 3] = [
-    ConfigPort {
-        usb: UsbId { vendor: 0x2DC8, product: 0x310B },
-        mode: Mode::XInput,
-        interface: 2,
-        framing: Framing::Plain,
-    },
-    // Nintendo's id: a genuine Pro Controller enumerates the same, so the transport
-    // checks the model id before it sends anything else.
-    ConfigPort {
-        usb: UsbId { vendor: 0x057E, product: 0x2009 },
-        mode: Mode::Switch,
-        interface: 0,
-        framing: Framing::Wrapped,
-    },
-    ConfigPort {
-        usb: UsbId { vendor: 0x2DC8, product: 0x6009 },
-        mode: Mode::DInput,
-        interface: 0,
-        framing: Framing::Plain,
-    },
-];
-/// `START_CONFIG` model ids of the Pro 3 (the vendor app accepts both).
-const MODEL_IDS: [u16; 2] = [0x6009, 0x600A];
-const MODES: [Mode; 3] = [Mode::XInput, Mode::Switch, Mode::DInput];
+/// The Pro 3 controller description, parsed on first use.
+static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
+    ControllerDescription::parse(include_str!("../../../controllers/pro3/description.json"))
+});
+
+/// Returns the Pro 3 controller description.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if the embedded file is malformed.
+pub(crate) fn description() -> Result<&'static ControllerDescription> {
+    DESCRIPTION.as_ref().map_err(Clone::clone)
+}
 
 impl ControllerSpec for Pro3 {
-    fn config_ports(&self) -> &[ConfigPort] {
-        &CONFIG_PORTS
-    }
-    fn model_ids(&self) -> &[u16] {
-        &MODEL_IDS
-    }
-    fn modes(&self) -> &[Mode] {
-        &MODES
-    }
-    fn slot_count(&self) -> u8 {
-        3
-    }
-    fn macro_slot_count(&self) -> u8 {
-        4
+    fn description(&self) -> Result<&'static ControllerDescription> {
+        description()
     }
     fn blob_size(&self) -> usize {
         0x092C
@@ -144,16 +121,100 @@ impl ProtocolCodec for Pro3 {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::device::ControllerSpec;
     use crate::model::Mode;
+    use crate::protocol::framing::Framing;
+    use serde_json::Value;
 
     #[test]
     fn pro3_config_ports_cover_every_mode() {
-        let modes: Vec<Mode> = Pro3.config_ports().iter().map(|p| p.mode).collect();
-        assert_eq!(modes, Pro3.modes());
+        let d = Pro3.description().unwrap();
+        let ports: Vec<Mode> = d.config_ports.iter().map(|p| p.mode).collect();
+        let modes: Vec<Mode> = d.modes.iter().map(|m| m.id).collect();
+        assert_eq!(ports, modes);
+        assert_eq!(modes, [Mode::XInput, Mode::Switch, Mode::DInput]);
+        assert_eq!(d.config_ports[1].framing, Framing::Wrapped);
+        assert_eq!(d.model_ids, [0x6009, 0x600A]);
+        assert_eq!((d.slot_count, d.macro_slot_count), (3, 4));
         assert_eq!(Pro3.blob_size(), 0x092C);
+    }
+
+    #[test]
+    fn pro3_description_buttons_match_the_codec_table() {
+        let ids: Vec<&str> =
+            Pro3.description().unwrap().buttons.iter().map(|b| b.id.as_str()).collect();
+        let table: Vec<&str> = tables::XINPUT_ENCODINGS.iter().map(|e| e.source).collect();
+        assert_eq!(ids, table);
+    }
+
+    #[test]
+    fn pro3_description_matches_its_schema() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../../../schemas/controller-description-v1.schema.json"
+        ))
+        .unwrap();
+        let file: Value =
+            serde_json::from_str(include_str!("../../../controllers/pro3/description.json"))
+                .unwrap();
+        let validator = jsonschema::draft202012::new(&schema).unwrap();
+        let errors: Vec<String> = validator.iter_errors(&file).map(|e| e.to_string()).collect();
+        assert!(errors.is_empty(), "{errors:?}");
+    }
+
+    /// The profile and macro schemas stay the validation oracle; the limits must agree.
+    #[test]
+    fn pro3_limits_equal_the_profile_and_macro_schemas() {
+        let profile: Value =
+            serde_json::from_str(include_str!("../../../../../schemas/profile-v1.schema.json"))
+                .unwrap();
+        let macro_: Value =
+            serde_json::from_str(include_str!("../../../../../schemas/macro-v1.schema.json"))
+                .unwrap();
+        let range = |schema: &Value, at: &str, lo: &str, hi: &str| {
+            let n = |k: &str| {
+                i32::try_from(schema.pointer(&format!("{at}/{k}")).unwrap().as_i64().unwrap())
+                    .unwrap()
+            };
+            (n(lo), n(hi))
+        };
+        let pair = |r: crate::description::LimitRange| (r.min, r.max);
+        let l = Pro3.description().unwrap().limits;
+        let props = "/properties";
+        let defs = "/$defs";
+        assert_eq!(
+            pair(l.profile_name_length),
+            range(&profile, &format!("{props}/name"), "minLength", "maxLength")
+        );
+        assert_eq!(
+            pair(l.macro_name_length),
+            range(&macro_, &format!("{props}/name"), "minLength", "maxLength")
+        );
+        assert_eq!(
+            pair(l.macro_steps),
+            range(&macro_, &format!("{props}/steps"), "minItems", "maxItems")
+        );
+        for side in ["left", "right"] {
+            let sticks = format!("{defs}/Sticks/properties/{side}");
+            assert_eq!(
+                pair(l.stick_min_pct),
+                range(&profile, &format!("{sticks}_min_pct"), "minimum", "maximum")
+            );
+            assert_eq!(
+                pair(l.stick_max_pct),
+                range(&profile, &format!("{sticks}_max_pct"), "minimum", "maximum")
+            );
+            for end in ["min", "max"] {
+                let at = format!("{defs}/TriggersAnalog/properties/{side}_{end}_pct");
+                assert_eq!(pair(l.trigger_pct), range(&profile, &at, "minimum", "maximum"));
+            }
+            let at = format!("{defs}/TriggersSwitch/properties/{side}_threshold_pct");
+            assert_eq!(pair(l.trigger_threshold_pct), range(&profile, &at, "minimum", "maximum"));
+            let at = format!("{defs}/Vibration/properties/{side}_level");
+            assert_eq!(pair(l.vibration_level), range(&profile, &at, "minimum", "maximum"));
+        }
     }
 
     #[test]

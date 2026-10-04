@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://8bspec.local/schema/controller-description-v1.schema.json",
+  "title": "8BitDo controller description v1",
+  "description": "One file per controller model, at crates/controller-core/controllers/<model>/description.json. The loader also checks what this schema cannot: button ids are unique, every button has a label for exactly the listed modes, every config port names a listed mode, every limit has min <= max, and no extra output reuses a button id or 'disabled'.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "display_name",
+    "model_ids",
+    "config_ports",
+    "modes",
+    "slot_count",
+    "macro_slot_count",
+    "limits",
+    "buttons"
+  ],
+  "properties": {
+    "display_name": { "type": "string", "minLength": 1 },
+    "model_ids": {
+      "description": "Model ids the START_CONFIG reply carries.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/HexId" }
+    },
+    "config_ports": {
+      "description": "The config interface of every current mode, one per USB id.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/ConfigPort" }
+    },
+    "modes": {
+      "description": "Supported modes, in display order.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Mode" }
+    },
+    "slot_count": { "type": "integer", "minimum": 1, "maximum": 255 },
+    "macro_slot_count": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "limits": {
+      "description": "Value ranges the editor offers. They must equal the profile and macro schemas.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profile_name_length",
+        "macro_name_length",
+        "macro_steps",
+        "stick_min_pct",
+        "stick_max_pct",
+        "trigger_pct",
+        "trigger_threshold_pct",
+        "vibration_level"
+      ],
+      "properties": {
+        "profile_name_length": { "$ref": "#/$defs/Range" },
+        "macro_name_length": { "$ref": "#/$defs/Range" },
+        "macro_steps": { "$ref": "#/$defs/Range" },
+        "stick_min_pct": { "$ref": "#/$defs/Range" },
+        "stick_max_pct": { "$ref": "#/$defs/Range" },
+        "trigger_pct": { "$ref": "#/$defs/Range" },
+        "trigger_threshold_pct": { "$ref": "#/$defs/Range" },
+        "vibration_level": { "$ref": "#/$defs/Range" }
+      }
+    },
+    "buttons": {
+      "description": "Physical buttons, in display order.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Button" }
+    }
+  },
+  "$defs": {
+    "HexId": { "type": "string", "pattern": "^0x[0-9a-f]{4}$" },
+    "ModeId": { "type": "string", "enum": ["xinput", "switch", "dinput"] },
+    "ConfigPort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["usb", "mode", "interface", "framing"],
+      "properties": {
+        "usb": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["vendor", "product"],
+          "properties": {
+            "vendor": { "$ref": "#/$defs/HexId" },
+            "product": { "$ref": "#/$defs/HexId" }
+          }
+        },
+        "mode": { "$ref": "#/$defs/ModeId" },
+        "interface": {
+          "description": "USB interface number whose hidraw node carries the config reports.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "framing": {
+          "description": "plain: report 0x81 out, 0x02 in. wrapped: Nintendo-id framing with an 01 66 AA prefix.",
+          "type": "string",
+          "enum": ["plain", "wrapped"]
+        }
+      }
+    },
+    "Mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "trigger_kind", "extra_outputs"],
+      "properties": {
+        "id": { "$ref": "#/$defs/ModeId" },
+        "trigger_kind": {
+          "description": "analog: min and max range. threshold: one press point.",
+          "type": "string",
+          "enum": ["analog", "threshold"]
+        },
+        "extra_outputs": {
+          "description": "Outputs beyond the buttons and 'disabled', which every mode has.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "Range": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "integer" },
+        "max": { "type": "integer" }
+      }
+    },
+    "Button": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "labels", "can_be_remapped", "can_be_output"],
+      "properties": {
+        "id": {
+          "description": "Canonical position name, as in button_mappings.source and .target. Never shown.",
+          "type": "string",
+          "minLength": 1
+        },
+        "labels": {
+          "description": "Name shown to the user, one per listed mode.",
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "properties": {
+            "xinput": { "type": "string", "minLength": 1 },
+            "switch": { "type": "string", "minLength": 1 },
+            "dinput": { "type": "string", "minLength": 1 }
+          }
+        },
+        "can_be_remapped": {
+          "description": "A button mapping may give this button an output other than its own press.",
+          "type": "boolean"
+        },
+        "can_be_output": {
+          "description": "This button's press may be the output of another button.",
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

@@ -259,8 +259,8 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// Never returns an error; a missing device or probe failure is reflected in
     /// the returned [`DeviceReadiness`] struct.
     fn detect_readiness(&self) -> Result<DeviceReadiness> {
-        let Some(found) = scan_sysfs(Path::new("/sys/bus/usb/devices"), self.spec.config_ports())
-        else {
+        let ports = self.spec.description().map(|d| d.config_ports.as_slice()).unwrap_or_default();
+        let Some(found) = scan_sysfs(Path::new("/sys/bus/usb/devices"), ports) else {
             return Ok(DeviceReadiness {
                 message: "No supported 8BitDo Pro 3 detected. Connect it via USB, \
                           then re-run detect."
