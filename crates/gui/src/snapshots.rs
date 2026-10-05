@@ -228,3 +228,66 @@ fn toolbar_has_text_from_1200() {
     assert!(!ui.get_compact());
     save("toolbar-1300", &ui);
 }
+
+/// Tab `tab` of `state`, in dark colours when `dark`.
+fn tab(name: &str, state: &AppState, tab: i32, dark: bool) {
+    let ui = window(state);
+    if dark {
+        ui.global::<crate::ui::Palette<'_>>().set_color_scheme(slint::language::ColorScheme::Dark);
+        render_views(state.description, &ui);
+    }
+    ui.set_tab(tab);
+    save(&format!("{name}-{}", if dark { "dark" } else { "light" }), &ui);
+}
+
+/// A Switch slot with an edit on every settings tab.
+fn edited_settings() -> AppState {
+    let mut s = connected(Mode::Switch);
+    s.set_number("/sticks/left_min_pct", 12.0);
+    s.set_number("/sticks/right_max_pct", 85.0);
+    s.set_flag("/sticks/invert_right_y", true);
+    s.set_flag("/sticks/swap_sticks", true);
+    s.set_number("/triggers/left_threshold_pct", 40.0);
+    s.set_flag("/triggers/swap_triggers", true);
+    s.set_number("/vibration/left_level", 1.0);
+    s
+}
+
+#[test]
+fn settings_tabs() {
+    let clean = connected(Mode::XInput);
+    let edited = edited_settings();
+    for dark in [false, true] {
+        for (i, name) in [(1, "sticks"), (2, "triggers"), (3, "vibration")] {
+            tab(&format!("{name}-clean"), &clean, i, dark);
+            tab(&format!("{name}-edited"), &edited, i, dark);
+        }
+    }
+}
+
+#[test]
+fn a_slider_drag_survives_the_render_after_each_move() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    let state = Rc::new(std::cell::RefCell::new(connected(Mode::XInput)));
+    let ui = window(&state.borrow());
+    ui.set_tab(1);
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_number_changed(move |field, value| {
+        s.borrow_mut().set_number(&field, value);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let low = || state.borrow().slot(Mode::XInput, 1).shown().unwrap().sticks.left_min_pct;
+    let start = low();
+    // The low knob of the left stick's dead zone at 1280×800, then two moves right.
+    let at = |x: f32| slint::LogicalPosition::new(x, 203.0);
+    let button = PointerEventButton::Left;
+    let x0 = 294.0 + 9.0 + 271.0 * f32::from(u8::try_from(start).unwrap()) / 100.0;
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(x0) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(x0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(x0 + 27.0) });
+    let first = low();
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(x0 + 54.0) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(x0 + 54.0), button });
+    assert!(first > start, "{start} -> {first}");
+    assert!(low() > first, "the drag stopped after one render: {first} -> {}", low());
+}

@@ -76,22 +76,42 @@ export struct Change {
     to: string,
 }
 
+// One slider on the Sticks, Triggers or Vibration tab.
 export struct Setting {
     label: string,
-    value: float,
-    was: float,
+    // JSON pointers into the profile: the value, or the low end of a range.
+    low-field: string,
+    // The high end of a range, "" for a single value.
+    high-field: string,
+    low: float,
+    high: float,
+    // The ends of the groove.
+    minimum: float,
+    maximum: float,
+    // The value as shown, such as "10 to 100%".
+    text: string,
+    // What the controller holds, such as "was 0 to 100%". "" when the same.
+    was: string,
+}
+
+// One check box on a settings tab.
+export struct Toggle {
+    label: string,
+    // JSON pointer into the profile.
+    field: string,
+    on: bool,
+    // Differs from what the controller holds: not written yet.
     changed: bool,
 }
 
-export struct Group {
+export struct SettingFrame {
     title: string,
     settings: [Setting],
+    toggles: [Toggle],
 }
 
-export struct Trigger {
-    title: string,
-    // Index into the response names (Analog, Threshold).
-    response: int,
-    low: float,
-    high: float,
+// The Sticks, Triggers or Vibration tab.
+export struct SettingsPage {
+    lead: string,
+    frames: [SettingFrame],
 }

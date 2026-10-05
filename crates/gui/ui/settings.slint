@@ -1,0 +1,87 @@
+// The Sticks, Triggers and Vibration tabs: frames of sliders and check boxes. Rust
+// sends the frames, so the markup names no profile field.
+import { Theme, Slider, CheckBox } from "look/breeze/widgets.slint";
+import { Frame, Dot, SmallHead, RangeSlider } from "parts.slint";
+import { SettingsPage } from "types.slint";
+
+export component SettingsTab {
+    in property <SettingsPage> page;
+    // A value moved: its JSON pointer into the profile, and the new value.
+    callback number-changed(string, float);
+    callback flag-changed(string, bool);
+
+    VerticalLayout {
+        spacing: 12px;
+        alignment: start;
+        Text {
+            text: root.page.lead;
+            color: Theme.fg-muted;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            for f in root.page.frames: Frame {
+                preferred-width: 360px;
+                max-width: 442px;
+                horizontal-stretch: 1;
+                VerticalLayout {
+                    padding: 14px;
+                    spacing: 12px;
+                    alignment: start;
+                    SmallHead {
+                        text: f.title;
+                    }
+                    for st in f.settings: VerticalLayout {
+                        spacing: 4px;
+                        HorizontalLayout {
+                            spacing: 8px;
+                            Text {
+                                horizontal-stretch: 1;
+                                text: st.label;
+                                color: Theme.fg;
+                            }
+                            if st.was != "": Text {
+                                text: st.was;
+                                color: Theme.fg-muted;
+                            }
+                            Text {
+                                text: st.text;
+                                color: st.was != "" ? Theme.fg : Theme.fg-muted;
+                                font-weight: st.was != "" ? 600 : 400;
+                            }
+                        }
+                        if st.high-field == "": Slider {
+                            value <=> st.low;
+                            minimum: st.minimum;
+                            maximum: st.maximum;
+                            accessible-name: f.title + " " + st.label;
+                            changed(v) => { root.number-changed(st.low-field, v); }
+                        }
+                        if st.high-field != "": RangeSlider {
+                            low <=> st.low;
+                            high <=> st.high;
+                            minimum: st.minimum;
+                            maximum: st.maximum;
+                            accessible-name: f.title + " " + st.label;
+                            low-changed(v) => { root.number-changed(st.low-field, v); }
+                            high-changed(v) => { root.number-changed(st.high-field, v); }
+                        }
+                    }
+                    for t in f.toggles: HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        CheckBox {
+                            text: t.label;
+                            checked <=> t.on;
+                            toggled => { root.flag-changed(t.field, self.checked); }
+                        }
+                        if t.changed: Dot {
+                            y: (parent.height - self.height) / 2;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

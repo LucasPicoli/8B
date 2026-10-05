@@ -6,6 +6,7 @@
 mod buttons;
 mod portal;
 mod render;
+mod settings;
 mod state;
 mod udev;
 mod worker;
@@ -155,6 +156,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let c = change.clone();
     ui.on_name_edited(move |name| c(&|s| s.set_name(&name)));
+    let c = change.clone();
+    ui.on_number_changed(move |field, value| c(&|s| s.set_number(&field, value)));
+    let c = change.clone();
+    ui.on_flag_changed(move |field, on| c(&|s| s.set_flag(&field, on)));
     let c = change.clone();
     ui.on_discard(move || c(&AppState::discard));
     ui.on_start_from_default(move || change(&AppState::start_from_default));

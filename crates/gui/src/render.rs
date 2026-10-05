@@ -7,6 +7,7 @@ use controller_core::transport::udev::{UDEV_MANUAL_COMMAND, UDEV_RULE_PATH};
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::render_buttons;
+use crate::settings::render_settings;
 use crate::state::{Access, AppState, Install};
 use crate::ui::{AppWindow, ModeGroup, Slot};
 
@@ -96,6 +97,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_name_max(state.description.limits.profile_name_length.max);
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
+    render_settings(state, ui);
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
     ui.set_access_denied(state.access.is_some());
     ui.set_rule_installed(state.access == Some(Access::StillDenied));

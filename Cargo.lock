@@ -1791,6 +1791,7 @@ name = "gui"
 version = "0.1.0"
 dependencies = [
  "controller-core",
+ "serde_json",
  "slint",
  "slint-build",
  "tempfile",

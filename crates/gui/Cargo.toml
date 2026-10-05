@@ -12,6 +12,8 @@ path = "src/main.rs"
 
 [dependencies]
 controller-core = { path = "../controller-core" }
+# The settings tabs name each profile value by its JSON pointer.
+serde_json.workspace = true
 slint = { version = "1.18", default-features = false, features = ["compat-1-2", "std", "backend-winit", "renderer-femtovg", "accessibility"] }
 # The copy Slint already pulls in, plus the blocking API for the portal thread.
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }

@@ -18,6 +18,13 @@ export global Icons {
     out property <image> close: @image-url("icons/close.svg");
 }
 
+// A frame or column heading.
+export component SmallHead inherits Text {
+    font-weight: 600;
+    font-size: Theme.text-caption;
+    color: Theme.fg-muted;
+}
+
 // Unsaved edits marker.
 export component Dot inherits Rectangle {
     width: 7px;
@@ -372,20 +379,46 @@ export component DialogShell inherits Rectangle {
     }
 }
 
-// Two knobs on one groove: the trigger range. Left and Right move the low end,
-// with Shift the high end.
+// Two knobs on one groove: a low and a high end. Left and Right move the low end,
+// with Shift the high end. Each callback names the knob that moved.
 export component RangeSlider {
     in-out property <float> low;
     in-out property <float> high: 100;
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
     in property <string> accessible-name;
+    callback low-changed(float);
+    callback high-changed(float);
     min-height: 22px;
     max-height: 22px;
+    min-width: 120px;
     accessible-role: slider;
     accessible-label: accessible-name;
-    accessible-value: round(low) + " to " + round(high) + "%";
+    accessible-value: round(low) + " to " + round(high);
     forward-focus: fs;
     property <length> knob: 18px;
     property <length> span: self.width - knob;
+
+    function at(v: float) -> length {
+        (v - minimum) / (maximum - minimum) * span
+    }
+    function set-low(v: float) {
+        low = clamp(round(v), minimum, high);
+        low-changed(low);
+    }
+    function set-high(v: float) {
+        high = clamp(round(v), low, maximum);
+        high-changed(high);
+    }
+    // Moves the knob nearer to the pointer.
+    function drag(x: length) {
+        let v = minimum + (x - knob / 2) / span * (maximum - minimum);
+        if (abs(v - low) < abs(v - high)) {
+            set-low(v);
+        } else {
+            set-high(v);
+        }
+    }
 
     fs := FocusScope {
         key-pressed(e) => {
@@ -394,9 +427,9 @@ export component RangeSlider {
                 return reject;
             }
             if (e.modifiers.shift) {
-                root.high = clamp(root.high + d, root.low, 100);
+                root.set-high(root.high + d);
             } else {
-                root.low = clamp(root.low + d, 0, root.high);
+                root.set-low(root.low + d);
             }
             accept
         }
@@ -408,14 +441,14 @@ export component RangeSlider {
         background: Theme.line;
     }
     Rectangle {
-        x: root.knob / 2 + root.low / 100 * root.span;
+        x: root.knob / 2 + root.at(root.low);
         y: (parent.height - 4px) / 2;
-        width: (root.high - root.low) / 100 * root.span;
+        width: root.at(root.high) - root.at(root.low);
         height: 4px;
         background: Theme.accent;
     }
     for v[i] in [root.low, root.high]: Rectangle {
-        x: v / 100 * root.span;
+        x: root.at(v);
         y: (parent.height - root.knob) / 2;
         width: root.knob;
         height: root.knob;
@@ -429,14 +462,15 @@ export component RangeSlider {
     }
     TouchArea {
         // ponytail: drag moves the nearer knob, no hand-off when knobs meet.
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                fs.focus();
+                root.drag(self.mouse-x);
+            }
+        }
         moved => {
             if (self.pressed) {
-                let v = clamp((self.mouse-x - root.knob / 2) / root.span * 100, 0, 100);
-                if (abs(v - root.low) < abs(v - root.high)) {
-                    root.low = min(round(v), root.high);
-                } else {
-                    root.high = max(round(v), root.low);
-                }
+                root.drag(self.mouse-x);
             }
         }
     }

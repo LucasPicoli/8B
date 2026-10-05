@@ -3,12 +3,14 @@
 import { Theme, Button, LineEdit, ScrollView } from "look/breeze/widgets.slint";
 import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
+import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
 import { AboutDialog } from "dialogs.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage } from "types.slint";
+import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Theme }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Theme, Palette }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -38,6 +40,9 @@ export component AppWindow inherits Window {
     in property <[PadView]> views;
     in property <[Spot]> spots;
     in property <[MapRow]> rows;
+    in property <SettingsPage> sticks;
+    in property <SettingsPage> triggers;
+    in property <SettingsPage> vibration;
     in-out property <int> tab;
     in-out property <int> selected-row: -1;
     // Why the last read failed, empty when it did not.
@@ -61,6 +66,9 @@ export component AppWindow inherits Window {
     callback name-edited(string);
     // A row index and an index into that row's outputs.
     callback output-picked(int, int);
+    // A JSON pointer into the profile, and its new value.
+    callback number-changed(string, float);
+    callback flag-changed(string, bool);
     callback discard;
     callback start-from-default;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
@@ -243,6 +251,11 @@ export component AppWindow inherits Window {
                                 page.content-y -= top + h - page.visible-height;
                             }
                         }
+                    }
+                    if root.tab > 0: SettingsTab {
+                        page: root.tab == 1 ? root.sticks : root.tab == 2 ? root.triggers : root.vibration;
+                        number-changed(field, v) => { root.number-changed(field, v); }
+                        flag-changed(field, on) => { root.flag-changed(field, on); }
                     }
                 }
             }

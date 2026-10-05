@@ -1,4 +1,5 @@
-// Breeze-drawn controls: Button, LineEdit, ComboBox, Slider, ScrollView, Spinner.
+// Breeze-drawn controls: Button, LineEdit, ComboBox, Slider, CheckBox, ScrollView,
+// Spinner.
 import { Theme } from "theme.slint";
 export { Theme }
 
@@ -333,6 +334,82 @@ export component Slider {
             if (self.pressed) {
                 root.set(root.minimum + (self.mouse-x - root.knob / 2) / (self.width - root.knob) * (root.maximum - root.minimum));
             }
+        }
+    }
+}
+
+// Breeze check box: a 16px box, filled with the accent and ticked when on.
+export component CheckBox {
+    in property <string> text;
+    in-out property <bool> checked;
+    callback toggled;
+    min-height: 22px;
+    accessible-role: checkbox;
+    accessible-label: text;
+    accessible-checkable: true;
+    accessible-checked: checked;
+    accessible-action-default => { toggle(); }
+    forward-focus: fs;
+
+    function toggle() {
+        checked = !checked;
+        toggled();
+    }
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == " ") {
+                root.toggle();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    HorizontalLayout {
+        spacing: 8px;
+        box := Rectangle {
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+            border-radius: 3px;
+            border-width: 1px;
+            background: root.checked ? Theme.accent-strong : Theme.button;
+            border-color: root.checked ? Theme.accent-strong
+                : fs.has-focus || ta.has-hover ? Theme.accent : Theme.line;
+            if root.checked: Path {
+                width: 100%;
+                height: 100%;
+                viewbox-width: 16;
+                viewbox-height: 16;
+                commands: "M 3.5 8.5 L 6.5 11.5 L 12.5 4.5";
+                stroke: Theme.on-accent;
+                stroke-width: 2px;
+            }
+        }
+        Text {
+            text: root.text;
+            color: Theme.fg;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
+    }
+
+    // Keyboard focus, Breeze style: accent outline outside the box.
+    if fs.has-focus: Rectangle {
+        x: box.x - 2px;
+        y: box.y - 2px;
+        width: box.width + 4px;
+        height: box.height + 4px;
+        border-radius: 5px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+
+    ta := TouchArea {
+        clicked => {
+            fs.focus();
+            root.toggle();
         }
     }
 }

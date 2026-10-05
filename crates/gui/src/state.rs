@@ -226,7 +226,7 @@ impl AppState {
 
     /// Applies `change` to the selected slot's working copy. The first change copies
     /// what the controller holds. An empty slot has nothing to change.
-    fn edit(&mut self, change: impl FnOnce(&mut CanonicalProfile)) {
+    pub fn edit(&mut self, change: impl FnOnce(&mut CanonicalProfile)) {
         let Some(slot) = self.selected_mut() else { return };
         let Some(mut edited) = slot.shown().cloned() else { return };
         change(&mut edited);

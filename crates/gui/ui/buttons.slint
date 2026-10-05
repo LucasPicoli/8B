@@ -1,13 +1,7 @@
 // The Buttons tab: the controller views beside the mapping table.
 import { Theme, ComboBox } from "look/breeze/widgets.slint";
-import { Frame } from "parts.slint";
+import { Frame, SmallHead } from "parts.slint";
 import { MapRow, PadView, Spot } from "types.slint";
-
-component SmallHead inherits Text {
-    font-weight: 600;
-    font-size: Theme.text-caption;
-    color: Theme.fg-muted;
-}
 
 // A legend entry: the bar colour a table row shows, and what it means.
 component Swatch inherits HorizontalLayout {
