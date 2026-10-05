@@ -115,3 +115,19 @@ export struct SettingsPage {
     lead: string,
     frames: [SettingFrame],
 }
+
+// The warning before importing a file made for another mode.
+export struct ImportWarning {
+    shown: bool,
+    slot-title: string,
+    file-name: string,
+    from-mode: string,
+    to-mode: string,
+    // Buttons whose output the target mode lacks: they become Disabled.
+    lost: [Change],
+    // The target mode sets triggers another way, so they start from its defaults.
+    triggers-reset: bool,
+    // Letters that name another button in the target mode, or empty.
+    letters: string,
+    skipped-macros: int,
+}

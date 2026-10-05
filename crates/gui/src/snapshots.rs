@@ -298,3 +298,38 @@ fn a_slider_drag_survives_the_render_after_each_move() {
     assert!(first > start, "{start} -> {first}");
     assert!(low() > first, "the drag stopped after one render: {first} -> {}", low());
 }
+
+/// A Switch file with a Screenshot output, waiting to go into `XInput` slot 3.
+fn cross_mode_import() -> AppState {
+    let mut s = connected(Mode::XInput);
+    let mut p = s.defaults.get(&Mode::Switch).unwrap().clone();
+    "switch-slot-1-index-0".clone_into(&mut p.id);
+    "Racing".clone_into(&mut p.name);
+    if let Some(m) = p.button_mappings.iter_mut().find(|m| m.source == "r4") {
+        "screenshot".clone_into(&mut m.target);
+    }
+    p.macro_refs.push(controller_core::model::MacroRef {
+        trigger: "right face".to_owned(),
+        path: "m.json".to_owned(),
+    });
+    let text = crate::files::export_text(&p).unwrap();
+    s.import((Mode::XInput, 3), "profile-switch-slot-1-index-0.json", Ok(text));
+    assert!(s.pending_import.is_some());
+    s
+}
+
+#[test]
+fn import_warning() {
+    let s = cross_mode_import();
+    tab("import-warning", &s, 0, false);
+    tab("import-warning", &s, 0, true);
+}
+
+#[test]
+fn imported_with_a_note() {
+    let mut s = cross_mode_import();
+    s.confirm_import();
+    shoot("import-done", &s);
+    s.import((Mode::XInput, 3), "bad.json", Ok("{}".to_owned()));
+    shoot("import-failed", &s);
+}

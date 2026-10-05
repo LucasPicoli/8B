@@ -6,6 +6,8 @@ use std::collections::BTreeMap;
 use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
 use controller_core::model::{ButtonMapping, CanonicalProfile, Mode, ProfileReadResult};
 
+use crate::files::PendingImport;
+
 /// The name a profile started from default gets.
 pub const NEW_PROFILE_NAME: &str = "New profile";
 
@@ -97,6 +99,17 @@ pub enum Install {
     Failed(String),
 }
 
+/// A message above the slot, such as the result of an import, until it is closed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Notice {
+    /// An error, not information.
+    pub error: bool,
+    /// The first sentence.
+    pub title: String,
+    /// More sentences, or empty.
+    pub body: String,
+}
+
 /// Everything the window shows, kept between renders.
 #[derive(Debug)]
 pub struct AppState {
@@ -124,6 +137,10 @@ pub struct AppState {
     pub rule: Rule,
     /// The user skipped the install for this run.
     pub rule_skipped: bool,
+    /// The message above the slot. Cleared when another slot is picked.
+    pub notice: Option<Notice>,
+    /// A file for another mode, waiting for the user's yes.
+    pub pending_import: Option<PendingImport>,
 }
 
 impl AppState {
@@ -146,6 +163,8 @@ impl AppState {
             install: Install::Idle,
             rule: Rule::Current,
             rule_skipped: false,
+            notice: None,
+            pending_import: None,
         }
     }
 
@@ -228,6 +247,9 @@ impl AppState {
     /// Shows slot `slot` (0-based) of the mode at `mode` in the description.
     pub fn select(&mut self, mode: usize, slot: usize) {
         if mode < self.description.modes.len() && slot < usize::from(self.description.slot_count) {
+            if self.selected != (mode, slot) {
+                self.notice = None;
+            }
             self.selected = (mode, slot);
         }
     }

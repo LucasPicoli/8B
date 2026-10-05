@@ -2,7 +2,7 @@
 import { AboutSlint } from "std-widgets.slint";
 import { Theme, Button, LineEdit } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
-import { Change } from "types.slint";
+import { Change, ImportWarning } from "types.slint";
 
 component Bullet {
     in property <string> text;
@@ -63,22 +63,29 @@ export component ClearDialog inherits DialogShell {
 }
 
 export component ImportDialog inherits DialogShell {
-    in property <string> slot-title;
-    in property <string> file-name;
-    in property <string> from-mode;
-    in property <string> to-mode;
-    in property <[Change]> lost;
+    in property <ImportWarning> warning;
     icon: Icons.info;
-    title: "Import a " + from-mode + " profile into " + slot-title + "?";
-    subtitle: "“" + file-name + "” was exported from a " + from-mode + " slot. 8B gives each button the " + to-mode + " output with the same role.";
+    title: "Import a " + warning.from-mode + " profile into " + warning.slot-title + "?";
+    subtitle: "“" + warning.file-name + "” was saved from a " + warning.from-mode + " slot. Each button keeps its place on the controller.";
     accept-text: "Import";
-    Text {
-        text: root.lost.length + " buttons have no " + root.to-mode + " match and become Disabled:";
+    if root.warning.lost.length > 0: Text {
+        text: root.warning.lost.length == 1
+            ? "1 button has no " + root.warning.to-mode + " match and becomes Disabled:"
+            : root.warning.lost.length + " buttons have no " + root.warning.to-mode + " match and become Disabled:";
         color: Theme.fg;
         wrap: word-wrap;
     }
-    ChangeTable {
-        model: root.lost;
+    if root.warning.lost.length > 0: ChangeTable {
+        model: root.warning.lost;
+    }
+    if root.warning.triggers-reset: Bullet {
+        text: root.warning.to-mode + " sets the triggers another way, so they start from the " + root.warning.to-mode + " defaults.";
+    }
+    if root.warning.letters != "": Bullet {
+        text: "Some printed letters name another button: " + root.warning.letters + ".";
+    }
+    if root.warning.skipped-macros > 0: Bullet {
+        text: "The file’s macro references are skipped. The macros stored on the controller stay.";
     }
     Text {
         text: "Nothing reaches the controller until you write.";

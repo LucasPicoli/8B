@@ -18,7 +18,7 @@ fn target<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
 }
 
 /// The name shown for output `id` in `mode`.
-fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -> String {
+pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -> String {
     if let Some(label) = description.button(id).and_then(|b| b.labels.get(&mode)) {
         return label.clone();
     }

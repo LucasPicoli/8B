@@ -4,6 +4,8 @@
 #![allow(unreachable_pub)]
 
 mod buttons;
+mod chooser;
+mod files;
 mod portal;
 mod render;
 mod settings;
@@ -34,6 +36,7 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Sender};
+use std::thread;
 use std::time::Duration;
 
 use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
@@ -41,11 +44,11 @@ use controller_core::devices::pro3::Pro3;
 use controller_core::model::Mode;
 use controller_core::transport::HidrawDevice;
 use controller_core::Error;
-use slint::{ComponentHandle as _, Timer, TimerMode};
+use slint::{ComponentHandle as _, Timer, TimerMode, Weak};
 
 use crate::buttons::{hit, picked_output, render_views};
-use crate::render::{fit_toolbar, render};
-use crate::state::AppState;
+use crate::render::{fit_toolbar, render, sentence};
+use crate::state::{AppState, Notice};
 use crate::ui::AppWindow;
 use crate::worker::{Command, Event};
 
@@ -77,6 +80,93 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             }
         }
     }
+}
+
+/// A dialog's answer, applied to the state on the event loop.
+type Job = Box<dyn FnOnce(&mut AppState) + Send>;
+
+/// Runs `ask` on a short thread, so the window stays live while a dialog is open,
+/// and hands its answer to the event loop.
+fn on_thread(ui: Weak<AppWindow>, jobs: Sender<Job>, ask: impl FnOnce() -> Job + Send + 'static) {
+    let spawned = thread::Builder::new().name("file dialog".to_owned()).spawn(move || {
+        if jobs.send(ask()).is_ok() {
+            let _ = ui.upgrade_in_event_loop(|ui| ui.invoke_file_done());
+        }
+    });
+    if let Err(e) = spawned {
+        eprintln!("8b: no file dialog: {e}");
+    }
+}
+
+/// The message for a dialog the portal could not show.
+fn no_dialog(e: &str) -> Notice {
+    Notice { error: true, title: "The file dialog did not open.".to_owned(), body: sentence(e) }
+}
+
+/// Asks for a file and loads it into slot `slot`'s edits.
+fn import(ui: Weak<AppWindow>, jobs: Sender<Job>, slot: (Mode, u8)) {
+    on_thread(ui, jobs, move || {
+        let picked = chooser::open_json("Import a profile");
+        let read = picked.map(|p| {
+            p.map(|p| {
+                (
+                    files::display_name(&p),
+                    std::fs::read_to_string(&p).map_err(|e| sentence(&e.to_string())),
+                )
+            })
+        });
+        Box::new(move |state: &mut AppState| match read {
+            Ok(None) => {}
+            Ok(Some((name, text))) => state.import(slot, &name, text),
+            Err(e) => state.notice = Some(no_dialog(&e)),
+        })
+    });
+}
+
+/// Asks where to save the selected slot's profile, as shown, and saves it.
+fn export(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState) {
+    let Some(slot) = state.selected_slot() else { return };
+    let shown = state.slot(slot.0, slot.1);
+    let Some(profile) = shown.shown() else { return };
+    let (text, unsaved, name) =
+        (files::export_text(profile), shown.unsaved(), files::file_name(slot.0, slot.1));
+    on_thread(ui, jobs, move || {
+        let saved = chooser::save_json("Export the profile", &name).map(|p| {
+            p.map(|p| {
+                text.and_then(|t| std::fs::write(&p, t).map_err(|e| sentence(&e.to_string())))
+                    .map(|()| files::display_name(&p))
+            })
+        });
+        Box::new(move |state: &mut AppState| match saved {
+            Ok(None) => {}
+            Ok(Some(result)) => state.exported(slot, unsaved, result),
+            Err(e) => state.notice = Some(no_dialog(&e)),
+        })
+    });
+}
+
+/// Wires Import and Export: each dialog runs on a short thread, and its answer
+/// comes back through `file-done`.
+fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) {
+    let (jobs_tx, jobs) = mpsc::channel::<Job>();
+    let weak = ui.as_weak();
+    let s = Rc::clone(state);
+    ui.on_file_done(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut state = s.borrow_mut();
+        while let Ok(job) = jobs.try_recv() {
+            job(&mut state);
+        }
+        render(&state, &ui);
+    });
+    let (weak, s, tx) = (ui.as_weak(), Rc::clone(state), jobs_tx.clone());
+    ui.on_import_file(move || {
+        if let Some(slot) = s.borrow().selected_slot() {
+            import(weak.clone(), tx.clone(), slot);
+        }
+    });
+    let (weak, s) = (ui.as_weak(), Rc::clone(state));
+    ui.on_export_file(move || export(weak.clone(), jobs_tx.clone(), &s.borrow()));
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -126,6 +216,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         render(&state, &ui);
     });
 
+    wire_files(&ui, &state);
+
     // Every change from the window: apply it to the state, then render.
     let weak = ui.as_weak();
     let change = move |apply: &dyn Fn(&mut AppState)| {
@@ -164,6 +256,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_number_changed(move |field, value| c(&|s| s.set_number(&field, value)));
     let c = change.clone();
     ui.on_flag_changed(move |field, on| c(&|s| s.set_flag(&field, on)));
+    let c = change.clone();
+    ui.on_import_confirmed(move || c(&AppState::confirm_import));
+    let c = change.clone();
+    ui.on_import_cancelled(move || c(&AppState::cancel_import));
+    let c = change.clone();
+    ui.on_notice_closed(move || c(&|s| s.notice = None));
     let c = change.clone();
     ui.on_discard(move || c(&AppState::discard));
     ui.on_start_from_default(move || change(&AppState::start_from_default));

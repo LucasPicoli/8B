@@ -5,12 +5,12 @@ import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { AboutDialog } from "dialogs.slint";
+import { AboutDialog, ImportDialog } from "dialogs.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Theme, Palette }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, Theme, Palette }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -67,6 +67,12 @@ export component AppWindow inherits Window {
     in property <string> udev-rule-path;
     in property <string> keepalive-unit-path;
     in-out property <string> dialog;
+    // A file for another mode waits for a yes.
+    in property <ImportWarning> import-warning;
+    // The message above the slot, such as an import result. Hidden when empty.
+    in property <string> notice-title;
+    in property <string> notice-body;
+    in property <bool> notice-error;
     callback slot-picked(int, int);
     callback install-rule;
     callback rule-skipped;
@@ -78,6 +84,12 @@ export component AppWindow inherits Window {
     callback flag-changed(string, bool);
     callback discard;
     callback start-from-default;
+    // Open and save dialogs for profile JSON, and the answer to the import warning.
+    callback import-file;
+    callback export-file;
+    callback import-confirmed;
+    callback import-cancelled;
+    callback notice-closed;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
@@ -86,6 +98,8 @@ export component AppWindow inherits Window {
     changed dark => { root.theme-changed(); }
     // Rust only: the worker thread has events waiting.
     callback worker-event;
+    // Rust only: an open or save dialog has answered.
+    callback file-done;
 
     if root.asks-for-rule: PermissionScreen {
         command: root.udev-command;
@@ -160,7 +174,7 @@ export component AppWindow inherits Window {
                     Rectangle {
                         horizontal-stretch: 1;
                     }
-                    // Not wired yet, so shown disabled.
+                    // Clear slot is not wired yet, so shown disabled.
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
@@ -170,14 +184,14 @@ export component AppWindow inherits Window {
                                 icon: Icons.import;
                                 icon-only: root.compact;
                                 flat: true;
-                                enabled: false;
+                                clicked => { root.import-file(); }
                             }
                             if !root.empty-slot: Button {
                                 text: "Export…";
                                 icon: Icons.export;
                                 icon-only: root.compact;
                                 flat: true;
-                                enabled: false;
+                                clicked => { root.export-file(); }
                             }
                             if !root.empty-slot: Button {
                                 text: "Clear slot…";
@@ -217,6 +231,20 @@ export component AppWindow inherits Window {
                 }
             }
 
+            if root.notice-title != "": HorizontalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 10px;
+                MessageBar {
+                    error: root.notice-error;
+                    info: !root.notice-error;
+                    closable: true;
+                    title: root.notice-title;
+                    body: root.notice-body;
+                    closed => { root.notice-closed(); }
+                }
+            }
+
             if !root.empty-slot: TabBar {
                 model: root.sections;
                 current <=> root.tab;
@@ -230,11 +258,16 @@ export component AppWindow inherits Window {
                     width: 100%;
                     height: 100%;
                     title: "Slot " + (root.selected-slot + 1) + " is empty";
-                    body: "Start from the default profile and change what you need. Nothing reaches the controller until you write.";
+                    body: "Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write.";
                     Button {
                         text: "Start from default";
                         primary: true;
                         clicked => { root.start-from-default(); }
+                    }
+                    Button {
+                        text: "Import…";
+                        icon: Icons.import;
+                        clicked => { root.import-file(); }
                     }
                 }
             }
@@ -295,6 +328,12 @@ export component AppWindow inherits Window {
                 }
             }
         }
+    }
+
+    if root.import-warning.shown: ImportDialog {
+        warning: root.import-warning;
+        accepted => { root.import-confirmed(); }
+        cancelled => { root.import-cancelled(); }
     }
 
     if root.dialog == "about": AboutDialog {
