@@ -134,7 +134,8 @@ pub struct Button {
     pub labels: BTreeMap<Mode, String>,
     /// A button mapping may give this button an output other than its own press.
     pub can_be_remapped: bool,
-    /// This button's press may be the output of another button.
+    /// This button's press may be the output of another button. A button can
+    /// always map back to itself.
     pub can_be_output: bool,
 }
 
@@ -171,6 +172,9 @@ impl ControllerDescription {
 
     /// Checks a button mapping from `source` to `target` in `mode`.
     ///
+    /// A button may always map back to itself, even when it cannot be another
+    /// button's output.
+    ///
     /// # Errors
     /// Returns [`Error::Validation`] with a message fit to show to the user.
     pub fn validate_remap(&self, mode: Mode, source: &str, target: &str) -> Result<()> {
@@ -190,6 +194,7 @@ impl ControllerDescription {
             )));
         }
         if target == DISABLED_OUTPUT
+            || target == source
             || self.button(target).is_some_and(|b| b.can_be_output)
             || mode_entry.extra_outputs.iter().any(|o| o.id == target)
         {

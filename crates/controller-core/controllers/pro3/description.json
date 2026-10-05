@@ -220,7 +220,7 @@
         "dinput": "Turbo"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": false
     },
     {
       "id": "home/guide",
