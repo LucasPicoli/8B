@@ -44,30 +44,46 @@ pub struct DetectedUsb {
     pub port: ConfigPort,
 }
 
+impl DetectedUsb {
+    /// The USB port path, such as `8-5`: the sysfs directory name. A mode change
+    /// keeps it, a move to another port changes it.
+    #[must_use]
+    pub fn port_path(&self) -> &str {
+        Path::new(&self.sysfs_path).file_name().and_then(|n| n.to_str()).unwrap_or_default()
+    }
+}
+
 /// Scans the sysfs USB device tree under `root` for a device whose USB id matches
-/// one of `ports`. Returns the first match. The real root is `/sys/bus/usb/devices`.
+/// one of `ports`. Returns the first match by port path. The real root is
+/// `/sys/bus/usb/devices`.
 #[must_use]
 pub fn scan_sysfs(root: &Path, ports: &[ConfigPort]) -> Option<DetectedUsb> {
-    let dir = std::fs::read_dir(root).ok()?;
-    for entry in dir.flatten() {
-        let base = entry.path();
-        let (Some(vendor), Some(product)) =
-            (read_trimmed(&base.join("idVendor")), read_trimmed(&base.join("idProduct")))
-        else {
-            continue;
-        };
-        let usb = (u16::from_str_radix(&vendor, 16), u16::from_str_radix(&product, 16));
-        let Some(port) = ports.iter().find(|p| usb == (Ok(p.usb.vendor), Ok(p.usb.product))) else {
-            continue;
-        };
-        return Some(DetectedUsb {
-            vendor_id: vendor,
-            product_id: product,
-            sysfs_path: base.to_string_lossy().into_owned(),
-            port: *port,
-        });
-    }
-    None
+    scan_sysfs_all(root, ports).into_iter().next()
+}
+
+/// Every device under `root` whose USB id matches one of `ports`, sorted by port
+/// path.
+#[must_use]
+pub fn scan_sysfs_all(root: &Path, ports: &[ConfigPort]) -> Vec<DetectedUsb> {
+    let Ok(dir) = std::fs::read_dir(root) else { return Vec::new() };
+    let mut found: Vec<DetectedUsb> = dir
+        .flatten()
+        .filter_map(|entry| {
+            let base = entry.path();
+            let vendor = read_trimmed(&base.join("idVendor"))?;
+            let product = read_trimmed(&base.join("idProduct"))?;
+            let usb = (u16::from_str_radix(&vendor, 16), u16::from_str_radix(&product, 16));
+            let port = ports.iter().find(|p| usb == (Ok(p.usb.vendor), Ok(p.usb.product)))?;
+            Some(DetectedUsb {
+                vendor_id: vendor,
+                product_id: product,
+                sysfs_path: base.to_string_lossy().into_owned(),
+                port: *port,
+            })
+        })
+        .collect();
+    found.sort_by(|a, b| a.sysfs_path.cmp(&b.sysfs_path));
+    found
 }
 
 /// Returns the `/dev/hidrawN` node of USB `interface` of the device at `device_dir`.
@@ -126,6 +142,22 @@ mod tests {
         assert_eq!(found.port.mode, Mode::Switch);
         assert_eq!(found.port.framing, Framing::Wrapped);
         assert_eq!(found.product_id, "2009");
+        assert_eq!(found.port_path(), "8-5");
+    }
+
+    #[test]
+    fn sysfs_scan_lists_every_controller_by_port() {
+        let dir = tempfile::tempdir().unwrap();
+        for (port, product) in [("8-5", "2009"), ("3-1", "310b"), ("3-2", "6009")] {
+            write(
+                &dir.path().join(port).join("idVendor"),
+                if product == "2009" { "057e" } else { "2dc8" },
+            );
+            write(&dir.path().join(port).join("idProduct"), product);
+        }
+        let found = scan_sysfs_all(dir.path(), &Pro3.description().unwrap().config_ports);
+        let seen: Vec<_> = found.iter().map(|f| (f.port_path(), f.port.mode)).collect();
+        assert_eq!(seen, [("3-1", Mode::XInput), ("3-2", Mode::DInput), ("8-5", Mode::Switch)]);
     }
 
     #[test]

@@ -84,9 +84,104 @@ component SlotRow inherits Rectangle {
     }
 }
 
+// The controller name in the header. With two or more controllers it opens a list
+// to pick one.
+component ControllerPicker inherits Rectangle {
+    in property <[string]> model;
+    in property <int> current;
+    callback picked(int);
+    property <bool> many: model.length > 1;
+    border-radius: Theme.radius;
+    background: many && ta.has-hover ? Theme.hover : transparent;
+    accessible-role: combobox;
+    accessible-label: "Controller";
+    accessible-value: model[current];
+    forward-focus: fs;
+
+    fs := FocusScope {
+        enabled: root.many;
+        key-pressed(e) => {
+            if (e.text == " " || e.text == Key.Return) {
+                popup.show();
+                return accept;
+            }
+            reject
+        }
+    }
+    HorizontalLayout {
+        spacing: 4px;
+        Text {
+            text: root.model[root.current];
+            font-weight: 600;
+            color: Theme.fg;
+            overflow: elide;
+            vertical-alignment: center;
+        }
+        if root.many: Image {
+            y: (parent.height - self.height) / 2;
+            width: 14px;
+            height: 14px;
+            source: @image-url("icons/chevron.svg");
+            colorize: Theme.fg-muted;
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+        }
+    }
+    ta := TouchArea {
+        enabled: root.many;
+        clicked => {
+            fs.focus();
+            popup.show();
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: root.width + 4px;
+        height: root.height + 4px;
+        border-radius: Theme.radius + 2px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+    popup := PopupWindow {
+        x: 0;
+        y: root.height + 2px;
+        width: max(root.width, 200px);
+        Rectangle {
+            background: Theme.view;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.line;
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 4px;
+            drop-shadow-color: Theme.shadow;
+        }
+        VerticalLayout {
+            padding: 4px;
+            for item[i] in root.model: Rectangle {
+                height: 26px;
+                border-radius: 3px;
+                background: i == root.current ? Theme.accent-wash : item-ta.has-hover ? Theme.hover : transparent;
+                Text {
+                    x: 8px;
+                    text: item;
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                item-ta := TouchArea {
+                    clicked => { root.picked(i); }
+                }
+            }
+        }
+    }
+}
+
 export component Sidebar inherits Rectangle {
     in property <[ModeGroup]> groups;
-    in property <string> device-name;
+    // Every listed controller, and the one shown.
+    in property <[string]> controllers;
+    in property <int> current-controller;
     in property <string> device-status;
     in property <bool> connected;
     // The last read failed: the dot turns red.
@@ -94,6 +189,7 @@ export component Sidebar inherits Rectangle {
     in-out property <int> current-mode;
     in-out property <int> current-slot;
     callback slot-picked(int, int);
+    callback controller-picked(int);
     callback about;
     width: 264px;
     background: Theme.view;
@@ -115,11 +211,10 @@ export component Sidebar inherits Rectangle {
                 VerticalLayout {
                     alignment: center;
                     spacing: 1px;
-                    Text {
-                        text: root.device-name;
-                        font-weight: 600;
-                        color: Theme.fg;
-                        overflow: elide;
+                    ControllerPicker {
+                        model: root.controllers;
+                        current: root.current-controller;
+                        picked(i) => { root.controller-picked(i); }
                     }
                     HorizontalLayout {
                         spacing: 6px;

@@ -150,8 +150,13 @@ impl AppState {
     fn apply_import(&mut self, pending: PendingImport) {
         let PendingImport { slot: (mode, number), file_name, mut profile, skipped_macros, .. } =
             pending;
-        let state = self.slots.entry((mode, number)).or_default();
-        let base = state.pad.as_ref().or_else(|| self.defaults.get(&mode));
+        let active = self.active().map(|c| c.port.clone());
+        let defaults = &self.defaults;
+        let Some(c) = self.controllers.iter_mut().find(|c| Some(&c.port) == active.as_ref()) else {
+            return;
+        };
+        let state = c.slots.entry((mode, number)).or_default();
+        let base = state.pad.as_ref().or_else(|| defaults.get(&mode));
         profile.id = base.map(|b| b.id.clone()).unwrap_or_default();
         profile.preferred_slot = base.and_then(|b| b.preferred_slot);
         profile.macro_refs = state.pad.as_ref().map(|p| p.macro_refs.clone()).unwrap_or_default();

@@ -5,7 +5,7 @@ import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { AboutDialog, ImportDialog } from "dialogs.slint";
+import { AboutDialog, ChangedDialog, ImportDialog, MoveDialog } from "dialogs.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning } from "types.slint";
 import { Palette } from "std-widgets.slint";
@@ -24,6 +24,9 @@ export component AppWindow inherits Window {
     // False until the first read: the whole window is the no-controller screen.
     in property <bool> has-controller;
     in property <string> device-name;
+    // Every listed controller for the header, and the one shown.
+    in property <[string]> controllers;
+    in property <int> current-controller;
     in property <string> device-status;
     in property <bool> connected;
     in property <[ModeGroup]> groups;
@@ -47,6 +50,9 @@ export component AppWindow inherits Window {
     in-out property <int> selected-row: -1;
     // Why the last read failed, empty when it did not.
     in property <string> read-error;
+    in property <string> read-error-title;
+    // The red bar is about a newly plugged controller, not the one shown.
+    in property <bool> read-error-elsewhere;
     // The controller is still there and idle, so a failed read can be tried again.
     in property <bool> can-read-again;
     // The last read failed: the status dot shows it.
@@ -73,11 +79,23 @@ export component AppWindow inherits Window {
     in-out property <string> dialog;
     // A file for another mode waits for a yes.
     in property <ImportWarning> import-warning;
+    // Unplugged controllers whose edits a newly plugged one may take.
+    in property <[string]> move-from;
+    // Slots whose stored profile changed under their edits.
+    in property <[string]> changed-slots;
+    // The answer picked for each changed slot: true keeps the edits.
+    in property <[bool]> changed-keep;
     // The message above the slot, such as an import result. Hidden when empty.
     in property <string> notice-title;
     in property <string> notice-body;
     in property <bool> notice-error;
     callback slot-picked(int, int);
+    callback controller-picked(int);
+    // A row of `move-from`, or -1 for none.
+    callback move-answered(int);
+    // A row of `changed-slots`, and whether to keep the edits; then Apply.
+    callback changed-picked(int, bool);
+    callback changed-applied;
     callback install-rule;
     callback rule-skipped;
     callback name-edited(string);
@@ -132,7 +150,8 @@ export component AppWindow inherits Window {
     if !root.asks-for-rule && root.has-controller: HorizontalLayout {
         Sidebar {
             groups: root.groups;
-            device-name: root.device-name;
+            controllers: root.controllers;
+            current-controller: root.current-controller;
             device-status: root.device-status;
             connected: root.connected;
             failed: root.read-failed;
@@ -144,6 +163,10 @@ export component AppWindow inherits Window {
                     root.selected-row = -1;
                 }
                 root.slot-picked(m, s);
+            }
+            controller-picked(i) => {
+                root.selected-row = -1;
+                root.controller-picked(i);
             }
             about => { root.dialog = "about"; }
         }
@@ -235,9 +258,9 @@ export component AppWindow inherits Window {
                 padding-top: 10px;
                 MessageBar {
                     error: true;
-                    title: "Could not read the controller.";
+                    title: root.read-error-title;
                     body: root.read-error;
-                    action: root.connected ? "Try again" : "";
+                    action: root.connected || root.read-error-elsewhere ? "Try again" : "";
                     action-enabled: root.can-read-again;
                     acted => { root.read-again(); }
                 }
@@ -346,6 +369,21 @@ export component AppWindow inherits Window {
         warning: root.import-warning;
         accepted => { root.import-confirmed(); }
         cancelled => { root.import-cancelled(); }
+    }
+
+    if root.changed-slots.length > 0: ChangedDialog {
+        slots: root.changed-slots;
+        keep: root.changed-keep;
+        picked(i, keep) => { root.changed-picked(i, keep); }
+        accepted => { root.changed-applied(); }
+    }
+
+    if root.move-from.length > 0: MoveDialog {
+        name: root.device-name;
+        from: root.move-from;
+        accepted => { root.move-answered(0); }
+        cancelled => { root.move-answered(-1); }
+        picked(i) => { root.move-answered(i); }
     }
 
     if root.dialog == "about": AboutDialog {

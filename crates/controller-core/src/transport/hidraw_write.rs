@@ -18,7 +18,7 @@ use crate::protocol::wire_write::{
     validate_command_response, validate_erase_response, validate_write_macro_response,
     validate_write_response, MACRO_CHUNK_LEN, PACKET_LEN,
 };
-use crate::transport::session::{wait_for_mode, Session, WRITE_TIMEOUT};
+use crate::transport::session::{wait_for_mode, Session, Target, WRITE_TIMEOUT};
 use crate::transport::write_input::{
     check_macro_stream, check_patch, check_profile_blob, macro_flash_base, macro_total_len,
     plan_profile_chunks, PATCH_PACKETS,
@@ -41,8 +41,8 @@ const RETURN_SETTLE: Duration = Duration::from_secs(2);
 
 /// Opens a write session. Refuses in a current mode that takes no writes in place:
 /// [`begin_write`] must flip the controller first.
-fn open(spec: Pro3) -> Result<Session> {
-    let session = Session::open(spec, WRITE_TIMEOUT)?;
+fn open(to: Target<'_>) -> Result<Session> {
+    let session = Session::open(to, WRITE_TIMEOUT)?;
     if let Some(via) = session.write_via {
         return Err(Error::write(format!(
             "the controller takes no writes in {} mode; flip it to {via} first",
@@ -54,17 +54,17 @@ fn open(spec: Pro3) -> Result<Session> {
 
 /// Flips the controller to the mode its config port names in `write_via`, if any,
 /// and waits for it. Returns the mode to send it back to.
-pub(super) fn begin_write(spec: Pro3) -> Result<Option<Mode>> {
-    let session = Session::open(spec, WRITE_TIMEOUT)?;
+pub(super) fn begin_write(to: Target<'_>) -> Result<Option<Mode>> {
+    let session = Session::open(to, WRITE_TIMEOUT)?;
     let Some(via) = session.write_via else {
         return Ok(None);
     };
     let back_to = session.current_mode;
-    let flip = spec.mode_flip_command(via).ok_or_else(|| {
+    let flip = to.spec.mode_flip_command(via).ok_or_else(|| {
         Error::write(format!("this controller cannot flip from {back_to} to {via} mode"))
     })?;
     session.send_last(&flip)?;
-    wait_for_mode(spec, via, REENUMERATE_BUDGET).map_err(|e| {
+    wait_for_mode(to, via, REENUMERATE_BUDGET).map_err(|e| {
         Error::write(format!(
             "the controller did not come back in {via} mode ({e}); unplug it and plug it back in"
         ))
@@ -73,9 +73,9 @@ pub(super) fn begin_write(spec: Pro3) -> Result<Option<Mode>> {
 }
 
 /// Sends the close command, then waits for the controller to come back in `back_to`.
-pub(super) fn end_write(spec: Pro3, back_to: Mode) -> Result<()> {
-    Session::open(spec, WRITE_TIMEOUT)?.send_last(&spec.mode_close_command())?;
-    wait_for_mode(spec, back_to, REENUMERATE_BUDGET)?;
+pub(super) fn end_write(to: Target<'_>, back_to: Mode) -> Result<()> {
+    Session::open(to, WRITE_TIMEOUT)?.send_last(&to.spec.mode_close_command())?;
+    wait_for_mode(to, back_to, REENUMERATE_BUDGET)?;
     std::thread::sleep(RETURN_SETTLE);
     Ok(())
 }
@@ -107,11 +107,11 @@ fn exchange(
     validate(&resp)
 }
 
-pub(super) fn write_full_profile(spec: Pro3, blob: &[u8]) -> Result<()> {
+pub(super) fn write_full_profile(to: Target<'_>, blob: &[u8]) -> Result<()> {
     check_profile_blob(blob)?;
     let chunks = plan_profile_chunks();
     let total = chunks.len();
-    let mut session = open(spec)?;
+    let mut session = open(to)?;
     for (i, &(offset, size)) in chunks.iter().enumerate() {
         let send = |session: &mut Session| -> Result<()> {
             let data = take(blob, usize::from(offset), size)?;
@@ -124,10 +124,10 @@ pub(super) fn write_full_profile(spec: Pro3, blob: &[u8]) -> Result<()> {
     Ok(())
 }
 
-pub(super) fn write_patch(spec: Pro3, offset: u16, data: &[u8]) -> Result<()> {
+pub(super) fn write_patch(to: Target<'_>, offset: u16, data: &[u8]) -> Result<()> {
     check_patch(data)?;
     let size = len_u16(data.len())?;
-    let mut session = open(spec)?;
+    let mut session = open(to)?;
     let packet = build_write_packet(offset, data);
     for i in 0..PATCH_PACKETS {
         exchange(&mut session, &packet, |r| validate_write_response(r, offset, size))
@@ -137,8 +137,8 @@ pub(super) fn write_patch(spec: Pro3, offset: u16, data: &[u8]) -> Result<()> {
 }
 
 /// Opens a session, sends one simple command and checks its echo.
-fn command(spec: Pro3, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
-    let mut session = open(spec)?;
+fn command(to: Target<'_>, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
+    let mut session = open(to)?;
     exchange(&mut session, packet, |r| validate_command_response(r, echo)).map_err(|e| {
         if matches!(e, Error::Decode(_)) {
             rejected(what, &e)
@@ -148,17 +148,17 @@ fn command(spec: Pro3, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Resul
     })
 }
 
-pub(super) fn send_slot_select(spec: Pro3, mode: Mode) -> Result<()> {
-    let packet = build_slot_select(spec.slot_select_value(mode));
-    command(spec, &packet, CMD_SLOT_SELECT, "slot select")
+pub(super) fn send_slot_select(to: Target<'_>, mode: Mode) -> Result<()> {
+    let packet = build_slot_select(to.spec.slot_select_value(mode));
+    command(to, &packet, CMD_SLOT_SELECT, "slot select")
 }
 
-pub(super) fn send_apply(spec: Pro3) -> Result<()> {
-    command(spec, &build_apply(), CMD_APPLY, "apply")
+pub(super) fn send_apply(to: Target<'_>) -> Result<()> {
+    command(to, &build_apply(), CMD_APPLY, "apply")
 }
 
-pub(super) fn query_status(spec: Pro3) -> Result<()> {
-    command(spec, &build_query_status(), CMD_QUERY_STATUS, "query status")
+pub(super) fn query_status(to: Target<'_>) -> Result<()> {
+    command(to, &build_query_status(), CMD_QUERY_STATUS, "query status")
 }
 
 /// Wire profile slot: 0-based.
@@ -189,17 +189,17 @@ fn erase_in_session(
 }
 
 pub(super) fn erase_macro(
-    spec: Pro3,
+    to: Target<'_>,
     mode: Mode,
     profile_slot: Slot,
     macro_slot: MacroSlot,
 ) -> Result<()> {
-    let mut session = open(spec)?;
-    erase_in_session(&mut session, spec, mode, profile_slot, macro_slot)
+    let mut session = open(to)?;
+    erase_in_session(&mut session, to.spec, mode, profile_slot, macro_slot)
 }
 
 pub(super) fn write_macro_stream(
-    spec: Pro3,
+    to: Target<'_>,
     mode: Mode,
     profile_slot: Slot,
     macro_slot: MacroSlot,
@@ -208,9 +208,9 @@ pub(super) fn write_macro_stream(
     check_macro_stream(stream, macro_slot)?;
     let total_len = macro_total_len(stream.len(), macro_slot)?;
     let base = macro_flash_base(macro_slot)?;
-    let gamepad_mode = spec.macro_gamepad_mode(mode);
-    let mut session = open(spec)?;
-    erase_in_session(&mut session, spec, mode, profile_slot, macro_slot)?;
+    let gamepad_mode = to.spec.macro_gamepad_mode(mode);
+    let mut session = open(to)?;
+    erase_in_session(&mut session, to.spec, mode, profile_slot, macro_slot)?;
 
     let total = stream.len() / MACRO_CHUNK_LEN;
     for (i, data) in stream.chunks(MACRO_CHUNK_LEN).enumerate() {

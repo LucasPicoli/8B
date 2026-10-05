@@ -16,7 +16,7 @@ use crate::protocol::wire::{
 };
 use crate::protocol::wire_write::MACRO_PAGE_LEN;
 use crate::transport::hidraw_write;
-use crate::transport::session::{Session, READ_TIMEOUT};
+use crate::transport::session::{Session, Target, READ_TIMEOUT};
 use crate::transport::write_input::{PROFILE_CHUNK as UPLOAD_CHUNK, PROFILE_SIZE};
 
 const MACRO_CHUNK: u16 = 32;
@@ -26,6 +26,8 @@ const MACRO_ERASE_LEN: u16 = MACRO_PAGE_LEN;
 /// attached controller picks the node and the framing.
 pub struct HidrawDevice {
     spec: Pro3,
+    /// The USB port path to talk to, or `None` for the first controller found.
+    port: Option<String>,
 }
 
 impl HidrawDevice {
@@ -37,7 +39,18 @@ impl HidrawDevice {
     /// # Errors
     /// Never returns an error; signature matches trait expectations.
     pub const fn open() -> Result<Self> {
-        Ok(Self { spec: Pro3 })
+        Ok(Self { spec: Pro3, port: None })
+    }
+
+    /// A handle to the 8BitDo Pro 3 on USB port path `port`, such as `8-5`. Nothing
+    /// is opened until an operation is performed.
+    #[must_use]
+    pub fn at(port: &str) -> Self {
+        Self { spec: Pro3, port: Some(port.to_owned()) }
+    }
+
+    fn target(&self) -> Target<'_> {
+        Target { spec: self.spec, port: self.port.as_deref() }
     }
 }
 
@@ -153,7 +166,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// [`Error::Disconnected`] or [`Error::Decode`] on failure.
     fn read_all_profiles(&self) -> Result<ProfileReadResult> {
         // The session sends `START_CONFIG` once, to identify the model.
-        let mut session = Session::open(self.spec, READ_TIMEOUT)?;
+        let mut session = Session::open(self.target(), READ_TIMEOUT)?;
 
         let mut profiles = Vec::new();
         let mut raw_blobs = Vec::new();
@@ -225,7 +238,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
 
         // Prime: `START_CONFIG` (sent by the session) → `QUERY_STATUS` → `SLOT_SELECT`
         // → upload×53 → `QUERY_STATUS`
-        let mut session = Session::open(self.spec, READ_TIMEOUT)?;
+        let mut session = Session::open(self.target(), READ_TIMEOUT)?;
         let _ = session.send_recv(&build_query_status())?;
         let _ = session.send_recv(&build_slot_select(slot_select))?;
         let _ = read_blob_chunks(&mut session)?;
@@ -289,7 +302,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
 
         let slot_select = self.spec.slot_select_value(found.port.mode);
 
-        match Session::open(self.spec, READ_TIMEOUT) {
+        match Session::open(self.target(), READ_TIMEOUT) {
             Err(e @ Error::UnsupportedModel(_)) => {
                 readiness.supported_device_connected = false;
                 readiness.message = format!("8BitDo controller found, but not a Pro 3: {e}.");
@@ -337,35 +350,35 @@ impl crate::transport::DeviceIo for HidrawDevice {
     }
 
     fn begin_write(&self) -> Result<Option<Mode>> {
-        hidraw_write::begin_write(self.spec)
+        hidraw_write::begin_write(self.target())
     }
 
     fn end_write(&self, back_to: Mode) -> Result<()> {
-        hidraw_write::end_write(self.spec, back_to)
+        hidraw_write::end_write(self.target(), back_to)
     }
 
     fn write_full_profile(&self, _mode: Mode, blob: &[u8]) -> Result<()> {
-        hidraw_write::write_full_profile(self.spec, blob)
+        hidraw_write::write_full_profile(self.target(), blob)
     }
 
     fn write_patch(&self, _mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
-        hidraw_write::write_patch(self.spec, offset, data)
+        hidraw_write::write_patch(self.target(), offset, data)
     }
 
     fn send_slot_select(&self, mode: Mode) -> Result<()> {
-        hidraw_write::send_slot_select(self.spec, mode)
+        hidraw_write::send_slot_select(self.target(), mode)
     }
 
     fn send_apply(&self, _mode: Mode) -> Result<()> {
-        hidraw_write::send_apply(self.spec)
+        hidraw_write::send_apply(self.target())
     }
 
     fn query_status(&self, _mode: Mode) -> Result<()> {
-        hidraw_write::query_status(self.spec)
+        hidraw_write::query_status(self.target())
     }
 
     fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
-        hidraw_write::erase_macro(self.spec, mode, profile_slot, macro_slot)
+        hidraw_write::erase_macro(self.target(), mode, profile_slot, macro_slot)
     }
 
     fn write_macro_stream(
@@ -375,6 +388,6 @@ impl crate::transport::DeviceIo for HidrawDevice {
         macro_slot: MacroSlot,
         stream: &[u8],
     ) -> Result<()> {
-        hidraw_write::write_macro_stream(self.spec, mode, profile_slot, macro_slot, stream)
+        hidraw_write::write_macro_stream(self.target(), mode, profile_slot, macro_slot, stream)
     }
 }

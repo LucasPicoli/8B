@@ -5,6 +5,7 @@
 
 mod buttons;
 mod chooser;
+mod controllers;
 mod files;
 mod holders;
 mod portal;
@@ -43,7 +44,7 @@ use std::time::Duration;
 use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::Mode;
-use controller_core::transport::HidrawDevice;
+use controller_core::transport::{DeviceIo, HidrawDevice};
 use controller_core::Error;
 use slint::{ComponentHandle as _, Timer, TimerMode, Weak};
 
@@ -53,15 +54,11 @@ use crate::state::{AppState, Notice};
 use crate::ui::AppWindow;
 use crate::worker::{Command, Event, Failure};
 
-/// Sends `command` to the worker, and once it is sent, marks it `started`.
-fn send(
-    commands: &Sender<Command>,
-    command: Command,
-    s: &mut AppState,
-    started: fn(&mut AppState),
-) {
-    if commands.send(command).is_ok() {
-        started(s);
+/// Asks the worker to read the controller on `port`, and once asked, marks the read
+/// started.
+fn read(commands: &Sender<Command>, state: &mut AppState, port: &str) {
+    if commands.send(Command::ReadAll(port.to_owned())).is_ok() {
+        state.read_started(port);
     }
 }
 
@@ -69,36 +66,53 @@ fn send(
 /// of every bank.
 fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
     match &event {
-        Event::Presence(mode) => eprintln!("8b: controller {}", mode.map_or("gone", Mode::label)),
-        Event::Read(Ok(read)) => eprintln!("8b: read {} slots", read.profiles.len()),
-        Event::Read(Err(f)) => eprintln!("8b: read failed: {}; held by {:?}", f.error, f.holders),
+        Event::Presence { port, mode } => {
+            eprintln!("8b: controller on {port} {}", mode.map_or("gone", Mode::label));
+        }
+        Event::Read { port, result: Ok(read) } => {
+            eprintln!("8b: read {} slots from {port}", read.profiles.len());
+        }
+        Event::Read { port, result: Err(f) } => {
+            eprintln!("8b: read from {port} failed: {}; held by {:?}", f.error, f.holders);
+        }
         Event::Installed(Ok(())) => eprintln!("8b: udev rule installed"),
         Event::Installed(Err(e)) => eprintln!("8b: udev rule install failed: {e}"),
     }
     match event {
-        Event::Presence(mode) => {
-            state.presence(mode);
+        Event::Presence { port, mode } => {
+            state.presence(&port, mode);
             if mode.is_some() {
-                send(commands, Command::ReadAll, state, AppState::read_started);
+                read(commands, state, &port);
             }
         }
-        Event::Read(Err(Failure { error: Error::PermissionDenied(_), .. })) => {
-            state.read_denied(udev::rule_state());
+        Event::Read { port, result: Err(Failure { error: Error::PermissionDenied(_), .. }) } => {
+            state.read_denied(&port, udev::rule_state());
         }
-        Event::Read(Ok(read)) => state.read_finished(Ok(read)),
-        Event::Read(Err(Failure { error, holders })) => {
+        Event::Read { port, result: Err(Failure { error: Error::UnsupportedModel(_), .. }) } => {
+            state.read_foreign(&port);
+        }
+        Event::Read { port, result: Ok(read) } => state.read_finished(&port, Ok(read)),
+        Event::Read { port, result: Err(Failure { error, holders }) } => {
             let message = holders::sentence(&holders).map_or_else(
                 || error.to_string(),
                 |names| format!("{} {names}", sentence(&error.to_string())),
             );
-            state.read_finished(Err(message));
+            state.read_finished(&port, Err(message));
         }
         Event::Installed(result) => {
             let ok = result.is_ok();
             state.install_finished(result);
-            // The rule applies to the node already present: read again, no replug.
+            // The rule applies to the nodes already present: read again, no replug.
             if ok {
-                send(commands, Command::ReadAll, state, AppState::read_started);
+                let present: Vec<String> = state
+                    .controllers
+                    .iter()
+                    .filter(|c| c.mode.is_some())
+                    .map(|c| c.port.clone())
+                    .collect();
+                for port in present {
+                    read(commands, state, &port);
+                }
             }
         }
     }
@@ -191,6 +205,43 @@ fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) {
     ui.on_export_file(move || export(weak.clone(), jobs_tx.clone(), &s.borrow()));
 }
 
+/// Wires "Try again", the controller picker and the answers to the move and
+/// changed-slot dialogs. `change` applies a change to the state and renders.
+fn wire_controllers(
+    ui: &AppWindow,
+    change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
+    commands: Sender<Command>,
+) {
+    let c = change.clone();
+    ui.on_read_again(move || {
+        c(&|s| {
+            if let Some(port) = s.retry_port() {
+                read(&commands, s, &port);
+            }
+        });
+    });
+    let c = change.clone();
+    ui.on_controller_picked(move |i| c(&|s| s.pick_controller(usize::try_from(i).unwrap_or(0))));
+    let c = change.clone();
+    ui.on_move_answered(move |row| {
+        c(&|s| {
+            let from = usize::try_from(row).ok().and_then(|r| s.move_candidates().get(r).copied());
+            s.answer_move(from);
+        });
+    });
+    let c = change.clone();
+    ui.on_changed_picked(move |row, keep| {
+        c(&|s| {
+            let slot = usize::try_from(row).ok().and_then(|r| s.changed_slots().get(r).copied());
+            if let Some(slot) = slot {
+                s.choose_changed(slot, keep);
+            }
+        });
+    });
+    let c = change.clone();
+    ui.on_changed_applied(move || c(&AppState::apply_changed));
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let description = Pro3.description()?;
     let ui = AppWindow::new()?;
@@ -215,7 +266,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (events_tx, events) = mpsc::channel();
     let weak = ui.as_weak();
     let commands = worker::spawn(
-        Box::new(HidrawDevice::open()?),
+        Box::new(|port: &str| Box::new(HidrawDevice::at(port)) as Box<dyn DeviceIo + Send>),
         PathBuf::from(worker::SYSFS_USB),
         description.config_ports.clone(),
         udev::install_rule,
@@ -255,10 +306,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let c = change.clone();
     ui.on_install_rule(move || {
-        c(&|s| send(&install_tx, Command::InstallUdevRule, s, AppState::install_started));
+        c(&|s| {
+            if install_tx.send(Command::InstallUdevRule).is_ok() {
+                s.install_started();
+            }
+        });
     });
-    let c = change.clone();
-    ui.on_read_again(move || c(&|s| send(&retry_tx, Command::ReadAll, s, AppState::read_started)));
+    wire_controllers(&ui, &change, retry_tx);
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     let c = change.clone();

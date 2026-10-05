@@ -14,7 +14,7 @@ use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 
 use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
-use crate::state::tests::{connected, new_state};
+use crate::state::tests::{connected, full_read, new_state, PORT};
 use crate::state::{AppState, Rule};
 use crate::ui::AppWindow;
 
@@ -69,8 +69,8 @@ fn no_controller() {
 #[test]
 fn first_read_failed() {
     let mut s = new_state();
-    s.presence(Some(Mode::XInput));
-    s.read_finished(Err("device communication timed out".to_owned()));
+    s.presence(PORT, Some(Mode::XInput));
+    s.read_finished(PORT, Err("device communication timed out".to_owned()));
     shoot("first-read-failed", &s);
 }
 
@@ -84,39 +84,111 @@ fn sidebar_with_an_empty_slot() {
 #[test]
 fn unplugged() {
     let mut s = connected(Mode::Switch);
-    s.presence(None);
+    s.set_name("Edited");
+    s.presence(PORT, None);
     shoot("unplugged", &s);
+}
+
+/// The Pro 3 on [`PORT`] with an edit in Switch slot 1, plus a second one in
+/// `mode` on port `3-2`.
+fn two_controllers(mode: Mode) -> AppState {
+    let mut s = connected(Mode::Switch);
+    s.set_name("Edited");
+    s.presence("3-2", Some(mode));
+    s.read_finished("3-2", Ok(full_read()));
+    s
+}
+
+#[test]
+fn controller_dropdown() {
+    shoot("controller-dropdown", &two_controllers(Mode::Switch));
+}
+
+#[test]
+fn move_edits_from_one() {
+    let mut s = connected(Mode::Switch);
+    s.set_name("Edited");
+    s.presence(PORT, None);
+    s.presence("3-2", Some(Mode::XInput));
+    s.read_finished("3-2", Ok(full_read()));
+    shoot("move-edits-one", &s);
+}
+
+#[test]
+fn move_edits_from_several() {
+    let mut s = two_controllers(Mode::XInput);
+    s.pick_controller(1);
+    s.set_name("Other");
+    s.presence(PORT, None);
+    s.presence("3-2", None);
+    s.presence("3-3", Some(Mode::DInput));
+    s.read_finished("3-3", Ok(full_read()));
+    shoot("move-edits-several", &s);
+}
+
+#[test]
+fn new_port_read_failed_behind_an_unplugged_entry() {
+    let mut s = connected(Mode::Switch);
+    s.set_name("Edited");
+    s.presence(PORT, None);
+    s.presence("3-2", Some(Mode::DInput));
+    s.read_finished(
+        "3-2",
+        Err("Device communication timed out. steam also has the controller open. Close it \
+             and try again."
+            .to_owned()),
+    );
+    shoot("new-port-read-failed", &s);
+}
+
+#[test]
+fn slots_changed_under_edits() {
+    let mut s = connected(Mode::XInput);
+    s.set_name("Mine");
+    s.select(0, 1);
+    s.set_name("Mine too");
+    let mut read = full_read();
+    for p in &mut read.profiles {
+        if p.mode == Mode::XInput && p.source_slot < 3 {
+            p.canonical.name = "Theirs".to_owned();
+        }
+    }
+    s.read_finished(PORT, Ok(read));
+    shoot("slots-changed", &s);
 }
 
 #[test]
 fn read_failed() {
     let mut s = connected(Mode::XInput);
-    s.read_finished(Err("device communication timed out".to_owned()));
+    s.read_finished(PORT, Err("device communication timed out".to_owned()));
     shoot("read-failed", &s);
 }
 
 #[test]
 fn read_failed_with_holders() {
     let mut s = connected(Mode::Switch);
-    s.read_finished(Err("Device communication timed out. steam and winedevice.exe also have \
+    s.read_finished(
+        PORT,
+        Err("Device communication timed out. steam and winedevice.exe also have \
          the controller open. Close them and try again."
-        .to_owned()));
+            .to_owned()),
+    );
     shoot("read-failed-holders", &s);
 }
 
 #[test]
 fn read_failed_trying_again() {
     let mut s = connected(Mode::Switch);
-    s.read_finished(Err("device communication timed out".to_owned()));
-    s.read_started();
+    s.read_finished(PORT, Err("device communication timed out".to_owned()));
+    s.read_started(PORT);
     shoot("read-failed-trying-again", &s);
 }
 
 fn denied(rule: Rule) -> AppState {
     let mut s = new_state();
-    s.presence(Some(Mode::XInput));
-    s.read_started();
-    s.read_denied(rule);
+    s.presence(PORT, Some(Mode::XInput));
+    s.read_started(PORT);
+    s.read_denied(PORT, rule);
     s
 }
 
@@ -181,7 +253,8 @@ fn slot_started_from_default() {
 fn slot_with_an_unrecognised_row() {
     let mut s = connected(Mode::DInput);
     s.select(2, 1);
-    let pad = s.slots.get_mut(&(Mode::DInput, 2)).unwrap().pad.as_mut().unwrap();
+    let pad =
+        s.active_mut().unwrap().slots.get_mut(&(Mode::DInput, 2)).unwrap().pad.as_mut().unwrap();
     let left = pad.button_mappings.iter_mut().find(|m| m.source == "d-pad left").unwrap();
     left.target = controller_core::description::UNRECOGNISED_OUTPUT.to_owned();
     shoot("buttons-unrecognised", &s);
@@ -190,7 +263,8 @@ fn slot_with_an_unrecognised_row() {
 #[test]
 fn slot_with_a_macro() {
     let mut s = connected(Mode::XInput);
-    let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    let pad =
+        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
         trigger: "rp".to_owned(),
         path: "xinput-slot1-macro0-Buttons.json".to_owned(),
@@ -384,12 +458,14 @@ fn frame_edges(ui: &AppWindow) -> (usize, usize) {
 #[test]
 fn the_drawing_keeps_its_size_from_slot_to_slot() {
     let mut s = connected(Mode::XInput);
-    let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    let pad =
+        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
         trigger: "rp".to_owned(),
         path: "xinput-slot1-macro3-ABCDEFGHIJKLMNO.json".to_owned(),
     });
-    let pad = s.slots.get_mut(&(Mode::XInput, 2)).unwrap().pad.as_mut().unwrap();
+    let pad =
+        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 2)).unwrap().pad.as_mut().unwrap();
     pad.button_mappings[0].target = controller_core::description::UNRECOGNISED_OUTPUT.to_owned();
     for width in [1000, 1280, 1600] {
         let mut edges = Vec::new();

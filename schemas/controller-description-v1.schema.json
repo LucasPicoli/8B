@@ -7,6 +7,7 @@
   "additionalProperties": false,
   "required": [
     "display_name",
+    "short_name",
     "model_ids",
     "config_ports",
     "modes",
@@ -18,6 +19,11 @@
   ],
   "properties": {
     "display_name": { "type": "string", "minLength": 1 },
+    "short_name": {
+      "description": "Short model name for tight places, such as the controller picker.",
+      "type": "string",
+      "minLength": 1
+    },
     "model_ids": {
       "description": "Model ids the START_CONFIG reply carries.",
       "type": "array",

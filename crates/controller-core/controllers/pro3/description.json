@@ -1,5 +1,6 @@
 {
   "display_name": "8BitDo Pro 3",
+  "short_name": "Pro 3",
   "model_ids": [
     "0x6009",
     "0x600a"

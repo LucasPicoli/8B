@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::io::Errno;
 
-use crate::detect::{config_hidraw, scan_sysfs};
+use crate::detect::{config_hidraw, scan_sysfs_all, DetectedUsb};
 use crate::device::ControllerSpec as _;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
@@ -36,6 +36,26 @@ const REENUMERATE_POLL: Duration = Duration::from_millis(50);
 /// `START_CONFIG` reply bytes that carry the model id (little-endian).
 const MODEL_ID_OFFSET: usize = 22;
 
+/// A controller to talk to: its model, and the USB port path it sits on, such as
+/// `8-5`. With no port, the first supported controller found.
+#[derive(Debug, Clone, Copy)]
+pub(super) struct Target<'a> {
+    /// The controller model.
+    pub(super) spec: Pro3,
+    /// The USB port path, or `None` for the first controller found.
+    pub(super) port: Option<&'a str>,
+}
+
+impl Target<'_> {
+    /// The target's USB device, if present.
+    fn find(self) -> Result<Option<DetectedUsb>> {
+        let ports = &self.spec.description()?.config_ports;
+        Ok(scan_sysfs_all(Path::new(SYSFS_USB_DEVICES), ports)
+            .into_iter()
+            .find(|usb| self.port.is_none_or(|p| usb.port_path() == p)))
+    }
+}
+
 /// An open config node. Dropping it resumes the input stream.
 pub(super) struct Session {
     file: File,
@@ -51,7 +71,7 @@ pub(super) struct Session {
 }
 
 impl Session {
-    /// Finds the attached controller, opens its config node, pauses its input and
+    /// Finds the target controller, opens its config node, pauses its input and
     /// identifies the model from the `START_CONFIG` reply.
     ///
     /// Every current mode is identified: several 8BitDo pads share one USB id, so
@@ -65,12 +85,11 @@ impl Session {
     /// # Errors
     /// Returns [`Error::NoDevice`] when no supported controller is attached.
     /// Returns [`Error::UnsupportedModel`] when the pad answers with a model id
-    /// `spec` does not list. Returns [`Error::PermissionDenied`] when the node may
+    /// the target's model does not list. Returns [`Error::PermissionDenied`] when the node may
     /// not be opened, [`Error::Usb`] when it is missing or fails to open otherwise,
     /// and the errors of [`Self::send_recv`].
-    pub(super) fn open(spec: Pro3, timeout: Duration) -> Result<Self> {
-        let found = scan_sysfs(Path::new(SYSFS_USB_DEVICES), &spec.description()?.config_ports)
-            .ok_or(Error::NoDevice)?;
+    pub(super) fn open(to: Target<'_>, timeout: Duration) -> Result<Self> {
+        let found = to.find()?.ok_or(Error::NoDevice)?;
         let node =
             config_hidraw(Path::new(&found.sysfs_path), found.port.interface).ok_or_else(|| {
                 Error::Usb(format!(
@@ -100,7 +119,7 @@ impl Session {
                 return Err(e);
             }
         };
-        identify(&reply, &spec.description()?.model_ids)?;
+        identify(&reply, &to.spec.description()?.model_ids)?;
         Ok(session)
     }
 
@@ -180,7 +199,8 @@ impl Session {
     }
 }
 
-/// Waits until the controller is back on USB in `mode` and its config node opens.
+/// Waits until the target controller is back on USB in `mode` and its config node
+/// opens.
 ///
 /// The node can refuse an open for a moment after it appears, until udev tags it,
 /// so every failure is retried until `budget` runs out.
@@ -188,12 +208,12 @@ impl Session {
 /// # Errors
 /// Returns [`Error::Timeout`] when the controller is not back in time, or the last
 /// [`Error::PermissionDenied`] if only the open kept failing.
-pub(super) fn wait_for_mode(spec: Pro3, mode: Mode, budget: Duration) -> Result<()> {
-    let ports = &spec.description()?.config_ports;
+pub(super) fn wait_for_mode(to: Target<'_>, mode: Mode, budget: Duration) -> Result<()> {
     let deadline = Instant::now() + budget;
     let mut last = Error::Timeout;
     while Instant::now() < deadline {
-        let node = scan_sysfs(Path::new(SYSFS_USB_DEVICES), ports)
+        let node = to
+            .find()?
             .filter(|found| found.port.mode == mode)
             .and_then(|found| config_hidraw(Path::new(&found.sysfs_path), found.port.interface));
         if let Some(node) = node {

@@ -1,11 +1,12 @@
-//! App state on the UI thread: what the controller holds, the edits, and what the
+//! App state on the UI thread: what each controller holds, the edits, and what the
 //! window shows. Pure: no Slint, no I/O.
 
 use std::collections::BTreeMap;
 
 use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
-use controller_core::model::{ButtonMapping, CanonicalProfile, Mode, ProfileReadResult};
+use controller_core::model::{ButtonMapping, CanonicalProfile, Mode};
 
+use crate::controllers::Controller;
 use crate::files::PendingImport;
 
 /// The name a profile started from default gets.
@@ -113,22 +114,22 @@ pub struct Notice {
 /// Everything the window shows, kept between renders.
 #[derive(Debug)]
 pub struct AppState {
-    /// The connected controller model.
+    /// The controller model.
     pub description: &'static ControllerDescription,
     /// The profile a new slot starts from, per mode, with an empty name.
     pub defaults: BTreeMap<Mode, CanonicalProfile>,
-    /// The mode the controller presents now. `None` while no controller is present.
-    pub current_mode: Option<Mode>,
-    /// Every slot read so far, by mode and 1-based number. Empty until the first read.
-    pub slots: BTreeMap<(Mode, u8), SlotState>,
+    /// Every controller present, and every unplugged one that holds edits, in the
+    /// order they appeared.
+    pub controllers: Vec<Controller>,
+    /// The USB port path of the controller picked in the header. The first listed
+    /// controller shows while it names none present.
+    pub active_port: Option<String>,
+    /// A newly read controller on an unused port, asking whether to take the edits
+    /// of an unplugged one.
+    pub pending_move: Option<String>,
     /// The slot beside the sidebar: an index into the description's modes, and a
     /// 0-based slot.
     pub selected: (usize, usize),
-    /// Whether a read is running.
-    pub reading: bool,
-    /// Why the last read failed. Cleared by a good read, or when the controller goes
-    /// or comes back.
-    pub read_error: Option<String>,
     /// Set while opening the controller is denied: the permission screen shows.
     pub access: Option<Access>,
     /// Where the udev rule install stands.
@@ -155,11 +156,10 @@ impl AppState {
         Self {
             description,
             defaults,
-            current_mode: None,
-            slots: BTreeMap::new(),
+            controllers: Vec::new(),
+            active_port: None,
+            pending_move: None,
             selected: (0, 0),
-            reading: false,
-            read_error: None,
             access: None,
             install: Install::Idle,
             rule: Rule::Current,
@@ -169,56 +169,12 @@ impl AppState {
         }
     }
 
-    /// Whether a controller has been read since the app started. Until then the
-    /// window shows only the no-controller screen.
-    #[must_use]
-    pub fn has_controller(&self) -> bool {
-        !self.slots.is_empty()
-    }
-
-    /// A controller appeared in `mode`, or went away (`None`). Edits stay either way.
-    pub fn presence(&mut self, mode: Option<Mode>) {
-        self.current_mode = mode;
-        self.reading = false;
-        self.access = None;
-        self.install = Install::Idle;
-        self.read_error = None;
-    }
-
-    /// A read was sent to the worker. The last failure stays until this one ends.
-    pub const fn read_started(&mut self) {
-        self.reading = true;
-    }
-
-    /// A read came back. A success replaces every slot's `pad` and keeps the edits.
-    pub fn read_finished(&mut self, result: Result<ProfileReadResult, String>) {
-        self.reading = false;
-        let read = match result {
-            Ok(read) => read,
-            Err(e) => {
-                self.read_error = Some(e);
-                return;
-            }
-        };
-        let first_ever = self.slots.is_empty();
-        for summary in read.profiles {
-            // An empty slot reads back as a summary with no id.
-            let pad = (!summary.id.is_empty()).then_some(summary.canonical);
-            self.slots.entry((summary.mode, summary.source_slot)).or_default().pad = pad;
+    /// A read of the controller on `port` was denied. `rule` is the installed rule
+    /// now.
+    pub fn read_denied(&mut self, port: &str, rule: Rule) {
+        if let Some(c) = self.controller_mut(port) {
+            c.reading = false;
         }
-        self.read_error = None;
-        self.access = None;
-        if first_ever {
-            let current = self.current_mode;
-            if let Some(i) = self.description.modes.iter().position(|m| Some(m.id) == current) {
-                self.selected = (i, 0);
-            }
-        }
-    }
-
-    /// A read was denied the controller. `rule` is the installed rule now.
-    pub fn read_denied(&mut self, rule: Rule) {
-        self.reading = false;
         self.rule = rule;
         self.access =
             Some(if rule == Rule::Current { Access::StillDenied } else { Access::Denied });
@@ -261,16 +217,17 @@ impl AppState {
         Some((mode, number))
     }
 
-    /// The state of slot `number` (1-based) of `mode`. An unread slot is empty.
+    /// The state of slot `number` (1-based) of `mode` on the picked controller. An
+    /// unread slot is empty.
     #[must_use]
     pub fn slot(&self, mode: Mode, number: u8) -> SlotState {
-        self.slots.get(&(mode, number)).cloned().unwrap_or_default()
+        self.active().and_then(|c| c.slots.get(&(mode, number))).cloned().unwrap_or_default()
     }
 
-    /// The selected slot, for a change.
+    /// The selected slot of the picked controller, for a change.
     fn selected_mut(&mut self) -> Option<&mut SlotState> {
         let key = self.selected_slot()?;
-        Some(self.slots.entry(key).or_default())
+        Some(self.active_mut()?.slots.entry(key).or_default())
     }
 
     /// Applies `change` to the selected slot's working copy. The first change copies
@@ -334,6 +291,9 @@ pub mod tests {
 
     use super::*;
 
+    /// The USB port path of the controller [`connected`] reads.
+    pub const PORT: &str = "8-5";
+
     pub fn description() -> &'static ControllerDescription {
         Pro3.description().unwrap()
     }
@@ -389,17 +349,17 @@ pub mod tests {
     fn starts_with_no_controller() {
         let s = new_state();
         assert!(!s.has_controller());
-        assert_eq!(s.current_mode, None);
+        assert_eq!(s.current_mode(), None);
     }
 
     #[test]
     fn first_read_fills_every_slot_and_selects_the_current_mode() {
         let mut s = new_state();
-        s.presence(Some(Mode::Switch));
-        s.read_started();
-        s.read_finished(Ok(full_read()));
-        assert!(s.has_controller() && !s.reading);
-        assert_eq!(s.slots.len(), 9);
+        s.presence(PORT, Some(Mode::Switch));
+        s.read_started(PORT);
+        s.read_finished(PORT, Ok(full_read()));
+        assert!(s.has_controller() && !s.reading());
+        assert_eq!(s.active().unwrap().slots.len(), 9);
         assert_eq!(s.slot(Mode::DInput, 3).pad, None);
         assert_eq!(s.slot(Mode::DInput, 2).pad.unwrap().name, "Racing");
         assert_eq!(s.selected_slot(), Some((Mode::Switch, 1)));
@@ -408,18 +368,18 @@ pub mod tests {
     #[test]
     fn unplug_keeps_slots_and_edits() {
         let mut s = new_state();
-        s.presence(Some(Mode::XInput));
-        s.read_finished(Ok(full_read()));
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_finished(PORT, Ok(full_read()));
         let mut edited = s.slot(Mode::XInput, 1).pad.unwrap();
         edited.name = "Edited".to_owned();
-        s.slots.get_mut(&(Mode::XInput, 1)).unwrap().edited = Some(edited);
-        s.presence(None);
+        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().edited = Some(edited);
+        s.presence(PORT, None);
         assert!(s.has_controller());
-        assert_eq!(s.current_mode, None);
+        assert_eq!(s.current_mode(), None);
         assert!(s.slot(Mode::XInput, 1).unsaved());
         // A reread replaces what the pad holds and keeps the edit.
-        s.presence(Some(Mode::DInput));
-        s.read_finished(Ok(full_read()));
+        s.presence(PORT, Some(Mode::DInput));
+        s.read_finished(PORT, Ok(full_read()));
         assert!(s.slot(Mode::XInput, 1).unsaved());
         assert_eq!(
             s.selected_slot(),
@@ -431,31 +391,31 @@ pub mod tests {
     #[test]
     fn failed_read_is_kept_until_it_clears_or_the_controller_goes() {
         let mut s = new_state();
-        s.presence(Some(Mode::XInput));
-        s.read_started();
-        s.read_finished(Err("device disconnected".to_owned()));
-        assert_eq!(s.read_error.as_deref(), Some("device disconnected"));
-        assert!(!s.reading && !s.has_controller());
-        s.presence(Some(Mode::XInput));
-        assert_eq!(s.read_error, None);
-        s.read_finished(Err("device disconnected".to_owned()));
-        s.read_started();
-        assert!(s.read_error.is_some(), "the failure stays while the read runs again");
-        s.read_finished(Ok(full_read()));
-        assert_eq!(s.read_error, None, "a good read clears it");
-        s.read_finished(Err("device disconnected".to_owned()));
-        s.presence(None);
-        assert_eq!(s.read_error, None, "an unplug clears it");
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_started(PORT);
+        s.read_finished(PORT, Err("device disconnected".to_owned()));
+        assert_eq!(s.read_error(), Some("device disconnected"));
+        assert!(!s.reading() && !s.has_controller());
+        s.presence(PORT, Some(Mode::XInput));
+        assert_eq!(s.read_error(), None);
+        s.read_finished(PORT, Err("device disconnected".to_owned()));
+        s.read_started(PORT);
+        assert!(s.read_error().is_some(), "the failure stays while the read runs again");
+        s.read_finished(PORT, Ok(full_read()));
+        assert_eq!(s.read_error(), None, "a good read clears it");
+        s.read_finished(PORT, Err("device disconnected".to_owned()));
+        s.presence(PORT, None);
+        assert_eq!(s.read_error(), None, "an unplug clears it");
     }
 
     #[test]
     fn denied_read_asks_for_access_until_a_good_read() {
         let mut s = new_state();
-        s.presence(Some(Mode::XInput));
-        s.read_started();
-        s.read_denied(Rule::Missing);
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_started(PORT);
+        s.read_denied(PORT, Rule::Missing);
         assert_eq!(s.access, Some(Access::Denied));
-        assert!(!s.reading);
+        assert!(!s.reading());
         s.install_started();
         assert_eq!(s.install, Install::Running);
         s.install_finished(Err("The password prompt was closed.".to_owned()));
@@ -464,18 +424,18 @@ pub mod tests {
         assert_eq!(s.install, Install::Running, "a retry clears the old failure");
         s.install_finished(Ok(()));
         assert_eq!(s.rule, Rule::Current);
-        s.read_denied(Rule::Current);
+        s.read_denied(PORT, Rule::Current);
         assert_eq!(s.access, Some(Access::StillDenied));
-        s.read_finished(Ok(full_read()));
+        s.read_finished(PORT, Ok(full_read()));
         assert_eq!(s.access, None);
     }
 
     #[test]
     fn unplug_leaves_the_permission_screen() {
         let mut s = new_state();
-        s.presence(Some(Mode::XInput));
-        s.read_denied(Rule::Current);
-        s.presence(None);
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_denied(PORT, Rule::Current);
+        s.presence(PORT, None);
         assert_eq!(s.access, None);
     }
 
@@ -485,14 +445,15 @@ pub mod tests {
         assert!(!s.asks_for_rule());
         s.rule = Rule::Outdated;
         assert!(s.asks_for_rule(), "no denied read needed");
-        s.presence(None);
+        s.presence(PORT, None);
         assert!(s.asks_for_rule(), "an unplug keeps the question");
         s.rule_skipped = true;
         assert!(!s.asks_for_rule());
-        s.read_denied(Rule::Outdated);
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_denied(PORT, Rule::Outdated);
         assert!(s.asks_for_rule(), "a denied read asks again after a skip");
         s.install_finished(Ok(()));
-        s.read_finished(Ok(full_read()));
+        s.read_finished(PORT, Ok(full_read()));
         assert!(!s.asks_for_rule());
     }
 
@@ -509,8 +470,8 @@ pub mod tests {
     /// A Pro 3 read in `mode`.
     pub fn connected(mode: Mode) -> AppState {
         let mut s = new_state();
-        s.presence(Some(mode));
-        s.read_finished(Ok(full_read()));
+        s.presence(PORT, Some(mode));
+        s.read_finished(PORT, Ok(full_read()));
         s
     }
 
@@ -576,7 +537,15 @@ pub mod tests {
         let mut s = connected(Mode::DInput);
         s.set_output("l1", UNRECOGNISED_OUTPUT);
         assert_eq!(s.slot(Mode::DInput, 1).edited, None);
-        s.slots.get_mut(&(Mode::DInput, 1)).unwrap().pad.as_mut().unwrap().button_mappings[0]
+        s.active_mut()
+            .unwrap()
+            .slots
+            .get_mut(&(Mode::DInput, 1))
+            .unwrap()
+            .pad
+            .as_mut()
+            .unwrap()
+            .button_mappings[0]
             .target = UNRECOGNISED_OUTPUT.to_owned();
         s.set_output("right face", "disabled");
         s.set_output("right face", UNRECOGNISED_OUTPUT);

@@ -29,6 +29,8 @@ pub const UNRECOGNISED_OUTPUT: &str = "unrecognised";
 pub struct ControllerDescription {
     /// Model name shown to the user.
     pub display_name: String,
+    /// Short model name for tight places, such as the controller picker.
+    pub short_name: String,
     /// Model ids the `START_CONFIG` reply carries for this controller.
     #[serde(deserialize_with = "hex_u16_list")]
     pub model_ids: Vec<u16>,
@@ -344,6 +346,7 @@ mod tests {
         let range = json!({ "min": 0, "max": 1 });
         json!({
             "display_name": "Test pad",
+            "short_name": "Pad",
             "model_ids": ["0x6009"],
             "config_ports": [
                 { "usb": { "vendor": "0x2dc8", "product": "0x310b" },

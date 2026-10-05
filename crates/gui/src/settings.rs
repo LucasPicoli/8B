@@ -329,8 +329,9 @@ mod tests {
     fn a_threshold_is_kept_in_its_own_limit() {
         let mut s = connected(Mode::XInput);
         s.select(1, 0);
-        let slot = s.slots.get_mut(&(Mode::Switch, 1)).unwrap();
-        slot.pad = Some(s.defaults[&Mode::Switch].clone());
+        let default = s.defaults[&Mode::Switch].clone();
+        let slot = s.active_mut().unwrap().slots.get_mut(&(Mode::Switch, 1)).unwrap();
+        slot.pad = Some(default);
         s.set_number("/triggers/left_threshold_pct", 100.0);
         let triggers = s.slot(Mode::Switch, 1).edited.unwrap().triggers;
         assert!(matches!(triggers, Triggers::Switch(t) if t.left_threshold_pct == 90));

@@ -298,7 +298,15 @@ mod tests {
     #[test]
     fn rows_mark_fixed_unknown_and_changed_buttons() {
         let mut s = read(Mode::XInput);
-        let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+        let pad = s
+            .active_mut()
+            .unwrap()
+            .slots
+            .get_mut(&(Mode::XInput, 1))
+            .unwrap()
+            .pad
+            .as_mut()
+            .unwrap();
         pad.button_mappings[1].target = UNRECOGNISED_OUTPUT.to_owned();
         s.set_output("r1", "disabled");
         let rows = rows(&s);
@@ -318,7 +326,15 @@ mod tests {
     /// `XInput` slot 1 with macro slot 0, `Buttons`, on `rp`, as on the test pad.
     fn with_macro() -> AppState {
         let mut s = read(Mode::XInput);
-        let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+        let pad = s
+            .active_mut()
+            .unwrap()
+            .slots
+            .get_mut(&(Mode::XInput, 1))
+            .unwrap()
+            .pad
+            .as_mut()
+            .unwrap();
         pad.macro_refs.push(controller_core::model::MacroRef {
             trigger: "rp".to_owned(),
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),

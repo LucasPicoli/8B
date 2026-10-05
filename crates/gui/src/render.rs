@@ -34,7 +34,7 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
             });
             ModeGroup {
                 name: mode.id.label().into(),
-                current: state.current_mode == Some(mode.id),
+                current: state.current_mode() == Some(mode.id),
                 slots: ModelRc::from(Rc::new(slots.collect::<VecModel<_>>())),
             }
         })
@@ -44,12 +44,53 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
 /// The line under the controller name in the sidebar.
 #[must_use]
 pub fn device_status(state: &AppState) -> String {
-    match state.current_mode {
+    let failed = state.shown().is_some_and(|c| c.read_error.is_some());
+    match state.current_mode() {
         None => "Not connected".to_owned(),
-        Some(mode) if state.reading => format!("Reading over USB · {}", mode.label()),
-        Some(mode) if state.read_error.is_some() => format!("Could not read · {}", mode.label()),
+        Some(mode) if state.reading() => format!("Reading over USB · {}", mode.label()),
+        Some(mode) if failed => format!("Could not read · {}", mode.label()),
         Some(mode) => format!("Connected over USB · {}", mode.label()),
     }
+}
+
+/// A list model of strings.
+fn strings(items: Vec<String>) -> ModelRc<SharedString> {
+    ModelRc::from(Rc::new(items.into_iter().map(SharedString::from).collect::<VecModel<_>>()))
+}
+
+/// Each unplugged controller whose edits the new one may take, with how many slots
+/// it edited.
+#[must_use]
+pub fn move_from(state: &AppState) -> Vec<String> {
+    let labels = state.controller_labels();
+    let listed: Vec<_> = state.listed().collect();
+    state
+        .move_candidates()
+        .into_iter()
+        .filter_map(|i| {
+            let edited = listed.get(i)?.slots.values().filter(|s| s.unsaved()).count();
+            let slots = if edited == 1 {
+                "edits in 1 slot".to_owned()
+            } else {
+                format!("edits in {edited} slots")
+            };
+            Some(format!("{} · {slots}", labels.get(i)?))
+        })
+        .collect()
+}
+
+/// Each slot of the shown controller that changed under its edits, such as
+/// `XInput slot 1 · Racing`, with the name of the edits.
+#[must_use]
+pub fn changed_slots(state: &AppState) -> Vec<String> {
+    state
+        .changed_slots()
+        .into_iter()
+        .map(|(mode, n)| {
+            let name = state.slot(mode, n).shown().map(|p| p.name.clone()).unwrap_or_default();
+            format!("{} slot {n} · {name}", mode.label())
+        })
+        .collect()
 }
 
 /// The title of the selected slot, such as `XInput slot 2`.
@@ -82,9 +123,14 @@ pub fn sentence(message: &str) -> String {
 /// Pushes the whole visible screen.
 pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_has_controller(state.has_controller());
-    ui.set_device_name(state.description.display_name.as_str().into());
+    ui.set_device_name(state.description.short_name.as_str().into());
+    ui.set_controllers(strings(state.controller_labels()));
+    ui.set_current_controller(i32::try_from(state.active_index()).unwrap_or(0));
+    ui.set_move_from(strings(move_from(state)));
+    ui.set_changed_slots(strings(changed_slots(state)));
+    ui.set_changed_keep(ModelRc::from(Rc::new(VecModel::from(state.changed_choices()))));
     ui.set_device_status(device_status(state).into());
-    ui.set_connected(state.current_mode.is_some());
+    ui.set_connected(state.current_mode().is_some());
     ui.set_groups(ModelRc::from(Rc::new(VecModel::from(groups(state)))));
     ui.set_selected_mode(i32::try_from(state.selected.0).unwrap_or(0));
     ui.set_selected_slot(i32::try_from(state.selected.1).unwrap_or(0));
@@ -101,9 +147,24 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_buttons(state, ui);
     render_settings(state, ui);
     render_files(state, ui);
-    ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
-    ui.set_read_failed(state.read_error.is_some());
-    ui.set_can_read_again(state.current_mode.is_some() && !state.reading);
+    ui.set_read_error(state.read_error().map(sentence).unwrap_or_default().into());
+    ui.set_read_error_elsewhere(state.failed_elsewhere());
+    ui.set_read_error_title(
+        if state.failed_elsewhere() {
+            format!(
+                "Could not read the {} plugged into another USB port.",
+                state.description.short_name
+            )
+        } else {
+            "Could not read the controller.".to_owned()
+        }
+        .into(),
+    );
+    ui.set_read_failed(state.shown().is_some_and(|c| c.read_error.is_some()));
+    let retry = state.retry_port();
+    ui.set_can_read_again(
+        retry.is_some_and(|p| state.controllers.iter().any(|c| c.port == p && !c.reading)),
+    );
     ui.set_asks_for_rule(state.asks_for_rule());
     ui.set_rule_installed(state.access == Some(Access::StillDenied));
     // Not denied: the controller works without the rule, so offer an update and a skip.
@@ -135,12 +196,12 @@ mod tests {
     use slint::Model as _;
 
     use super::*;
-    use crate::state::tests::{full_read, new_state};
+    use crate::state::tests::{full_read, new_state, PORT};
 
     fn connected(mode: Mode) -> AppState {
         let mut s = new_state();
-        s.presence(Some(mode));
-        s.read_finished(Ok(full_read()));
+        s.presence(PORT, Some(mode));
+        s.read_finished(PORT, Ok(full_read()));
         s
     }
 
@@ -164,7 +225,7 @@ mod tests {
         let mut s = connected(Mode::XInput);
         let mut edited = s.slot(Mode::XInput, 2).pad.unwrap();
         edited.name = "Edited".to_owned();
-        s.slots.get_mut(&(Mode::XInput, 2)).unwrap().edited = Some(edited);
+        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 2)).unwrap().edited = Some(edited);
         let slot = groups(&s)[0].slots.row_data(1).unwrap();
         assert_eq!(slot.name, "Edited");
         assert!(slot.unsaved);
@@ -181,21 +242,21 @@ mod tests {
     fn status_title_and_empty_slot() {
         let mut s = new_state();
         assert_eq!(device_status(&s), "Not connected");
-        s.presence(Some(Mode::DInput));
-        s.read_started();
+        s.presence(PORT, Some(Mode::DInput));
+        s.read_started(PORT);
         assert_eq!(device_status(&s), "Reading over USB · DInput");
-        s.read_finished(Ok(full_read()));
+        s.read_finished(PORT, Ok(full_read()));
         assert_eq!(device_status(&s), "Connected over USB · DInput");
-        s.read_finished(Err("device communication timed out".to_owned()));
+        s.read_finished(PORT, Err("device communication timed out".to_owned()));
         assert_eq!(device_status(&s), "Could not read · DInput");
-        s.read_started();
+        s.read_started(PORT);
         assert_eq!(device_status(&s), "Reading over USB · DInput");
-        s.read_finished(Ok(full_read()));
+        s.read_finished(PORT, Ok(full_read()));
         assert_eq!(slot_title(&s), "DInput slot 1");
         assert!(!selected_empty(&s));
         s.select(2, 2);
         assert!(selected_empty(&s));
-        s.presence(None);
+        s.presence(PORT, None);
         assert_eq!(device_status(&s), "Not connected");
     }
 }

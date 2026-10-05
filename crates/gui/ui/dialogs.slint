@@ -1,6 +1,6 @@
 // Review, clear, cross-mode import, failed write and About.
 import { AboutSlint } from "std-widgets.slint";
-import { Theme, Button, LineEdit } from "look/breeze/widgets.slint";
+import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
 import { Change, ImportWarning } from "types.slint";
 
@@ -129,6 +129,64 @@ export component FailedDialog inherits DialogShell {
         text: "Your edits are still here, so you can write again.";
         color: Theme.fg-muted;
         wrap: word-wrap;
+    }
+}
+
+export component MoveDialog inherits DialogShell {
+    // The short controller name, and each unplugged controller that holds edits.
+    in property <string> name;
+    in property <[string]> from;
+    callback picked(int);
+    icon: Icons.pad;
+    title: from.length == 1
+        ? "Is this the " + name + " you unplugged?"
+        : "Is this one of the " + name + "s you unplugged?";
+    subtitle: from.length == 1
+        ? "It is plugged into another USB port. Your edits that are not written yet can move to it."
+        : "It is plugged into another USB port. Pick the one it is, and that one’s edits move to it.";
+    cancel-text: from.length == 1 ? "No, keep both" : "None of them";
+    accept-text: from.length == 1 ? "Yes, move the edits" : "";
+    if root.from.length == 1: Text {
+        text: root.from[0];
+        color: Theme.fg-muted;
+        wrap: word-wrap;
+    }
+    if root.from.length > 1: VerticalLayout {
+        spacing: 6px;
+        for f[i] in root.from: Button {
+            text: f;
+            clicked => { root.picked(i); }
+        }
+    }
+}
+
+export component ChangedDialog inherits DialogShell {
+    // Each slot whose stored profile changed under its edits, and the answer
+    // picked for it: true keeps the edits.
+    in property <[string]> slots;
+    in property <[bool]> keep;
+    callback picked(int, bool);
+    icon: Icons.warning;
+    title: slots.length == 1 ? "A slot changed outside 8B" : slots.length + " slots changed outside 8B";
+    subtitle: "Another program wrote to the controller after you started editing. Pick what each slot keeps. “Keep mine” keeps your whole copy of the slot, so writing it later replaces the controller’s version.";
+    cancel-text: "";
+    accept-text: "Apply";
+    for s[i] in root.slots: HorizontalLayout {
+        spacing: 8px;
+        Text {
+            horizontal-stretch: 1;
+            text: s;
+            color: Theme.fg;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        ComboBox {
+            width: 200px;
+            model: ["Keep mine", "Take the controller’s"];
+            current-index: root.keep[i] ? 0 : 1;
+            accessible-name: s;
+            selected(v) => { root.picked(i, self.current-index == 0); }
+        }
     }
 }
 

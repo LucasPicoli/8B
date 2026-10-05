@@ -290,6 +290,7 @@ export component DialogShell inherits Rectangle {
     callback accepted;
     callback cancelled;
     callback extra;
+    property <bool> has-footer: extra-text != "" || cancel-text != "" || accept-text != "";
     background: Theme.scrim;
     accessible-role: groupbox;
     accessible-label: title;
@@ -358,11 +359,11 @@ export component DialogShell inherits Rectangle {
                 spacing: 10px;
                 @children
             }
-            Rectangle {
+            if root.has-footer: Rectangle {
                 height: 1px;
                 background: Theme.line-soft;
             }
-            Rectangle {
+            if root.has-footer: Rectangle {
                 background: Theme.header;
                 HorizontalLayout {
                     padding: 12px;
