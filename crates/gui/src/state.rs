@@ -23,6 +23,27 @@ impl SlotState {
     }
 }
 
+/// Why the window asks for access to the controller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Access {
+    /// Opening the controller was denied, and the udev rule is not installed.
+    Denied,
+    /// The udev rule is installed, and opening the controller is still denied.
+    StillDenied,
+}
+
+/// Where the udev rule install stands.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum Install {
+    /// Not started, or done.
+    #[default]
+    Idle,
+    /// The password prompt is open.
+    Running,
+    /// The last install failed, with why, as a sentence.
+    Failed(String),
+}
+
 /// Everything the window shows, kept between renders.
 #[derive(Debug)]
 pub struct AppState {
@@ -41,6 +62,10 @@ pub struct AppState {
     pub read_error: Option<String>,
     /// Whether the read-slot note shows.
     pub read_note: bool,
+    /// Set while opening the controller is denied: the permission screen shows.
+    pub access: Option<Access>,
+    /// Where the udev rule install stands.
+    pub install: Install,
     /// Whether this connection has had its first read.
     read_since_connect: bool,
 }
@@ -57,6 +82,8 @@ impl AppState {
             reading: false,
             read_error: None,
             read_note: false,
+            access: None,
+            install: Install::Idle,
             read_since_connect: false,
         }
     }
@@ -72,6 +99,8 @@ impl AppState {
     pub fn presence(&mut self, mode: Option<Mode>) {
         self.current_mode = mode;
         self.reading = false;
+        self.access = None;
+        self.install = Install::Idle;
         if mode.is_some() {
             self.read_since_connect = false;
             self.read_error = None;
@@ -101,6 +130,7 @@ impl AppState {
             self.slots.entry((summary.mode, summary.source_slot)).or_default().pad = pad;
         }
         self.read_error = None;
+        self.access = None;
         if !self.read_since_connect {
             self.read_since_connect = true;
             self.read_note = true;
@@ -111,6 +141,23 @@ impl AppState {
                 self.selected = (i, 0);
             }
         }
+    }
+
+    /// A read was denied the controller. `rule_installed` says whether the udev rule
+    /// is already in place.
+    pub const fn read_denied(&mut self, rule_installed: bool) {
+        self.reading = false;
+        self.access = Some(if rule_installed { Access::StillDenied } else { Access::Denied });
+    }
+
+    /// The udev rule install was sent to the worker.
+    pub fn install_started(&mut self) {
+        self.install = Install::Running;
+    }
+
+    /// The udev rule install came back.
+    pub fn install_finished(&mut self, result: Result<(), String>) {
+        self.install = result.err().map_or(Install::Idle, Install::Failed);
     }
 
     /// The read-slot note was closed. It stays closed for this connection.
@@ -262,6 +309,36 @@ pub mod tests {
         assert!(!s.reading && !s.read_note && !s.has_controller());
         s.presence(Some(Mode::XInput));
         assert_eq!(s.read_error, None);
+    }
+
+    #[test]
+    fn denied_read_asks_for_access_until_a_good_read() {
+        let mut s = AppState::new(description());
+        s.presence(Some(Mode::XInput));
+        s.read_started();
+        s.read_denied(false);
+        assert_eq!(s.access, Some(Access::Denied));
+        assert!(!s.reading);
+        s.install_started();
+        assert_eq!(s.install, Install::Running);
+        s.install_finished(Err("The password prompt was closed.".to_owned()));
+        assert!(matches!(s.install, Install::Failed(_)));
+        s.install_started();
+        assert_eq!(s.install, Install::Running, "a retry clears the old failure");
+        s.install_finished(Ok(()));
+        s.read_denied(true);
+        assert_eq!(s.access, Some(Access::StillDenied));
+        s.read_finished(Ok(full_read()));
+        assert_eq!(s.access, None);
+    }
+
+    #[test]
+    fn unplug_leaves_the_permission_screen() {
+        let mut s = AppState::new(description());
+        s.presence(Some(Mode::XInput));
+        s.read_denied(true);
+        s.presence(None);
+        assert_eq!(s.access, None);
     }
 
     #[test]

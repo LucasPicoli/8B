@@ -52,6 +52,12 @@ export component NoControllerScreen inherits Rectangle {
 export component PermissionScreen inherits Rectangle {
     in property <string> command;
     in property <string> rule-path;
+    // The rule is in place and access is still denied: ask for a replug instead.
+    in property <bool> rule-installed;
+    // The password prompt is open.
+    in property <bool> installing;
+    // Why the last install failed, empty when it did not.
+    in property <string> error;
     callback install;
     callback about;
     background: Theme.window;
@@ -74,33 +80,45 @@ export component PermissionScreen inherits Rectangle {
                     }
                 }
                 Text {
-                    text: "Allow 8B to open the controller";
+                    text: root.rule-installed ? "The controller is still blocked" : "Allow 8B to open the controller";
                     font-size: Theme.text-placeholder;
                     color: Theme.fg;
                     horizontal-alignment: center;
                 }
                 Text {
-                    text: "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
+                    text: root.rule-installed
+                        ? "The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in."
+                        : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
                     wrap: word-wrap;
                 }
-                HorizontalLayout {
+                if root.error != "": HorizontalLayout {
+                    padding-top: 12px;
+                    MessageBar {
+                        error: true;
+                        title: "Could not install the rule.";
+                        body: root.error + " Run the command below instead.";
+                    }
+                }
+                if !root.rule-installed: HorizontalLayout {
                     alignment: center;
                     padding-top: 12px;
                     padding-bottom: 20px;
                     Button {
-                        text: "Install rule…";
+                        text: root.installing ? "Waiting for your password…" : "Install rule…";
                         primary: true;
+                        enabled: !root.installing;
                         clicked => { root.install(); }
                     }
                 }
+                if root.rule-installed: Rectangle { height: 20px; }
                 Frame {
                     VerticalLayout {
                         padding: 14px;
                         spacing: 8px;
                         Text {
-                            text: "Or run this in a terminal:";
+                            text: root.rule-installed ? "To install the rule again, run this in a terminal:" : "Or run this in a terminal:";
                             color: Theme.fg;
                         }
                         HorizontalLayout {
@@ -119,7 +137,7 @@ export component PermissionScreen inherits Rectangle {
                             }
                         }
                         Text {
-                            text: "Both install " + root.rule-path + ". It gives the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers.";
+                            text: (root.rule-installed ? "It installs " : "Both install ") + root.rule-path + ". It gives the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers.";
                             font-size: Theme.text-caption;
                             color: Theme.fg-muted;
                             wrap: word-wrap;

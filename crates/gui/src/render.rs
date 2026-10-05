@@ -3,9 +3,10 @@
 
 use std::rc::Rc;
 
+use controller_core::transport::udev::{UDEV_MANUAL_COMMAND, UDEV_RULE_PATH};
 use slint::{ModelRc, SharedString, VecModel};
 
-use crate::state::AppState;
+use crate::state::{Access, AppState, Install};
 use crate::ui::{AppWindow, ModeGroup, Slot};
 
 /// The read-slot note. A read selects the current mode's bank, which puts the
@@ -92,6 +93,15 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_empty_slot(selected_empty(state));
     ui.set_read_note(if state.read_note { READ_NOTE.into() } else { SharedString::new() });
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
+    ui.set_access_denied(state.access.is_some());
+    ui.set_rule_installed(state.access == Some(Access::StillDenied));
+    ui.set_installing(state.install == Install::Running);
+    ui.set_install_error(match &state.install {
+        Install::Failed(e) => e.as_str().into(),
+        Install::Idle | Install::Running => SharedString::new(),
+    });
+    ui.set_udev_command(UDEV_MANUAL_COMMAND.into());
+    ui.set_udev_rule_path(UDEV_RULE_PATH.into());
 }
 
 #[cfg(test)]

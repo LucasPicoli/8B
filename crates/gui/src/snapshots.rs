@@ -96,3 +96,38 @@ fn read_failed() {
     s.read_finished(Err("device communication timed out".to_owned()));
     shoot("read-failed", &s);
 }
+
+fn denied(rule_installed: bool) -> AppState {
+    let mut s = AppState::new(description());
+    s.presence(Some(Mode::XInput));
+    s.read_started();
+    s.read_denied(rule_installed);
+    s
+}
+
+#[test]
+fn permission_denied() {
+    shoot("permission-denied", &denied(false));
+}
+
+#[test]
+fn permission_installing() {
+    let mut s = denied(false);
+    s.install_started();
+    shoot("permission-installing", &s);
+}
+
+#[test]
+fn permission_install_failed() {
+    let mut s = denied(false);
+    s.install_started();
+    s.install_finished(Err(
+        "The password prompt was closed, or the password was not accepted.".to_owned()
+    ));
+    shoot("permission-install-failed", &s);
+}
+
+#[test]
+fn permission_still_denied() {
+    shoot("permission-still-denied", &denied(true));
+}

@@ -25,11 +25,22 @@ const POLL: Duration = Duration::from_millis(500);
 /// the Switch id appeared, during the hid-nintendo probe, got no reply.
 const SETTLE_POLLS: u8 = 4;
 
+/// One sighting of the controller: its current mode and its USB device number. A
+/// replug gets a new device number, so even a fast one counts as a new presence.
+type Sighting = (Mode, Option<u16>);
+
+/// The USB device number the kernel gave the device at `sysfs_path`.
+fn devnum(sysfs_path: &str) -> Option<u16> {
+    std::fs::read_to_string(Path::new(sysfs_path).join("devnum")).ok()?.trim().parse().ok()
+}
+
 /// Work for the worker.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Command {
     /// Read every bank.
     ReadAll,
+    /// Install the udev rule that grants access to the controller.
+    InstallUdevRule,
 }
 
 /// What the worker reports back.
@@ -39,7 +50,12 @@ pub enum Event {
     Presence(Option<Mode>),
     /// The result of [`Command::ReadAll`].
     Read(Result<ProfileReadResult, Error>),
+    /// The result of [`Command::InstallUdevRule`]: why it failed, as a sentence.
+    Installed(Result<(), String>),
 }
+
+/// Installs the udev rule; [`crate::udev::install_rule`] outside tests.
+pub type Installer = fn() -> Result<(), String>;
 
 /// Starts the worker on its own thread. `emit` runs on that thread for each event.
 /// The worker stops when the returned sender is dropped.
@@ -50,12 +66,13 @@ pub fn spawn(
     dev: Box<dyn DeviceIo + Send>,
     sysfs: PathBuf,
     ports: Vec<ConfigPort>,
+    install: Installer,
     emit: impl Fn(Event) + Send + 'static,
 ) -> io::Result<Sender<Command>> {
     let (tx, rx) = mpsc::channel();
     thread::Builder::new()
         .name("8b-worker".to_owned())
-        .spawn(move || run(dev.as_ref(), &rx, &sysfs, &ports, &emit))?;
+        .spawn(move || run(dev.as_ref(), &rx, &sysfs, &ports, install, &emit))?;
     Ok(tx)
 }
 
@@ -64,6 +81,7 @@ fn run(
     rx: &Receiver<Command>,
     sysfs: &Path,
     ports: &[ConfigPort],
+    install: Installer,
     emit: &dyn Fn(Event),
 ) {
     let mut presence = Debounce::default();
@@ -79,10 +97,12 @@ fn run(
                 }
                 result => emit(Event::Read(result)),
             },
+            Ok(Command::InstallUdevRule) => emit(Event::Installed(install())),
             Err(RecvTimeoutError::Timeout) => {
-                let seen = scan_sysfs(sysfs, ports).map(|usb| usb.port.mode);
+                let seen =
+                    scan_sysfs(sysfs, ports).map(|usb| (usb.port.mode, devnum(&usb.sysfs_path)));
                 if presence.observe(seen) {
-                    emit(Event::Presence(seen));
+                    emit(Event::Presence(seen.map(|(mode, _)| mode)));
                 }
             }
             Err(RecvTimeoutError::Disconnected) => return,
@@ -94,8 +114,8 @@ fn run(
 /// row agree. Starts as "absent", so a missing controller reports nothing.
 #[derive(Debug, Default)]
 struct Debounce {
-    reported: Option<Mode>,
-    candidate: Option<Mode>,
+    reported: Option<Sighting>,
+    candidate: Option<Sighting>,
     agreeing: u8,
 }
 
@@ -107,7 +127,7 @@ impl Debounce {
     }
 
     /// Feeds one poll; returns whether `seen` is now the reported presence.
-    fn observe(&mut self, seen: Option<Mode>) -> bool {
+    fn observe(&mut self, seen: Option<Sighting>) -> bool {
         if seen == self.reported {
             self.agreeing = 0;
             return false;
@@ -140,7 +160,7 @@ mod tests {
     use super::*;
 
     /// Feeds `seen` until the debounce reports it; returns the polls it took.
-    fn settle(d: &mut Debounce, seen: Option<Mode>) -> u8 {
+    fn settle(d: &mut Debounce, seen: Option<Sighting>) -> u8 {
         (1..=u8::MAX).find(|_| d.observe(seen)).unwrap()
     }
 
@@ -148,15 +168,16 @@ mod tests {
     fn debounce_needs_settle_polls_in_a_row() {
         let mut d = Debounce::default();
         assert!(!d.observe(None));
+        let x = Some((Mode::XInput, Some(5)));
         for _ in 1..SETTLE_POLLS {
-            assert!(!d.observe(Some(Mode::XInput)));
+            assert!(!d.observe(x));
         }
         assert!(!d.observe(None), "a gap restarts the count");
-        assert_eq!(settle(&mut d, Some(Mode::XInput)), SETTLE_POLLS);
-        assert!(!d.observe(Some(Mode::XInput)));
+        assert_eq!(settle(&mut d, x), SETTLE_POLLS);
+        assert!(!d.observe(x));
         // A slide-switch move: a gap, then the new mode.
         assert!(!d.observe(None));
-        assert_eq!(settle(&mut d, Some(Mode::DInput)), SETTLE_POLLS);
+        assert_eq!(settle(&mut d, Some((Mode::DInput, Some(6)))), SETTLE_POLLS);
         assert_eq!(settle(&mut d, None), SETTLE_POLLS);
     }
 
@@ -166,6 +187,35 @@ mod tests {
         fs::create_dir_all(&dev).unwrap();
         fs::write(dev.join("idVendor"), format!("{vendor}\n")).unwrap();
         fs::write(dev.join("idProduct"), format!("{product}\n")).unwrap();
+    }
+
+    #[test]
+    fn a_replug_faster_than_the_debounce_is_a_new_presence() {
+        let sysfs = tempfile::tempdir().unwrap();
+        plug(sysfs.path(), "2dc8", "310b");
+        fs::write(sysfs.path().join("3-1/devnum"), "44\n").unwrap();
+        let ports = Pro3.description().unwrap().config_ports.clone();
+        let (etx, events) = mpsc::channel();
+        let _tx = spawn(
+            Box::new(MockDevice::new()),
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        assert!(matches!(next(&events), Event::Presence(Some(Mode::XInput))));
+        // Unplugged and back between two polls: the kernel gave it a new number.
+        fs::write(sysfs.path().join("3-1/devnum"), "45\n").unwrap();
+        assert!(matches!(next(&events), Event::Presence(Some(Mode::XInput))));
+    }
+
+    /// An installer that succeeds without touching the system.
+    #[allow(clippy::unnecessary_wraps)]
+    const fn installed() -> Result<(), String> {
+        Ok(())
     }
 
     fn next(events: &Receiver<Event>) -> Event {
@@ -178,7 +228,7 @@ mod tests {
         let ports = Pro3.description().unwrap().config_ports.clone();
         let dev = MockDevice::new().with_profiles(crate::state::tests::full_read());
         let (etx, events) = mpsc::channel();
-        let tx = spawn(Box::new(dev), sysfs.path().to_owned(), ports, move |e| {
+        let tx = spawn(Box::new(dev), sysfs.path().to_owned(), ports, installed, move |e| {
             let _ = etx.send(e);
         })
         .unwrap();
@@ -207,7 +257,7 @@ mod tests {
             .with_profiles(crate::state::tests::full_read())
             .fail_next_read(Error::Disconnected);
         let (etx, events) = mpsc::channel();
-        let tx = spawn(Box::new(dev), sysfs.path().to_owned(), ports, move |e| {
+        let tx = spawn(Box::new(dev), sysfs.path().to_owned(), ports, installed, move |e| {
             let _ = etx.send(e);
         })
         .unwrap();
@@ -224,11 +274,55 @@ mod tests {
     fn read_errors_reach_the_ui() {
         let sysfs = tempfile::tempdir().unwrap();
         let (etx, events) = mpsc::channel();
-        let tx = spawn(Box::new(MockDevice::new()), sysfs.path().to_owned(), vec![], move |e| {
+        let tx = spawn(
+            Box::new(MockDevice::new()),
+            sysfs.path().to_owned(),
+            vec![],
+            installed,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        tx.send(Command::ReadAll).unwrap();
+        assert!(matches!(next(&events), Event::Read(Err(Error::NoDevice))));
+    }
+
+    #[test]
+    fn a_denied_read_is_followed_by_the_install_and_a_good_read() {
+        let sysfs = tempfile::tempdir().unwrap();
+        let dev = MockDevice::new()
+            .with_profiles(crate::state::tests::full_read())
+            .fail_next_read(Error::PermissionDenied("/dev/hidraw3".to_owned()));
+        let (etx, events) = mpsc::channel();
+        let tx = spawn(Box::new(dev), sysfs.path().to_owned(), vec![], installed, move |e| {
             let _ = etx.send(e);
         })
         .unwrap();
         tx.send(Command::ReadAll).unwrap();
-        assert!(matches!(next(&events), Event::Read(Err(Error::NoDevice))));
+        assert!(matches!(next(&events), Event::Read(Err(Error::PermissionDenied(_)))));
+        tx.send(Command::InstallUdevRule).unwrap();
+        assert!(matches!(next(&events), Event::Installed(Ok(()))));
+        tx.send(Command::ReadAll).unwrap();
+        assert!(matches!(next(&events), Event::Read(Ok(_))));
+    }
+
+    #[test]
+    fn a_failed_install_reaches_the_ui() {
+        let sysfs = tempfile::tempdir().unwrap();
+        let (etx, events) = mpsc::channel();
+        let refused = || Err("The password prompt was closed.".to_owned());
+        let tx = spawn(
+            Box::new(MockDevice::new()),
+            sysfs.path().to_owned(),
+            vec![],
+            refused,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        tx.send(Command::InstallUdevRule).unwrap();
+        assert!(matches!(next(&events), Event::Installed(Err(e)) if e.contains("closed")));
     }
 }

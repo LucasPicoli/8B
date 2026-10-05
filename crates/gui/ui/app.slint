@@ -4,7 +4,7 @@ import { Theme } from "look/breeze/widgets.slint";
 import { MessageBar, Placeholder, Icons } from "parts.slint";
 import { Sidebar } from "sidebar.slint";
 import { AboutDialog } from "dialogs.slint";
-import { NoControllerScreen } from "screens.slint";
+import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot } from "types.slint";
 
 export { ModeGroup, Slot }
@@ -34,19 +34,39 @@ export component AppWindow inherits Window {
     // Why the last read failed, empty when it did not.
     in property <string> read-error;
     in property <string> version;
+    // Opening the controller was denied: the whole window asks for access.
+    in property <bool> access-denied;
+    // The udev rule is in place and opening is still denied.
+    in property <bool> rule-installed;
+    in property <bool> installing;
+    // Why the last rule install failed, empty when it did not.
+    in property <string> install-error;
+    in property <string> udev-command;
+    in property <string> udev-rule-path;
     in-out property <string> dialog;
     callback slot-picked(int, int);
     callback read-note-closed;
+    callback install-rule;
     // Rust only: the worker thread has events waiting.
     callback worker-event;
 
-    if !root.has-controller: NoControllerScreen {
+    if root.access-denied: PermissionScreen {
+        command: root.udev-command;
+        rule-path: root.udev-rule-path;
+        rule-installed: root.rule-installed;
+        installing: root.installing;
+        error: root.install-error;
+        install => { root.install-rule(); }
+        about => { root.dialog = "about"; }
+    }
+
+    if !root.access-denied && !root.has-controller: NoControllerScreen {
         status: root.connected ? "Reading the controller" : "Looking for controllers";
         error: root.read-error;
         about => { root.dialog = "about"; }
     }
 
-    if root.has-controller: HorizontalLayout {
+    if !root.access-denied && root.has-controller: HorizontalLayout {
         Sidebar {
             groups: root.groups;
             device-name: root.device-name;

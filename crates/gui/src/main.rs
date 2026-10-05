@@ -5,6 +5,7 @@
 
 mod render;
 mod state;
+mod udev;
 mod worker;
 
 #[cfg(test)]
@@ -35,6 +36,7 @@ use controller_core::device::ControllerSpec as _;
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::Mode;
 use controller_core::transport::HidrawDevice;
+use controller_core::Error;
 use slint::ComponentHandle as _;
 
 use crate::render::render;
@@ -49,6 +51,8 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         Event::Presence(mode) => eprintln!("8b: controller {}", mode.map_or("gone", Mode::label)),
         Event::Read(Ok(read)) => eprintln!("8b: read {} slots", read.profiles.len()),
         Event::Read(Err(e)) => eprintln!("8b: read failed: {e}"),
+        Event::Installed(Ok(())) => eprintln!("8b: udev rule installed"),
+        Event::Installed(Err(e)) => eprintln!("8b: udev rule install failed: {e}"),
     }
     match event {
         Event::Presence(mode) => {
@@ -57,7 +61,16 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
                 state.read_started();
             }
         }
+        Event::Read(Err(Error::PermissionDenied(_))) => state.read_denied(udev::rule_installed()),
         Event::Read(result) => state.read_finished(result.map_err(|e| e.to_string())),
+        Event::Installed(result) => {
+            let ok = result.is_ok();
+            state.install_finished(result);
+            // The rule applies to the node already present: read again, no replug.
+            if ok && commands.send(Command::ReadAll).is_ok() {
+                state.read_started();
+            }
+        }
     }
 }
 
@@ -74,12 +87,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(HidrawDevice::open()?),
         PathBuf::from(worker::SYSFS_USB),
         description.config_ports.clone(),
+        udev::install_rule,
         move |event| {
             if events_tx.send(event).is_ok() {
                 let _ = weak.upgrade_in_event_loop(|ui| ui.invoke_worker_event());
             }
         },
     )?;
+    let install_tx = commands.clone();
 
     let weak = ui.as_weak();
     let s = Rc::clone(&state);
@@ -98,6 +113,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let Some(ui) = weak.upgrade() else { return };
         let mut state = s.borrow_mut();
         state.select(usize::try_from(mode).unwrap_or(0), usize::try_from(slot).unwrap_or(0));
+        render(&state, &ui);
+    });
+
+    let weak = ui.as_weak();
+    let s = Rc::clone(&state);
+    ui.on_install_rule(move || {
+        let Some(ui) = weak.upgrade() else { return };
+        let mut state = s.borrow_mut();
+        if install_tx.send(Command::InstallUdevRule).is_ok() {
+            state.install_started();
+        }
         render(&state, &ui);
     });
 
