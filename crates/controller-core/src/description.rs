@@ -19,6 +19,10 @@ use crate::view::View;
 /// mode, so no description lists it.
 pub const DISABLED_OUTPUT: &str = "disabled";
 
+/// A button entry that matches no known output. The pad still fires whatever its
+/// bits say, so a recompile keeps the raw bytes. Read-only: no remap may target it.
+pub const UNRECOGNISED_OUTPUT: &str = "unrecognised";
+
 /// Everything the app knows about one controller model, apart from protocol bytes.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -265,6 +269,7 @@ impl ControllerDescription {
             let mut outputs = BTreeSet::new();
             for output in &mode.extra_outputs {
                 if output.id == DISABLED_OUTPUT
+                    || output.id == UNRECOGNISED_OUTPUT
                     || ids.contains(output.id.as_str())
                     || !outputs.insert(output.id.as_str())
                 {
@@ -471,6 +476,7 @@ mod tests {
         assert!(d.validate_remap(Mode::XInput, "paddle", "a").is_ok());
         assert!(d.validate_remap(Mode::XInput, "a", "home").is_ok());
         assert!(d.validate_remap(Mode::XInput, "a", DISABLED_OUTPUT).is_ok());
+        assert!(d.validate_remap(Mode::XInput, "a", UNRECOGNISED_OUTPUT).is_err(), "read-only");
         assert!(d.validate_remap(Mode::Switch, "a", "screenshot").is_ok());
         assert!(d.validate_remap(Mode::XInput, "home", "a").is_err());
         assert!(d.validate_remap(Mode::XInput, "a", "paddle").is_err());

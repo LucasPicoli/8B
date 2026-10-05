@@ -26,6 +26,11 @@ over USB with the payload read at wire byte 18. `golden_profile_compile.rs`
 decodes and recompiles it, and every byte except the struct CRC at `0x0C` must
 match.
 
+`dinput-slot-marker.blob` is a `DInput` bank read from a real Pro 3. In slots 1
+and 2 the d-pad left entry holds `11 09 20 20`, a value no output table lists.
+The pad reads it as a bit mask and fires six outputs at once. The decoder
+reports it as `unrecognised`, and a recompile must keep the 4 bytes.
+
 ---
 
 ## 2. How to Validate on a Configurator

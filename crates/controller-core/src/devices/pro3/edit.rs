@@ -70,7 +70,8 @@ pub fn deactivate_profile(base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
 /// Checks a remap request against the Pro 3 description.
 ///
 /// `source` must have `can_be_remapped`. `target` must have `can_be_output`, be
-/// `disabled`, or be one of the mode's extra outputs (`screenshot` in Switch).
+/// `disabled`, or be one of the mode's extra outputs (`screenshot` in Switch). It is
+/// never `unrecognised`: that target is only ever read from the pad.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] with a message fit to show to the user, or

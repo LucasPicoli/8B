@@ -11,6 +11,7 @@
 //! [`crate::protocol::bytes`] accessors so both codec paths are panic-free
 //! even on truncated or corrupted input.
 
+use crate::description::UNRECOGNISED_OUTPUT;
 use crate::devices::pro3::macros::encode_macro_metadata;
 use crate::devices::pro3::tables;
 use crate::devices::pro3::tables::ButtonEncodingEntry;
@@ -124,14 +125,13 @@ const fn encodings_for_mode(mode: Mode) -> &'static [ButtonEncodingEntry] {
 
 /// Resolves the target-control name for a single button entry.
 ///
-/// Faithful port of C++ `decodeTargetControl`.
+/// Port of C++ `decodeTargetControl`, except step 8: a value that matches no table
+/// entry decodes as [`UNRECOGNISED_OUTPUT`], where C++ guessed identity.
 fn decode_target_control(
     entries: &[ButtonEncodingEntry],
     source_index: usize,
     value: [u8; 4],
 ) -> String {
-    let valid_source = source_index < entries.len();
-
     // Step 0: home/guide cannot be remapped — force identity.
     if source_index == tables::HOME_GUIDE_INDEX {
         if let Some(entry) = entries.get(source_index) {
@@ -192,13 +192,9 @@ fn decode_target_control(
         }
     }
 
-    // Step 8: no match — fall back to identity, else right face.
-    if valid_source {
-        if let Some(entry) = entries.get(source_index) {
-            return entry.source.to_owned();
-        }
-    }
-    "right face".to_owned()
+    // Step 8: no match. The pad reads the entry as a bit mask of outputs, so an
+    // unknown value still fires something; report it as such, never as a guess.
+    UNRECOGNISED_OUTPUT.to_owned()
 }
 
 /// Decodes all 22 button mappings for `source_slot`.
@@ -215,12 +211,7 @@ fn decode_button_mappings(payload: &[u8], mode: Mode, source_slot: u8) -> Vec<Bu
 
     for index in 0..tables::SOURCE_BUTTON_COUNT {
         let value = bytes4_at(payload, slot_map_base + (index * tables::BUTTON_ENTRY_BYTES));
-        // A bleeding slot marker corrupts the entry — report it disabled.
-        let target = if value == tables::SLOT_MARKER {
-            "disabled".to_owned()
-        } else {
-            decode_target_control(entries, index, value)
-        };
+        let target = decode_target_control(entries, index, value);
         let source = entries.get(index).map_or_else(String::new, |e| e.source.to_owned());
         mappings.push(ButtonMapping { source, target });
     }
@@ -588,11 +579,14 @@ fn write_encoding(name: &str, mode: Mode) -> Result<[u8; 4]> {
 /// the sections belonging to `target_slot` are overwritten; other slots are
 /// preserved as-is from `base_blob`.
 ///
+/// A button mapped to [`UNRECOGNISED_OUTPUT`] keeps its 4 bytes from `base_blob`.
+///
 /// `macros` carries the resolved [`MacroDefinition`] items for the target slot.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] on an unknown control/trigger name, an
-/// out-of-range slot, or an encoding overflow.
+/// out-of-range slot, an encoding overflow, or an `unrecognised` target whose
+/// `base_blob` entry does not decode as unrecognised.
 // The function is a faithful section-by-section port of a single C++ function;
 // splitting it would hurt readability more than it helps.
 #[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
@@ -746,6 +740,8 @@ pub fn compile_profile(
     // Build remap-override lookup: source_index → 4-byte wire encoding.
     // Faithful port of C++ `populateSection3` inner loop.
     let mode = profile.mode;
+    // Button-map entries are NOT shifted: canonical 0x00E4.
+    let entry_base = DEV_BTN_DATA_BASE + idx * tables::BUTTON_MAP_SLOT_STRIDE;
     let mut remap_overrides: Vec<Option<[u8; 4]>> = vec![None; tables::SOURCE_BUTTON_COUNT];
     for mapping in &profile.button_mappings {
         let source_idx = control_name_to_index(&mapping.source, mode);
@@ -754,6 +750,20 @@ pub fn compile_profile(
         }
         let enc = if mapping.target == "disabled" {
             tables::NULL_ENCODING
+        } else if mapping.target == UNRECOGNISED_OUTPUT {
+            // Keep the entry as read. Only an entry that still decodes as unrecognised
+            // has bytes to keep; anything else would write a guess.
+            let kept = bytes4_at(&buf, entry_base + source_idx * tables::BUTTON_ENTRY_BYTES);
+            if decode_target_control(encodings_for_mode(mode), source_idx, kept)
+                != UNRECOGNISED_OUTPUT
+            {
+                return Err(Error::Validation(format!(
+                    "Button '{}' has no unrecognised entry to keep in slot {s}. \
+                     Pick an output for it.",
+                    mapping.source
+                )));
+            }
+            kept
         } else if mapping.target == "screenshot" && mode == Mode::Switch {
             [0x00, 0x00, 0x40, 0x00]
         } else if mapping.target == "screenshot" {
@@ -782,8 +792,7 @@ pub fn compile_profile(
     let switch_turbo_default: Option<[u8; 4]> =
         if mode == Mode::Switch { Some([0x00, 0x00, 0x40, 0x00]) } else { None };
 
-    // Write 22 button entries (button-map section is NOT shifted — canonical 0x00E4).
-    let entry_base = DEV_BTN_DATA_BASE + idx * tables::BUTTON_MAP_SLOT_STRIDE;
+    // Write 22 button entries.
     for i in 0..tables::SOURCE_BUTTON_COUNT {
         let entry_off = entry_base + i * tables::BUTTON_ENTRY_BYTES;
         let enc = remap_overrides.get(i).copied().flatten().unwrap_or_else(|| {

@@ -160,13 +160,15 @@
     "ButtonTarget": {
       "oneOf": [
         { "$ref": "#/$defs/TargetControlName" },
-        { "type": "string", "const": "disabled" }
+        { "type": "string", "const": "disabled" },
+        { "type": "string", "const": "unrecognised", "description": "Read-only: the entry matches no known output. A write keeps its bytes as read." }
       ]
     },
     "ButtonTargetSwitch": {
       "oneOf": [
         { "$ref": "#/$defs/TargetControlName" },
         { "type": "string", "const": "disabled" },
+        { "type": "string", "const": "unrecognised", "description": "Read-only: the entry matches no known output. A write keeps its bytes as read." },
         { "type": "string", "const": "screenshot" }
       ]
     },

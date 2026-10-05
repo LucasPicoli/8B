@@ -193,3 +193,12 @@ fn summary_of(canonical: CanonicalProfile, slot: u8, index: u8) -> CanonicalProf
         canonical,
     }
 }
+
+#[test]
+fn unrecognised_target_passes_schema_in_every_mode() {
+    for mut p in [make_valid_xinput_profile(), make_valid_switch_profile()] {
+        p["button_mappings"] = json!([{ "source": "d-pad left", "target": "unrecognised" }]);
+        let r = validate_profile(&p).unwrap();
+        assert!(r.valid, "errors: {:?}", r.errors);
+    }
+}

@@ -111,7 +111,8 @@ pub struct Vibration {
 pub struct ButtonMapping {
     /// Source control name.
     pub source: String,
-    /// Target control name or `"disabled"`/`"screenshot"`.
+    /// Target control name, `"disabled"`, `"screenshot"`, or the read-only
+    /// `"unrecognised"` (keep the entry's bytes as read).
     pub target: String,
 }
 

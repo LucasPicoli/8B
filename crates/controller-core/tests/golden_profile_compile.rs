@@ -197,3 +197,74 @@ fn untouched_stick_and_trigger_bytes_do_not_drift() {
         assert_eq!(&out[0x00B4..0x00B8], &triggers, "{mode:?} triggers");
     }
 }
+
+/// A `DInput` bank read from a real pad. D-pad left (entry 16) of slots 1 and 2 holds
+/// `11 09 20 20`, which matches no table value; the pad fires it as a 6-output combo.
+const DINPUT_SLOT_MARKER: &str = "../../fixtures/pro3/dinput-slot-marker.blob";
+
+fn decode_slot(blob: &[u8], slot: u8, mode: Mode) -> CanonicalProfile {
+    let raw = RawProfilePayload {
+        payload: blob.to_vec(),
+        source_slot: slot,
+        source_profile_index: slot - 1,
+        mode_hint: mode,
+    };
+    Pro3.map_profile(&raw).unwrap().canonical
+}
+
+fn target_of<'a>(profile: &'a CanonicalProfile, source: &str) -> &'a str {
+    &profile.button_mappings.iter().find(|m| m.source == source).unwrap().target
+}
+
+#[test]
+fn unknown_button_entry_decodes_unrecognised_and_recompiles_unchanged() {
+    let base = std::fs::read(DINPUT_SLOT_MARKER).unwrap();
+    for slot in 1..=3u8 {
+        let profile = decode_slot(&base, slot, Mode::DInput);
+        let want = if slot < 3 { "unrecognised" } else { "d-pad left" };
+        assert_eq!(target_of(&profile, "d-pad left"), want, "slot {slot}");
+        let mut out =
+            Pro3.compile_profile_keep_macros(&profile, Slot::new(slot).unwrap(), &base).unwrap();
+        let mut want = base.clone();
+        out[0x0C..0x10].fill(0);
+        want[0x0C..0x10].fill(0);
+        assert_eq!(out, want, "slot {slot}");
+    }
+}
+
+#[test]
+fn made_up_button_mask_decodes_unrecognised_and_survives_an_edit() {
+    let mut base = std::fs::read("../../fixtures/pro3/xinput.blob").unwrap();
+    // Entry 0 (right face) of slot 1: a mask with no table value.
+    base[0x00E4..0x00E8].copy_from_slice(&[0x00, 0x00, 0x00, 0x80]);
+    let mut profile = decode_slot(&base, 1, Mode::XInput);
+    assert_eq!(target_of(&profile, "right face"), "unrecognised");
+    // Remap an unrelated button; the unknown entry keeps its bytes.
+    for m in &mut profile.button_mappings {
+        if m.source == "l1" {
+            "r1".clone_into(&mut m.target);
+        }
+    }
+    let out = Pro3.compile_profile(&profile, Slot::new(1).unwrap(), &base, &[]).unwrap();
+    assert_eq!(&out[0x00E4..0x00E8], &[0x00, 0x00, 0x00, 0x80]);
+    assert_eq!(&out[0x00E4 + 16..0x00E4 + 20], &[0x00, 0x08, 0x00, 0x00]);
+}
+
+#[test]
+fn unrecognised_target_without_bytes_to_keep_is_refused() {
+    let base = std::fs::read(DINPUT_SLOT_MARKER).unwrap();
+    let mut profile = decode_slot(&base, 1, Mode::DInput);
+    // Slot 3 d-pad left is a plain d-pad left, so there is nothing to keep.
+    let slot3 = Slot::new(3).unwrap();
+    assert!(Pro3.compile_profile_keep_macros(&profile, slot3, &base).is_err());
+    // No base blob at all.
+    assert!(Pro3.compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).is_err());
+    // Home is forced to identity, so it never has an unrecognised entry.
+    for m in &mut profile.button_mappings {
+        if m.source == "home/guide" {
+            "unrecognised".clone_into(&mut m.target);
+        }
+    }
+    assert_eq!(target_of(&profile, "d-pad left"), "unrecognised");
+    assert!(Pro3.compile_profile_keep_macros(&profile, Slot::new(1).unwrap(), &base).is_err());
+}
