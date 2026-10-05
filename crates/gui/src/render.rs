@@ -47,6 +47,7 @@ pub fn device_status(state: &AppState) -> String {
     match state.current_mode {
         None => "Not connected".to_owned(),
         Some(mode) if state.reading => format!("Reading over USB · {}", mode.label()),
+        Some(mode) if state.read_error.is_some() => format!("Could not read · {}", mode.label()),
         Some(mode) => format!("Connected over USB · {}", mode.label()),
     }
 }
@@ -101,6 +102,8 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_settings(state, ui);
     render_files(state, ui);
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
+    ui.set_read_failed(state.read_error.is_some());
+    ui.set_can_read_again(state.current_mode.is_some() && !state.reading);
     ui.set_asks_for_rule(state.asks_for_rule());
     ui.set_rule_installed(state.access == Some(Access::StillDenied));
     // Not denied: the controller works without the rule, so offer an update and a skip.
@@ -183,6 +186,11 @@ mod tests {
         assert_eq!(device_status(&s), "Reading over USB · DInput");
         s.read_finished(Ok(full_read()));
         assert_eq!(device_status(&s), "Connected over USB · DInput");
+        s.read_finished(Err("device communication timed out".to_owned()));
+        assert_eq!(device_status(&s), "Could not read · DInput");
+        s.read_started();
+        assert_eq!(device_status(&s), "Reading over USB · DInput");
+        s.read_finished(Ok(full_read()));
         assert_eq!(slot_title(&s), "DInput slot 1");
         assert!(!selected_empty(&s));
         s.select(2, 2);

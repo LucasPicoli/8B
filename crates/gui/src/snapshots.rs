@@ -95,6 +95,23 @@ fn read_failed() {
     shoot("read-failed", &s);
 }
 
+#[test]
+fn read_failed_with_holders() {
+    let mut s = connected(Mode::Switch);
+    s.read_finished(Err("Device communication timed out. steam and winedevice.exe also have \
+         the controller open. Close them and try again."
+        .to_owned()));
+    shoot("read-failed-holders", &s);
+}
+
+#[test]
+fn read_failed_trying_again() {
+    let mut s = connected(Mode::Switch);
+    s.read_finished(Err("device communication timed out".to_owned()));
+    s.read_started();
+    shoot("read-failed-trying-again", &s);
+}
+
 fn denied(rule: Rule) -> AppState {
     let mut s = new_state();
     s.presence(Some(Mode::XInput));

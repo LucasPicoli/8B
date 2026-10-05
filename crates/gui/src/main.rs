@@ -6,6 +6,7 @@
 mod buttons;
 mod chooser;
 mod files;
+mod holders;
 mod portal;
 mod render;
 mod settings;
@@ -50,7 +51,19 @@ use crate::buttons::{hit, picked_output, render_views};
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice};
 use crate::ui::AppWindow;
-use crate::worker::{Command, Event};
+use crate::worker::{Command, Event, Failure};
+
+/// Sends `command` to the worker, and once it is sent, marks it `started`.
+fn send(
+    commands: &Sender<Command>,
+    command: Command,
+    s: &mut AppState,
+    started: fn(&mut AppState),
+) {
+    if commands.send(command).is_ok() {
+        started(s);
+    }
+}
 
 /// Applies one worker event, with a line on stderr. A new presence starts a read
 /// of every bank.
@@ -58,25 +71,34 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
     match &event {
         Event::Presence(mode) => eprintln!("8b: controller {}", mode.map_or("gone", Mode::label)),
         Event::Read(Ok(read)) => eprintln!("8b: read {} slots", read.profiles.len()),
-        Event::Read(Err(e)) => eprintln!("8b: read failed: {e}"),
+        Event::Read(Err(f)) => eprintln!("8b: read failed: {}; held by {:?}", f.error, f.holders),
         Event::Installed(Ok(())) => eprintln!("8b: udev rule installed"),
         Event::Installed(Err(e)) => eprintln!("8b: udev rule install failed: {e}"),
     }
     match event {
         Event::Presence(mode) => {
             state.presence(mode);
-            if mode.is_some() && commands.send(Command::ReadAll).is_ok() {
-                state.read_started();
+            if mode.is_some() {
+                send(commands, Command::ReadAll, state, AppState::read_started);
             }
         }
-        Event::Read(Err(Error::PermissionDenied(_))) => state.read_denied(udev::rule_state()),
-        Event::Read(result) => state.read_finished(result.map_err(|e| e.to_string())),
+        Event::Read(Err(Failure { error: Error::PermissionDenied(_), .. })) => {
+            state.read_denied(udev::rule_state());
+        }
+        Event::Read(Ok(read)) => state.read_finished(Ok(read)),
+        Event::Read(Err(Failure { error, holders })) => {
+            let message = holders::sentence(&holders).map_or_else(
+                || error.to_string(),
+                |names| format!("{} {names}", sentence(&error.to_string())),
+            );
+            state.read_finished(Err(message));
+        }
         Event::Installed(result) => {
             let ok = result.is_ok();
             state.install_finished(result);
             // The rule applies to the node already present: read again, no replug.
-            if ok && commands.send(Command::ReadAll).is_ok() {
-                state.read_started();
+            if ok {
+                send(commands, Command::ReadAll, state, AppState::read_started);
             }
         }
     }
@@ -203,7 +225,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     )?;
-    let install_tx = commands.clone();
+    let (install_tx, retry_tx) = (commands.clone(), commands.clone());
 
     let weak = ui.as_weak();
     let s = Rc::clone(&state);
@@ -233,12 +255,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     let c = change.clone();
     ui.on_install_rule(move || {
-        c(&|s| {
-            if install_tx.send(Command::InstallUdevRule).is_ok() {
-                s.install_started();
-            }
-        });
+        c(&|s| send(&install_tx, Command::InstallUdevRule, s, AppState::install_started));
     });
+    let c = change.clone();
+    ui.on_read_again(move || c(&|s| send(&retry_tx, Command::ReadAll, s, AppState::read_started)));
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     let c = change.clone();

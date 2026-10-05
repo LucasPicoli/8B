@@ -126,7 +126,8 @@ pub struct AppState {
     pub selected: (usize, usize),
     /// Whether a read is running.
     pub reading: bool,
-    /// Why the last read failed. Cleared by the next connection.
+    /// Why the last read failed. Cleared by a good read, or when the controller goes
+    /// or comes back.
     pub read_error: Option<String>,
     /// Set while opening the controller is denied: the permission screen shows.
     pub access: Option<Access>,
@@ -181,12 +182,10 @@ impl AppState {
         self.reading = false;
         self.access = None;
         self.install = Install::Idle;
-        if mode.is_some() {
-            self.read_error = None;
-        }
+        self.read_error = None;
     }
 
-    /// A read was sent to the worker.
+    /// A read was sent to the worker. The last failure stays until this one ends.
     pub const fn read_started(&mut self) {
         self.reading = true;
     }
@@ -427,7 +426,7 @@ pub mod tests {
     }
 
     #[test]
-    fn failed_read_is_kept_until_the_next_connection() {
+    fn failed_read_is_kept_until_it_clears_or_the_controller_goes() {
         let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_started();
@@ -436,6 +435,14 @@ pub mod tests {
         assert!(!s.reading && !s.has_controller());
         s.presence(Some(Mode::XInput));
         assert_eq!(s.read_error, None);
+        s.read_finished(Err("device disconnected".to_owned()));
+        s.read_started();
+        assert!(s.read_error.is_some(), "the failure stays while the read runs again");
+        s.read_finished(Ok(full_read()));
+        assert_eq!(s.read_error, None, "a good read clears it");
+        s.read_finished(Err("device disconnected".to_owned()));
+        s.presence(None);
+        assert_eq!(s.read_error, None, "an unplug clears it");
     }
 
     #[test]

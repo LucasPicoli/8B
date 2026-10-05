@@ -7,11 +7,13 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::Duration;
 
-use controller_core::detect::scan_sysfs;
+use controller_core::detect::{config_hidraw, scan_sysfs};
 use controller_core::device::ConfigPort;
 use controller_core::model::{Mode, ProfileReadResult};
 use controller_core::transport::DeviceIo;
 use controller_core::Error;
+
+use crate::holders::{holders, PROC};
 
 /// Where the kernel lists USB devices.
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
@@ -24,6 +26,10 @@ const POLL: Duration = Duration::from_millis(500);
 /// second, and a kernel driver may probe the new USB id first: a read sent 1 s after
 /// the Switch id appeared, during the hid-nintendo probe, got no reply.
 const SETTLE_POLLS: u8 = 4;
+
+/// How long a failed read waits before its one retry. A program that held the
+/// controller for a moment, as Wine does when Steam starts, may have let go by then.
+const RETRY_AFTER: Duration = Duration::from_secs(2);
 
 /// One sighting of the controller: its current mode and its USB device number. A
 /// replug gets a new device number, so even a fast one counts as a new presence.
@@ -43,13 +49,22 @@ pub enum Command {
     InstallUdevRule,
 }
 
+/// A read that failed, retry included.
+#[derive(Debug)]
+pub struct Failure {
+    /// Why the read failed.
+    pub error: Error,
+    /// The other programs that have the controller's config node open.
+    pub holders: Vec<String>,
+}
+
 /// What the worker reports back.
 #[derive(Debug)]
 pub enum Event {
     /// The controller appeared in a current mode, or went away (`None`).
     Presence(Option<Mode>),
     /// The result of [`Command::ReadAll`].
-    Read(Result<ProfileReadResult, Error>),
+    Read(Result<ProfileReadResult, Failure>),
     /// The result of [`Command::InstallUdevRule`]: why it failed, as a sentence.
     Installed(Result<(), String>),
 }
@@ -87,7 +102,7 @@ fn run(
     let mut presence = Debounce::default();
     loop {
         match rx.recv_timeout(POLL) {
-            Ok(Command::ReadAll) => match dev.read_all_profiles() {
+            Ok(Command::ReadAll) => match read_with_retry(dev) {
                 // The controller went away mid-read, as a slide-switch move does while
                 // it settles. Not an error: report it gone, and the next settled
                 // presence starts a new read.
@@ -95,7 +110,16 @@ fn run(
                     presence.forget();
                     emit(Event::Presence(None));
                 }
-                result => emit(Event::Read(result)),
+                Ok(read) => emit(Event::Read(Ok(read))),
+                Err(error) => {
+                    let node = scan_sysfs(sysfs, ports).and_then(|usb| {
+                        config_hidraw(Path::new(&usb.sysfs_path), usb.port.interface)
+                    });
+                    let holders = node
+                        .map(|node| holders(Path::new(PROC), &node, std::process::id()))
+                        .unwrap_or_default();
+                    emit(Event::Read(Err(Failure { error, holders })));
+                }
             },
             Ok(Command::InstallUdevRule) => emit(Event::Installed(install())),
             Err(RecvTimeoutError::Timeout) => {
@@ -107,6 +131,19 @@ fn run(
             }
             Err(RecvTimeoutError::Disconnected) => return,
         }
+    }
+}
+
+/// Reads every bank. A failure that may pass, such as a timeout, is tried once more
+/// after [`RETRY_AFTER`].
+fn read_with_retry(dev: &dyn DeviceIo) -> Result<ProfileReadResult, Error> {
+    match dev.read_all_profiles() {
+        Err(e @ (Error::Timeout | Error::Usb(_) | Error::Io(_) | Error::Decode(_))) => {
+            eprintln!("8b: read failed: {e}; trying again");
+            thread::sleep(RETRY_AFTER);
+            dev.read_all_profiles()
+        }
+        result => result,
     }
 }
 
@@ -285,7 +322,48 @@ mod tests {
         )
         .unwrap();
         tx.send(Command::ReadAll).unwrap();
-        assert!(matches!(next(&events), Event::Read(Err(Error::NoDevice))));
+        assert!(matches!(next(&events), Event::Read(Err(Failure { error: Error::NoDevice, .. }))));
+    }
+
+    /// A worker with no controller in sysfs reading from `dev`.
+    fn reader(dev: MockDevice) -> (Sender<Command>, Receiver<Event>, tempfile::TempDir) {
+        let sysfs = tempfile::tempdir().unwrap();
+        let (etx, events) = mpsc::channel();
+        let tx = spawn(Box::new(dev), sysfs.path().to_owned(), vec![], installed, move |e| {
+            let _ = etx.send(e);
+        })
+        .unwrap();
+        (tx, events, sysfs)
+    }
+
+    #[test]
+    fn a_timeout_is_retried_once_after_a_pause() {
+        let dev = MockDevice::new()
+            .with_profiles(crate::state::tests::full_read())
+            .fail_next_read(Error::Timeout);
+        let (tx, events, _sysfs) = reader(dev);
+        let start = Instant::now();
+        tx.send(Command::ReadAll).unwrap();
+        assert!(matches!(next(&events), Event::Read(Ok(_))));
+        assert!(start.elapsed() >= RETRY_AFTER);
+    }
+
+    #[test]
+    fn a_failed_retry_reaches_the_ui() {
+        let dev = MockDevice::new()
+            .with_profiles(crate::state::tests::full_read())
+            .fail_next_read(Error::Timeout)
+            .fail_next_read(Error::Timeout);
+        let (tx, events, _sysfs) = reader(dev);
+        tx.send(Command::ReadAll).unwrap();
+        // No controller in the fake sysfs, so no node to look up holders for.
+        assert!(matches!(
+            next(&events),
+            Event::Read(Err(Failure { error: Error::Timeout, holders })) if holders.is_empty()
+        ));
+        // "Try again" sends the read once more.
+        tx.send(Command::ReadAll).unwrap();
+        assert!(matches!(next(&events), Event::Read(Ok(_))));
     }
 
     #[test]
@@ -300,7 +378,10 @@ mod tests {
         })
         .unwrap();
         tx.send(Command::ReadAll).unwrap();
-        assert!(matches!(next(&events), Event::Read(Err(Error::PermissionDenied(_)))));
+        assert!(matches!(
+            next(&events),
+            Event::Read(Err(Failure { error: Error::PermissionDenied(_), .. }))
+        ));
         tx.send(Command::InstallUdevRule).unwrap();
         assert!(matches!(next(&events), Event::Installed(Ok(()))));
         tx.send(Command::ReadAll).unwrap();

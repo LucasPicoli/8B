@@ -7,7 +7,12 @@ export component NoControllerScreen inherits Rectangle {
     in property <string> status: "Looking for controllers";
     // Why the last read failed, empty when it did not.
     in property <string> error;
+    // The controller is still there, so the error bar offers another read.
+    in property <bool> connected;
+    // No read runs, so "Try again" can be pressed.
+    in property <bool> can-read-again;
     callback about;
+    callback read-again;
     background: Theme.window;
     Placeholder {
         title: "Connect your controller";
@@ -33,6 +38,9 @@ export component NoControllerScreen inherits Rectangle {
             error: true;
             title: "Could not read the controller.";
             body: root.error;
+            action: root.connected ? "Try again" : "";
+            action-enabled: root.can-read-again;
+            acted => { root.read-again(); }
         }
     }
     HorizontalLayout {

@@ -47,6 +47,10 @@ export component AppWindow inherits Window {
     in-out property <int> selected-row: -1;
     // Why the last read failed, empty when it did not.
     in property <string> read-error;
+    // The controller is still there and idle, so a failed read can be tried again.
+    in property <bool> can-read-again;
+    // The last read failed: the status dot shows it.
+    in property <bool> read-failed;
     in property <string> version;
     // Narrow window: toolbar buttons drop their text, like KDE toolbars.
     // Set from Rust: bound to the window width here, it forms a layout loop.
@@ -90,6 +94,7 @@ export component AppWindow inherits Window {
     callback import-confirmed;
     callback import-cancelled;
     callback notice-closed;
+    callback read-again;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
@@ -118,7 +123,10 @@ export component AppWindow inherits Window {
     if !root.asks-for-rule && !root.has-controller: NoControllerScreen {
         status: root.connected ? "Reading the controller" : "Looking for controllers";
         error: root.read-error;
+        connected: root.connected;
+        can-read-again: root.can-read-again;
         about => { root.dialog = "about"; }
+        read-again => { root.read-again(); }
     }
 
     if !root.asks-for-rule && root.has-controller: HorizontalLayout {
@@ -127,6 +135,7 @@ export component AppWindow inherits Window {
             device-name: root.device-name;
             device-status: root.device-status;
             connected: root.connected;
+            failed: root.read-failed;
             current-mode: root.selected-mode;
             current-slot: root.selected-slot;
             slot-picked(m, s) => {
@@ -228,6 +237,9 @@ export component AppWindow inherits Window {
                     error: true;
                     title: "Could not read the controller.";
                     body: root.read-error;
+                    action: root.connected ? "Try again" : "";
+                    action-enabled: root.can-read-again;
+                    acted => { root.read-again(); }
                 }
             }
 

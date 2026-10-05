@@ -89,6 +89,8 @@ export component Sidebar inherits Rectangle {
     in property <string> device-name;
     in property <string> device-status;
     in property <bool> connected;
+    // The last read failed: the dot turns red.
+    in property <bool> failed;
     in-out property <int> current-mode;
     in-out property <int> current-slot;
     callback slot-picked(int, int);
@@ -126,7 +128,7 @@ export component Sidebar inherits Rectangle {
                             height: 7px;
                             y: (parent.height - 7px) / 2;
                             border-radius: 3.5px;
-                            background: root.connected ? Theme.positive : Theme.fg-muted;
+                            background: root.failed ? Theme.negative : root.connected ? Theme.positive : Theme.fg-muted;
                         }
                         Text {
                             text: root.device-status;
