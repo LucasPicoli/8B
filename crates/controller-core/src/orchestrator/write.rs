@@ -63,9 +63,10 @@ impl<'a> ProfileWriteOrchestrator<'a> {
 
     /// Writes a canonical profile JSON into `slot` of `mode`.
     ///
-    /// The profile is validated first (schema and semantic rules), must be for `mode`, and
-    /// must not carry `macro_refs` (macros are read-only). The macros already in an occupied
-    /// target slot are kept. Nothing is sent to the device if the input is invalid.
+    /// The profile is validated first (schema and semantic rules) and must be for `mode`.
+    /// Its `macro_refs` are ignored, because macros are read-only: the macros already in an
+    /// occupied target slot are kept, and the success message counts the ignored refs.
+    /// Nothing is sent to the device if the input is invalid.
     #[must_use]
     pub fn upload_profile(
         &self,
@@ -88,6 +89,13 @@ impl<'a> ProfileWriteOrchestrator<'a> {
                 blob.map_err(|e| Error::Validation(format!("Compilation failed: {}", text(&e))))?;
             Ok(Plan::Write(blob))
         });
+        if result.success && !parsed.macro_refs.is_empty() {
+            let n = parsed.macro_refs.len();
+            result.message = format!(
+                "{} Ignored {n} macro reference(s): the slot keeps the macros it has.",
+                result.message
+            );
+        }
         result.profile_id = parsed.id;
         result
     }
@@ -208,11 +216,6 @@ fn check_upload(profile: &Value, mode: Mode) -> Result<CanonicalProfile> {
             "Mode mismatch: the target mode is '{mode}' but the profile is for '{}'.",
             parsed.mode
         )));
-    }
-    if !parsed.macro_refs.is_empty() {
-        return Err(Error::Validation(
-            "Profiles with macro_refs cannot be uploaded: macros are read-only.".to_owned(),
-        ));
     }
     Ok(parsed)
 }

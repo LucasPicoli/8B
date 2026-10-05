@@ -12,14 +12,14 @@
 //! even on truncated or corrupted input.
 
 use crate::description::UNRECOGNISED_OUTPUT;
-use crate::devices::pro3::macros::encode_macro_metadata;
+use crate::devices::pro3::macros::{decode_macro_metadata, encode_macro_metadata, macro_file_name};
 use crate::devices::pro3::tables;
 use crate::devices::pro3::tables::ButtonEncodingEntry;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::{
-    ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, Mode,
-    RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
+    ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroRef, MacroSlot,
+    Mode, RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
 };
 use crate::protocol::bytes::{put_slice, put_u16_le, put_u32_le, read_u32_le, read_u8, take};
 use crate::protocol::crc16::crc16_modbus;
@@ -417,7 +417,7 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
         triggers: decode_triggers(payload, mode, source_slot, layout),
         vibration: decode_vibration(payload, source_slot, layout),
         button_mappings: decode_button_mappings(payload, mode, source_slot),
-        macro_refs: Vec::new(),
+        macro_refs: decode_macro_refs(payload, mode, source_slot)?,
     };
 
     Ok(CanonicalProfileSummary {
@@ -428,6 +428,24 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
         source_profile_index: raw.source_profile_index,
         canonical,
     })
+}
+
+/// The macros of `source_slot` as profile references, in macro-slot order. `DInput` has
+/// no macros. A macro whose trigger names no single button is left out, because the
+/// profile schema cannot hold it.
+fn decode_macro_refs(payload: &[u8], mode: Mode, source_slot: u8) -> Result<Vec<MacroRef>> {
+    if mode == Mode::DInput {
+        return Ok(Vec::new());
+    }
+    let refs = decode_macro_metadata(payload, Slot::new(source_slot)?)?
+        .into_iter()
+        .filter(|def| !def.trigger.is_empty())
+        .map(|def| MacroRef {
+            path: macro_file_name(mode, source_slot, &def),
+            trigger: def.trigger,
+        })
+        .collect();
+    Ok(refs)
 }
 
 /// The profile a new slot of `mode` starts from, with an empty name.

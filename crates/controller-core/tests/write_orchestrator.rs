@@ -233,12 +233,6 @@ fn upload_rejects_bad_input_before_touching_the_device() {
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.starts_with("Mode mismatch"), "{}", r.message);
 
-    let mut with_refs = fixture("xinput-slot1");
-    with_refs["macro_refs"] = json!([{"trigger": "l1", "path": "m.json"}]);
-    let r = o.upload_profile(&with_refs, Mode::XInput, slot(1), &ConfirmPolicy::Force);
-    assert_failed(&r, ErrorCategory::ValidationFailure);
-    assert!(r.message.contains("macro_refs"), "{}", r.message);
-
     assert!(dev.calls().is_empty());
 }
 
@@ -327,6 +321,25 @@ fn every_write_to_an_occupied_slot_keeps_all_macros() {
     });
     go(&|o| o.patch_vibration(Mode::XInput, slot(1), 1, 4, &f));
     go(&|o| o.deactivate_slot(Mode::XInput, slot(1), &f));
+}
+
+#[test]
+fn upload_ignores_macro_refs_and_keeps_the_slots_macros() {
+    let base = base_blob(Mode::XInput);
+    let dir = tempfile::tempdir().unwrap();
+    let dev = device(Mode::XInput, &base);
+    let mut with_refs = fixture("xinput-slot2");
+    with_refs["macro_refs"] = json!([{"trigger": "r4", "path": "m.json"}]);
+    let r = orch(&dev, dir.path()).upload_profile(
+        &with_refs,
+        Mode::XInput,
+        slot(1),
+        &ConfirmPolicy::Force,
+    );
+    assert!(r.success, "{}", r.message);
+    assert!(r.message.ends_with("Ignored 1 macro reference(s): the slot keeps the macros it has."));
+    let written = writes(&dev).pop().unwrap();
+    assert_eq!(section4(&written, 0), section4(&base, 0));
 }
 
 // ---------------------------------------------------------------------------

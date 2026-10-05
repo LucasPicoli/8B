@@ -13,7 +13,7 @@
 
 use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::{macros::macro_to_canonical_json, Pro3};
-use controller_core::model::{MacroDefinition, MacroStep, Mode, Slot};
+use controller_core::model::{MacroDefinition, MacroRef, MacroStep, Mode, RawProfilePayload, Slot};
 
 #[test]
 fn macro_steps_decode_to_golden_json() {
@@ -48,4 +48,24 @@ fn macro_metadata_decodes_from_section4() {
     assert_eq!(m.macro_slot, Some(0));
     assert_eq!(m.steps.len(), 3); // max_steps from descriptor
     assert!(m.steps.iter().all(|s| *s == MacroStep::default())); // all default-initialised
+}
+
+#[test]
+fn profile_read_fills_macro_refs_from_section4() {
+    let payload = std::fs::read("../../fixtures/pro3/macro-meta.blob").unwrap();
+    let read = |mode| {
+        let raw = RawProfilePayload {
+            payload: payload.clone(),
+            source_slot: 1,
+            source_profile_index: 0,
+            mode_hint: mode,
+        };
+        Pro3.map_profile(&raw).unwrap().canonical.macro_refs
+    };
+    let expected = MacroRef {
+        trigger: "l1".to_owned(),
+        path: "xinput-slot1-macro0-GoldenMac.json".to_owned(),
+    };
+    assert_eq!(read(Mode::XInput), vec![expected]);
+    assert!(read(Mode::DInput).is_empty(), "DInput has no macros");
 }

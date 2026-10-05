@@ -11,7 +11,7 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use controller_core::devices::pro3::macros::macro_to_canonical_json;
+use controller_core::devices::pro3::macros::{macro_file_name, macro_to_canonical_json};
 use controller_core::devices::pro3::Pro3;
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::{DeviceReadiness, Mode, Slot};
@@ -335,13 +335,7 @@ pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
 /// Exports each active macro in `res` to `<dir>/<mode>-slot<slot>-macro<m>-<name>.json`.
 fn export_macros(res: &MacroReadResult, mode: Mode, slot: u8, dir: &str) {
     for def in &res.macros {
-        let safe_name: String = def
-            .name
-            .chars()
-            .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
-            .collect();
-        let m_slot = def.macro_slot.unwrap_or(0);
-        let filename = format!("{mode}-slot{slot}-macro{m_slot}-{safe_name}.json");
+        let filename = macro_file_name(mode, slot, def);
         let file_path = Path::new(dir).join(&filename);
 
         let json_val = macro_to_canonical_json(def);

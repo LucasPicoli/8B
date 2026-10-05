@@ -104,6 +104,21 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
     Ok(result)
 }
 
+/// The file name of an exported macro, and the `path` a read puts in `macro_refs`.
+///
+/// The shape is `<mode>-slot<slot>-macro<m>-<name>.json`. Each character of the name
+/// other than a letter, a digit, `-` or `_` becomes `_`.
+#[must_use]
+pub fn macro_file_name(mode: Mode, profile_slot: u8, def: &MacroDefinition) -> String {
+    let safe_name: String = def
+        .name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    let m_slot = def.macro_slot.unwrap_or(0);
+    format!("{mode}-slot{profile_slot}-macro{m_slot}-{safe_name}.json")
+}
+
 /// Maps the `gamepad_mode` descriptor byte to a [`Mode`] (`3` → `XInput`, else
 /// `Switch`). Mirrors `MacroDecoder::gamepadByteToMode`.
 const fn gamepad_byte_to_mode(byte: u8) -> Mode {
