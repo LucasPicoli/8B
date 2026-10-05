@@ -342,6 +342,32 @@ fn upload_ignores_macro_refs_and_keeps_the_slots_macros() {
     assert_eq!(section4(&written, 0), section4(&base, 0));
 }
 
+#[test]
+fn upload_dropping_a_macro_zeroes_its_descriptor_and_keeps_the_others() {
+    let profile: CanonicalProfile = serde_json::from_value(fixture("xinput-slot1")).unwrap();
+    let two = [macro_def("Alpha", "l1", 0), macro_def("Gamma", "r4", 3)];
+    let base = Pro3.compile_profile(&profile, slot(1), &base_blob(Mode::XInput), &two).unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let dev = device(Mode::XInput, &base);
+    let r = orch(&dev, dir.path()).upload_profile_dropping_macros(
+        &fixture("xinput-slot1"),
+        Mode::XInput,
+        slot(1),
+        &["l1".to_owned(), "a button with no macro".to_owned()],
+        &ConfirmPolicy::Force,
+    );
+    assert!(r.success, "{}", r.message);
+    let written = writes(&dev).pop().unwrap();
+    let (old, new) = (section4(&base, 0), section4(&written, 0));
+    assert!(new[DESCRIPTORS..DESCRIPTORS + DESCRIPTOR_SIZE].iter().all(|&b| b == 0), "Alpha gone");
+    assert_eq!(new[..DESCRIPTORS], old[..DESCRIPTORS], "the header stays");
+    assert_eq!(new[DESCRIPTORS + DESCRIPTOR_SIZE..], old[DESCRIPTORS + DESCRIPTOR_SIZE..]);
+    assert_eq!(section4(&written, 1), section4(&base, 1), "slot 2's macro stays");
+    let left: Vec<_> = Pro3.decode_macro_metadata(&written, slot(1)).unwrap();
+    assert_eq!(left.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(), ["Gamma"]);
+    assert!(crc_ok(&written));
+}
+
 // ---------------------------------------------------------------------------
 // Deactivate
 // ---------------------------------------------------------------------------

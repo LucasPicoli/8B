@@ -75,6 +75,21 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         slot: Slot,
         policy: &ConfirmPolicy,
     ) -> WriteResult {
+        self.upload_profile_dropping_macros(profile, mode, slot, &[], policy)
+    }
+
+    /// Like [`Self::upload_profile`], and also removes the slot's macros that the buttons
+    /// in `drop_macros` start. The other macros stay. This is how the window removes a
+    /// macro when its button gets another output.
+    #[must_use]
+    pub fn upload_profile_dropping_macros(
+        &self,
+        profile: &Value,
+        mode: Mode,
+        slot: Slot,
+        drop_macros: &[String],
+        policy: &ConfirmPolicy,
+    ) -> WriteResult {
         let parsed = match check_upload(profile, mode) {
             Ok(parsed) => parsed,
             Err(e) => return failure_from(mode, slot, &e),
@@ -85,8 +100,11 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             } else {
                 self.codec.compile_profile(&parsed, slot, &rb.backup_blob, &[])
             };
-            let blob =
+            let mut blob =
                 blob.map_err(|e| Error::Validation(format!("Compilation failed: {}", text(&e))))?;
+            if rb.slot_active && !drop_macros.is_empty() {
+                blob = self.codec.drop_macros(&blob, slot, drop_macros)?;
+            }
             Ok(Plan::Write(blob))
         });
         if result.success && !parsed.macro_refs.is_empty() {

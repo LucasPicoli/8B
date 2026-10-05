@@ -1,7 +1,7 @@
 //! Smoke tests: each screen renders into memory with the software renderer, no
 //! display needed. Set `GUI_SHOTS=<dir>` to keep the pictures as PPM files.
 
-#![allow(clippy::unwrap_used, clippy::expect_used)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
 use std::collections::HashSet;
 use std::io::Write as _;
@@ -188,6 +188,25 @@ fn slot_with_an_unrecognised_row() {
 }
 
 #[test]
+fn slot_with_a_macro() {
+    let mut s = connected(Mode::XInput);
+    let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    pad.macro_refs.push(controller_core::model::MacroRef {
+        trigger: "rp".to_owned(),
+        path: "xinput-slot1-macro0-Buttons.json".to_owned(),
+    });
+    // Tall enough to show the back view and the paddle rows.
+    let tall = |name: &str, s: &AppState| {
+        let ui = window(s);
+        ui.window().set_size(PhysicalSize::new(1280, 1300));
+        save(name, &ui);
+    };
+    tall("buttons-macro", &s);
+    s.set_output("rp", "left face");
+    tall("buttons-macro-removed", &s);
+}
+
+#[test]
 fn a_click_on_the_drawing_selects_the_button_row() {
     let s = connected(Mode::XInput);
     let ui = window(&s);
@@ -349,4 +368,37 @@ fn imported_with_a_note() {
     shoot("import-done", &s);
     s.import((Mode::XInput, 3), "bad.json", Ok("{}".to_owned()));
     shoot("import-failed", &s);
+}
+
+/// The left and right edge of the drawing's frame, along a row through the views.
+fn frame_edges(ui: &AppWindow) -> (usize, usize) {
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = usize::try_from(shot.width()).unwrap();
+    let row = &shot.as_slice()[400 * width..401 * width];
+    let page = row[275];
+    let left = (270..width).find(|&x| row[x] != page).unwrap();
+    let right = (left + 5..width).find(|&x| row[x] == page).unwrap();
+    (left, right)
+}
+
+#[test]
+fn the_drawing_keeps_its_size_from_slot_to_slot() {
+    let mut s = connected(Mode::XInput);
+    let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    pad.macro_refs.push(controller_core::model::MacroRef {
+        trigger: "rp".to_owned(),
+        path: "xinput-slot1-macro3-ABCDEFGHIJKLMNO.json".to_owned(),
+    });
+    let pad = s.slots.get_mut(&(Mode::XInput, 2)).unwrap().pad.as_mut().unwrap();
+    pad.button_mappings[0].target = controller_core::description::UNRECOGNISED_OUTPUT.to_owned();
+    for width in [1000, 1280, 1600] {
+        let mut edges = Vec::new();
+        for (mode, slot) in [(0, 0), (0, 1), (1, 0), (1, 1), (2, 0), (2, 1)] {
+            s.select(mode, slot);
+            let ui = window(&s);
+            ui.window().set_size(PhysicalSize::new(width, 900));
+            edges.push(frame_edges(&ui));
+        }
+        assert!(edges.windows(2).all(|p| p[0] == p[1]), "at {width} px: {edges:?}");
+    }
 }

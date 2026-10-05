@@ -4,6 +4,7 @@
 use std::rc::Rc;
 
 use controller_core::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT};
+use controller_core::devices::pro3::macros::parse_macro_file_name;
 use controller_core::model::{CanonicalProfile, Mode};
 use controller_core::view::{VIEW_FILL_COLOR, VIEW_LINE_COLOR};
 use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedString, VecModel};
@@ -11,16 +12,34 @@ use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedStrin
 use crate::state::AppState;
 use crate::ui::{AppWindow, MapRow, PadView, Section, Spot, Theme};
 
+/// The start of the output id the picker gives a button that runs a macro. The rest
+/// is the macro's `path` from `macro_refs`.
+const MACRO_OUTPUT: &str = "macro:";
+
 /// The output `target` of `button` in `profile`. A button with no entry keeps its
 /// own press.
 fn target<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
     profile.button_mappings.iter().find(|m| m.source == button).map_or(button, |m| &m.target)
 }
 
+/// What `button` sends in `profile`: its macro when it starts one, because the
+/// controller then sends the macro only, else its output `target`.
+fn current(profile: &CanonicalProfile, button: &str) -> String {
+    profile
+        .macro_refs
+        .iter()
+        .find(|m| m.trigger == button)
+        .map_or_else(|| target(profile, button).to_owned(), |m| format!("{MACRO_OUTPUT}{}", m.path))
+}
+
 /// The name shown for output `id` in `mode`.
 pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -> String {
     if let Some(label) = description.button(id).and_then(|b| b.labels.get(&mode)) {
         return label.clone();
+    }
+    if let Some(path) = id.strip_prefix(MACRO_OUTPUT) {
+        return parse_macro_file_name(path)
+            .map_or_else(|| "Macro".to_owned(), |(m, name)| format!("Macro {} ({name})", m + 1));
     }
     match id {
         DISABLED_OUTPUT => "Disabled".to_owned(),
@@ -60,29 +79,16 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
         .collect()
 }
 
-/// The button of table row `row` and the output at `choice` in its picker.
+/// The button of table row `row` and the output at `choice` in its picker, or
+/// `None` when that output is already in use.
 #[must_use]
 pub fn picked_output(state: &AppState, row: usize, choice: usize) -> Option<(String, String)> {
     let (mode, number) = state.selected_slot()?;
     let button = state.description.buttons.get(row)?;
     let slot = state.slot(mode, number);
-    let current = target(slot.shown()?, &button.id);
-    let (output, _) = choices(state, mode, &button.id, current).into_iter().nth(choice)?;
-    Some((button.id.clone(), output))
-}
-
-/// The note under a button that runs macros, such as `Also runs macro 2`.
-fn macro_note(profile: &CanonicalProfile, button: &str) -> String {
-    let numbers: Vec<String> = (1..)
-        .zip(&profile.macro_refs)
-        .filter(|(_, m)| m.trigger == button)
-        .map(|(n, _): (u32, _)| n.to_string())
-        .collect();
-    match numbers.as_slice() {
-        [] => String::new(),
-        [n] => format!("Also runs macro {n}"),
-        _ => format!("Also runs macros {}", numbers.join(", ")),
-    }
+    let current = current(slot.shown()?, &button.id);
+    let (output, _) = choices(state, mode, &button.id, &current).into_iter().nth(choice)?;
+    (output != current).then(|| (button.id.clone(), output))
 }
 
 /// The tab strip, with a dot on each tab that holds unsaved edits.
@@ -118,22 +124,21 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
         .buttons
         .iter()
         .map(|b| {
-            let current = target(shown, &b.id);
-            let list = choices(state, mode, &b.id, current);
+            let current = current(shown, &b.id);
+            let list = choices(state, mode, &b.id, &current);
             MapRow {
                 label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
-                note: macro_note(shown, &b.id).into(),
                 output: list
                     .iter()
-                    .position(|(id, _)| id == current)
+                    .position(|(id, _)| *id == current)
                     .map_or(0, |i| i32::try_from(i).unwrap_or(0)),
                 outputs: ModelRc::from(Rc::new(
                     list.into_iter().map(|(_, l)| SharedString::from(l)).collect::<VecModel<_>>(),
                 )),
                 fixed: !b.can_be_remapped,
-                remapped: b.can_be_remapped && remapped(state, mode, &b.id, current),
+                remapped: b.can_be_remapped && remapped(state, mode, &b.id, &current),
                 unknown: current == UNRECOGNISED_OUTPUT,
-                changed: slot.pad.as_ref().is_some_and(|p| target(p, &b.id) != current),
+                changed: slot.pad.as_ref().is_some_and(|p| self::current(p, &b.id) != current),
             }
         })
         .collect()
@@ -154,10 +159,10 @@ pub fn spots(state: &AppState) -> Vec<Spot> {
                 continue;
             };
             let fixed = description.buttons.get(row).is_some_and(|b| !b.can_be_remapped);
-            let current = target(shown, &h.button);
-            let mapped = !fixed && remapped(state, mode, &h.button, current);
-            let pending = slot.pad.as_ref().is_some_and(|p| target(p, &h.button) != current);
-            let output = output_label(description, mode, current).into();
+            let current = current(shown, &h.button);
+            let mapped = !fixed && remapped(state, mode, &h.button, &current);
+            let pending = slot.pad.as_ref().is_some_and(|p| self::current(p, &h.button) != current);
+            let output = output_label(description, mode, &current).into();
             #[allow(clippy::cast_possible_truncation)]
             let [x0, y0, x1, y1] = h.bounds().map(|v| v as f32);
             out.push(Spot {
@@ -291,13 +296,9 @@ mod tests {
     }
 
     #[test]
-    fn rows_mark_fixed_unknown_changed_and_macro_buttons() {
+    fn rows_mark_fixed_unknown_and_changed_buttons() {
         let mut s = read(Mode::XInput);
         let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
-        pad.macro_refs.push(controller_core::model::MacroRef {
-            trigger: "r1".to_owned(),
-            path: "m.json".to_owned(),
-        });
         pad.button_mappings[1].target = UNRECOGNISED_OUTPUT.to_owned();
         s.set_output("r1", "disabled");
         let rows = rows(&s);
@@ -308,11 +309,57 @@ mod tests {
         assert!(row("bottom face").unknown);
         assert_eq!(row("bottom face").output, 0);
         assert!(row("r1").changed && !row("l1").changed);
-        assert_eq!(row("r1").note, "Also runs macro 1");
         assert_eq!(
             row("r1").outputs.row_data(usize::try_from(row("r1").output).unwrap()).unwrap(),
             "Disabled"
         );
+    }
+
+    /// `XInput` slot 1 with macro slot 0, `Buttons`, on `rp`, as on the test pad.
+    fn with_macro() -> AppState {
+        let mut s = read(Mode::XInput);
+        let pad = s.slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+        pad.macro_refs.push(controller_core::model::MacroRef {
+            trigger: "rp".to_owned(),
+            path: "xinput-slot1-macro0-Buttons.json".to_owned(),
+        });
+        s
+    }
+
+    #[test]
+    fn a_button_with_a_macro_shows_the_macro_as_its_output() {
+        let s = with_macro();
+        let at = s.description.buttons.iter().position(|b| b.id == "rp").unwrap();
+        let row = &rows(&s)[at];
+        assert_eq!(row.output, 0, "the macro comes first");
+        assert_eq!(row.outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
+        assert!(row.remapped && !row.changed);
+        let spot = spots(&s).into_iter().find(|p| p.row == i32::try_from(at).unwrap()).unwrap();
+        assert!(spot.mapped && !spot.pending);
+        assert_eq!(spot.output, "Macro 1 (Buttons)");
+        assert_eq!(picked_output(&s, at, 0), None, "the macro is already in use");
+    }
+
+    #[test]
+    fn a_pick_removes_the_macro_and_discard_brings_it_back() {
+        let mut s = with_macro();
+        let at = s.description.buttons.iter().position(|b| b.id == "rp").unwrap();
+        let (button, output) = picked_output(&s, at, 1).unwrap();
+        assert_eq!((button.as_str(), output.as_str()), ("rp", "right face"));
+        s.set_output(&button, &output);
+        let row = &rows(&s)[at];
+        assert_eq!(row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap(), "B");
+        assert!(row.changed);
+        assert!(s.slot(Mode::XInput, 1).edited.unwrap().macro_refs.is_empty());
+        assert!(s.slot(Mode::XInput, 1).dirty().buttons);
+        s.discard();
+        assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
+    }
+
+    #[test]
+    fn a_macro_path_of_another_shape_is_still_a_macro() {
+        let d = description();
+        assert_eq!(output_label(d, Mode::XInput, "macro:m.json"), "Macro");
     }
 
     #[test]

@@ -119,6 +119,16 @@ pub fn macro_file_name(mode: Mode, profile_slot: u8, def: &MacroDefinition) -> S
     format!("{mode}-slot{profile_slot}-macro{m_slot}-{safe_name}.json")
 }
 
+/// The macro slot (0–3) and the name in a [`macro_file_name`] path, or `None` when
+/// `path` has another shape.
+#[must_use]
+pub fn parse_macro_file_name(path: &str) -> Option<(u8, &str)> {
+    let mut parts = path.strip_suffix(".json")?.splitn(4, '-');
+    let (_mode, _slot) = (parts.next()?, parts.next()?);
+    let macro_slot = parts.next()?.strip_prefix("macro")?.parse().ok()?;
+    Some((macro_slot, parts.next()?))
+}
+
 /// Maps the `gamepad_mode` descriptor byte to a [`Mode`] (`3` → `XInput`, else
 /// `Switch`). Mirrors `MacroDecoder::gamepadByteToMode`.
 const fn gamepad_byte_to_mode(byte: u8) -> Mode {
@@ -416,6 +426,23 @@ mod tests {
         assert_eq!(key_map_to_trigger_name(0x0000_0400), "l1");
         assert_eq!(key_map_to_trigger_name(0x4000_0000), "r4");
         assert_eq!(key_map_to_trigger_name(0xDEAD_BEEF), "");
+    }
+
+    #[test]
+    fn a_macro_file_name_parses_back_to_its_slot_and_name() {
+        let def = MacroDefinition {
+            name: "My-macro 1".into(),
+            mode: Mode::XInput,
+            trigger: "l1".into(),
+            repeat_count: 1,
+            interval_ms: 0,
+            steps: Vec::new(),
+            macro_slot: Some(2),
+        };
+        let path = macro_file_name(Mode::XInput, 1, &def);
+        assert_eq!(parse_macro_file_name(&path), Some((2, "My-macro_1")));
+        assert_eq!(parse_macro_file_name("m.json"), None);
+        assert_eq!(parse_macro_file_name("xinput-slot1-macroX-a.json"), None);
     }
 
     #[test]

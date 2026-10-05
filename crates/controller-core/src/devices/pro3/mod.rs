@@ -155,6 +155,10 @@ impl ProtocolCodec for Pro3 {
         edit::compile_profile_keep_macros(profile, target_slot, base_blob)
     }
 
+    fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
+        edit::drop_macros(blob, slot, triggers)
+    }
+
     fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
         edit::deactivate_profile(base_blob, slot)
     }

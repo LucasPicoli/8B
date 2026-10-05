@@ -58,7 +58,7 @@ impl SlotState {
                 Dirty { buttons: true, sticks: true, triggers: true, vibration: true }
             }
             (Some(p), Some(e)) => Dirty {
-                buttons: p.button_mappings != e.button_mappings,
+                buttons: p.button_mappings != e.button_mappings || p.macro_refs != e.macro_refs,
                 sticks: p.sticks != e.sticks,
                 triggers: p.triggers != e.triggers,
                 vibration: p.vibration != e.vibration,
@@ -282,13 +282,16 @@ impl AppState {
         slot.edited = Some(edited);
     }
 
-    /// Gives `button` the output `target` in the selected slot. An unrecognised
-    /// output is read-only: a button can leave it, never go back to it.
+    /// Gives `button` the output `target` in the selected slot, and drops the macro
+    /// it starts, because the controller sends a button's macro in place of its
+    /// output. An unrecognised output is read-only: a button can leave it, never go
+    /// back to it.
     pub fn set_output(&mut self, button: &str, target: &str) {
         if target == UNRECOGNISED_OUTPUT {
             return;
         }
         self.edit(|p| {
+            p.macro_refs.retain(|m| m.trigger != button);
             let mapping = ButtonMapping { source: button.to_owned(), target: target.to_owned() };
             match p.button_mappings.iter_mut().find(|m| m.source == button) {
                 Some(m) => *m = mapping,

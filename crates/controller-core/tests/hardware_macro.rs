@@ -1,7 +1,8 @@
 //! Hardware macro test: requires a physical 8BitDo Pro 3 on USB with a profile in
 //! `XInput` slot 1. It puts the `x-s1-m0-buttons` fixture macro (trigger `rp`) into macro
 //! slot 0 of that profile, in the C++ `write-macro` order: the profile blob with the new
-//! descriptor, then the step stream. It then reads both back. Run with:
+//! descriptor, then the step stream. It then reads both back. A second test gives `rp`
+//! the output X and removes the macro, the way the window does on a pick. Run with:
 //!   `cargo test -p controller-core --features hardware --test hardware_macro -- --ignored`
 #![cfg(feature = "hardware")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
@@ -9,8 +10,10 @@
 use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::{
-    MacroDefinition, MacroRef, MacroSlot, MacroStep, Mode, RawProfilePayload, Slot,
+    ButtonMapping, MacroDefinition, MacroRef, MacroSlot, MacroStep, Mode, RawProfilePayload, Slot,
 };
+use controller_core::orchestrator::ProfileWriteOrchestrator;
+use controller_core::service::ConfirmPolicy;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use serial_test::serial;
 
@@ -96,4 +99,33 @@ fn put_fixture_macro_on_xinput_slot1() {
     assert_eq!(refs, &vec![expected]);
     let back = dev.read_macro_stream(Mode::XInput, slot, macro_slot, def.steps.len()).unwrap();
     assert_eq!(Pro3.decode_macro_steps(&back, def.steps.len(), Mode::XInput).unwrap(), def.steps);
+}
+
+#[test]
+#[ignore = "removes the macro on rp from XInput slot 1 of an attached 8BitDo Pro 3"]
+#[serial]
+fn remove_fixture_macro_on_a_pick() {
+    let dev = HidrawDevice::open().unwrap();
+    let before = dev.read_all_profiles().unwrap();
+    let mut profile = before.profiles[0].canonical.clone();
+    assert!(profile.macro_refs.iter().any(|m| m.trigger == "rp"), "run the put test first");
+    let x = ButtonMapping { source: "rp".to_owned(), target: "left face".to_owned() };
+    profile.button_mappings.retain(|m| m.source != "rp");
+    profile.button_mappings.push(x.clone());
+
+    let dir = tempfile::tempdir().unwrap();
+    let r = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path()).upload_profile_dropping_macros(
+        &serde_json::to_value(&profile).unwrap(),
+        Mode::XInput,
+        Slot::new(1).unwrap(),
+        &["rp".to_owned()],
+        &ConfirmPolicy::Force,
+    );
+    assert!(r.success, "{}", r.message);
+
+    let after = dev.read_all_profiles().unwrap();
+    let read = &after.profiles[0].canonical;
+    assert!(read.macro_refs.is_empty(), "the macro is gone: {:?}", read.macro_refs);
+    assert!(read.button_mappings.contains(&x));
+    assert_eq!(after.raw_blobs[1..], before.raw_blobs[1..], "the Switch and DInput banks stay");
 }
