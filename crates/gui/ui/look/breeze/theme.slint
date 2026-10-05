@@ -4,10 +4,12 @@
 import { Palette } from "std-widgets.slint";
 
 export global Theme {
-    // False: fixed Breeze blue. True: the desktop accent, read by Slint from the
-    // portal. Slint only exposes it through the fluent palette, where it arrives
-    // re-lit to the lightness of #0078D4, close to #1b74a8.
-    in-out property <bool> desktop-accent: false;
+    // Set from Rust. False: fixed Breeze blue. True: the desktop accent read
+    // from the portal, and the same colour darkened until white text on it
+    // reaches 4.5:1.
+    in property <bool> desktop-accent: false;
+    in property <color> desktop-accent-color;
+    in property <color> desktop-accent-fill;
     out property <bool> dark: Palette.color-scheme == ColorScheme.dark;
     out property <string> look: "Breeze";
 
@@ -22,10 +24,10 @@ export global Theme {
     out property <brush> line-soft: dark ? #34373b : #dcdee0;
     out property <brush> hover: dark ? #1f3442 : #e3f1fa;
 
-    out property <brush> accent: desktop-accent ? Palette.selection-background.brighter(40%) : #3daee9;
-    // Filled buttons and chips: white text needs the darker blue for 4.5:1.
-    out property <brush> accent-strong: desktop-accent ? Palette.selection-background : #1b74a8;
-    out property <brush> accent-ink: dark ? (desktop-accent ? Palette.selection-background.brighter(70%) : #7cc8f0) : (desktop-accent ? Palette.selection-background.darker(15%) : #176a99);
+    out property <brush> accent: desktop-accent ? desktop-accent-color : #3daee9;
+    // Filled buttons and chips: white text needs the darker colour for 4.5:1.
+    out property <brush> accent-strong: desktop-accent ? desktop-accent-fill : #1b74a8;
+    out property <brush> accent-ink: dark ? (desktop-accent ? desktop-accent-fill.brighter(70%) : #7cc8f0) : (desktop-accent ? desktop-accent-fill.darker(15%) : #176a99);
     out property <brush> accent-wash: dark ? accent-strong.with-alpha(0.35) : accent.with-alpha(0.2);
     out property <brush> on-accent: #ffffff;
 

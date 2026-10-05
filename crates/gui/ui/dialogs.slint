@@ -127,12 +127,18 @@ export component FailedDialog inherits DialogShell {
 
 export component AboutDialog inherits DialogShell {
     in property <string> version;
+    in property <string> slot-note;
     icon: Icons.pad;
     title: "8B";
     subtitle: "Version " + version;
     cancel-text: "Close";
     Text {
         text: "Reads and edits the profiles stored on 8BitDo controllers over USB.";
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    Text {
+        text: root.slot-note;
         color: Theme.fg;
         wrap: word-wrap;
     }

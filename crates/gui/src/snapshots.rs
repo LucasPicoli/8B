@@ -13,7 +13,7 @@ use slint::platform::{Platform, WindowAdapter};
 use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 
 use crate::buttons::render_views;
-use crate::render::render;
+use crate::render::{fit_toolbar, render};
 use crate::state::tests::{connected as read, full_read, new_state};
 use crate::state::AppState;
 use crate::ui::AppWindow;
@@ -40,9 +40,14 @@ fn window(state: &AppState) -> AppWindow {
 
 /// Renders `state` at 1280×800 and checks the picture is not blank.
 fn shoot(name: &str, state: &AppState) {
-    let ui = window(state);
+    save(name, &window(state));
+}
+
+/// Checks the window's picture is not blank, and keeps it when `GUI_SHOTS` is set.
+fn save(name: &str, ui: &AppWindow) {
     let shot = ui.window().take_snapshot().unwrap();
-    assert_eq!((shot.width(), shot.height()), (1280, 800));
+    let size = ui.window().size();
+    assert_eq!((shot.width(), shot.height()), (size.width, size.height));
     let colours: HashSet<_> = shot.as_slice().iter().map(|p| (p.r, p.g, p.b)).collect();
     assert!(colours.len() > 8, "{name}: only {} colours", colours.len());
 
@@ -205,4 +210,38 @@ fn picking_another_slot_clears_the_selected_button() {
     // XInput slot 2.
     click(&ui, 130.0, 143.0);
     assert_eq!(ui.get_selected_row(), -1);
+}
+
+#[test]
+fn about() {
+    let mut s = connected(Mode::XInput);
+    s.close_read_note();
+    let ui = window(&s);
+    ui.set_version("0.1.0".into());
+    ui.set_dialog("about".into());
+    save("about", &ui);
+}
+
+/// The editor at `width`×800, with the toolbar fitted to it.
+fn toolbar_at(width: u32) -> AppWindow {
+    let mut s = read(Mode::XInput);
+    s.close_read_note();
+    let ui = window(&s);
+    ui.window().set_size(PhysicalSize::new(width, 800));
+    fit_toolbar(&ui);
+    ui
+}
+
+#[test]
+fn toolbar_is_icon_only_below_1200() {
+    let ui = toolbar_at(1100);
+    assert!(ui.get_compact());
+    save("toolbar-1100", &ui);
+}
+
+#[test]
+fn toolbar_has_text_from_1200() {
+    let ui = toolbar_at(1300);
+    assert!(!ui.get_compact());
+    save("toolbar-1300", &ui);
 }

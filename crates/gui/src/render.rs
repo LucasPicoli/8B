@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use controller_core::transport::udev::{UDEV_MANUAL_COMMAND, UDEV_RULE_PATH};
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::render_buttons;
 use crate::state::{Access, AppState, Install};
@@ -101,6 +101,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_name_max(state.description.limits.profile_name_length.max);
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
+    ui.set_slot_note(READ_NOTE.into());
     ui.set_read_note(if state.read_note { READ_NOTE.into() } else { SharedString::new() });
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
     ui.set_access_denied(state.access.is_some());
@@ -112,6 +113,15 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     });
     ui.set_udev_command(UDEV_MANUAL_COMMAND.into());
     ui.set_udev_rule_path(UDEV_RULE_PATH.into());
+}
+
+/// Narrower than this, in logical pixels, toolbar buttons show only their icon.
+const COMPACT_BELOW: f32 = 1200.0;
+
+/// Sets the toolbar compact or not from the window's current width.
+pub fn fit_toolbar(ui: &AppWindow) {
+    let window = ui.window();
+    ui.set_compact(window.size().to_logical(window.scale_factor()).width < COMPACT_BELOW);
 }
 
 #[cfg(test)]

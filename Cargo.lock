@@ -1794,6 +1794,7 @@ dependencies = [
  "slint",
  "slint-build",
  "tempfile",
+ "zbus",
 ]
 
 [[package]]

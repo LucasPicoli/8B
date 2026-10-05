@@ -45,6 +45,11 @@ export component AppWindow inherits Window {
     // Why the last read failed, empty when it did not.
     in property <string> read-error;
     in property <string> version;
+    // The read-slot sentence, shown in About too.
+    in property <string> slot-note;
+    // Narrow window: toolbar buttons drop their text, like KDE toolbars.
+    // Set from Rust: bound to the window width here, it forms a layout loop.
+    in property <bool> compact;
     // Opening the controller was denied: the whole window asks for access.
     in property <bool> access-denied;
     // The udev rule is in place and opening is still denied.
@@ -113,7 +118,6 @@ export component AppWindow inherits Window {
                     padding-left: 16px;
                     padding-right: 12px;
                     spacing: 8px;
-                    alignment: start;
                     Text {
                         text: root.slot-title;
                         font-size: Theme.text-title;
@@ -137,6 +141,37 @@ export component AppWindow inherits Window {
                             font-size: Theme.text-small;
                             color: Theme.fg-muted;
                             vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    // Not wired yet, so shown disabled.
+                    VerticalLayout {
+                        alignment: center;
+                        HorizontalLayout {
+                            spacing: 4px;
+                            Button {
+                                text: "Import…";
+                                icon: Icons.import;
+                                icon-only: root.compact;
+                                flat: true;
+                                enabled: false;
+                            }
+                            if !root.empty-slot: Button {
+                                text: "Export…";
+                                icon: Icons.export;
+                                icon-only: root.compact;
+                                flat: true;
+                                enabled: false;
+                            }
+                            if !root.empty-slot: Button {
+                                text: "Clear slot…";
+                                icon: Icons.clear;
+                                icon-only: root.compact;
+                                flat: true;
+                                enabled: false;
+                            }
                         }
                     }
                 }
@@ -256,6 +291,7 @@ export component AppWindow inherits Window {
 
     if root.dialog == "about": AboutDialog {
         version: root.version;
+        slot-note: root.slot-note;
         cancelled => { root.dialog = ""; }
     }
 }

@@ -4,6 +4,7 @@
 #![allow(unreachable_pub)]
 
 mod buttons;
+mod portal;
 mod render;
 mod state;
 mod udev;
@@ -32,16 +33,17 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Sender};
+use std::time::Duration;
 
 use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::Mode;
 use controller_core::transport::HidrawDevice;
 use controller_core::Error;
-use slint::ComponentHandle as _;
+use slint::{ComponentHandle as _, Timer, TimerMode};
 
 use crate::buttons::{hit, picked_output, render_views};
-use crate::render::render;
+use crate::render::{fit_toolbar, render};
 use crate::state::AppState;
 use crate::ui::AppWindow;
 use crate::worker::{Command, Event};
@@ -84,6 +86,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = Rc::new(RefCell::new(AppState::new(description, defaults)));
     render_views(description, &ui);
     render(&state.borrow(), &ui);
+    portal::follow_accent(ui.as_weak());
+
+    // ponytail: polls every 200 ms; Slint gives Rust no resize callback.
+    let width_timer = Timer::default();
+    let weak = ui.as_weak();
+    width_timer.start(TimerMode::Repeated, Duration::from_millis(200), move || {
+        if let Some(ui) = weak.upgrade() {
+            fit_toolbar(&ui);
+        }
+    });
 
     let (events_tx, events) = mpsc::channel();
     let weak = ui.as_weak();
