@@ -108,14 +108,16 @@ struct WriteLog {
 
 /// A configurable in-memory device for unit tests.
 ///
-/// Reads return what was configured. Writes are recorded in order and succeed unless
+/// Reads return what was configured, after any failures queued with
+/// [`MockDevice::fail_next_read`]. Writes are recorded in order and succeed unless
 /// [`MockDevice::fail_nth`] says otherwise. The mock does not model device state.
 #[derive(Default)]
 pub struct MockDevice {
-    profiles: HashMap<&'static str, ProfileReadResult>,
+    profiles: Option<ProfileReadResult>,
     macro_streams: HashMap<(&'static str, u8, u8), Vec<u8>>,
     readiness: Option<DeviceReadiness>,
     flip_back_to: Option<Mode>,
+    read_failures: Mutex<Vec<Error>>,
     writes: Mutex<WriteLog>,
 }
 
@@ -126,10 +128,10 @@ impl MockDevice {
         Self::default()
     }
 
-    /// Configures the profiles returned for `mode`.
+    /// Configures what [`DeviceIo::read_all_profiles`] returns.
     #[must_use]
-    pub fn with_profiles(mut self, mode: Mode, result: ProfileReadResult) -> Self {
-        self.profiles.insert(mode.as_str(), result);
+    pub fn with_profiles(mut self, result: ProfileReadResult) -> Self {
+        self.profiles = Some(result);
         self
     }
 
@@ -161,6 +163,14 @@ impl MockDevice {
         self
     }
 
+    /// Makes the next [`DeviceIo::read_all_profiles`] return `error`. Queued failures
+    /// come back in the order they were added.
+    #[must_use]
+    pub fn fail_next_read(self, error: Error) -> Self {
+        self.read_failures.lock().unwrap_or_else(PoisonError::into_inner).push(error);
+        self
+    }
+
     /// Makes the `n`th (0-based) call of `op` return `error`. Counting is per op.
     #[must_use]
     pub fn fail_nth(self, op: MockOp, n: usize, error: Error) -> Self {
@@ -189,8 +199,13 @@ impl MockDevice {
 }
 
 impl DeviceIo for MockDevice {
-    fn read_all_profiles(&self, mode: Mode) -> Result<ProfileReadResult> {
-        self.profiles.get(mode.as_str()).cloned().ok_or(Error::NoDevice)
+    fn read_all_profiles(&self) -> Result<ProfileReadResult> {
+        let mut failures = self.read_failures.lock().unwrap_or_else(PoisonError::into_inner);
+        if !failures.is_empty() {
+            return Err(failures.remove(0));
+        }
+        drop(failures);
+        self.profiles.clone().ok_or(Error::NoDevice)
     }
 
     fn read_macro_stream(
@@ -270,11 +285,11 @@ mod tests {
     #[allow(clippy::unwrap_used)]
     #[test]
     fn mock_returns_configured_profiles() {
-        let dev = MockDevice::new().with_profiles(
-            Mode::XInput,
-            ProfileReadResult { raw_blobs: vec![vec![1, 2, 3]], ..Default::default() },
-        );
-        let r = dev.read_all_profiles(Mode::XInput).unwrap();
+        let dev = MockDevice::new().with_profiles(ProfileReadResult {
+            raw_blobs: vec![vec![1, 2, 3]],
+            ..Default::default()
+        });
+        let r = dev.read_all_profiles().unwrap();
         assert_eq!(r.raw_blobs, vec![vec![1, 2, 3]]);
     }
 

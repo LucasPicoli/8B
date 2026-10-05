@@ -1,7 +1,7 @@
 //! Read services: thin orchestration of [`DeviceIo`] + codec calls.
 //!
-//! Ports `macro_read_service.cpp::readMacros` and the blob-selection helper
-//! `pre_write_readback_service.cpp::blobIndexForMode`.
+//! Ports `macro_read_service.cpp::readMacros`. The C++ read split the banks by
+//! product id; this one reads all three, so a blob is picked by mode alone.
 
 use crate::device::ProtocolCodec;
 use crate::devices::pro3::Pro3;
@@ -19,14 +19,14 @@ pub struct MacroReadResult {
     pub macros: Vec<MacroDefinition>,
 }
 
-/// Reads all on-device profiles for `mode`.
+/// Reads the profiles of every mode's bank.
 ///
 /// A thin delegate to [`DeviceIo::read_all_profiles`].
 ///
 /// # Errors
 /// Propagates any [`Error`] returned by the device.
-pub fn read_profiles(dev: &dyn DeviceIo, mode: Mode) -> Result<ProfileReadResult> {
-    dev.read_all_profiles(mode)
+pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
+    dev.read_all_profiles()
 }
 
 /// Reads and decodes all active macros for `profile_slot` in `mode`.
@@ -36,8 +36,8 @@ pub fn read_profiles(dev: &dyn DeviceIo, mode: Mode) -> Result<ProfileReadResult
 ///
 /// # Control flow
 /// 1. Reject `Mode::DInput` (not a valid macro mode).
-/// 2. Read all profile blobs for `mode`.
-/// 3. Select the right blob via [`blob_index_for_mode`].
+/// 2. Read all profile blobs.
+/// 3. Select the mode's blob via [`blob_for_mode`].
 /// 4. Verify blob size == `0x092C`.
 /// 5. Check that `profile_slot` is active; inactive slot → `Err`.
 /// 6. Decode macro metadata descriptors from Section 4.
@@ -59,15 +59,11 @@ pub fn read_macros(
     }
 
     // 2. Read profile blobs.
-    let read = dev.read_all_profiles(mode)?;
+    let read = dev.read_all_profiles()?;
 
-    // 3. Select blob index for mode.
-    let idx = blob_index_for_mode(mode, read.raw_blobs.len())
+    // 3-4. Pick the mode's blob, then size-check it.
+    let blob = blob_for_mode(&read, mode)
         .ok_or_else(|| Error::Usb("no blob available for mode".into()))?;
-
-    // 4. Bounds-check and size-check the blob.
-    let blob =
-        read.raw_blobs.get(idx).ok_or_else(|| Error::Usb("no blob available for mode".into()))?;
 
     if blob.len() != EXPECTED_BLOB_SIZE {
         return Err(Error::Usb(format!("readback blob size mismatch: {}", blob.len())));
@@ -112,22 +108,11 @@ pub fn read_macros(
     Ok(MacroReadResult { macros })
 }
 
-/// Selects the index of the profile blob that corresponds to `mode`.
-///
-/// Ports `PreWriteReadbackService::blobIndexForMode`:
-/// - Two blobs (product 0x310b): `XInput` → 0, `Switch` → 1.
-/// - One blob (product 0x6009): any mode → 0.
-/// - Any other blob count → `None`.
-pub(crate) const fn blob_index_for_mode(mode: Mode, blob_count: usize) -> Option<usize> {
-    match blob_count {
-        2 => match mode {
-            Mode::XInput => Some(0),
-            Mode::Switch => Some(1),
-            Mode::DInput => None,
-        },
-        1 => Some(0),
-        _ => None,
-    }
+/// Returns the blob of `mode`'s bank from a full read, which holds one blob per mode
+/// in [`Mode::ALL`] order. `None` when the read is short.
+pub(crate) fn blob_for_mode(read: &ProfileReadResult, mode: Mode) -> Option<&Vec<u8>> {
+    let index = Mode::ALL.iter().position(|&m| m == mode)?;
+    read.raw_blobs.get(index)
 }
 
 #[cfg(test)]
@@ -151,14 +136,11 @@ mod tests {
 
     #[test]
     fn read_macros_errors_when_slot_inactive() {
-        // Two-blob layout so blob_index_for_mode resolves for XInput.
-        let dev = MockDevice::new().with_profiles(
-            Mode::XInput,
-            ProfileReadResult {
-                raw_blobs: vec![zeroed_blob(), zeroed_blob()],
-                ..Default::default()
-            },
-        );
+        // One blob per bank, as a full read returns.
+        let dev = MockDevice::new().with_profiles(ProfileReadResult {
+            raw_blobs: vec![zeroed_blob(), zeroed_blob(), zeroed_blob()],
+            ..Default::default()
+        });
         let result = read_macros(&dev, &Pro3, Mode::XInput, Slot::new(1).unwrap());
         assert!(result.is_err(), "expected Err for inactive slot");
         let err = result.unwrap_err();
@@ -178,13 +160,10 @@ mod tests {
     #[test]
     fn read_macros_empty_when_active_but_no_macros() {
         // Active slot-1 marker, but Section-4 (macro descriptors) all zeroed → no macros.
-        let dev = MockDevice::new().with_profiles(
-            Mode::XInput,
-            ProfileReadResult {
-                raw_blobs: vec![active_slot1_blob(), zeroed_blob()],
-                ..Default::default()
-            },
-        );
+        let dev = MockDevice::new().with_profiles(ProfileReadResult {
+            raw_blobs: vec![active_slot1_blob(), zeroed_blob(), zeroed_blob()],
+            ..Default::default()
+        });
         let result = read_macros(&dev, &Pro3, Mode::XInput, Slot::new(1).unwrap());
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
         assert!(result.unwrap().macros.is_empty(), "expected empty macro list");
@@ -202,10 +181,10 @@ mod tests {
         }
 
         let dev = MockDevice::new()
-            .with_profiles(
-                Mode::XInput,
-                ProfileReadResult { raw_blobs: vec![meta, zeroed_blob()], ..Default::default() },
-            )
+            .with_profiles(ProfileReadResult {
+                raw_blobs: vec![meta, zeroed_blob(), zeroed_blob()],
+                ..Default::default()
+            })
             .with_macro_stream(
                 Mode::XInput,
                 Slot::new(1).unwrap(),

@@ -16,12 +16,12 @@ use serial_test::serial;
 #[serial]
 fn reads_every_bank_from_the_current_mode() {
     let dev = HidrawDevice::open().unwrap();
-    let xs = dev.read_all_profiles(Mode::XInput).unwrap();
-    assert_eq!(xs.raw_blobs.len(), 2); // xinput + switch banks
-    let d = dev.read_all_profiles(Mode::DInput).unwrap();
-    assert_eq!(d.raw_blobs.len(), 1);
-    assert!(xs.raw_blobs.iter().chain(&d.raw_blobs).all(|b| b.len() == 0x092C));
-    assert!(xs.profiles.iter().any(|p| !p.name.is_empty())); // at least one active mapped profile
+    let read = dev.read_all_profiles().unwrap();
+    assert_eq!(read.raw_blobs.len(), Mode::ALL.len());
+    assert!(read.raw_blobs.iter().all(|b| b.len() == 0x092C));
+    let modes: Vec<Mode> = read.profiles.iter().map(|p| p.mode).collect();
+    assert_eq!(modes, Mode::ALL.iter().flat_map(|&m| [m; 3]).collect::<Vec<_>>());
+    assert!(read.profiles.iter().any(|p| !p.name.is_empty())); // at least one active mapped profile
 }
 
 #[test]

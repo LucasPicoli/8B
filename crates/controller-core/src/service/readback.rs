@@ -8,7 +8,7 @@
 use crate::detect::is_slot_active;
 use crate::error::{Error, Result};
 use crate::model::{Mode, Slot};
-use crate::service::read::blob_index_for_mode;
+use crate::service::read::blob_for_mode;
 use crate::transport::device_io::DeviceIo;
 use crate::transport::write_input::PROFILE_SIZE;
 
@@ -49,12 +49,11 @@ pub fn readback_and_confirm(
     slot: Slot,
     policy: &ConfirmPolicy,
 ) -> Result<ReadbackResult> {
-    let read = dev.read_all_profiles(mode)?;
+    let read = dev.read_all_profiles()?;
     if read.raw_blobs.is_empty() {
         return Err(Error::Usb("pre-write readback returned no blobs".to_owned()));
     }
-    let blob = blob_index_for_mode(mode, read.raw_blobs.len())
-        .and_then(|i| read.raw_blobs.get(i))
+    let blob = blob_for_mode(&read, mode)
         .ok_or_else(|| Error::Usb(format!("no blob available for mode '{mode}'")))?;
     if blob.len() != PROFILE_SIZE {
         return Err(Error::Usb(format!(
@@ -112,9 +111,15 @@ mod tests {
         b
     }
 
-    fn device(mode: Mode, blobs: Vec<Vec<u8>>) -> MockDevice {
-        MockDevice::new()
-            .with_profiles(mode, ProfileReadResult { raw_blobs: blobs, ..Default::default() })
+    /// A full read with `mode_blob` in `mode`'s bank and the other banks empty.
+    fn device(mode: Mode, mode_blob: &[u8]) -> MockDevice {
+        let raw_blobs =
+            Mode::ALL.iter().map(|&m| if m == mode { mode_blob.to_vec() } else { blob(&[]) });
+        blobs(raw_blobs.collect())
+    }
+
+    fn blobs(raw_blobs: Vec<Vec<u8>>) -> MockDevice {
+        MockDevice::new().with_profiles(ProfileReadResult { raw_blobs, ..Default::default() })
     }
 
     fn slot(n: u8) -> Slot {
@@ -131,7 +136,7 @@ mod tests {
 
     #[test]
     fn empty_slot_proceeds_without_asking() {
-        let dev = device(Mode::XInput, vec![blob(&[1]), blob(&[])]);
+        let dev = device(Mode::XInput, &blob(&[1]));
         let calls = Arc::new(AtomicUsize::new(0));
         let r = readback_and_confirm(&dev, Mode::XInput, slot(2), &asking(false, &calls)).unwrap();
         assert!(r.proceed && !r.slot_active);
@@ -141,7 +146,7 @@ mod tests {
 
     #[test]
     fn active_slot_abort_policy_refuses() {
-        let dev = device(Mode::XInput, vec![blob(&[2]), blob(&[])]);
+        let dev = device(Mode::XInput, &blob(&[2]));
         let r = readback_and_confirm(&dev, Mode::XInput, slot(2), &ConfirmPolicy::Abort).unwrap();
         assert!(!r.proceed && r.slot_active);
         assert!(r.message.contains("Use --force to overwrite"));
@@ -150,7 +155,7 @@ mod tests {
 
     #[test]
     fn active_slot_ask_decline_and_accept() {
-        let dev = device(Mode::XInput, vec![blob(&[3]), blob(&[])]);
+        let dev = device(Mode::XInput, &blob(&[3]));
         let calls = Arc::new(AtomicUsize::new(0));
         let no = readback_and_confirm(&dev, Mode::XInput, slot(3), &asking(false, &calls)).unwrap();
         assert!(!no.proceed);
@@ -162,21 +167,21 @@ mod tests {
 
     #[test]
     fn active_slot_force_proceeds_without_asking() {
-        let dev = device(Mode::DInput, vec![blob(&[1])]);
+        let dev = device(Mode::DInput, &blob(&[1]));
         let r = readback_and_confirm(&dev, Mode::DInput, slot(1), &ConfirmPolicy::Force).unwrap();
         assert!(r.proceed && r.slot_active);
     }
 
     #[test]
     fn force_on_empty_slot_proceeds() {
-        let dev = device(Mode::DInput, vec![blob(&[])]);
+        let dev = device(Mode::DInput, &blob(&[]));
         let r = readback_and_confirm(&dev, Mode::DInput, slot(1), &ConfirmPolicy::Force).unwrap();
         assert!(r.proceed && !r.slot_active);
     }
 
     #[test]
-    fn switch_reads_the_second_blob() {
-        let dev = device(Mode::Switch, vec![blob(&[]), blob(&[2])]);
+    fn switch_reads_the_switch_bank() {
+        let dev = device(Mode::Switch, &blob(&[2]));
         let r = readback_and_confirm(&dev, Mode::Switch, slot(2), &ConfirmPolicy::Abort).unwrap();
         assert!(r.slot_active && !r.proceed);
     }
@@ -190,11 +195,11 @@ mod tests {
 
     #[test]
     fn missing_or_wrong_size_blob_is_an_error() {
-        let none = device(Mode::XInput, vec![]);
+        let none = blobs(vec![]);
         assert!(readback_and_confirm(&none, Mode::XInput, slot(1), &ConfirmPolicy::Force).is_err());
-        let bad = device(Mode::DInput, vec![vec![0u8; 10]]);
+        let bad = device(Mode::DInput, &[0u8; 10]);
         assert!(readback_and_confirm(&bad, Mode::DInput, slot(1), &ConfirmPolicy::Force).is_err());
-        let three = device(Mode::XInput, vec![blob(&[]), blob(&[]), blob(&[])]);
-        assert!(readback_and_confirm(&three, Mode::XInput, slot(1), &ConfirmPolicy::Force).is_err());
+        let short = blobs(vec![blob(&[]), blob(&[])]);
+        assert!(readback_and_confirm(&short, Mode::DInput, slot(1), &ConfirmPolicy::Force).is_err());
     }
 }

@@ -1,0 +1,144 @@
+// Whole-window states before the editor: no controller, no permission.
+import { Theme, Button, LineEdit, Spinner } from "look/breeze/widgets.slint";
+import { Icons, Placeholder, Frame, MessageBar } from "parts.slint";
+
+// Waits on its own, with no button: the app finds the controller by itself.
+export component NoControllerScreen inherits Rectangle {
+    in property <string> status: "Looking for controllers";
+    // Why the last read failed, empty when it did not.
+    in property <string> error;
+    callback about;
+    background: Theme.window;
+    Placeholder {
+        title: "Connect your controller";
+        body: "Plug it in with a USB cable, in any mode. 8B finds it on its own.";
+        VerticalLayout {
+            spacing: 8px;
+            HorizontalLayout {
+                alignment: center;
+                Spinner { }
+            }
+            Text {
+                text: root.status;
+                color: Theme.fg-muted;
+                horizontal-alignment: center;
+            }
+        }
+    }
+    if root.error != "": HorizontalLayout {
+        y: 0;
+        height: self.preferred-height;
+        padding: 16px;
+        MessageBar {
+            error: true;
+            title: "Could not read the controller.";
+            body: root.error;
+        }
+    }
+    HorizontalLayout {
+        y: parent.height - self.height;
+        height: 44px;
+        padding: 6px;
+        alignment: start;
+        Button {
+            text: "About 8B";
+            icon: Icons.info;
+            flat: true;
+            clicked => { root.about(); }
+        }
+    }
+}
+
+export component PermissionScreen inherits Rectangle {
+    in property <string> command;
+    in property <string> rule-path;
+    callback install;
+    callback about;
+    background: Theme.window;
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                width: min(560px, root.width - 64px);
+                spacing: 6px;
+                HorizontalLayout {
+                    alignment: center;
+                    padding-bottom: 8px;
+                    Image {
+                        source: Icons.lock;
+                        colorize: Theme.fg-muted;
+                        width: 64px;
+                        height: 64px;
+                        opacity: 0.6;
+                    }
+                }
+                Text {
+                    text: "Allow 8B to open the controller";
+                    font-size: Theme.text-placeholder;
+                    color: Theme.fg;
+                    horizontal-alignment: center;
+                }
+                Text {
+                    text: "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
+                    color: Theme.fg-muted;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    padding-top: 12px;
+                    padding-bottom: 20px;
+                    Button {
+                        text: "Install rule…";
+                        primary: true;
+                        clicked => { root.install(); }
+                    }
+                }
+                Frame {
+                    VerticalLayout {
+                        padding: 14px;
+                        spacing: 8px;
+                        Text {
+                            text: "Or run this in a terminal:";
+                            color: Theme.fg;
+                        }
+                        HorizontalLayout {
+                            spacing: 6px;
+                            cmd := LineEdit {
+                                text: root.command;
+                                read-only: true;
+                                mono: true;
+                                wrap: true;
+                                accessible-name: "Command that installs the rule";
+                            }
+                            Button {
+                                text: "Copy";
+                                icon: Icons.copy;
+                                clicked => { cmd.copy-all(); }
+                            }
+                        }
+                        Text {
+                            text: "Both install " + root.rule-path + ". It gives the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers.";
+                            font-size: Theme.text-caption;
+                            color: Theme.fg-muted;
+                            wrap: word-wrap;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        y: parent.height - self.height;
+        height: 44px;
+        padding: 6px;
+        alignment: start;
+        Button {
+            text: "About 8B";
+            icon: Icons.info;
+            flat: true;
+            clicked => { root.about(); }
+        }
+    }
+}

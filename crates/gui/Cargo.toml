@@ -1,0 +1,26 @@
+[package]
+name = "gui"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Desktop editor for the profiles stored on 8BitDo controllers."
+
+[[bin]]
+name = "8b"
+path = "src/main.rs"
+
+[dependencies]
+controller-core = { path = "../controller-core" }
+slint = { version = "1.18", default-features = false, features = ["compat-1-2", "std", "backend-winit", "renderer-femtovg", "accessibility"] }
+
+[build-dependencies]
+slint-build = "1.18"
+
+[dev-dependencies]
+# Snapshot tests draw into memory, with no display.
+slint = { version = "1.18", default-features = false, features = ["renderer-software", "software-renderer-systemfonts"] }
+tempfile = "3"
+
+[lints]
+workspace = true

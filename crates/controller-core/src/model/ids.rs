@@ -20,6 +20,19 @@ pub enum Mode {
 }
 
 impl Mode {
+    /// Every mode, in the order a full read returns its bank.
+    pub const ALL: [Self; 3] = [Self::XInput, Self::Switch, Self::DInput];
+
+    /// Returns the name shown to the user, such as `XInput`.
+    #[must_use]
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::XInput => "XInput",
+            Self::Switch => "Switch",
+            Self::DInput => "DInput",
+        }
+    }
+
     /// Returns the canonical lowercase string for this mode.
     #[must_use]
     pub const fn as_str(self) -> &'static str {

@@ -1,0 +1,149 @@
+// Review, clear, cross-mode import, failed write and About.
+import { AboutSlint } from "std-widgets.slint";
+import { Theme, Button, LineEdit } from "look/breeze/widgets.slint";
+import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
+import { Change } from "types.slint";
+
+component Bullet {
+    in property <string> text;
+    in property <string> aside;
+    HorizontalLayout {
+        spacing: 8px;
+        Text {
+            text: "•";
+            color: Theme.fg-muted;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.text + (root.aside != "" ? " " + root.aside : "");
+            color: Theme.fg;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component ReviewDialog inherits DialogShell {
+    in property <string> slot-title;
+    in property <string> profile-name;
+    in property <[Change]> changes;
+    in property <int> macro-count;
+    in property <string> macro-note;
+    title: "Write " + changes.length + " changes to " + slot-title + "?";
+    subtitle: "This replaces the profile “" + profile-name + "” stored on the controller.";
+    accept-text: "Write to controller";
+    ChangeTable {
+        model: root.changes;
+    }
+    Bullet {
+        text: "The " + root.macro-count + " macros on this slot stay.";
+        aside: root.macro-note;
+    }
+    Bullet {
+        text: "A backup of the slot is saved first, and the slot is read back after the write.";
+    }
+    Bullet {
+        text: "The controller applies the profile while its profile light is on.";
+    }
+}
+
+export component ClearDialog inherits DialogShell {
+    in property <string> slot-title;
+    in property <string> profile-name;
+    in property <int> macro-count;
+    icon: Icons.warning;
+    destructive: true;
+    title: "Clear " + slot-title + "?";
+    subtitle: "This removes the profile “" + profile-name + "” from the controller. Export it first if you may want it back.";
+    accept-text: "Clear slot";
+    extra-text: "Export…";
+    extra-icon: Icons.export;
+    Bullet {
+        text: "The slot’s " + root.macro-count + " macros stay stored, but the next profile written to this slot removes them.";
+    }
+}
+
+export component ImportDialog inherits DialogShell {
+    in property <string> slot-title;
+    in property <string> file-name;
+    in property <string> from-mode;
+    in property <string> to-mode;
+    in property <[Change]> lost;
+    icon: Icons.info;
+    title: "Import a " + from-mode + " profile into " + slot-title + "?";
+    subtitle: "“" + file-name + "” was exported from a " + from-mode + " slot. 8B gives each button the " + to-mode + " output with the same role.";
+    accept-text: "Import";
+    Text {
+        text: root.lost.length + " buttons have no " + root.to-mode + " match and become Disabled:";
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    ChangeTable {
+        model: root.lost;
+    }
+    Text {
+        text: "Nothing reaches the controller until you write.";
+        color: Theme.fg-muted;
+    }
+}
+
+export component FailedDialog inherits DialogShell {
+    in property <string> slot-title;
+    in property <string> detail;
+    in property <string> backup-path;
+    icon: Icons.error;
+    alarm: true;
+    card-width: 560px;
+    title: "Writing to " + slot-title + " failed";
+    subtitle: detail;
+    cancel-text: "Close";
+    accept-text: "Write again";
+    extra-text: "Open folder";
+    extra-icon: Icons.folder;
+    Text {
+        text: "The old profile is saved in this file:";
+        color: Theme.fg;
+    }
+    HorizontalLayout {
+        spacing: 6px;
+        path := LineEdit {
+            text: root.backup-path;
+            read-only: true;
+            mono: true;
+            wrap: true;
+            accessible-name: "Backup file";
+        }
+        Button {
+            text: "Copy";
+            icon: Icons.copy;
+            clicked => { path.copy-all(); }
+        }
+    }
+    Text {
+        text: "Your edits are still here, so you can write again.";
+        color: Theme.fg-muted;
+        wrap: word-wrap;
+    }
+}
+
+export component AboutDialog inherits DialogShell {
+    in property <string> version;
+    icon: Icons.pad;
+    title: "8B";
+    subtitle: "Version " + version;
+    cancel-text: "Close";
+    Text {
+        text: "Reads and edits the profiles stored on 8BitDo controllers over USB.";
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    Text {
+        text: "8B is an independent project, not made or endorsed by 8BitDo.";
+        color: Theme.fg-muted;
+        wrap: word-wrap;
+    }
+    Frame {
+        background: Theme.view;
+        height: 104px;
+        AboutSlint { }
+    }
+}

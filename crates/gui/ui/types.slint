@@ -1,0 +1,100 @@
+// The data the markup gets from Rust. Every model-specific fact (modes, slots,
+// buttons, outputs, art) arrives here, so the markup names no controller model.
+
+export struct Slot {
+    mode: int,
+    number: int,
+    name: string,
+    empty: bool,
+    macros: int,
+    unsaved: bool,
+}
+
+export struct ModeGroup {
+    name: string,
+    current: bool,
+    slots: [Slot],
+}
+
+export struct Section {
+    name: string,
+    unsaved: bool,
+    // Shown as a count badge when above zero (Macros).
+    count: int,
+}
+
+export struct MapRow {
+    id: string,
+    label: string,
+    detail: string,
+    // "also runs macro 1"
+    note: string,
+    output: int,
+    // Not remappable; `fixed-text` says why.
+    fixed: bool,
+    fixed-text: string,
+    changed: bool,
+}
+
+// One clickable shape on the controller image, in the art's viewBox units.
+export struct Hotspot {
+    id: string,
+    back: bool,
+    commands: string,
+    x: float,
+    y: float,
+    w: float,
+    h: float,
+    mapped: bool,
+    fixed: bool,
+    label: string,
+    label-x: float,
+    label-y: float,
+    chip: string,
+    chip-x: float,
+    chip-y: float,
+    // Index of this button's row in the mapping table.
+    row: int,
+}
+
+export struct Art {
+    front-body: string,
+    front-detail: string,
+    front-w: float,
+    front-h: float,
+    back-body: string,
+    back-w: float,
+    back-h: float,
+}
+
+export struct Change {
+    what: string,
+    from: string,
+    to: string,
+}
+
+export struct Macro {
+    name: string,
+    detail: string,
+    length: string,
+}
+
+export struct Setting {
+    label: string,
+    value: float,
+    was: float,
+    changed: bool,
+}
+
+export struct Group {
+    title: string,
+    settings: [Setting],
+}
+
+export struct Trigger {
+    title: string,
+    // Index into the response names (Analog, Threshold).
+    response: int,
+    low: float,
+    high: float,
+}

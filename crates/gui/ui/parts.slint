@@ -1,0 +1,443 @@
+// Pieces shared by the screens, coloured from `Theme`.
+import { Theme, Button } from "look/breeze/widgets.slint";
+import { Section, Change } from "types.slint";
+
+export global Icons {
+    out property <image> import: @image-url("icons/import.svg");
+    out property <image> export: @image-url("icons/export.svg");
+    out property <image> clear: @image-url("icons/clear.svg");
+    out property <image> discard: @image-url("icons/discard.svg");
+    out property <image> warning: @image-url("icons/warning.svg");
+    out property <image> error: @image-url("icons/error.svg");
+    out property <image> info: @image-url("icons/info.svg");
+    out property <image> lock: @image-url("icons/lock.svg");
+    out property <image> copy: @image-url("icons/copy.svg");
+    out property <image> folder: @image-url("icons/folder.svg");
+    out property <image> unplug: @image-url("icons/unplug.svg");
+    out property <image> pad: @image-url("icons/pad.svg");
+    out property <image> close: @image-url("icons/close.svg");
+}
+
+// Unsaved edits marker.
+export component Dot inherits Rectangle {
+    width: 7px;
+    height: 7px;
+    border-radius: 3.5px;
+    background: Theme.neutral;
+    accessible-role: text;
+    accessible-label: "Unsaved edits";
+}
+
+export component Frame inherits Rectangle {
+    background: Theme.view;
+    border-width: 1px;
+    border-color: Theme.line-soft;
+    border-radius: Theme.radius-frame;
+    clip: true;
+}
+
+// KMessageWidget: tinted box with a 1px border in the message colour.
+export component MessageBar inherits Rectangle {
+    in property <bool> error;
+    // Information, not a warning: the accent colour and the info icon.
+    in property <bool> info;
+    in property <bool> closable;
+    in property <image> icon: error ? Icons.error : info ? Icons.info : Icons.warning;
+    in property <string> title;
+    in property <string> body;
+    callback closed;
+    property <brush> tone: error ? Theme.negative : info ? Theme.accent : Theme.neutral;
+    background: error ? Theme.negative-wash : info ? Theme.accent-wash : Theme.neutral-wash;
+    border-width: 1px;
+    border-color: tone;
+    border-radius: Theme.radius;
+    accessible-role: text;
+    accessible-label: title + " " + body;
+    HorizontalLayout {
+        padding: 8px;
+        padding-left: 12px;
+        padding-right: 12px;
+        spacing: 10px;
+        Image {
+            source: root.icon;
+            colorize: root.tone;
+            width: 16px;
+            height: 16px;
+            y: 10px;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.title + (root.body != "" ? " " + root.body : "");
+            color: Theme.fg;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+        if root.closable: Button {
+            text: "Close";
+            icon: Icons.close;
+            icon-only: true;
+            flat: true;
+            clicked => { root.closed(); }
+        }
+    }
+}
+
+export component TabBar inherits Rectangle {
+    in property <[Section]> model;
+    in-out property <int> current;
+    height: 36px;
+    background: Theme.header;
+    accessible-role: tab-list;
+    forward-focus: fs;
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.RightArrow) {
+                root.current = mod(root.current + 1, root.model.length);
+                return accept;
+            }
+            if (e.text == Key.LeftArrow) {
+                root.current = mod(root.current - 1 + root.model.length, root.model.length);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    HorizontalLayout {
+        padding-left: 12px;
+        spacing: 2px;
+        alignment: start;
+        for section[i] in root.model: Rectangle {
+            property <bool> on: i == root.current;
+            accessible-role: tab;
+            accessible-label: section.name;
+            accessible-item-selected: self.on;
+            accessible-action-default => { root.current = i; }
+            background: !self.on && tab-ta.has-hover ? Theme.hover : transparent;
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 14px;
+                spacing: 6px;
+                Text {
+                    text: section.name;
+                    color: on ? Theme.fg : Theme.fg-muted;
+                    font-weight: on ? 600 : 400;
+                    vertical-alignment: center;
+                }
+                if section.unsaved: Dot {
+                    y: (parent.height - self.height) / 2;
+                }
+                if section.count > 0: Rectangle {
+                    y: (parent.height - 16px) / 2;
+                    height: 16px;
+                    border-radius: 8px;
+                    background: Theme.line-soft;
+                    HorizontalLayout {
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        Text {
+                            text: section.count;
+                            font-size: Theme.text-small;
+                            color: Theme.fg-muted;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+            // Selected tab: accent underline over the bar's bottom border.
+            Rectangle {
+                y: parent.height - 2px;
+                height: 2px;
+                background: on ? Theme.accent : transparent;
+            }
+            if on && fs.has-focus: Rectangle {
+                x: 4px;
+                y: 5px;
+                width: parent.width - 8px;
+                height: parent.height - 12px;
+                border-width: 2px;
+                border-radius: Theme.radius;
+                border-color: Theme.accent;
+            }
+            tab-ta := TouchArea {
+                clicked => {
+                    root.current = i;
+                    fs.focus();
+                }
+            }
+        }
+    }
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
+export component ChangeTable inherits Frame {
+    in property <[Change]> model;
+    VerticalLayout {
+        for c[i] in root.model: Rectangle {
+            min-height: 32px;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 10px;
+                Text {
+                    width: 46%;
+                    text: c.what;
+                    font-weight: 600;
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    text: c.from + "  →  " + c.to;
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+            }
+            if i < root.model.length - 1: Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+        }
+    }
+}
+
+// Kirigami PlaceholderMessage: large muted icon, title, explanation, actions.
+export component Placeholder {
+    in property <image> icon: Icons.pad;
+    in property <string> title;
+    in property <string> body;
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                spacing: 6px;
+                max-width: 460px;
+                HorizontalLayout {
+                    alignment: center;
+                    padding-bottom: 8px;
+                    Image {
+                        source: root.icon;
+                        colorize: Theme.fg-muted;
+                        width: 64px;
+                        height: 64px;
+                        opacity: 0.6;
+                    }
+                }
+                Text {
+                    text: root.title;
+                    font-size: Theme.text-placeholder;
+                    color: Theme.fg;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                Text {
+                    text: root.body;
+                    color: Theme.fg-muted;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
+                }
+                HorizontalLayout {
+                    alignment: center;
+                    padding-top: 12px;
+                    spacing: 8px;
+                    @children
+                }
+            }
+        }
+    }
+}
+
+// Modal sheet over the window. Escape cancels.
+export component DialogShell inherits Rectangle {
+    in property <string> title;
+    in property <string> subtitle;
+    in property <image> icon;
+    in property <length> card-width: 520px;
+    in property <string> accept-text;
+    in property <string> cancel-text: "Cancel";
+    in property <bool> destructive;
+    // Icon in the error colour.
+    in property <bool> alarm: destructive;
+    // Optional left-aligned action, such as "Export…".
+    in property <string> extra-text;
+    in property <image> extra-icon;
+    callback accepted;
+    callback cancelled;
+    callback extra;
+    background: Theme.scrim;
+    accessible-role: groupbox;
+    accessible-label: title;
+
+    // Swallow clicks on the scrim.
+    TouchArea { }
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.Escape) {
+                root.cancelled();
+                return accept;
+            }
+            reject
+        }
+    }
+    init => { fs.focus(); }
+
+    card := Rectangle {
+        width: root.card-width;
+        height: body.preferred-height;
+        background: Theme.window;
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: Theme.radius-frame;
+        drop-shadow-blur: 40px;
+        drop-shadow-offset-y: 12px;
+        drop-shadow-color: Theme.shadow;
+        clip: true;
+
+        body := VerticalLayout {
+            HorizontalLayout {
+                padding-left: 18px;
+                padding-right: 18px;
+                padding-top: 16px;
+                padding-bottom: 6px;
+                spacing: 12px;
+                if root.icon.width > 0: Image {
+                    source: root.icon;
+                    colorize: root.alarm ? Theme.negative : Theme.fg-muted;
+                    width: 32px;
+                    height: 32px;
+                    y: 0;
+                }
+                VerticalLayout {
+                    spacing: 4px;
+                    Text {
+                        text: root.title;
+                        font-size: Theme.text-title;
+                        font-weight: 600;
+                        color: Theme.fg;
+                        wrap: word-wrap;
+                    }
+                    if root.subtitle != "": Text {
+                        text: root.subtitle;
+                        color: Theme.fg-muted;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+            VerticalLayout {
+                padding-left: 18px;
+                padding-right: 18px;
+                padding-top: 10px;
+                padding-bottom: 14px;
+                spacing: 10px;
+                @children
+            }
+            Rectangle {
+                height: 1px;
+                background: Theme.line-soft;
+            }
+            Rectangle {
+                background: Theme.header;
+                HorizontalLayout {
+                    padding: 12px;
+                    padding-left: 18px;
+                    padding-right: 18px;
+                    spacing: 8px;
+                    if root.extra-text != "": Button {
+                        text: root.extra-text;
+                        icon: root.extra-icon;
+                        clicked => { root.extra(); }
+                    }
+                    Rectangle { horizontal-stretch: 1; }
+                    if root.cancel-text != "": Button {
+                        text: root.cancel-text;
+                        clicked => { root.cancelled(); }
+                    }
+                    if root.accept-text != "": Button {
+                        text: root.accept-text;
+                        primary: !root.destructive;
+                        destructive: root.destructive;
+                        clicked => { root.accepted(); }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Two knobs on one groove: the trigger range. Left and Right move the low end,
+// with Shift the high end.
+export component RangeSlider {
+    in-out property <float> low;
+    in-out property <float> high: 100;
+    in property <string> accessible-name;
+    min-height: 22px;
+    max-height: 22px;
+    accessible-role: slider;
+    accessible-label: accessible-name;
+    accessible-value: round(low) + " to " + round(high) + "%";
+    forward-focus: fs;
+    property <length> knob: 18px;
+    property <length> span: self.width - knob;
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            let d = e.text == Key.LeftArrow ? -1 : e.text == Key.RightArrow ? 1 : 0;
+            if (d == 0) {
+                return reject;
+            }
+            if (e.modifiers.shift) {
+                root.high = clamp(root.high + d, root.low, 100);
+            } else {
+                root.low = clamp(root.low + d, 0, root.high);
+            }
+            accept
+        }
+    }
+    Rectangle {
+        y: (parent.height - 4px) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.line;
+    }
+    Rectangle {
+        x: root.knob / 2 + root.low / 100 * root.span;
+        y: (parent.height - 4px) / 2;
+        width: (root.high - root.low) / 100 * root.span;
+        height: 4px;
+        background: Theme.accent;
+    }
+    for v[i] in [root.low, root.high]: Rectangle {
+        x: v / 100 * root.span;
+        y: (parent.height - root.knob) / 2;
+        width: root.knob;
+        height: root.knob;
+        border-radius: root.knob / 2;
+        background: Theme.button;
+        border-width: 1px;
+        border-color: fs.has-focus ? Theme.accent : Theme.line;
+        drop-shadow-blur: 2px;
+        drop-shadow-offset-y: 1px;
+        drop-shadow-color: Theme.shadow;
+    }
+    TouchArea {
+        // ponytail: drag moves the nearer knob, no hand-off when knobs meet.
+        moved => {
+            if (self.pressed) {
+                let v = clamp((self.mouse-x - root.knob / 2) / root.span * 100, 0, 100);
+                if (abs(v - root.low) < abs(v - root.high)) {
+                    root.low = min(round(v), root.high);
+                } else {
+                    root.high = max(round(v), root.low);
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,398 @@
+// Breeze-drawn controls: Button, LineEdit, ComboBox, Slider, ScrollView, Spinner.
+import { Theme } from "theme.slint";
+export { Theme }
+
+export component Button {
+    in property <string> text;
+    in property <image> icon;
+    in property <bool> primary;
+    in property <bool> destructive;
+    // Toolbar button: no frame until hovered.
+    in property <bool> flat;
+    // Narrow toolbar: icon only, the text stays the accessible label.
+    in property <bool> icon-only;
+    in property <bool> enabled: true;
+    callback clicked;
+
+    property <bool> filled: (primary || destructive) && enabled;
+    property <brush> ink: filled ? Theme.on-accent : Theme.fg;
+
+    min-height: Theme.control-height;
+    max-height: Theme.control-height;
+    horizontal-stretch: 0;
+    accessible-role: button;
+    accessible-label: text;
+    accessible-enabled: enabled;
+    accessible-action-default => { clicked(); }
+    forward-focus: fs;
+
+    fs := FocusScope {
+        focus-on-click: false;
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == " " || e.text == Key.Return) {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        opacity: root.enabled ? 1 : 0.45;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        background: root.destructive && root.enabled ? Theme.negative-strong
+            : root.filled ? Theme.accent-strong
+            : root.flat && !ta.has-hover ? transparent
+            : ta.has-hover && root.enabled ? Theme.hover : Theme.button;
+        border-color: root.destructive && root.enabled ? Theme.negative-strong
+            : root.filled ? Theme.accent-strong
+            : root.flat && !ta.has-hover ? transparent
+            : ta.has-hover && root.enabled ? Theme.accent : Theme.line;
+
+        HorizontalLayout {
+            padding-left: 10px;
+            padding-right: 10px;
+            spacing: 6px;
+            alignment: center;
+            if root.icon.width > 0: Image {
+                source: root.icon;
+                colorize: root.ink;
+                width: 16px;
+                height: 16px;
+                y: (parent.height - self.height) / 2;
+            }
+            if root.text != "" && !root.icon-only: Text {
+                text: root.text;
+                color: root.ink;
+                font-weight: root.filled ? 600 : 400;
+                vertical-alignment: center;
+            }
+        }
+    }
+
+    // Keyboard focus, Breeze style: accent outline outside the control.
+    if fs.has-focus: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: root.width + 4px;
+        height: root.height + 4px;
+        border-radius: Theme.radius + 2px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component LineEdit {
+    in-out property <string> text;
+    in property <bool> read-only;
+    in property <bool> mono;
+    // Several lines: a path or command the user must read in full.
+    in property <bool> wrap;
+    in property <string> accessible-name;
+    callback edited(string);
+    min-height: wrap ? ti.preferred-height + 12px : Theme.control-height;
+    max-height: self.min-height;
+    accessible-role: text-input;
+    accessible-label: accessible-name;
+    accessible-value: text;
+    forward-focus: ti;
+
+    Rectangle {
+        background: root.read-only ? Theme.window : Theme.view;
+        border-radius: Theme.radius;
+        border-width: 1px;
+        border-color: ti.has-focus ? Theme.accent : Theme.line;
+        clip: true;
+        ti := TextInput {
+            x: 8px;
+            y: root.wrap ? 6px : 0;
+            width: parent.width - 16px;
+            height: root.wrap ? parent.height - 12px : parent.height;
+            wrap: root.wrap ? char-wrap : no-wrap;
+            text <=> root.text;
+            read-only: root.read-only;
+            color: Theme.fg;
+            font-family: root.mono ? Theme.mono-family : Theme.font-family;
+            selection-background-color: Theme.accent;
+            selection-foreground-color: Theme.on-accent;
+            vertical-alignment: center;
+            single-line: !root.wrap;
+            edited => { root.edited(root.text); }
+        }
+    }
+
+    public function copy-all() {
+        ti.select-all();
+        ti.copy();
+        ti.clear-selection();
+    }
+}
+
+export component ComboBox {
+    in property <[string]> model;
+    in-out property <int> current-index;
+    out property <string> current-value: model[current-index];
+    in property <bool> enabled: true;
+    in property <string> accessible-name;
+    // Small: the table rows, 26px.
+    in property <bool> small;
+    callback selected(string);
+    callback focused;
+    min-height: small ? 26px : Theme.control-height;
+    max-height: self.min-height;
+    min-width: 120px;
+    accessible-role: combobox;
+    accessible-label: accessible-name;
+    accessible-value: current-value;
+    forward-focus: fs;
+
+    function pick(i: int) {
+        if (i >= 0 && i < model.length && i != current-index) {
+            current-index = i;
+            selected(current-value);
+        }
+    }
+
+    fs := FocusScope {
+        enabled: root.enabled;
+        focus-gained => { root.focused(); }
+        key-pressed(e) => {
+            if (e.text == Key.UpArrow) {
+                root.pick(root.current-index - 1);
+                return accept;
+            }
+            if (e.text == Key.DownArrow) {
+                root.pick(root.current-index + 1);
+                return accept;
+            }
+            if (e.text == " " || e.text == Key.Return) {
+                popup.show();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        border-radius: Theme.radius;
+        border-width: 1px;
+        background: ta.has-hover ? Theme.hover : Theme.button;
+        border-color: ta.has-hover || fs.has-focus ? Theme.accent : Theme.line;
+        Text {
+            x: 8px;
+            width: parent.width - 34px;
+            height: parent.height;
+            text: root.current-value;
+            color: Theme.fg;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Image {
+            x: parent.width - 22px;
+            width: 14px;
+            height: 14px;
+            source: @image-url("../../icons/chevron.svg");
+            colorize: Theme.fg-muted;
+        }
+    }
+
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            fs.focus();
+            popup.show();
+        }
+    }
+
+    if fs.has-focus: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: root.width + 4px;
+        height: root.height + 4px;
+        border-radius: Theme.radius + 2px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+
+    popup := PopupWindow {
+        x: 0;
+        y: root.height + 2px;
+        width: max(root.width, 160px);
+        Rectangle {
+            background: Theme.view;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.line;
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 4px;
+            drop-shadow-color: Theme.shadow;
+        }
+        VerticalLayout {
+            padding: 4px;
+            for item[i] in root.model: Rectangle {
+                height: 26px;
+                border-radius: 3px;
+                background: i == root.current-index ? Theme.accent-wash : item-ta.has-hover ? Theme.hover : transparent;
+                Text {
+                    x: 8px;
+                    text: item;
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                item-ta := TouchArea {
+                    clicked => { root.pick(i); }
+                }
+            }
+        }
+    }
+}
+
+export component Slider {
+    in-out property <float> value;
+    in property <float> minimum: 0;
+    in property <float> maximum: 100;
+    in property <float> step: 1;
+    in property <string> accessible-name;
+    callback changed(float);
+    min-height: 22px;
+    max-height: 22px;
+    min-width: 120px;
+    accessible-role: slider;
+    accessible-label: accessible-name;
+    accessible-value: round(value);
+    accessible-value-minimum: minimum;
+    accessible-value-maximum: maximum;
+    accessible-value-step: step;
+    forward-focus: fs;
+
+    property <float> ratio: (value - minimum) / (maximum - minimum);
+    property <length> knob: 18px;
+
+    function set(v: float) {
+        value = clamp(round(v / step) * step, minimum, maximum);
+        changed(value);
+    }
+
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (e.text == Key.LeftArrow || e.text == Key.DownArrow) {
+                root.set(root.value - root.step);
+                return accept;
+            }
+            if (e.text == Key.RightArrow || e.text == Key.UpArrow) {
+                root.set(root.value + root.step);
+                return accept;
+            }
+            reject
+        }
+    }
+
+    Rectangle {
+        y: (parent.height - 4px) / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.line;
+    }
+    Rectangle {
+        x: 0;
+        y: (parent.height - 4px) / 2;
+        width: root.ratio * (parent.width - root.knob) + root.knob / 2;
+        height: 4px;
+        border-radius: 2px;
+        background: Theme.accent;
+    }
+    Rectangle {
+        x: root.ratio * (parent.width - root.knob);
+        y: (parent.height - root.knob) / 2;
+        width: root.knob;
+        height: root.knob;
+        border-radius: root.knob / 2;
+        background: Theme.button;
+        border-width: 1px;
+        border-color: fs.has-focus || ta.has-hover ? Theme.accent : Theme.line;
+        drop-shadow-blur: 2px;
+        drop-shadow-offset-y: 1px;
+        drop-shadow-color: Theme.shadow;
+    }
+
+    ta := TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down) {
+                fs.focus();
+                root.set(root.minimum + (self.mouse-x - root.knob / 2) / (self.width - root.knob) * (root.maximum - root.minimum));
+            }
+        }
+        moved => {
+            if (self.pressed) {
+                root.set(root.minimum + (self.mouse-x - root.knob / 2) / (self.width - root.knob) * (root.maximum - root.minimum));
+            }
+        }
+    }
+}
+
+// Breeze scroll bar: a thin groove that widens on hover.
+export component ScrollView {
+    in-out property <length> content-y <=> f.content-y;
+    in-out property <length> content-height <=> f.content-height;
+    out property <length> visible-height: f.height;
+    min-height: 50px;
+    horizontal-stretch: 1;
+    vertical-stretch: 1;
+
+    property <length> range: f.content-height - f.height;
+
+    f := Flickable {
+        width: parent.width;
+        height: parent.height;
+        @children
+    }
+
+    if root.range > 0: Rectangle {
+        property <length> track: root.height - 4px;
+        property <length> thumb: max(28px, self.track * f.height / f.content-height);
+        x: root.width - self.width - 2px;
+        y: 2px;
+        width: bar-ta.has-hover || bar-ta.pressed ? 8px : 4px;
+        height: self.track;
+        animate width { duration: 120ms; }
+        Rectangle {
+            y: -f.content-y / root.range * (parent.track - parent.thumb);
+            height: parent.thumb;
+            border-radius: parent.width / 2;
+            background: bar-ta.pressed ? Theme.accent : Theme.fg-muted.with-alpha(bar-ta.has-hover ? 0.7 : 0.45);
+        }
+        bar-ta := TouchArea {
+            x: -6px;
+            width: parent.width + 8px;
+            moved => {
+                if (self.pressed) {
+                    f.content-y = -clamp((self.mouse-y - parent.thumb / 2) / (parent.track - parent.thumb), 0, 1) * root.range;
+                }
+            }
+        }
+    }
+}
+
+export component Spinner {
+    width: 18px;
+    height: 18px;
+    // A 270 degree arc that turns once every 900 ms.
+    property <angle> a: 360deg * mod(animation-tick(), 900ms) / 900ms;
+    Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 18;
+        viewbox-height: 18;
+        stroke: Theme.accent;
+        stroke-width: 2px;
+        commands: "M " + (9 + 7 * cos(root.a)) + " " + (9 + 7 * sin(root.a))
+            + " A 7 7 0 1 1 " + (9 + 7 * cos(root.a + 270deg)) + " " + (9 + 7 * sin(root.a + 270deg));
+    }
+}

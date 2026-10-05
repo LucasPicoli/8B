@@ -107,7 +107,7 @@ pub fn detect_and_read_all(dev: &dyn DeviceIo, _codec: &Pro3) -> DetectAndReadRe
     };
 
     // 4. Read profiles.
-    match read::read_profiles(dev, mode) {
+    match read::read_profiles(dev) {
         Ok(rr) => DetectAndReadResult {
             success: true,
             message: "Profiles read successfully.".into(),
@@ -220,9 +220,7 @@ mod tests {
             profiles: vec![dummy_summary()],
             raw_blobs: vec![vec![0u8; 0x092C], vec![0u8; 0x092C]],
         };
-        let dev = MockDevice::new()
-            .with_readiness(readiness)
-            .with_profiles(Mode::XInput, profiles_result);
+        let dev = MockDevice::new().with_readiness(readiness).with_profiles(profiles_result);
 
         let out = detect_and_read_all(&dev, &Pro3);
         assert!(out.success, "expected success with mock device");
@@ -246,9 +244,7 @@ mod tests {
             profiles: vec![dummy_summary()],
             raw_blobs: vec![vec![0u8; 0x092C], vec![0u8; 0x092C]],
         };
-        let dev = MockDevice::new()
-            .with_readiness(readiness)
-            .with_profiles(Mode::XInput, profiles_result);
+        let dev = MockDevice::new().with_readiness(readiness).with_profiles(profiles_result);
 
         let blobs = dump_blobs(&dev, &Pro3).expect("dump_blobs should succeed");
         assert_eq!(blobs.len(), 2);

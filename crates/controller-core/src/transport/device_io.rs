@@ -8,11 +8,12 @@ use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 /// Every write method opens its own USB session and releases it before returning,
 /// so callers sequence the protocol steps (slot select, write, apply).
 pub trait DeviceIo {
-    /// Reads all on-device profiles for the given mode's product.
+    /// Reads the profiles of every mode's bank, in [`Mode::ALL`] order, from any
+    /// current mode. `raw_blobs` holds one blob per bank in the same order.
     ///
     /// # Errors
     /// Returns a connection/timeout/decode error on failure.
-    fn read_all_profiles(&self, mode: Mode) -> Result<ProfileReadResult>;
+    fn read_all_profiles(&self) -> Result<ProfileReadResult>;
 
     /// Reads a raw macro step stream from flash.
     ///

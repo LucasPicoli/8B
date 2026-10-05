@@ -18,7 +18,7 @@ const L4_SLOT3: usize = 0x00E4 + 2 * 0x5C + 20 * 4;
 const CRC: std::ops::Range<usize> = 0x0C..0x10;
 
 fn dinput_bank(dev: &HidrawDevice) -> Vec<u8> {
-    dev.read_all_profiles(Mode::DInput).unwrap().raw_blobs.remove(0)
+    dev.read_all_profiles().unwrap().raw_blobs.remove(2)
 }
 
 /// Offsets where `a` and `b` differ, outside the CRC.

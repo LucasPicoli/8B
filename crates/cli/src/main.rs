@@ -72,7 +72,7 @@ enum Commands {
     /// Read all profiles from the device and report them as JSON.
     Read,
 
-    /// Save every profile of the current mode as canonical JSON (re-uploadable).
+    /// Save every profile of every mode as canonical JSON (re-uploadable).
     Export {
         /// Output directory.
         #[arg(short, long, default_value = "exports")]

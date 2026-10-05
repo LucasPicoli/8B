@@ -141,30 +141,24 @@ fn empty_summary(mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
 // ---------------------------------------------------------------------------
 
 impl crate::transport::DeviceIo for HidrawDevice {
-    /// Reads the slot banks for target `mode`, from any current mode.
+    /// Reads every bank in [`Mode::ALL`] order in one session, from any current mode.
     ///
-    /// `XInput` or Switch reads the `XInput` bank, then the Switch bank (2 blobs).
-    /// `DInput` reads the `DInput` bank (1 blob). The session ends with the current
-    /// mode's bank selected, which leaves the pad on that bank's stored slot.
+    /// The session ends with the current mode's bank selected, which leaves the pad
+    /// on that bank's stored slot.
     ///
     /// **Never sends `QUERY_STATUS`** beyond the session's own pause.
     ///
     /// # Errors
     /// Returns [`Error::NoDevice`], [`Error::Usb`], [`Error::Timeout`],
     /// [`Error::Disconnected`] or [`Error::Decode`] on failure.
-    fn read_all_profiles(&self, mode: Mode) -> Result<ProfileReadResult> {
-        let targets: &[Mode] = match mode {
-            Mode::XInput | Mode::Switch => &[Mode::XInput, Mode::Switch],
-            Mode::DInput => &[Mode::DInput],
-        };
-
+    fn read_all_profiles(&self) -> Result<ProfileReadResult> {
         // The session sends `START_CONFIG` once, to identify the model.
         let mut session = Session::open(self.spec, READ_TIMEOUT)?;
 
         let mut profiles = Vec::new();
         let mut raw_blobs = Vec::new();
 
-        for &target_mode in targets {
+        for target_mode in Mode::ALL {
             let slot_select = self.spec.slot_select_value(target_mode);
             let _ = session.send_recv(&build_slot_select(slot_select))?;
             let blob = read_blob_chunks(&mut session)?;

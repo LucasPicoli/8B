@@ -84,14 +84,12 @@ fn base_blob(mode: Mode) -> Vec<u8> {
     blob
 }
 
+/// A full read with `blob` in `mode`'s bank and the other banks empty.
 fn device(mode: Mode, blob: &[u8]) -> MockDevice {
-    let blobs = if mode == Mode::Switch {
-        vec![vec![0; BLOB_SIZE], blob.to_vec()]
-    } else {
-        vec![blob.to_vec(), vec![0; BLOB_SIZE]]
-    };
+    let blobs =
+        Mode::ALL.iter().map(|&m| if m == mode { blob.to_vec() } else { vec![0; BLOB_SIZE] });
     MockDevice::new()
-        .with_profiles(mode, ProfileReadResult { raw_blobs: blobs, ..Default::default() })
+        .with_profiles(ProfileReadResult { raw_blobs: blobs.collect(), ..Default::default() })
 }
 
 fn orch<'a>(dev: &'a MockDevice, dir: &'a Path) -> ProfileWriteOrchestrator<'a> {
@@ -701,11 +699,7 @@ fn no_device_is_a_connection_failure() {
 #[test]
 fn dinput_remap_on_the_official_blob_changes_one_entry() {
     let official = std::fs::read("../../fixtures/pro3/dinput-official.blob").unwrap();
-    // A DInput read returns the DInput bank only.
-    let dev = MockDevice::new().with_profiles(
-        Mode::DInput,
-        ProfileReadResult { raw_blobs: vec![official.clone()], ..Default::default() },
-    );
+    let dev = device(Mode::DInput, &official);
     let dir = tempfile::tempdir().unwrap();
 
     let r = orch(&dev, dir.path()).remap_button(
