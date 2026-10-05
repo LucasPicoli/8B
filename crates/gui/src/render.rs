@@ -3,12 +3,12 @@
 
 use std::rc::Rc;
 
-use controller_core::transport::udev::{UDEV_MANUAL_COMMAND, UDEV_RULE_PATH};
+use controller_core::transport::udev::{manual_command, KEEPALIVE_UNIT_PATH, UDEV_RULE_PATH};
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::render_buttons;
 use crate::settings::render_settings;
-use crate::state::{Access, AppState, Install};
+use crate::state::{Access, AppState, Install, Rule};
 use crate::ui::{AppWindow, ModeGroup, Slot};
 
 /// The sidebar: every slot of every mode, in the description's order.
@@ -99,15 +99,19 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_buttons(state, ui);
     render_settings(state, ui);
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
-    ui.set_access_denied(state.access.is_some());
+    ui.set_asks_for_rule(state.asks_for_rule());
     ui.set_rule_installed(state.access == Some(Access::StillDenied));
+    // Not denied: the controller works without the rule, so offer an update and a skip.
+    ui.set_rule_outdated(state.access.is_none() && state.rule == Rule::Outdated);
+    ui.set_rule_skippable(state.access.is_none());
     ui.set_installing(state.install == Install::Running);
     ui.set_install_error(match &state.install {
         Install::Failed(e) => e.as_str().into(),
         Install::Idle | Install::Running => SharedString::new(),
     });
-    ui.set_udev_command(UDEV_MANUAL_COMMAND.into());
+    ui.set_udev_command(manual_command().into());
     ui.set_udev_rule_path(UDEV_RULE_PATH.into());
+    ui.set_keepalive_unit_path(KEEPALIVE_UNIT_PATH.into());
 }
 
 /// Narrower than this, in logical pixels, toolbar buttons show only their icon.

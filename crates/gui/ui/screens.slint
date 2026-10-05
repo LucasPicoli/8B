@@ -52,13 +52,19 @@ export component NoControllerScreen inherits Rectangle {
 export component PermissionScreen inherits Rectangle {
     in property <string> command;
     in property <string> rule-path;
+    in property <string> unit-path;
     // The rule is in place and access is still denied: ask for a replug instead.
     in property <bool> rule-installed;
+    // An older rule is installed and access works: ask for an update.
+    in property <bool> outdated;
+    // Access works without the rule: offer a skip.
+    in property <bool> skippable;
     // The password prompt is open.
     in property <bool> installing;
     // Why the last install failed, empty when it did not.
     in property <string> error;
     callback install;
+    callback skip;
     callback about;
     background: Theme.window;
     VerticalLayout {
@@ -80,7 +86,9 @@ export component PermissionScreen inherits Rectangle {
                     }
                 }
                 Text {
-                    text: root.rule-installed ? "The controller is still blocked" : "Allow 8B to open the controller";
+                    text: root.rule-installed ? "The controller is still blocked"
+                        : root.outdated ? "Update the device rule"
+                        : "Allow 8B to open the controller";
                     font-size: Theme.text-placeholder;
                     color: Theme.fg;
                     horizontal-alignment: center;
@@ -88,6 +96,8 @@ export component PermissionScreen inherits Rectangle {
                 Text {
                     text: root.rule-installed
                         ? "The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in."
+                        : root.outdated
+                        ? "The installed rule is from an older version of 8B. The new rule also stops 8BitDo controllers in XInput mode from reconnecting every second while Steam is closed. Updating asks for your password once."
                         : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
@@ -105,11 +115,19 @@ export component PermissionScreen inherits Rectangle {
                     alignment: center;
                     padding-top: 12px;
                     padding-bottom: 20px;
+                    spacing: 8px;
                     Button {
-                        text: root.installing ? "Waiting for your password…" : "Install rule…";
+                        text: root.installing ? "Waiting for your password…"
+                            : root.outdated ? "Update rule…" : "Install rule…";
                         primary: true;
                         enabled: !root.installing;
                         clicked => { root.install(); }
+                    }
+                    if root.skippable: Button {
+                        text: "Not now";
+                        flat: true;
+                        enabled: !root.installing;
+                        clicked => { root.skip(); }
                     }
                 }
                 if root.rule-installed: Rectangle { height: 20px; }
@@ -137,7 +155,7 @@ export component PermissionScreen inherits Rectangle {
                             }
                         }
                         Text {
-                            text: (root.rule-installed ? "It installs " : "Both install ") + root.rule-path + ". It gives the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers.";
+                            text: (root.rule-installed ? "It installs " : "Both install ") + root.rule-path + " and " + root.unit-path + ". They give the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers, and keep 8BitDo controllers in XInput mode connected.";
                             font-size: Theme.text-caption;
                             color: Theme.fg-muted;
                             wrap: word-wrap;

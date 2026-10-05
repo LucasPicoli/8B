@@ -74,6 +74,17 @@ pub enum Access {
     StillDenied,
 }
 
+/// The installed udev rule and keepalive unit, against the ones this build installs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Rule {
+    /// Both files match.
+    Current,
+    /// No rule file.
+    Missing,
+    /// The rule file is from an older build, or the unit is missing or differs.
+    Outdated,
+}
+
 /// Where the udev rule install stands.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum Install {
@@ -108,6 +119,11 @@ pub struct AppState {
     pub access: Option<Access>,
     /// Where the udev rule install stands.
     pub install: Install,
+    /// The installed rule. Anything but current shows the permission screen until
+    /// installed or skipped.
+    pub rule: Rule,
+    /// The user skipped the install for this run.
+    pub rule_skipped: bool,
 }
 
 impl AppState {
@@ -128,6 +144,8 @@ impl AppState {
             read_error: None,
             access: None,
             install: Install::Idle,
+            rule: Rule::Current,
+            rule_skipped: false,
         }
     }
 
@@ -180,11 +198,18 @@ impl AppState {
         }
     }
 
-    /// A read was denied the controller. `rule_installed` says whether the udev rule
-    /// is already in place.
-    pub const fn read_denied(&mut self, rule_installed: bool) {
+    /// A read was denied the controller. `rule` is the installed rule now.
+    pub fn read_denied(&mut self, rule: Rule) {
         self.reading = false;
-        self.access = Some(if rule_installed { Access::StillDenied } else { Access::Denied });
+        self.rule = rule;
+        self.access =
+            Some(if rule == Rule::Current { Access::StillDenied } else { Access::Denied });
+    }
+
+    /// Whether the permission screen fills the window.
+    #[must_use]
+    pub fn asks_for_rule(&self) -> bool {
+        self.access.is_some() || (self.rule != Rule::Current && !self.rule_skipped)
     }
 
     /// The udev rule install was sent to the worker.
@@ -194,6 +219,9 @@ impl AppState {
 
     /// The udev rule install came back.
     pub fn install_finished(&mut self, result: Result<(), String>) {
+        if result.is_ok() {
+            self.rule = Rule::Current;
+        }
         self.install = result.err().map_or(Install::Idle, Install::Failed);
     }
 
@@ -393,7 +421,7 @@ pub mod tests {
         let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_started();
-        s.read_denied(false);
+        s.read_denied(Rule::Missing);
         assert_eq!(s.access, Some(Access::Denied));
         assert!(!s.reading);
         s.install_started();
@@ -403,7 +431,8 @@ pub mod tests {
         s.install_started();
         assert_eq!(s.install, Install::Running, "a retry clears the old failure");
         s.install_finished(Ok(()));
-        s.read_denied(true);
+        assert_eq!(s.rule, Rule::Current);
+        s.read_denied(Rule::Current);
         assert_eq!(s.access, Some(Access::StillDenied));
         s.read_finished(Ok(full_read()));
         assert_eq!(s.access, None);
@@ -413,9 +442,26 @@ pub mod tests {
     fn unplug_leaves_the_permission_screen() {
         let mut s = new_state();
         s.presence(Some(Mode::XInput));
-        s.read_denied(true);
+        s.read_denied(Rule::Current);
         s.presence(None);
         assert_eq!(s.access, None);
+    }
+
+    #[test]
+    fn outdated_rule_asks_until_installed_or_skipped() {
+        let mut s = connected(Mode::XInput);
+        assert!(!s.asks_for_rule());
+        s.rule = Rule::Outdated;
+        assert!(s.asks_for_rule(), "no denied read needed");
+        s.presence(None);
+        assert!(s.asks_for_rule(), "an unplug keeps the question");
+        s.rule_skipped = true;
+        assert!(!s.asks_for_rule());
+        s.read_denied(Rule::Outdated);
+        assert!(s.asks_for_rule(), "a denied read asks again after a skip");
+        s.install_finished(Ok(()));
+        s.read_finished(Ok(full_read()));
+        assert!(!s.asks_for_rule());
     }
 
     #[test]

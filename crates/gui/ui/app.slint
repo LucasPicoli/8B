@@ -51,18 +51,25 @@ export component AppWindow inherits Window {
     // Narrow window: toolbar buttons drop their text, like KDE toolbars.
     // Set from Rust: bound to the window width here, it forms a layout loop.
     in property <bool> compact;
-    // Opening the controller was denied: the whole window asks for access.
-    in property <bool> access-denied;
+    // The whole window asks for the udev rule: opening was denied, or the rule is
+    // missing or outdated and not skipped.
+    in property <bool> asks-for-rule;
     // The udev rule is in place and opening is still denied.
     in property <bool> rule-installed;
+    // An older rule is installed and opening works: ask for an update.
+    in property <bool> rule-outdated;
+    // Opening works without the rule, so the screen offers a skip.
+    in property <bool> rule-skippable;
     in property <bool> installing;
     // Why the last rule install failed, empty when it did not.
     in property <string> install-error;
     in property <string> udev-command;
     in property <string> udev-rule-path;
+    in property <string> keepalive-unit-path;
     in-out property <string> dialog;
     callback slot-picked(int, int);
     callback install-rule;
+    callback rule-skipped;
     callback name-edited(string);
     // A row index and an index into that row's outputs.
     callback output-picked(int, int);
@@ -80,23 +87,27 @@ export component AppWindow inherits Window {
     // Rust only: the worker thread has events waiting.
     callback worker-event;
 
-    if root.access-denied: PermissionScreen {
+    if root.asks-for-rule: PermissionScreen {
         command: root.udev-command;
         rule-path: root.udev-rule-path;
+        unit-path: root.keepalive-unit-path;
         rule-installed: root.rule-installed;
+        outdated: root.rule-outdated;
+        skippable: root.rule-skippable;
         installing: root.installing;
         error: root.install-error;
         install => { root.install-rule(); }
+        skip => { root.rule-skipped(); }
         about => { root.dialog = "about"; }
     }
 
-    if !root.access-denied && !root.has-controller: NoControllerScreen {
+    if !root.asks-for-rule && !root.has-controller: NoControllerScreen {
         status: root.connected ? "Reading the controller" : "Looking for controllers";
         error: root.read-error;
         about => { root.dialog = "about"; }
     }
 
-    if !root.access-denied && root.has-controller: HorizontalLayout {
+    if !root.asks-for-rule && root.has-controller: HorizontalLayout {
         Sidebar {
             groups: root.groups;
             device-name: root.device-name;

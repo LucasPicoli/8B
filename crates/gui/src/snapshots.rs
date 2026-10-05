@@ -15,7 +15,7 @@ use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
 use crate::state::tests::{connected, new_state};
-use crate::state::AppState;
+use crate::state::{AppState, Rule};
 use crate::ui::AppWindow;
 
 struct Headless;
@@ -95,29 +95,36 @@ fn read_failed() {
     shoot("read-failed", &s);
 }
 
-fn denied(rule_installed: bool) -> AppState {
+fn denied(rule: Rule) -> AppState {
     let mut s = new_state();
     s.presence(Some(Mode::XInput));
     s.read_started();
-    s.read_denied(rule_installed);
+    s.read_denied(rule);
     s
 }
 
 #[test]
 fn permission_denied() {
-    shoot("permission-denied", &denied(false));
+    shoot("permission-denied", &denied(Rule::Missing));
+}
+
+#[test]
+fn permission_outdated() {
+    let mut s = connected(Mode::XInput);
+    s.rule = Rule::Outdated;
+    shoot("permission-outdated", &s);
 }
 
 #[test]
 fn permission_installing() {
-    let mut s = denied(false);
+    let mut s = denied(Rule::Missing);
     s.install_started();
     shoot("permission-installing", &s);
 }
 
 #[test]
 fn permission_install_failed() {
-    let mut s = denied(false);
+    let mut s = denied(Rule::Missing);
     s.install_started();
     s.install_finished(Err(
         "The password prompt was closed, or the password was not accepted.".to_owned()
@@ -127,7 +134,7 @@ fn permission_install_failed() {
 
 #[test]
 fn permission_still_denied() {
-    shoot("permission-still-denied", &denied(true));
+    shoot("permission-still-denied", &denied(Rule::Current));
 }
 
 #[test]

@@ -66,7 +66,7 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
                 state.read_started();
             }
         }
-        Event::Read(Err(Error::PermissionDenied(_))) => state.read_denied(udev::rule_installed()),
+        Event::Read(Err(Error::PermissionDenied(_))) => state.read_denied(udev::rule_state()),
         Event::Read(result) => state.read_finished(result.map_err(|e| e.to_string())),
         Event::Installed(result) => {
             let ok = result.is_ok();
@@ -84,7 +84,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui = AppWindow::new()?;
     ui.set_version(env!("CARGO_PKG_VERSION").into());
     let defaults = description.modes.iter().map(|m| (m.id, Pro3.default_profile(m.id))).collect();
-    let state = Rc::new(RefCell::new(AppState::new(description, defaults)));
+    let mut first = AppState::new(description, defaults);
+    first.rule = udev::rule_state();
+    let state = Rc::new(RefCell::new(first));
     render_views(description, &ui);
     render(&state.borrow(), &ui);
     portal::follow_accent(ui.as_weak());
@@ -145,6 +147,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     });
+    let c = change.clone();
+    ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     let c = change.clone();
     ui.on_output_picked(move |row, choice| {
         let (Ok(row), Ok(choice)) = (usize::try_from(row), usize::try_from(choice)) else { return };

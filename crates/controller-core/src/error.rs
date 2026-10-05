@@ -60,7 +60,7 @@ pub enum Error {
     /// carries the command that installs the udev rule.
     #[error(
         "permission denied on {0}; grant access with: {cmd}",
-        cmd = crate::transport::udev::UDEV_MANUAL_COMMAND
+        cmd = crate::transport::udev::manual_command()
     )]
     PermissionDenied(String),
     /// A USB-level failure occurred.
