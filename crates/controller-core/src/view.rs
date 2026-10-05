@@ -20,12 +20,28 @@ pub const BUTTON_ATTRIBUTE: &str = "data-button";
 /// Paint values a view SVG may use: the two view colours, or no paint.
 const ALLOWED_PAINT: [&str; 3] = [VIEW_LINE_COLOR, VIEW_FILL_COLOR, "none"];
 
-/// Elements a view SVG may contain. No text, images, gradients or styles.
-const ALLOWED_ELEMENTS: [&str; 6] = ["svg", "g", "path", "circle", "rect", "ellipse"];
+/// Elements a view SVG may contain. No text, images, gradients or styles. `defs` is
+/// here because vector editors write an empty one; anything inside it is checked too.
+const ALLOWED_ELEMENTS: [&str; 7] = ["svg", "g", "defs", "path", "circle", "rect", "ellipse"];
 
-/// Attributes a view SVG must not use. `style` and `class` could paint in other
-/// colours; `transform` would move a shape away from its hotspot.
-const FORBIDDEN_ATTRIBUTES: [&str; 3] = ["style", "class", "transform"];
+/// Elements skipped with everything inside them: they hold text, not drawing.
+const SKIPPED_ELEMENTS: [&str; 2] = ["metadata", "title"];
+
+/// Namespaces of the editor data Inkscape saves, such as `sodipodi:namedview`.
+/// Elements in them are skipped with everything inside them.
+const EDITOR_NAMESPACES: [&str; 2] = [
+    "http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd",
+    "http://www.inkscape.org/namespaces/inkscape",
+];
+
+/// Attributes a view SVG must not use. `class` could paint in other colours;
+/// `transform` would move a shape away from its hotspot.
+const FORBIDDEN_ATTRIBUTES: [&str; 2] = ["class", "transform"];
+
+/// How to save from Inkscape without a `transform`, shown when one is found.
+const TRANSFORM_HINT: &str = "in Inkscape, keep Preferences > Behavior > Transforms > \
+    Store transformation on Optimized, ungroup a moved group, and turn a rotated shape \
+    into a path (Path > Object to Path) and nudge it";
 
 /// How far, in viewBox units, a curve may stray when flattened.
 const CURVE_TOLERANCE: f64 = 0.1;
@@ -78,7 +94,8 @@ impl View {
         let [width, height] = self.view_box;
         let bounds = Rect::new(0.0, 0.0, f64::from(width), f64::from(height));
         self.hotspots.clear();
-        for node in doc.descendants().filter(Node::is_element) {
+        let drawn = |n: &Node<'_, '_>| n.is_element() && !n.ancestors().any(is_skipped);
+        for node in doc.descendants().filter(drawn) {
             check_element(node).map_err(|e| format!("'{name}': {e}"))?;
             let Some(button) = node.attribute(BUTTON_ATTRIBUTE) else { continue };
             let path = outline(node)
@@ -100,18 +117,30 @@ fn parse_view_box(value: Option<&str>) -> Option<[u16; 2]> {
     }
 }
 
-/// The element is allowed and paints in view colours only.
+/// Whether the element is editor data or text, skipped with everything inside it.
+fn is_skipped(node: Node<'_, '_>) -> bool {
+    let tag = node.tag_name();
+    SKIPPED_ELEMENTS.contains(&tag.name())
+        || tag.namespace().is_some_and(|ns| EDITOR_NAMESPACES.contains(&ns))
+}
+
+/// The element is allowed and paints in view colours only, in its `fill` and
+/// `stroke` attributes and in its `style`.
 fn check_element(node: Node<'_, '_>) -> Result<(), String> {
     let tag = node.tag_name().name();
     if !ALLOWED_ELEMENTS.contains(&tag) {
         return Err(format!("element <{tag}> is not allowed"));
     }
     if let Some(attr) = FORBIDDEN_ATTRIBUTES.iter().find(|a| node.has_attribute(**a)) {
-        return Err(format!("attribute '{attr}' is not allowed"));
+        let hint = if *attr == "transform" { format!("; {TRANSFORM_HINT}") } else { String::new() };
+        return Err(format!("attribute '{attr}' is not allowed{hint}"));
     }
-    for attr in ["fill", "stroke"] {
-        if let Some(paint) = node.attribute(attr).filter(|p| !ALLOWED_PAINT.contains(p)) {
-            return Err(format!("{attr} '{paint}' is not a view colour"));
+    let style = node.attribute("style").unwrap_or("").split(';').filter_map(|d| d.split_once(':'));
+    let attributes = ["fill", "stroke"].into_iter().filter_map(|a| Some((a, node.attribute(a)?)));
+    for (property, paint) in attributes.chain(style) {
+        let (property, paint) = (property.trim(), paint.trim());
+        if ["fill", "stroke"].contains(&property) && !ALLOWED_PAINT.contains(&paint) {
+            return Err(format!("{property} '{paint}' is not a view colour"));
         }
     }
     Ok(())
@@ -171,12 +200,14 @@ mod tests {
 
     #[test]
     fn rejects_a_bad_view_box_paint_or_shape() {
-        let bad: [&'static str; 9] = [
+        let bad: [&'static str; 11] = [
             r#"<svg viewBox="0 0 100"/>"#,
             r#"<svg viewBox="10 0 100 50"/>"#,
             r##"<svg viewBox="0 0 100 50"><path fill="#ff0000"/></svg>"##,
             r#"<svg viewBox="0 0 100 50"><path stroke="url(#g)"/></svg>"#,
             r#"<svg viewBox="0 0 100 50"><path style="fill:red"/></svg>"#,
+            r#"<svg viewBox="0 0 100 50"><path style="fill:#ffffff; stroke: #ff0000"/></svg>"#,
+            r#"<svg viewBox="0 0 100 50"><defs><linearGradient/></defs></svg>"#,
             r#"<svg viewBox="0 0 100 50"><g transform="scale(2)"/></svg>"#,
             r#"<svg viewBox="0 0 100 50"><text>A</text></svg>"#,
             r#"<svg viewBox="0 0 100 50"><circle data-button="a" cx="95" cy="5" r="10"/></svg>"#,
@@ -185,5 +216,20 @@ mod tests {
         for (i, svg) in bad.iter().enumerate() {
             assert!(attach(svg).is_err(), "svg {i} should fail");
         }
+    }
+
+    #[test]
+    fn accepts_an_svg_saved_from_inkscape() {
+        let view = attach(include_str!("../../../fixtures/views/inkscape-saved.svg")).unwrap();
+        assert_eq!(view.view_box, [100, 50]);
+        assert_eq!(view.hotspots.len(), 1);
+        assert_eq!(view.hotspots[0].button, "a");
+        assert!(view.hotspots[0].contains(51.0, 15.0));
+    }
+
+    #[test]
+    fn a_transform_names_the_inkscape_fix() {
+        let err = attach(r#"<svg viewBox="0 0 100 50"><g transform="scale(2)"/></svg>"#);
+        assert!(err.unwrap_err().contains("Store transformation on Optimized"));
     }
 }
