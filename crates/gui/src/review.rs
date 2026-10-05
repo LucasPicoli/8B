@@ -7,6 +7,7 @@ use std::rc::Rc;
 
 use controller_core::devices::pro3::macros::parse_macro_file_name;
 use controller_core::devices::pro3::profile::canonical_id;
+use controller_core::error::ErrorCategory;
 use controller_core::model::{Mode, Slot as ProfileSlot, WriteResult};
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
@@ -206,10 +207,19 @@ impl AppState {
         let key = (job.mode, result.slot);
         let title = format!("{} slot {}", job.mode.label(), result.slot);
         if !result.success {
-            let detail = holders.map_or_else(
-                || sentence(&result.message),
-                |names| format!("{} {names}", sentence(&result.message)),
-            );
+            // A lost connection before any chunk went out leaves the slot as it was.
+            let lost = matches!(
+                result.error_category,
+                ErrorCategory::Timeout | ErrorCategory::ConnectionFailure
+            ) && !result.rollback_attempted;
+            let mut detail = sentence(&result.message);
+            if lost {
+                detail =
+                    format!("Could not reach the controller, so nothing was written. {detail}");
+            }
+            if let Some(names) = holders {
+                detail = format!("{detail} {names}");
+            }
             self.write.failed = Some(WriteFailure {
                 port: port.to_owned(),
                 job,
@@ -545,6 +555,27 @@ mod tests {
         let (_, again) = s.retry_write().unwrap();
         assert_eq!(again, job);
         assert!(s.write.failed.is_none() && s.write.running.is_some());
+    }
+
+    #[test]
+    fn a_lost_connection_says_nothing_was_written() {
+        let mut s = edited();
+        s.begin_review().unwrap();
+        s.read_finished(PORT, Ok(read_with_macro()));
+        s.review_read(PORT, true);
+        let (_, job) = s.confirm_review().unwrap();
+        let lost = WriteResult::failure(
+            Mode::XInput,
+            job.slot,
+            ErrorCategory::Timeout,
+            "usb error: Connection timed out (os error 110)",
+        );
+        s.write_finished(PORT, &lost, None);
+        assert_eq!(
+            s.write.failed.clone().unwrap().detail,
+            "Could not reach the controller, so nothing was written. Usb error: Connection timed out (os error 110)."
+        );
+        assert!(s.slot(Mode::XInput, 1).unsaved(), "the edits stay");
     }
 
     #[test]
