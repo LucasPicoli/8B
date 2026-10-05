@@ -521,6 +521,19 @@ fn percent_to_trigger_byte(pct: i32) -> u8 {
     byte
 }
 
+/// Encodes `pct` with `encode`, but keeps `base` when `base` already decodes to `pct`.
+///
+/// Several raw bytes share one percent, so a plain re-encode moves an untouched
+/// value to the byte its percent rounds to (trigger `0xB2` comes back as `0xB3`).
+/// Keeping `base` makes a decode/compile round trip byte-exact for unedited values.
+fn keep_or_encode(base: u8, pct: i32, raw_max: i32, encode: fn(i32) -> u8) -> u8 {
+    if to_percent(base, raw_max) == pct {
+        base
+    } else {
+        encode(pct)
+    }
+}
+
 /// Maps a canonical source-button name to its 0-based index in `mode`'s button table.
 ///
 /// Only scans the 22 physical source entries (`0..SOURCE_BUTTON_COUNT`) so the
@@ -641,16 +654,21 @@ pub fn compile_profile(
 
     let stick_data_off = DEV_STICK_DATA_BASE + idx * tables::SLOT_DATA_STRIDE;
     let sticks = &profile.sticks;
-    put_slice(
-        &mut buf,
-        stick_data_off,
-        &[
-            percent_to_stick_byte(sticks.left_min_pct),
-            percent_to_stick_byte(sticks.left_max_pct),
-            percent_to_stick_byte(sticks.right_min_pct),
-            percent_to_stick_byte(sticks.right_max_pct),
-        ],
-    )?;
+    let stick = |i: usize, pct: i32| {
+        keep_or_encode(
+            byte_at(&buf, stick_data_off + i),
+            pct,
+            tables::STICK_RAW_MAX,
+            percent_to_stick_byte,
+        )
+    };
+    let stick_bytes = [
+        stick(0, sticks.left_min_pct),
+        stick(1, sticks.left_max_pct),
+        stick(2, sticks.right_min_pct),
+        stick(3, sticks.right_max_pct),
+    ];
+    put_slice(&mut buf, stick_data_off, &stick_bytes)?;
 
     // --- Section 2B: trigger ranges ---
 
@@ -658,19 +676,24 @@ pub fn compile_profile(
     put_slice(&mut buf, trig_flag_off, &tables::SLOT_MARKER)?;
 
     let trig_data_off = DEV_TRIG_DATA_BASE + idx * tables::SLOT_DATA_STRIDE;
+    let trig = |i: usize, pct: i32| {
+        keep_or_encode(
+            byte_at(&buf, trig_data_off + i),
+            pct,
+            tables::TRIGGER_RAW_MAX,
+            percent_to_trigger_byte,
+        )
+    };
     let trig_bytes: [u8; 4] = match &profile.triggers {
         Triggers::Analog(a) => [
-            percent_to_trigger_byte(a.left_min_pct),
-            percent_to_trigger_byte(a.left_max_pct),
-            percent_to_trigger_byte(a.right_min_pct),
-            percent_to_trigger_byte(a.right_max_pct),
+            trig(0, a.left_min_pct),
+            trig(1, a.left_max_pct),
+            trig(2, a.right_min_pct),
+            trig(3, a.right_max_pct),
         ],
-        Triggers::Switch(sw) => [
-            percent_to_trigger_byte(sw.left_threshold_pct),
-            0xFF,
-            percent_to_trigger_byte(sw.right_threshold_pct),
-            0xFF,
-        ],
+        Triggers::Switch(sw) => {
+            [trig(0, sw.left_threshold_pct), 0xFF, trig(2, sw.right_threshold_pct), 0xFF]
+        }
     };
     put_slice(&mut buf, trig_data_off, &trig_bytes)?;
 

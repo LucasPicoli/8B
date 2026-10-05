@@ -40,14 +40,16 @@ fn dinput_remap_lands_on_slot3_l4_and_reverts() {
     let r = orch.remap_button(Mode::DInput, slot, "l4", "bottom face", &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let remapped = dinput_bank(&dev);
-    println!("remap changed {:x?}", changed(&before, &remapped));
+    let diff = changed(&before, &remapped);
+    println!("remap changed {diff:x?}");
     assert_eq!(&remapped[L4_SLOT3..L4_SLOT3 + 4], &[0x00, 0x20, 0x00, 0x00]);
+    // Sticks and triggers must not drift: only the l4 entry may change.
+    assert!(diff.iter().all(|i| (L4_SLOT3..L4_SLOT3 + 4).contains(i)), "{diff:x?}");
 
     let r = orch.remap_button(Mode::DInput, slot, "l4", "disabled", &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let reverted = dinput_bank(&dev);
     let left = changed(&before, &reverted);
     println!("revert left {left:x?}");
-    // Only the known trigger rounding of slot 3 may differ from the start.
-    assert!(left.iter().all(|&i| i == 0x00C4), "{left:x?}");
+    assert!(left.is_empty(), "{left:x?}");
 }

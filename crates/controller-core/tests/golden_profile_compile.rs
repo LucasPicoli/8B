@@ -167,3 +167,33 @@ fn dinput_official_write_decodes_to_defaults_and_recompiles_unchanged() {
         assert_eq!(rebuilt, want, "slot {slot}");
     }
 }
+
+/// Stick and trigger bytes that are not an exact percent survive a decode and a
+/// recompile onto the same blob byte for byte, in every mode.
+#[test]
+fn untouched_stick_and_trigger_bytes_do_not_drift() {
+    // Each byte re-encodes 1 off through its percent (trigger 0xB2 -> 70% -> 0xB3).
+    const STICKS: [u8; 4] = [0x02, 0x7E, 0x02, 0x7E];
+    const ANALOG_TRIGGERS: [u8; 4] = [0xB2, 0xEF, 0x02, 0xFD];
+    const SWITCH_TRIGGERS: [u8; 4] = [0xB2, 0xFF, 0x02, 0xFF];
+    let cases = [
+        ("xinput.blob", Mode::XInput, ANALOG_TRIGGERS),
+        ("xinput.blob", Mode::DInput, ANALOG_TRIGGERS),
+        ("switch.blob", Mode::Switch, SWITCH_TRIGGERS),
+    ];
+    for (file, mode, triggers) in cases {
+        let mut base = std::fs::read(format!("../../fixtures/pro3/{file}")).unwrap();
+        base[0x009C..0x00A0].copy_from_slice(&STICKS);
+        base[0x00B4..0x00B8].copy_from_slice(&triggers);
+        let raw = RawProfilePayload {
+            payload: base.clone(),
+            source_slot: 1,
+            source_profile_index: 0,
+            mode_hint: mode,
+        };
+        let profile = Pro3.map_profile(&raw).unwrap().canonical;
+        let out = Pro3.compile_profile(&profile, Slot::new(1).unwrap(), &base, &[]).unwrap();
+        assert_eq!(&out[0x009C..0x00A0], &STICKS, "{mode:?} sticks");
+        assert_eq!(&out[0x00B4..0x00B8], &triggers, "{mode:?} triggers");
+    }
+}
