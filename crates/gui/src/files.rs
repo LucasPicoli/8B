@@ -161,8 +161,8 @@ impl AppState {
         }
         let skipped = match skipped_macros {
             0 => String::new(),
-            1 => "The file’s macro reference was skipped. ".to_owned(),
-            n => format!("The file’s {n} macro references were skipped. "),
+            1 => "The file’s macro reference was skipped. The macros stored on the controller stay. ".to_owned(),
+            n => format!("The file’s {n} macro references were skipped. The macros stored on the controller stay. "),
         };
         self.notice = Some(Notice {
             error: false,

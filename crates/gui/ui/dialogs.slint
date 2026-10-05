@@ -65,8 +65,8 @@ export component ClearDialog inherits DialogShell {
 export component ImportDialog inherits DialogShell {
     in property <ImportWarning> warning;
     icon: Icons.info;
-    title: "Import a " + warning.from-mode + " profile into " + warning.slot-title + "?";
-    subtitle: "“" + warning.file-name + "” was saved from a " + warning.from-mode + " slot. Each button keeps its place on the controller.";
+    title: "Import the " + warning.from-mode + " profile into " + warning.slot-title + "?";
+    subtitle: "“" + warning.file-name + "” comes from " + warning.from-mode + " mode. Each button keeps its place on the controller.";
     accept-text: "Import";
     if root.warning.lost.length > 0: Text {
         text: root.warning.lost.length == 1
