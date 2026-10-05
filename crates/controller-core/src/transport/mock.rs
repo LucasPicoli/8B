@@ -11,6 +11,10 @@ use crate::transport::write_input::{check_macro_stream, check_patch, check_profi
 /// The write operations a [`MockDevice`] can record and fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum MockOp {
+    /// [`DeviceIo::begin_write`].
+    BeginWrite,
+    /// [`DeviceIo::end_write`].
+    EndWrite,
     /// [`DeviceIo::write_full_profile`].
     WriteFullProfile,
     /// [`DeviceIo::write_patch`].
@@ -30,6 +34,10 @@ pub enum MockOp {
 /// One write call a [`MockDevice`] received, with its arguments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MockCall {
+    /// [`DeviceIo::begin_write`].
+    BeginWrite,
+    /// [`DeviceIo::end_write`], with the mode to return to.
+    EndWrite(Mode),
     /// [`DeviceIo::write_full_profile`].
     WriteFullProfile {
         /// Target mode.
@@ -79,6 +87,8 @@ impl MockCall {
     #[must_use]
     pub const fn op(&self) -> MockOp {
         match self {
+            Self::BeginWrite => MockOp::BeginWrite,
+            Self::EndWrite(_) => MockOp::EndWrite,
             Self::WriteFullProfile { .. } => MockOp::WriteFullProfile,
             Self::WritePatch { .. } => MockOp::WritePatch,
             Self::SlotSelect(_) => MockOp::SlotSelect,
@@ -105,6 +115,7 @@ pub struct MockDevice {
     profiles: HashMap<&'static str, ProfileReadResult>,
     macro_streams: HashMap<(&'static str, u8, u8), Vec<u8>>,
     readiness: Option<DeviceReadiness>,
+    flip_back_to: Option<Mode>,
     writes: Mutex<WriteLog>,
 }
 
@@ -139,6 +150,14 @@ impl MockDevice {
     #[must_use]
     pub fn with_readiness(mut self, readiness: DeviceReadiness) -> Self {
         self.readiness = Some(readiness);
+        self
+    }
+
+    /// Makes [`DeviceIo::begin_write`] report a flip, as a controller in a mode that
+    /// takes no writes in place does. `back_to` is the mode it returns.
+    #[must_use]
+    pub const fn with_flip(mut self, back_to: Mode) -> Self {
+        self.flip_back_to = Some(back_to);
         self
     }
 
@@ -189,6 +208,15 @@ impl DeviceIo for MockDevice {
 
     fn detect_readiness(&self) -> Result<DeviceReadiness> {
         self.readiness.clone().ok_or(Error::NoDevice)
+    }
+
+    fn begin_write(&self) -> Result<Option<Mode>> {
+        self.record(MockCall::BeginWrite)?;
+        Ok(self.flip_back_to)
+    }
+
+    fn end_write(&self, back_to: Mode) -> Result<()> {
+        self.record(MockCall::EndWrite(back_to))
     }
 
     fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()> {

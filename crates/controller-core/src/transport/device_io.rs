@@ -32,6 +32,24 @@ pub trait DeviceIo {
     /// Returns a connection error if no supported device is present.
     fn detect_readiness(&self) -> Result<DeviceReadiness>;
 
+    /// Readies the controller for one write job. When its current mode takes no writes
+    /// in place (the config port's `write_via`), flips it to that mode and waits for it
+    /// to come back on USB. Returns the mode to pass to [`Self::end_write`], or `None`
+    /// when nothing was flipped.
+    ///
+    /// # Errors
+    /// Returns a connection error if the device cannot be opened, and
+    /// [`crate::Error::Write`] if the controller does not come back after the flip.
+    fn begin_write(&self) -> Result<Option<Mode>>;
+
+    /// Sends a controller flipped by [`Self::begin_write`] back to `back_to`, the mode
+    /// its slide switch shows, and waits for it. A replug does the same.
+    ///
+    /// # Errors
+    /// Returns a connection error if the device cannot be opened, and
+    /// [`crate::Error::Timeout`] if it does not come back in time.
+    fn end_write(&self, back_to: Mode) -> Result<()>;
+
     /// Writes a complete 2348-byte profile blob as 53 chunks, each ACK-checked.
     ///
     /// The target slot is encoded in the blob itself, so there is no slot argument.

@@ -14,6 +14,25 @@ use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
     RawProfilePayload, Slot,
 };
+use crate::protocol::wire_write::PACKET_LEN;
+
+/// Command bytes of the mode flip (`81 00 51 <target>`). Seen in the vendor app.
+const MODE_FLIP: [u8; 3] = [0x81, 0x00, 0x51];
+/// Flip target byte for `DInput`.
+const FLIP_TO_DINPUT: u8 = 0x01;
+/// Flip target byte for `XInput`.
+const FLIP_TO_XINPUT: u8 = 0x02;
+/// The close command (`81 05 07`): back to the slide-switch mode.
+const MODE_CLOSE: [u8; 3] = [0x81, 0x05, 0x07];
+
+/// A zero-padded normal-layout packet that starts with `head`.
+fn packet(head: &[u8]) -> [u8; PACKET_LEN] {
+    let mut p = [0u8; PACKET_LEN];
+    for (dst, b) in p.iter_mut().zip(head) {
+        *dst = *b;
+    }
+    p
+}
 
 /// The 8BitDo Pro 3 controller backend.
 #[derive(Debug, Clone, Copy, Default)]
@@ -61,6 +80,21 @@ impl ControllerSpec for Pro3 {
             Mode::DInput => 1,
             Mode::XInput => 3,
         }
+    }
+    fn mode_flip_command(&self, target: Mode) -> Option<[u8; PACKET_LEN]> {
+        let target_byte = match target {
+            Mode::DInput => FLIP_TO_DINPUT,
+            Mode::XInput => FLIP_TO_XINPUT,
+            Mode::Switch => return None,
+        };
+        let mut p = packet(&MODE_FLIP);
+        if let Some(b) = p.get_mut(MODE_FLIP.len()) {
+            *b = target_byte;
+        }
+        Some(p)
+    }
+    fn mode_close_command(&self) -> [u8; PACKET_LEN] {
+        packet(&MODE_CLOSE)
     }
 }
 
@@ -146,6 +180,19 @@ mod tests {
         assert_eq!(d.model_ids, [0x6009, 0x600A]);
         assert_eq!((d.slot_count, d.macro_slot_count), (3, 4));
         assert_eq!(Pro3.blob_size(), 0x092C);
+        let via: Vec<Option<Mode>> = d.config_ports.iter().map(|p| p.write_via).collect();
+        assert_eq!(via, [None, Some(Mode::DInput), None]);
+    }
+
+    #[test]
+    fn pro3_flip_and_close_bytes() {
+        let flip = Pro3.mode_flip_command(Mode::DInput).unwrap();
+        assert_eq!(flip[..5], [0x81, 0x00, 0x51, 0x01, 0x00]);
+        assert_eq!(Pro3.mode_flip_command(Mode::XInput).unwrap()[3], 0x02);
+        assert!(Pro3.mode_flip_command(Mode::Switch).is_none());
+        // Wrapped on the Switch id, as sent in the hardware run.
+        assert_eq!(Framing::Wrapped.request(&flip)[..6], [0x01, 0x66, 0xAA, 0x00, 0x51, 0x01]);
+        assert_eq!(Pro3.mode_close_command()[..4], [0x81, 0x05, 0x07, 0x00]);
     }
 
     #[test]

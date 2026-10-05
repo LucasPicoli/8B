@@ -104,6 +104,10 @@
           "description": "plain: report 0x81 out, 0x02 in. wrapped: Nintendo-id framing with an 01 66 AA prefix.",
           "type": "string",
           "enum": ["plain", "wrapped"]
+        },
+        "write_via": {
+          "description": "Optional. The mode to flip the controller to before a write, when this mode takes no writes in place. That mode needs a port of its own without write_via.",
+          "$ref": "#/$defs/ModeId"
         }
       }
     },

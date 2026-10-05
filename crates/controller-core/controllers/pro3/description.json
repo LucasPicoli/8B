@@ -21,7 +21,8 @@
       },
       "mode": "switch",
       "interface": 0,
-      "framing": "wrapped"
+      "framing": "wrapped",
+      "write_via": "dinput"
     },
     {
       "usb": {

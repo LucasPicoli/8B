@@ -31,6 +31,8 @@ pub(super) const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 const PAUSE_SETTLE: Duration = Duration::from_millis(500);
 /// Upper bound on reports discarded by one drain, in case the stream never stops.
 const DRAIN_MAX_REPORTS: usize = 512;
+/// Poll interval while waiting for the controller to come back on USB.
+const REENUMERATE_POLL: Duration = Duration::from_millis(50);
 /// `START_CONFIG` reply bytes that carry the model id (little-endian).
 const MODEL_ID_OFFSET: usize = 22;
 
@@ -44,6 +46,8 @@ pub(super) struct Session {
     pub(super) framing: Framing,
     /// The current mode, from the USB id the controller enumerated with.
     pub(super) current_mode: Mode,
+    /// The mode to flip to before a write, from the matched config port.
+    pub(super) write_via: Option<Mode>,
 }
 
 impl Session {
@@ -85,6 +89,7 @@ impl Session {
             paused: false,
             framing: found.port.framing,
             current_mode: found.port.mode,
+            write_via: found.port.write_via,
         };
         session.pause()?;
         let reply = match session.send_recv(&build_start_config()) {
@@ -157,6 +162,52 @@ impl Session {
             }
         }
     }
+}
+
+impl Session {
+    /// Sends a packet after which the controller drops off USB (a mode flip or close),
+    /// then ends the session without the resume. Takes the reply if one comes first.
+    /// A disconnect is the expected outcome, so it is not an error.
+    ///
+    /// # Errors
+    /// Returns [`Error::Usb`] on any other I/O failure. A missing reply is not one.
+    pub(super) fn send_last(mut self, packet: &[u8; PACKET_LEN]) -> Result<()> {
+        self.paused = false;
+        match self.send_recv(packet) {
+            Ok(_) | Err(Error::Disconnected | Error::Timeout) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+}
+
+/// Waits until the controller is back on USB in `mode` and its config node opens.
+///
+/// The node can refuse an open for a moment after it appears, until udev tags it,
+/// so every failure is retried until `budget` runs out.
+///
+/// # Errors
+/// Returns [`Error::Timeout`] when the controller is not back in time, or the last
+/// [`Error::PermissionDenied`] if only the open kept failing.
+pub(super) fn wait_for_mode(spec: Pro3, mode: Mode, budget: Duration) -> Result<()> {
+    let ports = &spec.description()?.config_ports;
+    let deadline = Instant::now() + budget;
+    let mut last = Error::Timeout;
+    while Instant::now() < deadline {
+        let node = scan_sysfs(Path::new(SYSFS_USB_DEVICES), ports)
+            .filter(|found| found.port.mode == mode)
+            .and_then(|found| config_hidraw(Path::new(&found.sysfs_path), found.port.interface));
+        if let Some(node) = node {
+            match OpenOptions::new().read(true).write(true).open(&node) {
+                Ok(_) => return Ok(()),
+                Err(e) => last = open_error(&node, &e),
+            }
+        }
+        std::thread::sleep(REENUMERATE_POLL);
+    }
+    Err(match last {
+        e @ Error::PermissionDenied(_) => e,
+        _ => Error::Timeout,
+    })
 }
 
 impl Drop for Session {

@@ -104,10 +104,13 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         })
     }
 
-    /// The shared pipeline: readback and confirm, `build`, slot select, write, apply.
+    /// The shared pipeline: readback and confirm, `build`, then one write job: flip if
+    /// the current mode needs it, slot select, write, apply, flip back.
     ///
     /// `done` is the success message when a blob was written. A write that fails after the
     /// device was opened is rolled back. An apply that fails after a good write is not.
+    /// The flip back goes out on every path once the flip succeeded. If it fails, the
+    /// result keeps its outcome and its message says to replug the controller.
     pub(super) fn run(
         &self,
         mode: Mode,
@@ -131,10 +134,37 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             Err(e) => return failure_from(mode, slot, &e),
         };
 
+        let back_to = match self.dev.begin_write() {
+            Ok(back_to) => back_to,
+            Err(e) => return failure_from(mode, slot, &e),
+        };
+        let mut result = self.write(mode, slot, &rb, &blob, done);
+        if let Some(back_to) = back_to {
+            if let Err(e) = self.dev.end_write(back_to) {
+                result.message = format!(
+                    "{} The controller did not return to {back_to} mode ({e}); \
+                     unplug it and plug it back in.",
+                    result.message
+                );
+            }
+        }
+        result
+    }
+
+    /// Slot select, write, apply, with rollback if the write fails.
+    fn write(
+        &self,
+        mode: Mode,
+        slot: Slot,
+        rb: &ReadbackResult,
+        blob: &[u8],
+        done: &str,
+    ) -> WriteResult {
+        let fail = |category, message: String| WriteResult::failure(mode, slot, category, message);
         if let Err(e) = self.dev.send_slot_select(mode) {
             return fail(ErrorCategory::ConnectionFailure, format!("Slot select failed: {e}"));
         }
-        match self.dev.write_full_profile(mode, &blob) {
+        match self.dev.write_full_profile(mode, blob) {
             Ok(()) => {}
             Err(e @ Error::Write { .. }) => {
                 return attempt_rollback(

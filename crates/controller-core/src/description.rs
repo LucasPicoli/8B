@@ -238,6 +238,17 @@ impl ControllerDescription {
         if let Some(port) = self.config_ports.iter().find(|p| !modes.contains(&p.mode)) {
             return Err(format!("config port for unlisted mode '{}'", port.mode));
         }
+        for port in &self.config_ports {
+            let Some(via) = port.write_via else { continue };
+            let takes_writes =
+                self.config_ports.iter().any(|p| p.mode == via && p.write_via.is_none());
+            if via == port.mode || !takes_writes {
+                return Err(format!(
+                    "write_via '{via}' of the {} port must name another port that takes writes",
+                    port.mode
+                ));
+            }
+        }
         if let Some((name, _)) = self.limits.named().into_iter().find(|(_, r)| r.min > r.max) {
             return Err(format!("limit '{name}' has min above max"));
         }
@@ -404,7 +415,9 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 8] = [
+        let cases: [fn(&mut Value); 10] = [
+            |v| v["config_ports"][0]["write_via"] = json!("xinput"),
+            |v| v["config_ports"][0]["write_via"] = json!("switch"),
             |v| v["buttons"][1]["id"] = json!("a"),
             |v| {
                 v["buttons"][0]["labels"].as_object_mut().unwrap().remove("switch");

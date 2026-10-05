@@ -5,19 +5,20 @@
 //! the C++ code used: transfer failure on a simple command is [`Error::Timeout`], a
 //! rejected response is [`Error::Write`].
 
+use std::time::Duration;
+
 use crate::device::ControllerSpec as _;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::{MacroSlot, Mode, Slot};
 use crate::protocol::bytes::take;
-use crate::protocol::framing::Framing;
 use crate::protocol::wire::{build_query_status, build_slot_select};
 use crate::protocol::wire_write::{
     build_apply, build_erase_macro, build_write_macro, build_write_packet,
     validate_command_response, validate_erase_response, validate_write_macro_response,
     validate_write_response, MACRO_CHUNK_LEN, PACKET_LEN,
 };
-use crate::transport::session::{Session, WRITE_TIMEOUT};
+use crate::transport::session::{wait_for_mode, Session, WRITE_TIMEOUT};
 use crate::transport::write_input::{
     check_macro_stream, check_patch, check_profile_blob, macro_flash_base, macro_total_len,
     plan_profile_chunks, PATCH_PACKETS,
@@ -29,18 +30,54 @@ const CMD_SLOT_SELECT: u8 = 0x14;
 const CMD_APPLY: u8 = 0x06;
 const CMD_QUERY_STATUS: u8 = 0x07;
 
-/// Opens a write session. Refuses in a wrapped current mode (Switch): no wrapped
-/// write has been proven on hardware yet.
+/// Budget for the controller to come back on USB after a flip or close. The Pro 3
+/// took 1.2 s and 1.4 s.
+const REENUMERATE_BUDGET: Duration = Duration::from_secs(5);
+/// Wait after the controller is back in its slide-switch mode, before the next session.
+/// The kernel driver may probe the returning id first: hid-nintendo finished with
+/// `057e:2009` 0.55 s after its node appeared, and a session sent 0.2 s after the
+/// node appeared got no reply.
+const RETURN_SETTLE: Duration = Duration::from_secs(2);
+
+/// Opens a write session. Refuses in a current mode that takes no writes in place:
+/// [`begin_write`] must flip the controller first.
 fn open(spec: Pro3) -> Result<Session> {
     let session = Session::open(spec, WRITE_TIMEOUT)?;
-    if session.framing == Framing::Wrapped {
+    if let Some(via) = session.write_via {
         return Err(Error::write(format!(
-            "writes are not supported yet while the controller is in {} mode; \
-             slide the mode switch to XInput or DInput",
+            "the controller takes no writes in {} mode; flip it to {via} first",
             session.current_mode
         )));
     }
     Ok(session)
+}
+
+/// Flips the controller to the mode its config port names in `write_via`, if any,
+/// and waits for it. Returns the mode to send it back to.
+pub(super) fn begin_write(spec: Pro3) -> Result<Option<Mode>> {
+    let session = Session::open(spec, WRITE_TIMEOUT)?;
+    let Some(via) = session.write_via else {
+        return Ok(None);
+    };
+    let back_to = session.current_mode;
+    let flip = spec.mode_flip_command(via).ok_or_else(|| {
+        Error::write(format!("this controller cannot flip from {back_to} to {via} mode"))
+    })?;
+    session.send_last(&flip)?;
+    wait_for_mode(spec, via, REENUMERATE_BUDGET).map_err(|e| {
+        Error::write(format!(
+            "the controller did not come back in {via} mode ({e}); unplug it and plug it back in"
+        ))
+    })?;
+    Ok(Some(back_to))
+}
+
+/// Sends the close command, then waits for the controller to come back in `back_to`.
+pub(super) fn end_write(spec: Pro3, back_to: Mode) -> Result<()> {
+    Session::open(spec, WRITE_TIMEOUT)?.send_last(&spec.mode_close_command())?;
+    wait_for_mode(spec, back_to, REENUMERATE_BUDGET)?;
+    std::thread::sleep(RETURN_SETTLE);
+    Ok(())
 }
 
 fn rejected(what: &str, cause: &Error) -> Error {

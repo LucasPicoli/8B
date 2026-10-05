@@ -329,6 +329,14 @@ impl crate::transport::DeviceIo for HidrawDevice {
         Ok(readiness)
     }
 
+    fn begin_write(&self) -> Result<Option<Mode>> {
+        hidraw_write::begin_write(self.spec)
+    }
+
+    fn end_write(&self, back_to: Mode) -> Result<()> {
+        hidraw_write::end_write(self.spec, back_to)
+    }
+
     fn write_full_profile(&self, _mode: Mode, blob: &[u8]) -> Result<()> {
         hidraw_write::write_full_profile(self.spec, blob)
     }

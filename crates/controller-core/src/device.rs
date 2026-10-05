@@ -7,6 +7,7 @@ use crate::model::{
     RawProfilePayload, Slot,
 };
 use crate::protocol::framing::Framing;
+use crate::protocol::wire_write::PACKET_LEN;
 
 /// A supported USB (vendor, product) pair. JSON writes each as `"0x2dc8"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
@@ -32,6 +33,10 @@ pub struct ConfigPort {
     pub interface: u8,
     /// Framing of config packets on that node.
     pub framing: Framing,
+    /// The mode to flip the controller to before a write, when this current mode takes
+    /// no writes in place. `None` means writes go out in this mode.
+    #[serde(default)]
+    pub write_via: Option<Mode>,
 }
 
 /// Protocol bytes of a controller model, plus a pointer to its description.
@@ -50,6 +55,12 @@ pub trait ControllerSpec {
     fn slot_select_value(&self, mode: Mode) -> u8;
     /// Gamepad-mode byte carried by the macro commands for `mode`.
     fn macro_gamepad_mode(&self, mode: Mode) -> u8;
+    /// Normal-layout packet that makes the controller re-enumerate in `target` mode
+    /// until it is closed or replugged. `None` if the model cannot flip to `target`.
+    fn mode_flip_command(&self, target: Mode) -> Option<[u8; PACKET_LEN]>;
+    /// Normal-layout packet that sends a flipped controller back to the mode its
+    /// slide switch shows.
+    fn mode_close_command(&self) -> [u8; PACKET_LEN];
 }
 
 /// Pure byte-level codec for a controller model (no device I/O).
