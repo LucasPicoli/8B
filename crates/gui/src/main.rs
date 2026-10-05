@@ -3,6 +3,7 @@
 // A binary crate: `pub` marks what other modules use.
 #![allow(unreachable_pub)]
 
+mod buttons;
 mod render;
 mod state;
 mod udev;
@@ -32,13 +33,14 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Sender};
 
-use controller_core::device::ControllerSpec as _;
+use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::Mode;
 use controller_core::transport::HidrawDevice;
 use controller_core::Error;
 use slint::ComponentHandle as _;
 
+use crate::buttons::{hit, picked_output, render_views};
 use crate::render::render;
 use crate::state::AppState;
 use crate::ui::AppWindow;
@@ -78,7 +80,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let description = Pro3.description()?;
     let ui = AppWindow::new()?;
     ui.set_version(env!("CARGO_PKG_VERSION").into());
-    let state = Rc::new(RefCell::new(AppState::new(description)));
+    let defaults = description.modes.iter().map(|m| (m.id, Pro3.default_profile(m.id))).collect();
+    let state = Rc::new(RefCell::new(AppState::new(description, defaults)));
+    render_views(description, &ui);
     render(&state.borrow(), &ui);
 
     let (events_tx, events) = mpsc::channel();
@@ -107,32 +111,53 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         render(&state, &ui);
     });
 
+    // Every change from the window: apply it to the state, then render.
     let weak = ui.as_weak();
-    let s = Rc::clone(&state);
-    ui.on_slot_picked(move |mode, slot| {
-        let Some(ui) = weak.upgrade() else { return };
-        let mut state = s.borrow_mut();
-        state.select(usize::try_from(mode).unwrap_or(0), usize::try_from(slot).unwrap_or(0));
-        render(&state, &ui);
-    });
-
-    let weak = ui.as_weak();
-    let s = Rc::clone(&state);
-    ui.on_install_rule(move || {
-        let Some(ui) = weak.upgrade() else { return };
-        let mut state = s.borrow_mut();
-        if install_tx.send(Command::InstallUdevRule).is_ok() {
-            state.install_started();
-        }
-        render(&state, &ui);
-    });
-
-    let weak = ui.as_weak();
-    ui.on_read_note_closed(move || {
+    let change = move |apply: &dyn Fn(&mut AppState)| {
         let Some(ui) = weak.upgrade() else { return };
         let mut state = state.borrow_mut();
-        state.close_read_note();
+        apply(&mut state);
         render(&state, &ui);
+    };
+    let c = change.clone();
+    ui.on_slot_picked(move |mode, slot| {
+        let (mode, slot) = (usize::try_from(mode).unwrap_or(0), usize::try_from(slot).unwrap_or(0));
+        c(&|s| s.select(mode, slot));
+    });
+    let c = change.clone();
+    ui.on_install_rule(move || {
+        c(&|s| {
+            if install_tx.send(Command::InstallUdevRule).is_ok() {
+                s.install_started();
+            }
+        });
+    });
+    let c = change.clone();
+    ui.on_read_note_closed(move || c(&AppState::close_read_note));
+    let c = change.clone();
+    ui.on_output_picked(move |row, choice| {
+        let (Ok(row), Ok(choice)) = (usize::try_from(row), usize::try_from(choice)) else { return };
+        c(&|s| {
+            if let Some((button, output)) = picked_output(s, row, choice) {
+                s.set_output(&button, &output);
+            }
+        });
+    });
+    let c = change.clone();
+    ui.on_name_edited(move |name| c(&|s| s.set_name(&name)));
+    let c = change.clone();
+    ui.on_discard(move || c(&AppState::discard));
+    ui.on_start_from_default(move || change(&AppState::start_from_default));
+
+    ui.on_hit(move |view, x, y| {
+        hit(description, usize::try_from(view).unwrap_or(usize::MAX), x, y)
+    });
+
+    let weak = ui.as_weak();
+    ui.on_theme_changed(move || {
+        if let Some(ui) = weak.upgrade() {
+            render_views(description, &ui);
+        }
     });
 
     ui.run()?;

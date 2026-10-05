@@ -81,6 +81,15 @@ impl Hotspot {
     pub fn contains(&self, x: f64, y: f64) -> bool {
         BezPath::from_svg(&self.path).is_ok_and(|p| p.contains(Point::new(x, y)))
     }
+
+    /// The shape's bounding box as `[x0, y0, x1, y1]`, in viewBox units.
+    #[must_use]
+    pub fn bounds(&self) -> [f64; 4] {
+        BezPath::from_svg(&self.path).map_or([0.0; 4], |p| {
+            let b = p.bounding_box();
+            [b.x0, b.y0, b.x1, b.y1]
+        })
+    }
 }
 
 impl View {

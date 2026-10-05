@@ -1,0 +1,215 @@
+// The Buttons tab: the controller views beside the mapping table.
+import { Theme, ComboBox } from "look/breeze/widgets.slint";
+import { Frame, Dot } from "parts.slint";
+import { MapRow, PadView, Spot } from "types.slint";
+
+component SmallHead inherits Text {
+    font-weight: 600;
+    font-size: Theme.text-caption;
+    color: Theme.fg-muted;
+}
+
+// One view: the drawing, its button shapes over it, and the output of the hovered
+// or selected button beside its shape.
+component ViewArt {
+    in property <PadView> view;
+    in property <int> index;
+    in property <[Spot]> spots;
+    // The selected row, -1 for none.
+    in property <int> selected;
+    // The row of the button under (x, y) in viewBox units, or -1.
+    pure callback hit(float, float) -> int;
+    callback pick(int);
+    // viewBox units to pixels.
+    property <float> scale: self.width / 1px / view.width;
+    property <int> hover: ta.has-hover ? root.hit(ta.mouse-x / 1px / scale, ta.mouse-y / 1px / scale) : -1;
+    height: self.width * view.height / view.width;
+
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.view.image;
+    }
+    for s in root.spots: Path {
+        property <bool> lit: s.row == root.selected || s.row == root.hover || s.mapped;
+        visible: s.view == root.index && self.lit;
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.view.width;
+        viewbox-height: root.view.height;
+        commands: s.commands;
+        fill: s.row == root.hover && !s.fixed ? Theme.hover : Theme.accent-wash;
+        stroke: s.fixed ? Theme.fg-muted : Theme.accent;
+        stroke-width: s.row == root.selected ? 2.4px : 1.2px;
+    }
+    // Right of the shape, or left of it where the right side has no room.
+    for s in root.spots: Rectangle {
+        visible: s.view == root.index && (s.row == root.hover || s.row == root.selected);
+        property <length> right: s.x1 * root.scale * 1px + 6px;
+        x: self.right + self.width <= root.width ? self.right : s.x0 * root.scale * 1px - 6px - self.width;
+        y: (s.y0 + s.y1) / 2 * root.scale * 1px - self.height / 2;
+        width: tip.preferred-width + 12px;
+        height: 20px;
+        border-radius: 3px;
+        background: Theme.view;
+        border-width: 1px;
+        border-color: Theme.line;
+        drop-shadow-blur: 4px;
+        drop-shadow-offset-y: 1px;
+        drop-shadow-color: Theme.shadow;
+        tip := Text {
+            text: s.output;
+            font-size: Theme.text-small;
+            color: Theme.fg;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: root.hover >= 0 ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if (root.hover >= 0) {
+                root.pick(root.hover);
+            }
+        }
+    }
+}
+
+export component ButtonsTab {
+    in property <[PadView]> views;
+    in property <[Spot]> spots;
+    in property <[MapRow]> rows;
+    // The selected row, -1 for none.
+    in-out property <int> selected: -1;
+    // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
+    pure callback hit(int, float, float) -> int;
+    callback output-picked(int, int);
+    // Asks the page to scroll a table row into view (absolute y, height).
+    callback reveal(length, length);
+
+    // A click on the drawing: select the row and scroll it into view.
+    function show(row: int) {
+        selected = row;
+        reveal(table.absolute-position.y + Theme.row-height * (row + 1), Theme.row-height);
+    }
+
+    VerticalLayout {
+        spacing: 12px;
+        Text {
+            text: "Click a button on the controller or pick its output in the list.";
+            color: Theme.fg-muted;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 16px;
+            VerticalLayout {
+                horizontal-stretch: 115;
+                alignment: start;
+                Frame {
+                    VerticalLayout {
+                        padding: 10px;
+                        spacing: 4px;
+                        for v[i] in root.views: ViewArt {
+                            view: v;
+                            index: i;
+                            spots: root.spots;
+                            selected: root.selected;
+                            hit(x, y) => { return root.hit(i, x, y); }
+                            pick(id) => { root.show(id); }
+                        }
+                    }
+                }
+            }
+            VerticalLayout {
+                horizontal-stretch: 100;
+                max-width: 360px;
+                alignment: start;
+                table := Frame {
+                    VerticalLayout {
+                        Rectangle {
+                            height: Theme.row-height;
+                            background: Theme.window;
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                SmallHead {
+                                    width: 40%;
+                                    text: "Button";
+                                    vertical-alignment: center;
+                                }
+                                SmallHead {
+                                    text: "Output";
+                                    vertical-alignment: center;
+                                }
+                            }
+                        }
+                        for r[i] in root.rows: Rectangle {
+                            height: Theme.row-height;
+                            background: i == root.selected ? Theme.accent-wash : transparent;
+                            Rectangle {
+                                y: 0;
+                                height: 1px;
+                                background: Theme.line-soft;
+                            }
+                            TouchArea {
+                                clicked => { root.selected = i; }
+                            }
+                            HorizontalLayout {
+                                padding-left: 10px;
+                                padding-right: 10px;
+                                spacing: 10px;
+                                VerticalLayout {
+                                    width: 40%;
+                                    alignment: center;
+                                    HorizontalLayout {
+                                        spacing: 6px;
+                                        alignment: start;
+                                        Text {
+                                            text: r.label;
+                                            color: Theme.fg;
+                                        }
+                                        if r.changed: Dot {
+                                            y: (parent.height - self.height) / 2;
+                                        }
+                                    }
+                                    if r.note != "": Text {
+                                        text: r.note;
+                                        font-size: Theme.text-small;
+                                        color: Theme.accent-ink;
+                                        overflow: elide;
+                                    }
+                                }
+                                if r.fixed: Text {
+                                    text: "Cannot be remapped";
+                                    color: Theme.fg-muted;
+                                    font-italic: true;
+                                    vertical-alignment: center;
+                                }
+                                if !r.fixed: VerticalLayout {
+                                    alignment: center;
+                                    // A tooltip cannot sit in a layout, so the picker gets a frame.
+                                    Rectangle {
+                                        HorizontalLayout {
+                                            ComboBox {
+                                                small: true;
+                                                model: r.outputs;
+                                                current-index <=> r.output;
+                                                accessible-name: "Output for " + r.label;
+                                                focused => { root.selected = i; }
+                                                selected => { root.output-picked(i, self.current-index); }
+                                            }
+                                        }
+                                        if r.unknown: Tooltip {
+                                            text: @markdown("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.");
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

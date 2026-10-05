@@ -6,6 +6,7 @@ use std::rc::Rc;
 use controller_core::transport::udev::{UDEV_MANUAL_COMMAND, UDEV_RULE_PATH};
 use slint::{ModelRc, SharedString, VecModel};
 
+use crate::buttons::render_buttons;
 use crate::state::{Access, AppState, Install};
 use crate::ui::{AppWindow, ModeGroup, Slot};
 
@@ -91,6 +92,15 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_selected_slot(i32::try_from(state.selected.1).unwrap_or(0));
     ui.set_slot_title(slot_title(state).into());
     ui.set_empty_slot(selected_empty(state));
+    let selected = state.selected_slot().map(|(m, n)| state.slot(m, n));
+    let name =
+        selected.as_ref().and_then(|s| s.shown()).map(|p| p.name.as_str()).unwrap_or_default();
+    if ui.get_profile_name() != name {
+        ui.set_profile_name(name.into());
+    }
+    ui.set_name_max(state.description.limits.profile_name_length.max);
+    ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
+    render_buttons(state, ui);
     ui.set_read_note(if state.read_note { READ_NOTE.into() } else { SharedString::new() });
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
     ui.set_access_denied(state.access.is_some());
@@ -111,10 +121,10 @@ mod tests {
     use slint::Model as _;
 
     use super::*;
-    use crate::state::tests::{description, full_read};
+    use crate::state::tests::{full_read, new_state};
 
     fn connected(mode: Mode) -> AppState {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(mode));
         s.read_finished(Ok(full_read()));
         s
@@ -155,7 +165,7 @@ mod tests {
 
     #[test]
     fn status_title_and_empty_slot() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         assert_eq!(device_status(&s), "Not connected");
         s.presence(Some(Mode::DInput));
         s.read_started();

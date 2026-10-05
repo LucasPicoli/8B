@@ -430,6 +430,44 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
     })
 }
 
+/// The profile a new slot of `mode` starts from, with an empty name.
+///
+/// Each button holds its own table encoding, decoded the way a read decodes it, so a
+/// back paddle reads `disabled`. Sticks and triggers span their full range, with no
+/// inversion or swap, and both motors run at full strength.
+#[must_use]
+pub fn default_profile(mode: Mode) -> CanonicalProfile {
+    let neutral = DecodeLayout { shifted_by_two: false };
+    let entries = encodings_for_mode(mode);
+    let button_mappings = entries
+        .iter()
+        .take(tables::SOURCE_BUTTON_COUNT)
+        .enumerate()
+        .map(|(i, e)| ButtonMapping {
+            source: e.source.to_owned(),
+            target: decode_target_control(entries, i, e.encoding),
+        })
+        .collect();
+    CanonicalProfile {
+        id: String::new(),
+        name: String::new(),
+        version: 1,
+        kind: "8bitdo.pro3.profile".to_owned(),
+        device: "8bitdo-pro3".to_owned(),
+        mode,
+        preferred_slot: None,
+        // Slot 0 is out of range, so the decoders return their neutral values.
+        sticks: decode_sticks(&[], 0, neutral),
+        triggers: decode_triggers(&[], mode, 0, neutral),
+        vibration: Vibration {
+            left_level: tables::VIBRATION_LEVEL_MAX,
+            right_level: tables::VIBRATION_LEVEL_MAX,
+        },
+        button_mappings,
+        macro_refs: Vec::new(),
+    }
+}
+
 // ============================================================================
 // Compiler — `compile_profile` (faithful inverse of `map_profile`)
 // ============================================================================
@@ -909,6 +947,32 @@ mod tests {
         assert_eq!(decode_mode_field(&blob, layout), Some(Mode::DInput));
         blob[0x0010] = 0x07;
         assert_eq!(decode_mode_field(&blob, layout), None);
+    }
+
+    #[test]
+    fn default_profile_reads_back_as_written() {
+        for mode in Mode::ALL {
+            let mut profile = default_profile(mode);
+            assert_eq!(profile.button_mappings.len(), tables::SOURCE_BUTTON_COUNT);
+            let target = |s: &str| {
+                profile.button_mappings.iter().find(|m| m.source == s).map(|m| m.target.clone())
+            };
+            assert_eq!(target("rp").as_deref(), Some("disabled"), "{mode}");
+            assert_eq!(target("l1").as_deref(), Some("l1"), "{mode}");
+            profile.name = "New".to_owned();
+            let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
+            let raw = RawProfilePayload {
+                payload: blob,
+                source_slot: 1,
+                source_profile_index: 0,
+                mode_hint: mode,
+            };
+            let back = map_profile(&Pro3, &raw).unwrap().canonical;
+            assert_eq!(back.button_mappings, profile.button_mappings, "{mode}");
+            assert_eq!(back.sticks, profile.sticks, "{mode}");
+            assert_eq!(back.triggers, profile.triggers, "{mode}");
+            assert_eq!(back.vibration, profile.vibration, "{mode}");
+        }
     }
 
     #[test]

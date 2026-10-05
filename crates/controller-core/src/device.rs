@@ -71,6 +71,9 @@ pub trait ProtocolCodec {
     /// Returns [`crate::Error::Decode`] on malformed input.
     fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary>;
 
+    /// The profile a new slot of `mode` starts from, with an empty name.
+    fn default_profile(&self, mode: Mode) -> CanonicalProfile;
+
     /// Decodes Section-4 macro metadata for `profile_slot` (steps left empty).
     ///
     /// # Errors

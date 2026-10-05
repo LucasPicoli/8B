@@ -103,6 +103,10 @@ impl ProtocolCodec for Pro3 {
         profile::map_profile(self, raw)
     }
 
+    fn default_profile(&self, mode: Mode) -> CanonicalProfile {
+        profile::default_profile(mode)
+    }
+
     fn decode_macro_metadata(
         &self,
         blob: &[u8],

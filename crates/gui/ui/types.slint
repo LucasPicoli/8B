@@ -23,60 +23,53 @@ export struct Section {
     count: int,
 }
 
+// One button's row in the mapping table.
 export struct MapRow {
-    id: string,
     label: string,
-    detail: string,
-    // "also runs macro 1"
+    // "Also runs macro 1"
     note: string,
+    // The outputs the picker offers, and the one in use.
+    outputs: [string],
     output: int,
-    // Not remappable; `fixed-text` says why.
+    // Cannot be remapped: no picker.
     fixed: bool,
-    fixed-text: string,
+    // The controller holds an output 8B does not recognise.
+    unknown: bool,
+    // Differs from what the controller holds.
     changed: bool,
 }
 
-// One clickable shape on the controller image, in the art's viewBox units.
-export struct Hotspot {
-    id: string,
-    back: bool,
-    commands: string,
-    x: float,
-    y: float,
-    w: float,
-    h: float,
-    mapped: bool,
-    fixed: bool,
-    label: string,
-    label-x: float,
-    label-y: float,
-    chip: string,
-    chip-x: float,
-    chip-y: float,
-    // Index of this button's row in the mapping table.
-    row: int,
+// One drawing of the controller, recoloured for the theme.
+export struct PadView {
+    image: image,
+    // The viewBox size.
+    width: float,
+    height: float,
 }
 
-export struct Art {
-    front-body: string,
-    front-detail: string,
-    front-w: float,
-    front-h: float,
-    back-body: string,
-    back-w: float,
-    back-h: float,
+// One button's shape in a view, in the view's viewBox units.
+export struct Spot {
+    // Index of the button's row in the mapping table.
+    row: int,
+    // Index of its view.
+    view: int,
+    commands: string,
+    // Its output differs from the default profile's: the shape is tinted.
+    mapped: bool,
+    fixed: bool,
+    // The output's label, shown beside the shape on hover or selection.
+    output: string,
+    // The shape's bounding box.
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
 }
 
 export struct Change {
     what: string,
     from: string,
     to: string,
-}
-
-export struct Macro {
-    name: string,
-    detail: string,
-    length: string,
 }
 
 export struct Setting {

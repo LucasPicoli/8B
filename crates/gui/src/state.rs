@@ -3,8 +3,11 @@
 
 use std::collections::BTreeMap;
 
-use controller_core::description::ControllerDescription;
-use controller_core::model::{CanonicalProfile, Mode, ProfileReadResult};
+use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
+use controller_core::model::{ButtonMapping, CanonicalProfile, Mode, ProfileReadResult};
+
+/// The name a profile started from default gets.
+pub const NEW_PROFILE_NAME: &str = "New profile";
 
 /// One slot: what the controller held at the last read, and the working copy.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -15,11 +18,50 @@ pub struct SlotState {
     pub edited: Option<CanonicalProfile>,
 }
 
+/// Which tabs of a slot hold unsaved edits.
+// One independent flag per tab, not a state.
+#[allow(clippy::struct_excessive_bools)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Dirty {
+    /// Button mappings.
+    pub buttons: bool,
+    /// Stick ranges, inversion and swaps.
+    pub sticks: bool,
+    /// Trigger ranges or thresholds.
+    pub triggers: bool,
+    /// Motor levels.
+    pub vibration: bool,
+}
+
 impl SlotState {
     /// Whether the working copy differs from what the controller holds.
     #[must_use]
     pub fn unsaved(&self) -> bool {
         self.edited.as_ref().is_some_and(|e| self.pad.as_ref() != Some(e))
+    }
+
+    /// The profile on screen: the working copy, else what the controller holds.
+    #[must_use]
+    pub fn shown(&self) -> Option<&CanonicalProfile> {
+        self.edited.as_ref().or(self.pad.as_ref())
+    }
+
+    /// Which tabs differ between the working copy and what the controller holds. A
+    /// working copy of an empty slot differs everywhere.
+    #[must_use]
+    pub fn dirty(&self) -> Dirty {
+        match (&self.pad, &self.edited) {
+            (_, None) => Dirty::default(),
+            (None, Some(_)) => {
+                Dirty { buttons: true, sticks: true, triggers: true, vibration: true }
+            }
+            (Some(p), Some(e)) => Dirty {
+                buttons: p.button_mappings != e.button_mappings,
+                sticks: p.sticks != e.sticks,
+                triggers: p.triggers != e.triggers,
+                vibration: p.vibration != e.vibration,
+            },
+        }
     }
 }
 
@@ -49,6 +91,8 @@ pub enum Install {
 pub struct AppState {
     /// The connected controller model.
     pub description: &'static ControllerDescription,
+    /// The profile a new slot starts from, per mode, with an empty name.
+    pub defaults: BTreeMap<Mode, CanonicalProfile>,
     /// The mode the controller presents now. `None` while no controller is present.
     pub current_mode: Option<Mode>,
     /// Every slot read so far, by mode and 1-based number. Empty until the first read.
@@ -71,11 +115,16 @@ pub struct AppState {
 }
 
 impl AppState {
-    /// A window with no controller seen yet.
+    /// A window with no controller seen yet. `defaults` holds the profile a new slot
+    /// of each mode starts from.
     #[must_use]
-    pub const fn new(description: &'static ControllerDescription) -> Self {
+    pub const fn new(
+        description: &'static ControllerDescription,
+        defaults: BTreeMap<Mode, CanonicalProfile>,
+    ) -> Self {
         Self {
             description,
+            defaults,
             current_mode: None,
             slots: BTreeMap::new(),
             selected: (0, 0),
@@ -185,10 +234,64 @@ impl AppState {
     pub fn slot(&self, mode: Mode, number: u8) -> SlotState {
         self.slots.get(&(mode, number)).cloned().unwrap_or_default()
     }
+
+    /// The selected slot, for a change.
+    fn selected_mut(&mut self) -> Option<&mut SlotState> {
+        let key = self.selected_slot()?;
+        Some(self.slots.entry(key).or_default())
+    }
+
+    /// Applies `change` to the selected slot's working copy. The first change copies
+    /// what the controller holds. An empty slot has nothing to change.
+    fn edit(&mut self, change: impl FnOnce(&mut CanonicalProfile)) {
+        let Some(slot) = self.selected_mut() else { return };
+        let Some(mut edited) = slot.shown().cloned() else { return };
+        change(&mut edited);
+        slot.edited = Some(edited);
+    }
+
+    /// Gives `button` the output `target` in the selected slot. An unrecognised
+    /// output is read-only: a button can leave it, never go back to it.
+    pub fn set_output(&mut self, button: &str, target: &str) {
+        if target == UNRECOGNISED_OUTPUT {
+            return;
+        }
+        self.edit(|p| {
+            let mapping = ButtonMapping { source: button.to_owned(), target: target.to_owned() };
+            match p.button_mappings.iter_mut().find(|m| m.source == button) {
+                Some(m) => *m = mapping,
+                None => p.button_mappings.push(mapping),
+            }
+        });
+    }
+
+    /// Renames the selected slot's profile, cut to the controller's name length.
+    pub fn set_name(&mut self, name: &str) {
+        let max = usize::try_from(self.description.limits.profile_name_length.max).unwrap_or(0);
+        let name: String = name.chars().take(max).collect();
+        self.edit(|p| p.name = name);
+    }
+
+    /// Drops the selected slot's working copy.
+    pub fn discard(&mut self) {
+        if let Some(slot) = self.selected_mut() {
+            slot.edited = None;
+        }
+    }
+
+    /// Fills an empty selected slot's working copy with the mode's default profile.
+    pub fn start_from_default(&mut self) {
+        let Some((mode, _)) = self.selected_slot() else { return };
+        let Some(mut profile) = self.defaults.get(&mode).cloned() else { return };
+        NEW_PROFILE_NAME.clone_into(&mut profile.name);
+        if let Some(slot) = self.selected_mut().filter(|s| s.shown().is_none()) {
+            slot.edited = Some(profile);
+        }
+    }
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 pub mod tests {
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::Pro3;
@@ -198,6 +301,12 @@ pub mod tests {
 
     pub fn description() -> &'static ControllerDescription {
         Pro3.description().unwrap()
+    }
+
+    /// A window for the Pro 3 with no controller seen yet.
+    pub fn new_state() -> AppState {
+        let defaults = Mode::ALL.iter().map(|&m| (m, Pro3.default_profile(m))).collect();
+        AppState::new(description(), defaults)
     }
 
     /// A summary for slot `number` of `mode`, named `name`; an empty name makes it
@@ -243,14 +352,14 @@ pub mod tests {
 
     #[test]
     fn starts_with_no_controller() {
-        let s = AppState::new(description());
+        let s = new_state();
         assert!(!s.has_controller());
         assert_eq!(s.current_mode, None);
     }
 
     #[test]
     fn first_read_fills_every_slot_and_selects_the_current_mode() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(Mode::Switch));
         s.read_started();
         s.read_finished(Ok(full_read()));
@@ -263,7 +372,7 @@ pub mod tests {
 
     #[test]
     fn read_note_shows_once_per_connection() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_finished(Ok(full_read()));
         assert!(s.read_note);
@@ -278,7 +387,7 @@ pub mod tests {
 
     #[test]
     fn unplug_keeps_slots_and_edits() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_finished(Ok(full_read()));
         let mut edited = s.slot(Mode::XInput, 1).pad.unwrap();
@@ -301,7 +410,7 @@ pub mod tests {
 
     #[test]
     fn failed_read_is_kept_until_the_next_connection() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_started();
         s.read_finished(Err("device disconnected".to_owned()));
@@ -313,7 +422,7 @@ pub mod tests {
 
     #[test]
     fn denied_read_asks_for_access_until_a_good_read() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_started();
         s.read_denied(false);
@@ -334,7 +443,7 @@ pub mod tests {
 
     #[test]
     fn unplug_leaves_the_permission_screen() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.presence(Some(Mode::XInput));
         s.read_denied(true);
         s.presence(None);
@@ -343,11 +452,90 @@ pub mod tests {
 
     #[test]
     fn select_ignores_out_of_range() {
-        let mut s = AppState::new(description());
+        let mut s = new_state();
         s.select(2, 2);
         assert_eq!(s.selected_slot(), Some((Mode::DInput, 3)));
         s.select(3, 0);
         s.select(0, 3);
         assert_eq!(s.selected, (2, 2));
+    }
+
+    /// A Pro 3 read in `mode`, with the read note closed.
+    pub fn connected(mode: Mode) -> AppState {
+        let mut s = new_state();
+        s.presence(Some(mode));
+        s.read_finished(Ok(full_read()));
+        s.close_read_note();
+        s
+    }
+
+    #[test]
+    fn first_change_copies_the_pad_and_marks_its_tab() {
+        let mut s = connected(Mode::XInput);
+        assert_eq!(s.slot(Mode::XInput, 1).dirty(), Dirty::default());
+        s.set_output("r1", "disabled");
+        let slot = s.slot(Mode::XInput, 1);
+        assert!(slot.unsaved());
+        assert_eq!(slot.dirty(), Dirty { buttons: true, ..Dirty::default() });
+        // Changing it back leaves a working copy equal to the pad: nothing unsaved.
+        s.set_output("r1", "r1");
+        assert!(!s.slot(Mode::XInput, 1).unsaved());
+        assert_eq!(s.slot(Mode::XInput, 1).dirty(), Dirty::default());
+    }
+
+    #[test]
+    fn a_rename_marks_no_tab_and_is_cut_to_the_limit() {
+        let mut s = connected(Mode::XInput);
+        s.set_name("A name far longer than sixteen");
+        let slot = s.slot(Mode::XInput, 1);
+        assert_eq!(slot.shown().unwrap().name, "A name far longe");
+        assert!(slot.unsaved());
+        assert_eq!(slot.dirty(), Dirty::default());
+    }
+
+    #[test]
+    fn discard_drops_the_working_copy_of_the_selected_slot_only() {
+        let mut s = connected(Mode::XInput);
+        s.set_output("l1", "disabled");
+        s.select(0, 1);
+        s.set_output("l1", "disabled");
+        s.discard();
+        assert!(!s.slot(Mode::XInput, 2).unsaved());
+        assert!(s.slot(Mode::XInput, 1).unsaved());
+    }
+
+    #[test]
+    fn an_empty_slot_starts_from_the_mode_default() {
+        let mut s = connected(Mode::Switch);
+        s.select(1, 2);
+        s.set_output("l1", "disabled");
+        assert_eq!(s.slot(Mode::Switch, 3).edited, None, "an empty slot has nothing to edit");
+        s.start_from_default();
+        let slot = s.slot(Mode::Switch, 3);
+        let p = slot.shown().unwrap();
+        assert_eq!((p.name.as_str(), p.mode), (NEW_PROFILE_NAME, Mode::Switch));
+        assert!(slot.unsaved());
+        assert_eq!(
+            slot.dirty(),
+            Dirty { buttons: true, sticks: true, triggers: true, vibration: true }
+        );
+        // A second press keeps the edits made since.
+        s.set_output("l1", "disabled");
+        s.start_from_default();
+        let p = s.slot(Mode::Switch, 3).edited.unwrap();
+        assert!(p.button_mappings.iter().any(|m| m.source == "l1" && m.target == "disabled"));
+    }
+
+    #[test]
+    fn an_unrecognised_output_can_be_left_but_not_chosen() {
+        let mut s = connected(Mode::DInput);
+        s.set_output("l1", UNRECOGNISED_OUTPUT);
+        assert_eq!(s.slot(Mode::DInput, 1).edited, None);
+        s.slots.get_mut(&(Mode::DInput, 1)).unwrap().pad.as_mut().unwrap().button_mappings[0]
+            .target = UNRECOGNISED_OUTPUT.to_owned();
+        s.set_output("right face", "disabled");
+        s.set_output("right face", UNRECOGNISED_OUTPUT);
+        let edited = s.slot(Mode::DInput, 1).edited.unwrap();
+        assert_eq!(edited.button_mappings[0].target, "disabled");
     }
 }

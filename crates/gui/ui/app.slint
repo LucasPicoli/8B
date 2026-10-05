@@ -1,13 +1,14 @@
 // The 8B window: the no-controller screen until a first read, then the sidebar
 // with every slot of every mode and the selected slot beside it.
-import { Theme } from "look/breeze/widgets.slint";
-import { MessageBar, Placeholder, Icons } from "parts.slint";
+import { Theme, Button, LineEdit, ScrollView } from "look/breeze/widgets.slint";
+import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
+import { ButtonsTab } from "buttons.slint";
 import { Sidebar } from "sidebar.slint";
 import { AboutDialog } from "dialogs.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot } from "types.slint";
 
-export { ModeGroup, Slot }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Theme }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -29,6 +30,16 @@ export component AppWindow inherits Window {
     in property <int> selected-slot;
     in property <string> slot-title;
     in property <bool> empty-slot;
+    // The profile name field, cut to `name-max` characters by Rust.
+    in-out property <string> profile-name;
+    in property <int> name-max;
+    in property <bool> unsaved;
+    in property <[Section]> sections;
+    in property <[PadView]> views;
+    in property <[Spot]> spots;
+    in property <[MapRow]> rows;
+    in-out property <int> tab;
+    in-out property <int> selected-row: -1;
     // The read-slot note, shown once per connection until closed.
     in property <string> read-note;
     // Why the last read failed, empty when it did not.
@@ -47,6 +58,17 @@ export component AppWindow inherits Window {
     callback slot-picked(int, int);
     callback read-note-closed;
     callback install-rule;
+    callback name-edited(string);
+    // A row index and an index into that row's outputs.
+    callback output-picked(int, int);
+    callback discard;
+    callback start-from-default;
+    // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
+    pure callback hit(int, float, float) -> int;
+    // Rust only: the light or dark colours changed, so the views need recolouring.
+    callback theme-changed;
+    property <bool> dark: Theme.dark;
+    changed dark => { root.theme-changed(); }
     // Rust only: the worker thread has events waiting.
     callback worker-event;
 
@@ -74,7 +96,13 @@ export component AppWindow inherits Window {
             connected: root.connected;
             current-mode: root.selected-mode;
             current-slot: root.selected-slot;
-            slot-picked(m, s) => { root.slot-picked(m, s); }
+            slot-picked(m, s) => {
+                // A selected button belongs to the slot it was picked in.
+                if (m != root.selected-mode || s != root.selected-slot) {
+                    root.selected-row = -1;
+                }
+                root.slot-picked(m, s);
+            }
             about => { root.dialog = "about"; }
         }
         VerticalLayout {
@@ -84,11 +112,32 @@ export component AppWindow inherits Window {
                 HorizontalLayout {
                     padding-left: 16px;
                     padding-right: 12px;
+                    spacing: 8px;
+                    alignment: start;
                     Text {
                         text: root.slot-title;
                         font-size: Theme.text-title;
                         color: Theme.fg;
                         vertical-alignment: center;
+                    }
+                    if !root.empty-slot: HorizontalLayout {
+                        padding-left: 6px;
+                        spacing: 6px;
+                        VerticalLayout {
+                            alignment: center;
+                            LineEdit {
+                                width: 168px;
+                                text <=> root.profile-name;
+                                accessible-name: "Profile name";
+                                edited(t) => { root.name-edited(t); }
+                            }
+                        }
+                        Text {
+                            text: root.profile-name.character-count + "/" + root.name-max;
+                            font-size: Theme.text-small;
+                            color: Theme.fg-muted;
+                            vertical-alignment: center;
+                        }
                     }
                 }
                 Rectangle {
@@ -130,13 +179,76 @@ export component AppWindow inherits Window {
                 }
             }
 
-            Rectangle {
+            if !root.empty-slot: TabBar {
+                model: root.sections;
+                current <=> root.tab;
+            }
+
+            if root.empty-slot: Rectangle {
                 vertical-stretch: 1;
-                if root.empty-slot: Placeholder {
+                // The placeholder's text caps the height otherwise.
+                max-height: 100000px;
+                Placeholder {
                     width: 100%;
                     height: 100%;
                     title: "Slot " + (root.selected-slot + 1) + " is empty";
-                    body: "Nothing is stored in this slot yet.";
+                    body: "Start from the default profile and change what you need. Nothing reaches the controller until you write.";
+                    Button {
+                        text: "Start from default";
+                        primary: true;
+                        clicked => { root.start-from-default(); }
+                    }
+                }
+            }
+
+            page := ScrollView {
+                visible: !root.empty-slot;
+                vertical-stretch: root.empty-slot ? 0 : 1;
+                VerticalLayout {
+                    padding-left: 16px;
+                    padding-right: 16px;
+                    padding-top: 14px;
+                    padding-bottom: 32px;
+                    if root.tab == 0: ButtonsTab {
+                        views: root.views;
+                        spots: root.spots;
+                        rows: root.rows;
+                        selected <=> root.selected-row;
+                        hit(v, x, y) => { return root.hit(v, x, y); }
+                        output-picked(row, choice) => { root.output-picked(row, choice); }
+                        reveal(abs-y, h) => {
+                            let top = abs-y - page.absolute-position.y;
+                            if (top < 0) {
+                                page.content-y -= top;
+                            } else if (top + h > page.visible-height) {
+                                page.content-y -= top + h - page.visible-height;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if !root.empty-slot: Rectangle {
+                height: 48px;
+                background: Theme.header;
+                Rectangle {
+                    y: 0;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
+                HorizontalLayout {
+                    padding-left: 12px;
+                    padding-right: 12px;
+                    alignment: start;
+                    VerticalLayout {
+                        alignment: center;
+                        Button {
+                            text: "Discard";
+                            icon: Icons.discard;
+                            enabled: root.unsaved;
+                            clicked => { root.discard(); }
+                        }
+                    }
                 }
             }
         }
