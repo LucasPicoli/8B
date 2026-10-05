@@ -81,6 +81,16 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
     Ok(blob)
 }
 
+/// Selects the bank of the current mode, so the session leaves the pad as a replug would.
+///
+/// A slot select moves the pad to that bank and to the slot its `cur_slot` names, and
+/// the pad stays there until the next select or replug. The profile button then cycles
+/// that bank's slots, so a pad left on another bank runs that bank's profiles.
+fn select_current_bank(session: &mut Session, spec: Pro3) -> Result<()> {
+    let _ = session.send_recv(&build_slot_select(spec.slot_select_value(session.current_mode)))?;
+    Ok(())
+}
+
 // ---------------------------------------------------------------------------
 // Empty-slot placeholder (mirrors C++ default-constructed `CanonicalProfileSummary`)
 // ---------------------------------------------------------------------------
@@ -134,7 +144,8 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// Reads the slot banks for target `mode`, from any current mode.
     ///
     /// `XInput` or Switch reads the `XInput` bank, then the Switch bank (2 blobs).
-    /// `DInput` reads the `DInput` bank (1 blob).
+    /// `DInput` reads the `DInput` bank (1 blob). The session ends with the current
+    /// mode's bank selected, which leaves the pad on that bank's stored slot.
     ///
     /// **Never sends `QUERY_STATUS`** beyond the session's own pause.
     ///
@@ -176,6 +187,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
             raw_blobs.push(blob);
         }
 
+        select_current_bank(&mut session, self.spec)?;
         Ok(ProfileReadResult { profiles, raw_blobs })
     }
 
@@ -244,6 +256,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
             result.extend_from_slice(&chunk);
         }
 
+        select_current_bank(&mut session, self.spec)?;
         result.truncate(data_bytes);
         Ok(result)
     }
