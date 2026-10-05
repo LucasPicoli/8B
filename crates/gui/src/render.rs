@@ -10,11 +10,6 @@ use crate::buttons::render_buttons;
 use crate::state::{Access, AppState, Install};
 use crate::ui::{AppWindow, ModeGroup, Slot};
 
-/// The read-slot note. A read selects the current mode's bank, which puts the
-/// controller back on the slot it entered that mode with.
-pub const READ_NOTE: &str =
-    "Reading reset the controller to its starting slot. Press the profile button to change slot.";
-
 /// The sidebar: every slot of every mode, in the description's order.
 #[must_use]
 pub fn groups(state: &AppState) -> Vec<ModeGroup> {
@@ -101,8 +96,6 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_name_max(state.description.limits.profile_name_length.max);
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
-    ui.set_slot_note(READ_NOTE.into());
-    ui.set_read_note(if state.read_note { READ_NOTE.into() } else { SharedString::new() });
     ui.set_read_error(state.read_error.as_deref().map(sentence).unwrap_or_default().into());
     ui.set_access_denied(state.access.is_some());
     ui.set_rule_installed(state.access == Some(Access::StillDenied));

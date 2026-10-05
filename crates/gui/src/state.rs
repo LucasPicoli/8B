@@ -104,14 +104,10 @@ pub struct AppState {
     pub reading: bool,
     /// Why the last read failed. Cleared by the next connection.
     pub read_error: Option<String>,
-    /// Whether the read-slot note shows.
-    pub read_note: bool,
     /// Set while opening the controller is denied: the permission screen shows.
     pub access: Option<Access>,
     /// Where the udev rule install stands.
     pub install: Install,
-    /// Whether this connection has had its first read.
-    read_since_connect: bool,
 }
 
 impl AppState {
@@ -130,10 +126,8 @@ impl AppState {
             selected: (0, 0),
             reading: false,
             read_error: None,
-            read_note: false,
             access: None,
             install: Install::Idle,
-            read_since_connect: false,
         }
     }
 
@@ -151,9 +145,7 @@ impl AppState {
         self.access = None;
         self.install = Install::Idle;
         if mode.is_some() {
-            self.read_since_connect = false;
             self.read_error = None;
-            self.read_note = false;
         }
     }
 
@@ -180,10 +172,6 @@ impl AppState {
         }
         self.read_error = None;
         self.access = None;
-        if !self.read_since_connect {
-            self.read_since_connect = true;
-            self.read_note = true;
-        }
         if first_ever {
             let current = self.current_mode;
             if let Some(i) = self.description.modes.iter().position(|m| Some(m.id) == current) {
@@ -207,11 +195,6 @@ impl AppState {
     /// The udev rule install came back.
     pub fn install_finished(&mut self, result: Result<(), String>) {
         self.install = result.err().map_or(Install::Idle, Install::Failed);
-    }
-
-    /// The read-slot note was closed. It stays closed for this connection.
-    pub const fn close_read_note(&mut self) {
-        self.read_note = false;
     }
 
     /// Shows slot `slot` (0-based) of the mode at `mode` in the description.
@@ -371,21 +354,6 @@ pub mod tests {
     }
 
     #[test]
-    fn read_note_shows_once_per_connection() {
-        let mut s = new_state();
-        s.presence(Some(Mode::XInput));
-        s.read_finished(Ok(full_read()));
-        assert!(s.read_note);
-        s.close_read_note();
-        s.read_finished(Ok(full_read()));
-        assert!(!s.read_note, "a second read on the same connection keeps it closed");
-        s.presence(None);
-        s.presence(Some(Mode::XInput));
-        s.read_finished(Ok(full_read()));
-        assert!(s.read_note, "a new connection shows it again");
-    }
-
-    #[test]
     fn unplug_keeps_slots_and_edits() {
         let mut s = new_state();
         s.presence(Some(Mode::XInput));
@@ -415,7 +383,7 @@ pub mod tests {
         s.read_started();
         s.read_finished(Err("device disconnected".to_owned()));
         assert_eq!(s.read_error.as_deref(), Some("device disconnected"));
-        assert!(!s.reading && !s.read_note && !s.has_controller());
+        assert!(!s.reading && !s.has_controller());
         s.presence(Some(Mode::XInput));
         assert_eq!(s.read_error, None);
     }
@@ -460,12 +428,11 @@ pub mod tests {
         assert_eq!(s.selected, (2, 2));
     }
 
-    /// A Pro 3 read in `mode`, with the read note closed.
+    /// A Pro 3 read in `mode`.
     pub fn connected(mode: Mode) -> AppState {
         let mut s = new_state();
         s.presence(Some(mode));
         s.read_finished(Ok(full_read()));
-        s.close_read_note();
         s
     }
 

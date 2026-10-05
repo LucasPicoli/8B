@@ -40,13 +40,9 @@ export component AppWindow inherits Window {
     in property <[MapRow]> rows;
     in-out property <int> tab;
     in-out property <int> selected-row: -1;
-    // The read-slot note, shown once per connection until closed.
-    in property <string> read-note;
     // Why the last read failed, empty when it did not.
     in property <string> read-error;
     in property <string> version;
-    // The read-slot sentence, shown in About too.
-    in property <string> slot-note;
     // Narrow window: toolbar buttons drop their text, like KDE toolbars.
     // Set from Rust: bound to the window width here, it forms a layout loop.
     in property <bool> compact;
@@ -61,7 +57,6 @@ export component AppWindow inherits Window {
     in property <string> udev-rule-path;
     in-out property <string> dialog;
     callback slot-picked(int, int);
-    callback read-note-closed;
     callback install-rule;
     callback name-edited(string);
     // A row index and an index into that row's outputs.
@@ -202,17 +197,6 @@ export component AppWindow inherits Window {
                     body: root.read-error;
                 }
             }
-            if root.read-note != "": HorizontalLayout {
-                padding-left: 16px;
-                padding-right: 16px;
-                padding-top: 10px;
-                MessageBar {
-                    info: true;
-                    closable: true;
-                    title: root.read-note;
-                    closed => { root.read-note-closed(); }
-                }
-            }
 
             if !root.empty-slot: TabBar {
                 model: root.sections;
@@ -291,7 +275,6 @@ export component AppWindow inherits Window {
 
     if root.dialog == "about": AboutDialog {
         version: root.version;
-        slot-note: root.slot-note;
         cancelled => { root.dialog = ""; }
     }
 }

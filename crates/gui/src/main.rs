@@ -145,8 +145,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
     let c = change.clone();
-    ui.on_read_note_closed(move || c(&AppState::close_read_note));
-    let c = change.clone();
     ui.on_output_picked(move |row, choice| {
         let (Ok(row), Ok(choice)) = (usize::try_from(row), usize::try_from(choice)) else { return };
         c(&|s| {

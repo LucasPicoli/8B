@@ -14,7 +14,7 @@ use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 
 use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
-use crate::state::tests::{connected as read, full_read, new_state};
+use crate::state::tests::{connected, new_state};
 use crate::state::AppState;
 use crate::ui::AppWindow;
 
@@ -61,13 +61,6 @@ fn save(name: &str, ui: &AppWindow) {
     }
 }
 
-fn connected(mode: Mode) -> AppState {
-    let mut s = new_state();
-    s.presence(Some(mode));
-    s.read_finished(Ok(full_read()));
-    s
-}
-
 #[test]
 fn no_controller() {
     shoot("no-controller", &new_state());
@@ -82,14 +75,8 @@ fn first_read_failed() {
 }
 
 #[test]
-fn sidebar_with_read_note() {
-    shoot("read-note", &connected(Mode::XInput));
-}
-
-#[test]
-fn sidebar_after_closing_the_note() {
+fn sidebar_with_an_empty_slot() {
     let mut s = connected(Mode::DInput);
-    s.close_read_note();
     s.select(2, 2);
     shoot("empty-slot", &s);
 }
@@ -97,7 +84,6 @@ fn sidebar_after_closing_the_note() {
 #[test]
 fn unplugged() {
     let mut s = connected(Mode::Switch);
-    s.close_read_note();
     s.presence(None);
     shoot("unplugged", &s);
 }
@@ -105,7 +91,6 @@ fn unplugged() {
 #[test]
 fn read_failed() {
     let mut s = connected(Mode::XInput);
-    s.close_read_note();
     s.read_finished(Err("device communication timed out".to_owned()));
     shoot("read-failed", &s);
 }
@@ -147,12 +132,12 @@ fn permission_still_denied() {
 
 #[test]
 fn clean_slot() {
-    shoot("buttons-clean", &read(Mode::XInput));
+    shoot("buttons-clean", &connected(Mode::XInput));
 }
 
 #[test]
 fn edited_slot() {
-    let mut s = read(Mode::Switch);
+    let mut s = connected(Mode::Switch);
     s.set_output("r1", "disabled");
     s.set_output("rp", "top face");
     s.set_output("bottom face", "screenshot");
@@ -162,7 +147,7 @@ fn edited_slot() {
 
 #[test]
 fn slot_started_from_default() {
-    let mut s = read(Mode::DInput);
+    let mut s = connected(Mode::DInput);
     s.select(2, 2);
     s.start_from_default();
     shoot("buttons-from-default", &s);
@@ -170,7 +155,7 @@ fn slot_started_from_default() {
 
 #[test]
 fn slot_with_an_unrecognised_row() {
-    let mut s = read(Mode::DInput);
+    let mut s = connected(Mode::DInput);
     s.select(2, 1);
     let pad = s.slots.get_mut(&(Mode::DInput, 2)).unwrap().pad.as_mut().unwrap();
     let left = pad.button_mappings.iter_mut().find(|m| m.source == "d-pad left").unwrap();
@@ -180,7 +165,7 @@ fn slot_with_an_unrecognised_row() {
 
 #[test]
 fn a_click_on_the_drawing_selects_the_button_row() {
-    let s = read(Mode::XInput);
+    let s = connected(Mode::XInput);
     let ui = window(&s);
     let d = s.description;
     ui.on_hit(move |view, x, y| crate::buttons::hit(d, usize::try_from(view).unwrap(), x, y));
@@ -202,7 +187,7 @@ fn click(ui: &AppWindow, x: f32, y: f32) {
 
 #[test]
 fn picking_another_slot_clears_the_selected_button() {
-    let ui = window(&read(Mode::XInput));
+    let ui = window(&connected(Mode::XInput));
     ui.set_selected_row(4);
     // XInput slot 1, the slot on screen, in the sidebar.
     click(&ui, 130.0, 105.0);
@@ -214,8 +199,7 @@ fn picking_another_slot_clears_the_selected_button() {
 
 #[test]
 fn about() {
-    let mut s = connected(Mode::XInput);
-    s.close_read_note();
+    let s = connected(Mode::XInput);
     let ui = window(&s);
     ui.set_version("0.1.0".into());
     ui.set_dialog("about".into());
@@ -224,8 +208,7 @@ fn about() {
 
 /// The editor at `width`×800, with the toolbar fitted to it.
 fn toolbar_at(width: u32) -> AppWindow {
-    let mut s = read(Mode::XInput);
-    s.close_read_note();
+    let s = connected(Mode::XInput);
     let ui = window(&s);
     ui.window().set_size(PhysicalSize::new(width, 800));
     fit_toolbar(&ui);
