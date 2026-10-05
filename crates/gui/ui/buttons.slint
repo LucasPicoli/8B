@@ -1,12 +1,32 @@
 // The Buttons tab: the controller views beside the mapping table.
 import { Theme, ComboBox } from "look/breeze/widgets.slint";
-import { Frame, Dot } from "parts.slint";
+import { Frame } from "parts.slint";
 import { MapRow, PadView, Spot } from "types.slint";
 
 component SmallHead inherits Text {
     font-weight: 600;
     font-size: Theme.text-caption;
     color: Theme.fg-muted;
+}
+
+// A legend entry: the bar colour a table row shows, and what it means.
+component Swatch inherits HorizontalLayout {
+    in property <brush> tone;
+    in property <string> text;
+    spacing: 6px;
+    horizontal-stretch: 0;
+    Rectangle {
+        width: 3px;
+        height: 14px;
+        y: (parent.height - self.height) / 2;
+        background: root.tone;
+    }
+    Text {
+        text: root.text;
+        font-size: Theme.text-small;
+        color: Theme.fg-muted;
+        vertical-alignment: center;
+    }
 }
 
 // One view: the drawing, its button shapes over it, and the output of the hovered
@@ -31,7 +51,7 @@ component ViewArt {
         source: root.view.image;
     }
     for s in root.spots: Path {
-        property <bool> lit: s.row == root.selected || s.row == root.hover || s.mapped;
+        property <bool> lit: s.row == root.selected || s.row == root.hover || s.mapped || s.pending;
         visible: s.view == root.index && self.lit;
         x: 0;
         y: 0;
@@ -40,8 +60,8 @@ component ViewArt {
         viewbox-width: root.view.width;
         viewbox-height: root.view.height;
         commands: s.commands;
-        fill: s.row == root.hover && !s.fixed ? Theme.hover : Theme.accent-wash;
-        stroke: s.fixed ? Theme.fg-muted : Theme.accent;
+        fill: s.row == root.hover && !s.fixed ? Theme.hover : s.pending ? Theme.neutral-wash : Theme.accent-wash;
+        stroke: s.fixed ? Theme.fg-muted : s.pending ? Theme.neutral : Theme.accent;
         stroke-width: s.row == root.selected ? 2.4px : 1.2px;
     }
     // Right of the shape, or left of it where the right side has no room.
@@ -95,10 +115,22 @@ export component ButtonsTab {
 
     VerticalLayout {
         spacing: 12px;
-        Text {
-            text: "Click a button on the controller or pick its output in the list.";
-            color: Theme.fg-muted;
-            wrap: word-wrap;
+        HorizontalLayout {
+            spacing: 16px;
+            Text {
+                horizontal-stretch: 1;
+                text: "Click a button on the controller or pick its output in the list.";
+                color: Theme.fg-muted;
+                wrap: word-wrap;
+            }
+            Swatch {
+                tone: Theme.accent;
+                text: "Remapped";
+            }
+            Swatch {
+                tone: Theme.neutral;
+                text: "Not written yet";
+            }
         }
         HorizontalLayout {
             spacing: 16px;
@@ -155,6 +187,15 @@ export component ButtonsTab {
                             TouchArea {
                                 clicked => { root.selected = i; }
                             }
+                            // An orange bar for an edit not written yet, else an accent
+                            // bar for a remap the controller holds.
+                            if r.changed || r.remapped: Rectangle {
+                                x: 0;
+                                width: 3px;
+                                background: r.changed ? Theme.neutral : Theme.accent;
+                                accessible-role: text;
+                                accessible-label: r.changed ? "Not written yet" : "Remapped";
+                            }
                             HorizontalLayout {
                                 padding-left: 10px;
                                 padding-right: 10px;
@@ -168,9 +209,6 @@ export component ButtonsTab {
                                         Text {
                                             text: r.label;
                                             color: Theme.fg;
-                                        }
-                                        if r.changed: Dot {
-                                            y: (parent.height - self.height) / 2;
                                         }
                                     }
                                     if r.note != "": Text {

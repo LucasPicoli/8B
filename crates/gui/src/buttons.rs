@@ -100,6 +100,12 @@ pub fn sections(state: &AppState) -> Vec<Section> {
     .collect()
 }
 
+/// Whether `button`, a remappable button, outputs something other than it does in
+/// `mode`'s default profile.
+fn remapped(state: &AppState, mode: Mode, button: &str, current: &str) -> bool {
+    state.defaults.get(&mode).is_some_and(|d| target(d, button) != current)
+}
+
 /// The mapping table of the selected slot: one row per button, in the
 /// description's order. Empty for an empty slot.
 #[must_use]
@@ -125,6 +131,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                     list.into_iter().map(|(_, l)| SharedString::from(l)).collect::<VecModel<_>>(),
                 )),
                 fixed: !b.can_be_remapped,
+                remapped: b.can_be_remapped && remapped(state, mode, &b.id, current),
                 unknown: current == UNRECOGNISED_OUTPUT,
                 changed: slot.pad.as_ref().is_some_and(|p| target(p, &b.id) != current),
             }
@@ -140,7 +147,6 @@ pub fn spots(state: &AppState) -> Vec<Spot> {
     let Some((mode, number)) = state.selected_slot() else { return Vec::new() };
     let slot = state.slot(mode, number);
     let Some(shown) = slot.shown() else { return Vec::new() };
-    let default = state.defaults.get(&mode);
     let mut out = Vec::new();
     for (vi, view) in (0_i32..).zip(&description.views) {
         for h in &view.hotspots {
@@ -149,7 +155,8 @@ pub fn spots(state: &AppState) -> Vec<Spot> {
             };
             let fixed = description.buttons.get(row).is_some_and(|b| !b.can_be_remapped);
             let current = target(shown, &h.button);
-            let mapped = !fixed && default.is_some_and(|d| target(d, &h.button) != current);
+            let mapped = !fixed && remapped(state, mode, &h.button, current);
+            let pending = slot.pad.as_ref().is_some_and(|p| target(p, &h.button) != current);
             let output = output_label(description, mode, current).into();
             #[allow(clippy::cast_possible_truncation)]
             let [x0, y0, x1, y1] = h.bounds().map(|v| v as f32);
@@ -158,6 +165,7 @@ pub fn spots(state: &AppState) -> Vec<Spot> {
                 view: vi,
                 commands: h.path.as_str().into(),
                 mapped,
+                pending,
                 fixed,
                 output,
                 x0,
@@ -296,6 +304,7 @@ mod tests {
         let row =
             |id: &str| rows[s.description.buttons.iter().position(|b| b.id == id).unwrap()].clone();
         assert!(row("home/guide").fixed && !row("l1").fixed);
+        assert!(row("r1").remapped && !row("l2").remapped && !row("rp").remapped);
         assert!(row("bottom face").unknown);
         assert_eq!(row("bottom face").output, 0);
         assert!(row("r1").changed && !row("l1").changed);
@@ -316,6 +325,12 @@ mod tests {
         let lit: Vec<_> = spots(&s).into_iter().filter(|p| p.mapped).collect();
         assert_eq!(lit.len(), 2, "L4 is on the front and the back");
         assert!(lit.iter().all(|p| p.output == "A"));
+        assert!(lit.iter().all(|p| !p.pending), "nothing is on the controller to differ from");
+        let mut s = read(Mode::XInput);
+        s.set_output("l2", "disabled");
+        let pending: Vec<_> = spots(&s).into_iter().filter(|p| p.pending).collect();
+        assert_eq!(pending.len(), 1);
+        assert!(pending.iter().all(|p| p.mapped && p.output == "Disabled"));
     }
 
     #[test]

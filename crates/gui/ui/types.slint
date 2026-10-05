@@ -33,9 +33,11 @@ export struct MapRow {
     output: int,
     // Cannot be remapped: no picker.
     fixed: bool,
+    // Its output differs from the default profile's, as the tint on the drawing.
+    remapped: bool,
     // The controller holds an output 8B does not recognise.
     unknown: bool,
-    // Differs from what the controller holds.
+    // Differs from what the controller holds: not written yet.
     changed: bool,
 }
 
@@ -56,6 +58,8 @@ export struct Spot {
     commands: string,
     // Its output differs from the default profile's: the shape is tinted.
     mapped: bool,
+    // Its output differs from what the controller holds: the tint is orange.
+    pending: bool,
     fixed: bool,
     // The output's label, shown beside the shape on hover or selection.
     output: string,
