@@ -10,10 +10,12 @@ mod files;
 mod holders;
 mod portal;
 mod render;
+mod review;
 mod settings;
 mod state;
 mod udev;
 mod worker;
+mod writes;
 
 #[cfg(test)]
 mod snapshots;
@@ -44,6 +46,7 @@ use std::time::Duration;
 use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::Mode;
+use controller_core::service::read::leftover_macros;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use controller_core::Error;
 use slint::{ComponentHandle as _, Timer, TimerMode, Weak};
@@ -53,6 +56,7 @@ use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice};
 use crate::ui::AppWindow;
 use crate::worker::{Command, Event, Failure};
+use crate::writes::WriteJob;
 
 /// Asks the worker to read the controller on `port`, and once asked, marks the read
 /// started.
@@ -75,6 +79,9 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         Event::Read { port, result: Err(f) } => {
             eprintln!("8b: read from {port} failed: {}; held by {:?}", f.error, f.holders);
         }
+        Event::Written { port, result, .. } => {
+            eprintln!("8b: write to {port}: {}", result.message);
+        }
         Event::Installed(Ok(())) => eprintln!("8b: udev rule installed"),
         Event::Installed(Err(e)) => eprintln!("8b: udev rule install failed: {e}"),
     }
@@ -87,17 +94,31 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         }
         Event::Read { port, result: Err(Failure { error: Error::PermissionDenied(_), .. }) } => {
             state.read_denied(&port, udev::rule_state());
+            state.review_read(&port, false);
         }
         Event::Read { port, result: Err(Failure { error: Error::UnsupportedModel(_), .. }) } => {
             state.read_foreign(&port);
+            state.review_read(&port, false);
         }
-        Event::Read { port, result: Ok(read) } => state.read_finished(&port, Ok(read)),
+        Event::Read { port, result: Ok(read) } => {
+            let leftover = leftover_macros(&Pro3, &read);
+            state.read_finished(&port, Ok(read));
+            state.set_leftover(&port, leftover);
+            state.review_read(&port, true);
+        }
         Event::Read { port, result: Err(Failure { error, holders }) } => {
             let message = holders::sentence(&holders).map_or_else(
                 || error.to_string(),
                 |names| format!("{} {names}", sentence(&error.to_string())),
             );
             state.read_finished(&port, Err(message));
+            state.review_read(&port, false);
+        }
+        // Whatever the outcome, read the slot back: what the controller holds now is
+        // what the window should show.
+        Event::Written { port, result, holders } => {
+            state.write_finished(&port, &result, holders::sentence(&holders));
+            read(commands, state, &port);
         }
         Event::Installed(result) => {
             let ok = result.is_ok();
@@ -242,6 +263,100 @@ fn wire_controllers(
     ui.on_changed_applied(move || c(&AppState::apply_changed));
 }
 
+/// Sends a write to the worker. A write the worker cannot take does not start.
+fn send_write(commands: &Sender<Command>, state: &mut AppState, write: Option<(String, WriteJob)>) {
+    if let Some((port, job)) = write {
+        if commands.send(Command::Write(port, job)).is_err() {
+            state.write.running = None;
+        }
+    }
+}
+
+/// Opens `folder` in the file manager. Not a hardware path, so a failure only goes
+/// to stderr.
+fn open_folder(folder: &std::path::Path) {
+    if let Err(e) = std::process::Command::new("xdg-open").arg(folder).spawn() {
+        eprintln!("8b: could not open {}: {e}", folder.display());
+    }
+}
+
+/// Wires Write to controller, Clear slot and the answers to their dialogs.
+fn wire_writes(
+    ui: &AppWindow,
+    change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
+    commands: &Sender<Command>,
+    backups: PathBuf,
+) {
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_write_clicked(move || {
+        c(&|s| {
+            if let Some(port) = s.begin_review() {
+                read(&tx, s, &port);
+            }
+        });
+    });
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_review_confirmed(move || {
+        c(&|s| {
+            let write = s.confirm_review();
+            send_write(&tx, s, write);
+        });
+    });
+    let c = change.clone();
+    ui.on_review_cancelled(move || c(&AppState::cancel_review));
+    let c = change.clone();
+    ui.on_clear_clicked(move || c(&AppState::begin_clear));
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_clear_confirmed(move || {
+        c(&|s| {
+            let write = s.confirm_clear();
+            send_write(&tx, s, write);
+        });
+    });
+    let c = change.clone();
+    ui.on_clear_cancelled(move || c(&AppState::cancel_clear));
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_write_retried(move || {
+        c(&|s| {
+            let write = s.retry_write();
+            send_write(&tx, s, write);
+        });
+    });
+    let c = change.clone();
+    ui.on_failure_closed(move || c(&AppState::dismiss_failure));
+    ui.on_open_backup_folder(move || open_folder(&backups));
+}
+
+/// Wires the edits: the button picker, the name field, the settings, the import
+/// warning, the message bar and Discard.
+fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static)) {
+    let c = change.clone();
+    ui.on_output_picked(move |row, choice| {
+        let (Ok(row), Ok(choice)) = (usize::try_from(row), usize::try_from(choice)) else { return };
+        c(&|s| {
+            if let Some((button, output)) = picked_output(s, row, choice) {
+                s.set_output(&button, &output);
+            }
+        });
+    });
+    let c = change.clone();
+    ui.on_name_edited(move |name| c(&|s| s.set_name(&name)));
+    let c = change.clone();
+    ui.on_number_changed(move |field, value| c(&|s| s.set_number(&field, value)));
+    let c = change.clone();
+    ui.on_flag_changed(move |field, on| c(&|s| s.set_flag(&field, on)));
+    let c = change.clone();
+    ui.on_import_confirmed(move || c(&AppState::confirm_import));
+    let c = change.clone();
+    ui.on_import_cancelled(move || c(&AppState::cancel_import));
+    let c = change.clone();
+    ui.on_notice_closed(move || c(&|s| s.notice = None));
+    let c = change.clone();
+    ui.on_discard(move || c(&AppState::discard));
+    let c = change.clone();
+    ui.on_start_from_default(move || c(&AppState::start_from_default));
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let description = Pro3.description()?;
     let ui = AppWindow::new()?;
@@ -263,6 +378,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
+    let backups = writes::backup_dir(std::env::var_os("XDG_STATE_HOME"), std::env::var_os("HOME"));
     let (events_tx, events) = mpsc::channel();
     let weak = ui.as_weak();
     let commands = worker::spawn(
@@ -270,13 +386,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         PathBuf::from(worker::SYSFS_USB),
         description.config_ports.clone(),
         udev::install_rule,
+        backups.clone(),
         move |event| {
             if events_tx.send(event).is_ok() {
                 let _ = weak.upgrade_in_event_loop(|ui| ui.invoke_worker_event());
             }
         },
     )?;
-    let (install_tx, retry_tx) = (commands.clone(), commands.clone());
+    let (install_tx, retry_tx, write_tx) = (commands.clone(), commands.clone(), commands.clone());
 
     let weak = ui.as_weak();
     let s = Rc::clone(&state);
@@ -313,32 +430,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
     wire_controllers(&ui, &change, retry_tx);
+    wire_writes(&ui, &change, &write_tx, backups);
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
-    let c = change.clone();
-    ui.on_output_picked(move |row, choice| {
-        let (Ok(row), Ok(choice)) = (usize::try_from(row), usize::try_from(choice)) else { return };
-        c(&|s| {
-            if let Some((button, output)) = picked_output(s, row, choice) {
-                s.set_output(&button, &output);
-            }
-        });
-    });
-    let c = change.clone();
-    ui.on_name_edited(move |name| c(&|s| s.set_name(&name)));
-    let c = change.clone();
-    ui.on_number_changed(move |field, value| c(&|s| s.set_number(&field, value)));
-    let c = change.clone();
-    ui.on_flag_changed(move |field, on| c(&|s| s.set_flag(&field, on)));
-    let c = change.clone();
-    ui.on_import_confirmed(move || c(&AppState::confirm_import));
-    let c = change.clone();
-    ui.on_import_cancelled(move || c(&AppState::cancel_import));
-    let c = change.clone();
-    ui.on_notice_closed(move || c(&|s| s.notice = None));
-    let c = change.clone();
-    ui.on_discard(move || c(&AppState::discard));
-    ui.on_start_from_default(move || change(&AppState::start_from_default));
+    wire_edits(&ui, &change);
 
     ui.on_hit(move |view, x, y| {
         hit(description, usize::try_from(view).unwrap_or(usize::MAX), x, y)

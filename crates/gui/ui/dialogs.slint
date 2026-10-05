@@ -2,7 +2,7 @@
 import { AboutSlint } from "std-widgets.slint";
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
-import { Change, ImportWarning } from "types.slint";
+import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
 
 component Bullet {
     in property <string> text;
@@ -23,42 +23,57 @@ component Bullet {
 }
 
 export component ReviewDialog inherits DialogShell {
-    in property <string> slot-title;
-    in property <string> profile-name;
-    in property <[Change]> changes;
-    in property <int> macro-count;
-    in property <string> macro-note;
-    title: "Write " + changes.length + " changes to " + slot-title + "?";
-    subtitle: "This replaces the profile “" + profile-name + "” stored on the controller.";
+    in property <ReviewInfo> info;
+    title: info.is-new
+        ? "Write “" + info.name + "” to " + info.slot-title + "?"
+        : "Write " + info.changes.length + (info.changes.length == 1 ? " change" : " changes") + " to " + info.slot-title + "?";
+    subtitle: info.is-new
+        ? "The slot is empty. It gets a new profile."
+        : "This replaces the profile “" + info.replaces + "” stored on the controller.";
     accept-text: "Write to controller";
-    ChangeTable {
-        model: root.changes;
+    if !root.info.is-new: ChangeTable {
+        model: root.info.changes;
+    }
+    if root.info.macros-stay > 0: Bullet {
+        text: root.info.macros-stay == 1
+            ? "The macro on this slot stays."
+            : "The " + root.info.macros-stay + " macros on this slot stay.";
+    }
+    for r in root.info.removed: Bullet {
+        text: r + ".";
+    }
+    if root.info.leftover > 0: Bullet {
+        text: root.info.leftover == 1
+            ? "The empty slot still holds 1 macro. Writing a profile removes it."
+            : "The empty slot still holds " + root.info.leftover + " macros. Writing a profile removes them.";
     }
     Bullet {
-        text: "The " + root.macro-count + " macros on this slot stay.";
-        aside: root.macro-note;
+        text: "If the write fails, 8B puts the old profile back. If it cannot, it saves the old profile to a file.";
     }
     Bullet {
-        text: "A backup of the slot is saved first, and the slot is read back after the write.";
+        text: "8B reads the controller again after the write.";
     }
     Bullet {
-        text: "The controller applies the profile while its profile light is on.";
+        text: "The controller uses the profile while that slot’s light is on.";
     }
 }
 
 export component ClearDialog inherits DialogShell {
-    in property <string> slot-title;
-    in property <string> profile-name;
-    in property <int> macro-count;
+    in property <ClearInfo> info;
     icon: Icons.warning;
     destructive: true;
-    title: "Clear " + slot-title + "?";
-    subtitle: "This removes the profile “" + profile-name + "” from the controller. Export it first if you may want it back.";
+    title: "Clear " + info.slot-title + "?";
+    subtitle: "This removes the profile “" + info.name + "” from the controller. Export it first if you may want it back.";
     accept-text: "Clear slot";
     extra-text: "Export…";
     extra-icon: Icons.export;
-    Bullet {
-        text: "The slot’s " + root.macro-count + " macros stay stored, but the next profile written to this slot removes them.";
+    if root.info.macros > 0: Bullet {
+        text: root.info.macros == 1
+            ? "The slot’s macro stays stored, but the next profile written to this slot removes it."
+            : "The slot’s " + root.info.macros + " macros stay stored, but the next profile written to this slot removes them.";
+    }
+    if root.info.has-edits: Bullet {
+        text: "Your edits to this slot, not written yet, are discarded.";
     }
 }
 
@@ -94,26 +109,24 @@ export component ImportDialog inherits DialogShell {
 }
 
 export component FailedDialog inherits DialogShell {
-    in property <string> slot-title;
-    in property <string> detail;
-    in property <string> backup-path;
+    in property <FailedInfo> info;
     icon: Icons.error;
     alarm: true;
     card-width: 560px;
-    title: "Writing to " + slot-title + " failed";
-    subtitle: detail;
+    title: (info.is-clear ? "Clearing " : "Writing to ") + info.slot-title + " failed";
+    subtitle: info.detail;
     cancel-text: "Close";
-    accept-text: "Write again";
-    extra-text: "Open folder";
+    accept-text: info.is-clear ? "Try again" : "Write again";
+    extra-text: info.backup-path != "" ? "Open folder" : "";
     extra-icon: Icons.folder;
-    Text {
+    if root.info.backup-path != "": Text {
         text: "The old profile is saved in this file:";
         color: Theme.fg;
     }
-    HorizontalLayout {
+    if root.info.backup-path != "": HorizontalLayout {
         spacing: 6px;
         path := LineEdit {
-            text: root.backup-path;
+            text: root.info.backup-path;
             read-only: true;
             mono: true;
             wrap: true;
@@ -125,11 +138,21 @@ export component FailedDialog inherits DialogShell {
             clicked => { path.copy-all(); }
         }
     }
-    Text {
+    if !root.info.is-clear: Text {
         text: "Your edits are still here, so you can write again.";
         color: Theme.fg-muted;
         wrap: word-wrap;
     }
+}
+
+// Shown while a write runs. Blocks the window: nothing may change under the write.
+export component WritingDialog inherits DialogShell {
+    in property <string> text;
+    icon: Icons.pad;
+    title: text;
+    subtitle: "Keep the controller plugged in. A write from the Switch position takes about 10 seconds.";
+    cancel-text: "";
+    accept-text: "";
 }
 
 export component MoveDialog inherits DialogShell {

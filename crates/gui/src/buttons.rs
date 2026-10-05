@@ -24,7 +24,7 @@ fn target<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
 
 /// What `button` sends in `profile`: its macro when it starts one, because the
 /// controller then sends the macro only, else its output `target`.
-fn current(profile: &CanonicalProfile, button: &str) -> String {
+pub fn current(profile: &CanonicalProfile, button: &str) -> String {
     profile
         .macro_refs
         .iter()

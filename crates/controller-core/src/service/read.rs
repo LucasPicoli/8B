@@ -3,6 +3,8 @@
 //! Ports `macro_read_service.cpp::readMacros`. The C++ read split the banks by
 //! product id; this one reads all three, so a blob is picked by mode alone.
 
+use std::collections::BTreeMap;
+
 use crate::device::ProtocolCodec;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
@@ -115,6 +117,27 @@ pub(crate) fn blob_for_mode(read: &ProfileReadResult, mode: Mode) -> Option<&Vec
     read.raw_blobs.get(index)
 }
 
+/// The empty slots of a full read that still hold macro descriptors, with how many.
+///
+/// A slot with no profile keeps the macros it had. The next profile written to it
+/// replaces them, and a clear leaves them. A slot whose descriptors cannot be decoded
+/// is left out.
+#[must_use]
+pub fn leftover_macros(
+    codec: &dyn ProtocolCodec,
+    read: &ProfileReadResult,
+) -> BTreeMap<(Mode, u8), usize> {
+    read.profiles
+        .iter()
+        .filter(|p| p.id.is_empty())
+        .filter_map(|p| {
+            let blob = blob_for_mode(read, p.mode)?;
+            let found = codec.decode_macro_metadata(blob, Slot::new(p.source_slot).ok()?).ok()?;
+            (!found.is_empty()).then_some(((p.mode, p.source_slot), found.len()))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 mod tests {
@@ -196,5 +219,27 @@ mod tests {
         assert_eq!(result.macros.len(), 1, "expected exactly one macro");
         assert_eq!(result.macros[0].name, "GoldenMac");
         assert_eq!(result.macros[0].steps.len(), 3);
+    }
+
+    #[test]
+    fn an_empty_slot_with_descriptors_is_a_leftover_and_an_active_one_is_not() {
+        let meta = std::fs::read("../../fixtures/pro3/macro-meta.blob").unwrap();
+        let summary = |slot: u8, id: &str| crate::model::CanonicalProfileSummary {
+            id: id.to_owned(),
+            name: String::new(),
+            mode: Mode::XInput,
+            source_slot: slot,
+            source_profile_index: slot - 1,
+            canonical: Pro3.default_profile(Mode::XInput),
+        };
+        let mut read = ProfileReadResult {
+            profiles: vec![summary(1, ""), summary(2, "")],
+            raw_blobs: vec![meta, zeroed_blob(), zeroed_blob()],
+        };
+        let found = leftover_macros(&Pro3, &read);
+        assert_eq!(found.get(&(Mode::XInput, 1)), Some(&1), "slot 1 holds the fixture macro");
+        assert_eq!(found.len(), 1, "slot 2 holds none");
+        read.profiles[0].id = "xinput-slot-1-index-0".to_owned();
+        assert!(leftover_macros(&Pro3, &read).is_empty(), "an active slot is not a leftover");
     }
 }

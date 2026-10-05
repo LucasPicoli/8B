@@ -5,12 +5,12 @@ import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { AboutDialog, ChangedDialog, ImportDialog, MoveDialog } from "dialogs.slint";
+import { AboutDialog, ChangedDialog, ClearDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, Theme, Palette }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, Theme, Palette }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -85,6 +85,15 @@ export component AppWindow inherits Window {
     in property <[string]> changed-slots;
     // The answer picked for each changed slot: true keeps the edits.
     in property <[bool]> changed-keep;
+    // Write to controller and Clear slot can be used now.
+    in property <bool> can-write;
+    in property <bool> can-clear;
+    // The review before a write, the clear question, a failed write, and the title
+    // of the write that runs now (empty when none does).
+    in property <ReviewInfo> review;
+    in property <ClearInfo> clear;
+    in property <FailedInfo> write-failed;
+    in property <string> writing-title;
     // The message above the slot, such as an import result. Hidden when empty.
     in property <string> notice-title;
     in property <string> notice-body;
@@ -113,6 +122,15 @@ export component AppWindow inherits Window {
     callback import-cancelled;
     callback notice-closed;
     callback read-again;
+    callback write-clicked;
+    callback review-confirmed;
+    callback review-cancelled;
+    callback clear-clicked;
+    callback clear-confirmed;
+    callback clear-cancelled;
+    callback write-retried;
+    callback failure-closed;
+    callback open-backup-folder;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
@@ -206,7 +224,6 @@ export component AppWindow inherits Window {
                     Rectangle {
                         horizontal-stretch: 1;
                     }
-                    // Clear slot is not wired yet, so shown disabled.
                     VerticalLayout {
                         alignment: center;
                         HorizontalLayout {
@@ -230,7 +247,8 @@ export component AppWindow inherits Window {
                                 icon: Icons.clear;
                                 icon-only: root.compact;
                                 flat: true;
-                                enabled: false;
+                                enabled: root.can-clear;
+                                clicked => { root.clear-clicked(); }
                             }
                         }
                     }
@@ -350,7 +368,7 @@ export component AppWindow inherits Window {
                 HorizontalLayout {
                     padding-left: 12px;
                     padding-right: 12px;
-                    alignment: start;
+                    spacing: 8px;
                     VerticalLayout {
                         alignment: center;
                         Button {
@@ -358,6 +376,18 @@ export component AppWindow inherits Window {
                             icon: Icons.discard;
                             enabled: root.unsaved;
                             clicked => { root.discard(); }
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                    }
+                    VerticalLayout {
+                        alignment: center;
+                        Button {
+                            text: "Write to controller…";
+                            primary: true;
+                            enabled: root.can-write;
+                            clicked => { root.write-clicked(); }
                         }
                     }
                 }
@@ -384,6 +414,30 @@ export component AppWindow inherits Window {
         accepted => { root.move-answered(0); }
         cancelled => { root.move-answered(-1); }
         picked(i) => { root.move-answered(i); }
+    }
+
+    if root.review.shown: ReviewDialog {
+        info: root.review;
+        accepted => { root.review-confirmed(); }
+        cancelled => { root.review-cancelled(); }
+    }
+
+    if root.clear.shown: ClearDialog {
+        info: root.clear;
+        accepted => { root.clear-confirmed(); }
+        cancelled => { root.clear-cancelled(); }
+        extra => { root.export-file(); }
+    }
+
+    if root.write-failed.shown: FailedDialog {
+        info: root.write-failed;
+        accepted => { root.write-retried(); }
+        cancelled => { root.failure-closed(); }
+        extra => { root.open-backup-folder(); }
+    }
+
+    if root.writing-title != "": WritingDialog {
+        text: root.writing-title;
     }
 
     if root.dialog == "about": AboutDialog {

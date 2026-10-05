@@ -8,6 +8,7 @@ use controller_core::model::{ButtonMapping, CanonicalProfile, Mode};
 
 use crate::controllers::Controller;
 use crate::files::PendingImport;
+use crate::review::WriteState;
 
 /// The name a profile started from default gets.
 pub const NEW_PROFILE_NAME: &str = "New profile";
@@ -143,13 +144,15 @@ pub struct AppState {
     pub notice: Option<Notice>,
     /// A file for another mode, waiting for the user's yes.
     pub pending_import: Option<PendingImport>,
+    /// The review, the clear question and the write in flight.
+    pub write: WriteState,
 }
 
 impl AppState {
     /// A window with no controller seen yet. `defaults` holds the profile a new slot
     /// of each mode starts from.
     #[must_use]
-    pub const fn new(
+    pub fn new(
         description: &'static ControllerDescription,
         defaults: BTreeMap<Mode, CanonicalProfile>,
     ) -> Self {
@@ -166,6 +169,7 @@ impl AppState {
             rule_skipped: false,
             notice: None,
             pending_import: None,
+            write: WriteState::default(),
         }
     }
 
@@ -204,6 +208,7 @@ impl AppState {
         if mode < self.description.modes.len() && slot < usize::from(self.description.slot_count) {
             if self.selected != (mode, slot) {
                 self.notice = None;
+                self.write.reading_for = None;
             }
             self.selected = (mode, slot);
         }
@@ -343,6 +348,13 @@ pub mod tests {
             })
             .collect();
         ProfileReadResult { profiles, raw_blobs: vec![] }
+    }
+
+    /// [`full_read`] with the `XInput` fixture bank as each mode's raw bank: slot 1
+    /// active, which a write's readback needs.
+    pub fn readable() -> ProfileReadResult {
+        let blob = std::fs::read("../../fixtures/pro3/xinput.blob").expect("fixture");
+        ProfileReadResult { raw_blobs: vec![blob; 3], ..full_read() }
     }
 
     #[test]

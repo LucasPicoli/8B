@@ -29,6 +29,8 @@ pub struct Controller {
     /// each with the answer picked so far: `true` keeps the edits, `false` takes
     /// the controller's version. Nothing applies until [`AppState::apply_changed`].
     pub changed: BTreeMap<(Mode, u8), bool>,
+    /// The empty slots that still hold macros, with how many, at the last read.
+    pub leftover: BTreeMap<(Mode, u8), usize>,
 }
 
 impl Controller {
@@ -241,6 +243,7 @@ impl AppState {
         if self.active().map(|c| &c.port) != Some(&port) {
             self.notice = None;
             self.pending_import = None;
+            self.write.reading_for = None;
         }
         self.active_port = Some(port);
     }
@@ -350,6 +353,14 @@ impl AppState {
             if let (false, Some(slot)) = (keep, c.slots.get_mut(&key)) {
                 slot.edited = None;
             }
+        }
+        self.settle_review();
+    }
+
+    /// Records which empty slots of the controller on `port` still hold macros.
+    pub fn set_leftover(&mut self, port: &str, leftover: BTreeMap<(Mode, u8), usize>) {
+        if let Some(c) = self.controller_mut(port) {
+            c.leftover = leftover;
         }
     }
 }

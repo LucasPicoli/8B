@@ -11,11 +11,12 @@ use std::time::Duration;
 
 use controller_core::detect::{config_hidraw, scan_sysfs_all};
 use controller_core::device::ConfigPort;
-use controller_core::model::{Mode, ProfileReadResult};
+use controller_core::model::{Mode, ProfileReadResult, WriteResult};
 use controller_core::transport::DeviceIo;
 use controller_core::Error;
 
 use crate::holders::{holders, PROC};
+use crate::writes::{self, WriteJob};
 
 /// Where the kernel lists USB devices.
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
@@ -47,6 +48,8 @@ fn devnum(sysfs_path: &str) -> Option<u16> {
 pub enum Command {
     /// Read every bank of the controller on this USB port path.
     ReadAll(String),
+    /// Write one slot of the controller on this USB port path.
+    Write(String, WriteJob),
     /// Install the udev rule that grants access to the controller.
     InstallUdevRule,
 }
@@ -77,6 +80,16 @@ pub enum Event {
         /// The read, or why it failed.
         result: Result<ProfileReadResult, Failure>,
     },
+    /// The result of [`Command::Write`] for `port`.
+    Written {
+        /// The USB port path the write went to.
+        port: String,
+        /// How the write went, rollback included.
+        result: WriteResult,
+        /// When it failed: the other programs that have the controller's config node
+        /// open.
+        holders: Vec<String>,
+    },
     /// The result of [`Command::InstallUdevRule`]: why it failed, as a sentence.
     Installed(Result<(), String>),
 }
@@ -88,7 +101,8 @@ pub type Installer = fn() -> Result<(), String>;
 pub type Opener = Box<dyn Fn(&str) -> Box<dyn DeviceIo + Send> + Send>;
 
 /// Starts the worker on its own thread. `emit` runs on that thread for each event.
-/// The worker stops when the returned sender is dropped.
+/// A failed write that cannot be undone saves the old profile in `backup_dir`. The
+/// worker stops when the returned sender is dropped.
 ///
 /// # Errors
 /// Returns the OS error if the thread cannot be started.
@@ -97,23 +111,47 @@ pub fn spawn(
     sysfs: PathBuf,
     ports: Vec<ConfigPort>,
     install: Installer,
+    backup_dir: PathBuf,
     emit: impl Fn(Event) + Send + 'static,
 ) -> io::Result<Sender<Command>> {
     let (tx, rx) = mpsc::channel();
-    thread::Builder::new()
-        .name("8b-worker".to_owned())
-        .spawn(move || run(&open, &rx, &sysfs, &ports, install, &emit))?;
+    thread::Builder::new().name("8b-worker".to_owned()).spawn(move || {
+        run(
+            &open,
+            &rx,
+            &Site { sysfs: &sysfs, ports: &ports, backup_dir: &backup_dir },
+            install,
+            &emit,
+        );
+    })?;
     Ok(tx)
+}
+
+/// Where the worker looks for controllers, and where it keeps backups.
+struct Site<'a> {
+    sysfs: &'a Path,
+    ports: &'a [ConfigPort],
+    backup_dir: &'a Path,
+}
+
+/// The other programs that have the config node of the controller on `port` open.
+fn holders_of(site: &Site<'_>, port: &str) -> Vec<String> {
+    scan_sysfs_all(site.sysfs, site.ports)
+        .into_iter()
+        .find(|usb| usb.port_path() == port)
+        .and_then(|usb| config_hidraw(Path::new(&usb.sysfs_path), usb.port.interface))
+        .map(|node| holders(Path::new(PROC), &node, std::process::id()))
+        .unwrap_or_default()
 }
 
 fn run(
     open: &Opener,
     rx: &Receiver<Command>,
-    sysfs: &Path,
-    ports: &[ConfigPort],
+    site: &Site<'_>,
     install: Installer,
     emit: &dyn Fn(Event),
 ) {
+    let (sysfs, ports) = (site.sysfs, site.ports);
     let mut devices: BTreeMap<String, Box<dyn DeviceIo + Send>> = BTreeMap::new();
     let mut presence: BTreeMap<String, Debounce> = BTreeMap::new();
     loop {
@@ -130,18 +168,24 @@ fn run(
                     }
                     Ok(read) => emit(Event::Read { port, result: Ok(read) }),
                     Err(error) => {
-                        let node = scan_sysfs_all(sysfs, ports)
-                            .into_iter()
-                            .find(|usb| usb.port_path() == port)
-                            .and_then(|usb| {
-                                config_hidraw(Path::new(&usb.sysfs_path), usb.port.interface)
-                            });
-                        let holders = node
-                            .map(|node| holders(Path::new(PROC), &node, std::process::id()))
-                            .unwrap_or_default();
+                        let holders = holders_of(site, &port);
                         emit(Event::Read { port, result: Err(Failure { error, holders }) });
                     }
                 }
+            }
+            Ok(Command::Write(port, job)) => {
+                let dev = devices.entry(port.clone()).or_insert_with(|| open(&port));
+                let result = writes::run(dev.as_ref(), &job, site.backup_dir);
+                // The write may have flipped the controller and back, which gave it a
+                // new device number. This job caused that: do not report it as a
+                // replug, or the window reads the controller a second time.
+                let debounce = presence.entry(port.clone()).or_default();
+                debounce.reported = scan_sysfs_all(sysfs, ports)
+                    .iter()
+                    .find(|usb| usb.port_path() == port)
+                    .map(|usb| (usb.port.mode, devnum(&usb.sysfs_path)));
+                let holders = if result.success { Vec::new() } else { holders_of(site, &port) };
+                emit(Event::Written { port, result, holders });
             }
             Ok(Command::InstallUdevRule) => emit(Event::Installed(install())),
             Err(RecvTimeoutError::Timeout) => {
@@ -228,9 +272,12 @@ mod tests {
 
     use controller_core::device::ControllerSpec as _;
     use controller_core::devices::pro3::Pro3;
+    use controller_core::model::Slot;
+    use controller_core::transport::mock::MockOp;
     use controller_core::transport::MockDevice;
 
     use super::*;
+    use crate::writes::WriteOp;
 
     /// Feeds `seen` until the debounce reports it; returns the polls it took.
     fn settle(d: &mut Debounce, seen: Option<Sighting>) -> u8 {
@@ -283,11 +330,17 @@ mod tests {
         fs::write(sysfs.path().join("3-1/devnum"), "44\n").unwrap();
         let ports = Pro3.description().unwrap().config_ports.clone();
         let (etx, events) = mpsc::channel();
-        let _tx =
-            spawn(given(MockDevice::new()), sysfs.path().to_owned(), ports, installed, move |e| {
+        let _tx = spawn(
+            given(MockDevice::new()),
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            PathBuf::new(),
+            move |e| {
                 let _ = etx.send(e);
-            })
-            .unwrap();
+            },
+        )
+        .unwrap();
         assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::XInput), .. }));
         // Unplugged and back between two polls: the kernel gave it a new number.
         fs::write(sysfs.path().join("3-1/devnum"), "45\n").unwrap();
@@ -310,9 +363,16 @@ mod tests {
         let ports = Pro3.description().unwrap().config_ports.clone();
         let dev = MockDevice::new().with_profiles(crate::state::tests::full_read());
         let (etx, events) = mpsc::channel();
-        let tx = spawn(given(dev), sysfs.path().to_owned(), ports, installed, move |e| {
-            let _ = etx.send(e);
-        })
+        let tx = spawn(
+            given(dev),
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            PathBuf::new(),
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
         .unwrap();
 
         let start = Instant::now();
@@ -339,9 +399,16 @@ mod tests {
             .with_profiles(crate::state::tests::full_read())
             .fail_next_read(Error::Disconnected);
         let (etx, events) = mpsc::channel();
-        let tx = spawn(given(dev), sysfs.path().to_owned(), ports, installed, move |e| {
-            let _ = etx.send(e);
-        })
+        let tx = spawn(
+            given(dev),
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            PathBuf::new(),
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
         .unwrap();
         assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::XInput), .. }));
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
@@ -356,11 +423,17 @@ mod tests {
     fn read_errors_reach_the_ui() {
         let sysfs = tempfile::tempdir().unwrap();
         let (etx, events) = mpsc::channel();
-        let tx =
-            spawn(given(MockDevice::new()), sysfs.path().to_owned(), vec![], installed, move |e| {
+        let tx = spawn(
+            given(MockDevice::new()),
+            sysfs.path().to_owned(),
+            vec![],
+            installed,
+            PathBuf::new(),
+            move |e| {
                 let _ = etx.send(e);
-            })
-            .unwrap();
+            },
+        )
+        .unwrap();
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         assert!(matches!(
             next(&events),
@@ -372,9 +445,16 @@ mod tests {
     fn reader(dev: MockDevice) -> (Sender<Command>, Receiver<Event>, tempfile::TempDir) {
         let sysfs = tempfile::tempdir().unwrap();
         let (etx, events) = mpsc::channel();
-        let tx = spawn(given(dev), sysfs.path().to_owned(), vec![], installed, move |e| {
-            let _ = etx.send(e);
-        })
+        let tx = spawn(
+            given(dev),
+            sysfs.path().to_owned(),
+            vec![],
+            installed,
+            PathBuf::new(),
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
         .unwrap();
         (tx, events, sysfs)
     }
@@ -416,9 +496,16 @@ mod tests {
             .with_profiles(crate::state::tests::full_read())
             .fail_next_read(Error::PermissionDenied("/dev/hidraw3".to_owned()));
         let (etx, events) = mpsc::channel();
-        let tx = spawn(given(dev), sysfs.path().to_owned(), vec![], installed, move |e| {
-            let _ = etx.send(e);
-        })
+        let tx = spawn(
+            given(dev),
+            sysfs.path().to_owned(),
+            vec![],
+            installed,
+            PathBuf::new(),
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
         .unwrap();
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         assert!(matches!(
@@ -436,11 +523,17 @@ mod tests {
         let sysfs = tempfile::tempdir().unwrap();
         let (etx, events) = mpsc::channel();
         let refused = || Err("The password prompt was closed.".to_owned());
-        let tx =
-            spawn(given(MockDevice::new()), sysfs.path().to_owned(), vec![], refused, move |e| {
+        let tx = spawn(
+            given(MockDevice::new()),
+            sysfs.path().to_owned(),
+            vec![],
+            refused,
+            PathBuf::new(),
+            move |e| {
                 let _ = etx.send(e);
-            })
-            .unwrap();
+            },
+        )
+        .unwrap();
         tx.send(Command::InstallUdevRule).unwrap();
         assert!(matches!(next(&events), Event::Installed(Err(e)) if e.contains("closed")));
     }
@@ -460,7 +553,7 @@ mod tests {
             })
         });
         let (etx, events) = mpsc::channel();
-        let tx = spawn(open, sysfs.path().to_owned(), ports, installed, move |e| {
+        let tx = spawn(open, sysfs.path().to_owned(), ports, installed, PathBuf::new(), move |e| {
             let _ = etx.send(e);
         })
         .unwrap();
@@ -483,5 +576,102 @@ mod tests {
         ));
         fs::remove_dir_all(sysfs.path().join("3-1")).unwrap();
         assert!(matches!(next(&events), Event::Presence { port, mode: None } if port == "3-1"));
+    }
+
+    /// The `XInput` slot 1 fixture profile, as a job writing it to slot 1.
+    fn upload_job() -> WriteJob {
+        let text = fs::read_to_string("../../fixtures/pro3/xinput-slot1.profile.json").unwrap();
+        WriteJob {
+            mode: Mode::XInput,
+            slot: Slot::new(1).unwrap(),
+            op: WriteOp::Upload {
+                profile: serde_json::from_str(&text).unwrap(),
+                drop_macros: vec![],
+            },
+        }
+    }
+
+    /// A worker over `dev`, with the folder a failed rollback saves into.
+    fn writer(dev: MockDevice) -> (Sender<Command>, Receiver<Event>, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let sysfs = tempfile::tempdir().unwrap();
+        let (etx, events) = mpsc::channel();
+        let tx = spawn(
+            given(dev),
+            sysfs.path().to_owned(),
+            vec![],
+            installed,
+            dir.path().join("backups"),
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        (tx, events, dir)
+    }
+
+    #[test]
+    fn a_write_reports_its_result() {
+        let (tx, events, _dir) =
+            writer(MockDevice::new().with_profiles(crate::state::tests::readable()));
+        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
+        match next(&events) {
+            Event::Written { port, result, holders } => {
+                assert_eq!(port, PORT);
+                assert!(result.success, "{}", result.message);
+                assert!(holders.is_empty());
+            }
+            other => panic!("expected a write, got {other:?}"),
+        }
+        let clear = WriteJob { op: WriteOp::Clear, ..upload_job() };
+        tx.send(Command::Write(PORT.to_owned(), clear)).unwrap();
+        assert!(matches!(next(&events), Event::Written { result, .. } if result.success));
+    }
+
+    #[test]
+    fn a_failed_write_is_rolled_back_and_says_so() {
+        let dev = MockDevice::new().with_profiles(crate::state::tests::readable()).fail_nth(
+            MockOp::WriteFullProfile,
+            0,
+            Error::write("chunk refused"),
+        );
+        let (tx, events, _dir) = writer(dev);
+        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
+        match next(&events) {
+            Event::Written { result, .. } => {
+                assert!(!result.success && result.rollback_succeeded, "{}", result.message);
+                assert!(result.message.contains("Rollback succeeded"));
+                assert_eq!(result.backup_file_path, None);
+            }
+            other => panic!("expected a write, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_rollback_that_fails_too_saves_the_old_profile_in_the_backup_folder() {
+        let dev = MockDevice::new()
+            .with_profiles(crate::state::tests::readable())
+            .fail_nth(MockOp::WriteFullProfile, 0, Error::write("chunk refused"))
+            .fail_nth(MockOp::WriteFullProfile, 1, Error::write("still refused"));
+        let (tx, events, dir) = writer(dev);
+        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
+        let Event::Written { result, .. } = next(&events) else { panic!("expected a write") };
+        let saved = result.backup_file_path.expect("a backup file");
+        assert!(Path::new(&saved).starts_with(dir.path().join("backups")), "{saved}");
+        assert_eq!(fs::read(&saved).unwrap().len(), 2348);
+    }
+
+    #[test]
+    fn an_unplug_mid_write_fails_the_write_and_the_worker_goes_on() {
+        let dev = MockDevice::new().with_profiles(crate::state::tests::readable()).fail_nth(
+            MockOp::WriteFullProfile,
+            0,
+            Error::Disconnected,
+        );
+        let (tx, events, _dir) = writer(dev);
+        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
+        assert!(matches!(next(&events), Event::Written { result, .. } if !result.success));
+        tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
+        assert!(matches!(next(&events), Event::Read { result: Ok(_), .. }));
     }
 }

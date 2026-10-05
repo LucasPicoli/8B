@@ -367,7 +367,8 @@ fn detect_source_slot(payload: &[u8], layout: DecodeLayout) -> u8 {
 }
 
 /// Builds the canonical `{mode}-slot-{slot}-index-{index}` id.
-fn canonical_id(mode: Mode, source_slot: u8, source_profile_index: u8) -> String {
+#[must_use]
+pub fn canonical_id(mode: Mode, source_slot: u8, source_profile_index: u8) -> String {
     format!("{}-slot-{source_slot}-index-{source_profile_index}", mode.as_str())
 }
 

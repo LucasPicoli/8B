@@ -478,3 +478,64 @@ fn the_drawing_keeps_its_size_from_slot_to_slot() {
         assert!(edges.windows(2).all(|p| p[0] == p[1]), "at {width} px: {edges:?}");
     }
 }
+
+/// `XInput` slot 1 with edits in every tab and a macro removed, the review shown.
+fn reviewing() -> AppState {
+    let mut s = connected(Mode::XInput);
+    let pad =
+        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    pad.macro_refs.push(controller_core::model::MacroRef {
+        trigger: "rp".to_owned(),
+        path: "xinput-slot1-macro0-Buttons.json".to_owned(),
+    });
+    s.set_name("Edited");
+    s.set_output("r1", "disabled");
+    s.set_output("rp", "left face");
+    s.set_number("/sticks/left_min_pct", 20.0);
+    s.set_flag("/triggers/swap_triggers", true);
+    s.begin_review().unwrap();
+    s.review_read(PORT, true);
+    s
+}
+
+#[test]
+fn review_dialog() {
+    shoot("review", &reviewing());
+}
+
+#[test]
+fn review_of_an_empty_slot_with_leftover_macros() {
+    let mut s = connected(Mode::DInput);
+    s.select(2, 2);
+    s.start_from_default();
+    s.set_leftover(PORT, [((Mode::DInput, 3), 2)].into());
+    s.begin_review().unwrap();
+    s.review_read(PORT, true);
+    shoot("review-new", &s);
+}
+
+#[test]
+fn clear_dialog() {
+    let mut s = reviewing();
+    s.cancel_review();
+    s.begin_clear();
+    shoot("clear", &s);
+}
+
+#[test]
+fn writing_sheet_and_failure() {
+    let mut s = reviewing();
+    let (_, job) = s.confirm_review().unwrap();
+    shoot("writing", &s);
+    let mut bad = controller_core::model::WriteResult::failure(
+        Mode::XInput,
+        job.slot,
+        controller_core::ErrorCategory::WriteFailure,
+        "Write failed at chunk 12/53. Rollback failed. Original profile saved to the file below.",
+    );
+    bad.backup_file_path = Some(
+        "/home/lucas/.local/state/8b/backups/backup-xinput-slot-1-20261005-120000.bin".to_owned(),
+    );
+    s.write_finished(PORT, &bad, Some("steam also has the controller open.".to_owned()));
+    shoot("write-failed", &s);
+}

@@ -129,3 +129,40 @@ export struct ImportWarning {
     letters: string,
     skipped-macros: int,
 }
+
+// The review before a write.
+export struct ReviewInfo {
+    shown: bool,
+    slot-title: string,
+    // The name of the edits, and of the profile they replace.
+    name: string,
+    replaces: string,
+    // The controller holds nothing in the slot.
+    is-new: bool,
+    changes: [Change],
+    // Macros that stay, "Removes macro 1 (name)" lines, and macros an empty slot
+    // still holds that the write replaces.
+    macros-stay: int,
+    removed: [string],
+    leftover: int,
+}
+
+// The question before clearing a slot.
+export struct ClearInfo {
+    shown: bool,
+    slot-title: string,
+    name: string,
+    macros: int,
+    // The slot holds edits that clearing throws away.
+    has-edits: bool,
+}
+
+// A write that failed.
+export struct FailedInfo {
+    shown: bool,
+    slot-title: string,
+    detail: string,
+    // The file the old profile was saved in, or empty.
+    backup-path: string,
+    is-clear: bool,
+}

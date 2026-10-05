@@ -8,6 +8,7 @@ use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::render_buttons;
 use crate::files::render_files;
+use crate::review::render_writes;
 use crate::settings::render_settings;
 use crate::state::{Access, AppState, Install, Rule};
 use crate::ui::{AppWindow, ModeGroup, Slot};
@@ -147,6 +148,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_buttons(state, ui);
     render_settings(state, ui);
     render_files(state, ui);
+    render_writes(state, ui);
     ui.set_read_error(state.read_error().map(sentence).unwrap_or_default().into());
     ui.set_read_error_elsewhere(state.failed_elsewhere());
     ui.set_read_error_title(

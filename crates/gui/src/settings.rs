@@ -5,7 +5,7 @@
 use std::rc::Rc;
 
 use controller_core::description::{LimitRange, Limits};
-use controller_core::model::{CanonicalProfile, Triggers};
+use controller_core::model::{CanonicalProfile, Mode, Triggers};
 use serde_json::Value;
 use slint::{Model as _, ModelRc, VecModel};
 
@@ -241,7 +241,12 @@ fn page(limits: &Limits, spec: &PageSpec, shown: &Value, pad: Option<&Value>) ->
 /// empty slot.
 #[must_use]
 pub fn pages(state: &AppState) -> [SettingsPage; 3] {
-    let Some((mode, number)) = state.selected_slot() else { return Default::default() };
+    state.selected_slot().map(|slot| pages_of(state, slot)).unwrap_or_default()
+}
+
+/// The three settings tabs of slot `(mode, number)`. Empty for an empty slot.
+#[must_use]
+pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> [SettingsPage; 3] {
     let slot = state.slot(mode, number);
     let Some(shown) = slot.shown() else { return Default::default() };
     let Ok(json) = serde_json::to_value(shown) else { return Default::default() };
