@@ -17,6 +17,8 @@ clap = { version = "4", features = ["derive"] }
 serial_test = "3"
 insta = { version = "1", features = ["json"] }
 jsonschema = { version = "0.40", default-features = false }
+kurbo = "0.13"
+roxmltree = "0.21"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

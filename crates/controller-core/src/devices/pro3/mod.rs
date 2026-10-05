@@ -21,7 +21,13 @@ pub struct Pro3;
 
 /// The Pro 3 controller description, parsed on first use.
 static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
-    ControllerDescription::parse(include_str!("../../../controllers/pro3/description.json"))
+    ControllerDescription::parse(
+        include_str!("../../../controllers/pro3/description.json"),
+        &[
+            ("front.svg", include_str!("../../../controllers/pro3/front.svg")),
+            ("back.svg", include_str!("../../../controllers/pro3/back.svg")),
+        ],
+    )
 });
 
 /// Returns the Pro 3 controller description.
@@ -148,6 +154,23 @@ mod tests {
             Pro3.description().unwrap().buttons.iter().map(|b| b.id.as_str()).collect();
         let table: Vec<&str> = tables::XINPUT_ENCODINGS.iter().map(|e| e.source).collect();
         assert_eq!(ids, table);
+    }
+
+    #[test]
+    fn pro3_hotspots_sit_on_their_buttons() {
+        let views = &Pro3.description().unwrap().views;
+        let hit = |view: usize, x: f64, y: f64| -> Vec<&str> {
+            let hotspots = views[view].hotspots.iter();
+            hotspots.filter(|h| h.contains(x, y)).map(|h| h.button.as_str()).collect()
+        };
+        assert_eq!(hit(0, 382.0, 146.0), ["bottom face"]);
+        assert_eq!(hit(0, 118.0, 88.0), ["d-pad up"]);
+        assert_eq!(hit(0, 118.0, 114.0), Vec::<&str>::new(), "d-pad centre");
+        assert_eq!(hit(0, 195.0, 40.0), ["l4"]);
+        assert_eq!(hit(0, 60.0, 70.0), Vec::<&str>::new(), "body below L1");
+        assert_eq!(hit(1, 179.0, 24.0), ["r4"], "seen from behind");
+        assert_eq!(hit(1, 117.0, 50.0), ["r2"]);
+        assert_eq!(hit(1, 365.0, 165.0), ["lp"]);
     }
 
     #[test]

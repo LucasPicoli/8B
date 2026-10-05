@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://8bspec.local/schema/controller-description-v1.schema.json",
   "title": "8BitDo controller description v1",
-  "description": "One file per controller model, at crates/controller-core/controllers/<model>/description.json. The loader also checks what this schema cannot: button ids are unique, every button has a label for exactly the listed modes, every config port names a listed mode, every limit has min <= max, and no extra output reuses a button id or 'disabled'.",
+  "description": "One file per controller model, at crates/controller-core/controllers/<model>/description.json. The loader also checks what this schema cannot: button ids are unique, every button has a label for exactly the listed modes, every config port names a listed mode, every limit has min <= max, and no extra output reuses a button id or 'disabled', view ids are unique, and every view's SVG is embedded. Each view SVG declares viewBox=\"0 0 <width> <height>\", paints only in #000000, #ffffff or none, uses only svg, g, path, circle, rect and ellipse elements, and has no style, class or transform attribute. A path, circle or rect with a data-button=\"<button id>\" attribute is that button's hotspot: it must lie inside the viewBox, name a listed button, and appear at most once per view. Every button needs a hotspot in at least one view.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -13,7 +13,8 @@
     "slot_count",
     "macro_slot_count",
     "limits",
-    "buttons"
+    "buttons",
+    "views"
   ],
   "properties": {
     "display_name": { "type": "string", "minLength": 1 },
@@ -67,6 +68,12 @@
       "type": "array",
       "minItems": 1,
       "items": { "$ref": "#/$defs/Button" }
+    },
+    "views": {
+      "description": "Drawings of the controller, in display order.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/View" }
     }
   },
   "$defs": {
@@ -163,6 +170,23 @@
         "can_be_output": {
           "description": "This button's press may be the output of another button.",
           "type": "boolean"
+        }
+      }
+    },
+    "View": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "svg"],
+      "properties": {
+        "id": {
+          "description": "View name, unique within the description. Never shown.",
+          "type": "string",
+          "minLength": 1
+        },
+        "svg": {
+          "description": "File name of the SVG, next to description.json. Line art in #000000 on #ffffff, which the UI swaps per theme. Button shapes carry data-button attributes.",
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+\\.svg$"
         }
       }
     }

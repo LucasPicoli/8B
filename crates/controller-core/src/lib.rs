@@ -15,6 +15,7 @@ pub mod orchestrator;
 pub mod protocol;
 pub mod service;
 pub mod transport;
+pub mod view;
 
 /// Returns the crate version string.
 #[must_use]

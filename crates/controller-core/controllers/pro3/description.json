@@ -135,8 +135,8 @@
     {
       "id": "l1",
       "labels": {
-        "xinput": "L1",
-        "switch": "L1",
+        "xinput": "LB",
+        "switch": "L",
         "dinput": "L1"
       },
       "can_be_remapped": true,
@@ -145,8 +145,8 @@
     {
       "id": "r1",
       "labels": {
-        "xinput": "R1",
-        "switch": "R1",
+        "xinput": "RB",
+        "switch": "R",
         "dinput": "R1"
       },
       "can_be_remapped": true,
@@ -155,8 +155,8 @@
     {
       "id": "l2",
       "labels": {
-        "xinput": "L2",
-        "switch": "L2",
+        "xinput": "LT",
+        "switch": "ZL",
         "dinput": "L2"
       },
       "can_be_remapped": true,
@@ -165,8 +165,8 @@
     {
       "id": "r2",
       "labels": {
-        "xinput": "R2",
-        "switch": "R2",
+        "xinput": "RT",
+        "switch": "ZR",
         "dinput": "R2"
       },
       "can_be_remapped": true,
@@ -175,8 +175,8 @@
     {
       "id": "l3",
       "labels": {
-        "xinput": "L3",
-        "switch": "L3",
+        "xinput": "LS",
+        "switch": "LS",
         "dinput": "L3"
       },
       "can_be_remapped": true,
@@ -185,8 +185,8 @@
     {
       "id": "r3",
       "labels": {
-        "xinput": "R3",
-        "switch": "R3",
+        "xinput": "RS",
+        "switch": "RS",
         "dinput": "R3"
       },
       "can_be_remapped": true,
@@ -195,8 +195,8 @@
     {
       "id": "select/back",
       "labels": {
-        "xinput": "Select",
-        "switch": "Select",
+        "xinput": "View",
+        "switch": "−",
         "dinput": "Select"
       },
       "can_be_remapped": true,
@@ -205,8 +205,8 @@
     {
       "id": "start/menu",
       "labels": {
-        "xinput": "Start",
-        "switch": "Start",
+        "xinput": "Menu",
+        "switch": "+",
         "dinput": "Start"
       },
       "can_be_remapped": true,
@@ -225,7 +225,7 @@
     {
       "id": "home/guide",
       "labels": {
-        "xinput": "Home",
+        "xinput": "Guide",
         "switch": "Home",
         "dinput": "Home"
       },
@@ -275,9 +275,9 @@
     {
       "id": "rp",
       "labels": {
-        "xinput": "Right paddle",
-        "switch": "Right paddle",
-        "dinput": "Right paddle"
+        "xinput": "PR",
+        "switch": "PR",
+        "dinput": "PR"
       },
       "can_be_remapped": true,
       "can_be_output": false
@@ -285,9 +285,9 @@
     {
       "id": "lp",
       "labels": {
-        "xinput": "Left paddle",
-        "switch": "Left paddle",
-        "dinput": "Left paddle"
+        "xinput": "PL",
+        "switch": "PL",
+        "dinput": "PL"
       },
       "can_be_remapped": true,
       "can_be_output": false
@@ -311,6 +311,16 @@
       },
       "can_be_remapped": true,
       "can_be_output": false
+    }
+  ],
+  "views": [
+    {
+      "id": "front",
+      "svg": "front.svg"
+    },
+    {
+      "id": "back",
+      "svg": "back.svg"
     }
   ]
 }

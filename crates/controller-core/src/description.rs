@@ -1,7 +1,8 @@
 //! Controller description: the per-model facts the UI and the remap check read.
 //!
-//! Each controller model embeds one `description.json`. [`ControllerDescription::parse`]
-//! reads it with unknown fields denied, then runs a semantic check. The format is
+//! Each controller model embeds one `description.json` and one SVG per [`View`].
+//! [`ControllerDescription::parse`] reads the JSON with unknown fields denied, attaches
+//! the SVGs, then runs a semantic check. The format is
 //! documented for hand editing in `schemas/controller-description-v1.schema.json`.
 //! Protocol bytes stay on [`crate::device::ControllerSpec`].
 
@@ -12,6 +13,7 @@ use serde::{Deserialize, Deserializer};
 use crate::device::ConfigPort;
 use crate::error::{Error, Result};
 use crate::model::Mode;
+use crate::view::View;
 
 /// The output that turns a button off. Valid for every remappable button in every
 /// mode, so no description lists it.
@@ -38,6 +40,8 @@ pub struct ControllerDescription {
     pub limits: Limits,
     /// Physical buttons, in display order.
     pub buttons: Vec<Button>,
+    /// Drawings of the controller, in display order.
+    pub views: Vec<View>,
 }
 
 /// One mode of the controller.
@@ -135,13 +139,20 @@ pub struct Button {
 }
 
 impl ControllerDescription {
-    /// Parses a description and checks it.
+    /// Parses a description, attaches its view SVGs from `svgs` (file name, contents),
+    /// and checks it.
     ///
     /// # Errors
-    /// Returns [`Error::Decode`] if the JSON does not match the format or fails the
-    /// semantic check.
-    pub fn parse(json: &str) -> Result<Self> {
-        let description: Self = serde_json::from_str(json).map_err(|e| invalid(&e))?;
+    /// Returns [`Error::Decode`] if the JSON does not match the format, names an SVG
+    /// missing from `svgs`, or fails the semantic check.
+    pub fn parse(json: &str, svgs: &[(&str, &'static str)]) -> Result<Self> {
+        let mut description: Self = serde_json::from_str(json).map_err(|e| invalid(&e))?;
+        for view in &mut description.views {
+            let Some((_, data)) = svgs.iter().find(|(name, _)| *name == view.svg) else {
+                return Err(invalid(&format!("view '{}' needs '{}' embedded", view.id, view.svg)));
+            };
+            view.attach(data).map_err(|e| invalid(&e))?;
+        }
         description.check().map_err(|e| invalid(&e))?;
         Ok(description)
     }
@@ -248,7 +259,34 @@ impl ControllerDescription {
                 }
             }
         }
-        Ok(())
+        self.check_views(&ids)
+    }
+
+    /// Every hotspot names a button, at most once per view, and every button has a
+    /// hotspot in at least one view.
+    fn check_views(&self, button_ids: &BTreeSet<&str>) -> std::result::Result<(), String> {
+        let mut view_ids = BTreeSet::new();
+        let mut placed = BTreeSet::new();
+        for view in &self.views {
+            if !view_ids.insert(view.id.as_str()) {
+                return Err(format!("view '{}' is listed twice", view.id));
+            }
+            let mut in_view = BTreeSet::new();
+            for hotspot in &view.hotspots {
+                let button = hotspot.button.as_str();
+                if !button_ids.contains(button) || !in_view.insert(button) {
+                    return Err(format!(
+                        "'{}' marks '{button}', which is no button or is marked twice",
+                        view.svg
+                    ));
+                }
+                placed.insert(button);
+            }
+        }
+        button_ids
+            .iter()
+            .find(|id| !placed.contains(*id))
+            .map_or(Ok(()), |id| Err(format!("button '{id}' has no hotspot")))
     }
 }
 
@@ -309,12 +347,35 @@ mod tests {
                   "can_be_remapped": false, "can_be_output": true },
                 { "id": "paddle", "labels": { "xinput": "P", "switch": "P" },
                   "can_be_remapped": true, "can_be_output": false }
+            ],
+            "views": [
+                { "id": "front", "svg": "front.svg" },
+                { "id": "back", "svg": "back.svg" }
             ]
         })
     }
 
+    const FRONT: &str = r#"<svg viewBox="0 0 100 50">
+        <circle data-button="a" cx="10" cy="10" r="5"/>
+        <circle data-button="home" cx="30" cy="10" r="5"/>
+    </svg>"#;
+
+    /// `a` shows in both views, which is allowed.
+    const BACK: &str = r#"<svg viewBox="0 0 100 50">
+        <circle data-button="paddle" cx="10" cy="10" r="5"/>
+        <circle data-button="a" cx="30" cy="10" r="5"/>
+    </svg>"#;
+
+    fn parse_with(
+        v: &Value,
+        front: &'static str,
+        back: &'static str,
+    ) -> Result<ControllerDescription> {
+        ControllerDescription::parse(&v.to_string(), &[("front.svg", front), ("back.svg", back)])
+    }
+
     fn parse(v: &Value) -> Result<ControllerDescription> {
-        ControllerDescription::parse(&v.to_string())
+        parse_with(v, FRONT, BACK)
     }
 
     #[test]
@@ -322,6 +383,8 @@ mod tests {
         let d = parse(&minimal()).unwrap();
         assert_eq!(d.model_ids, [0x6009]);
         assert_eq!(d.config_ports[0].usb.product, 0x310B);
+        assert_eq!(d.views[1].svg_data, BACK);
+        assert_eq!(d.views[1].hotspots[1].button, "a");
     }
 
     #[test]
@@ -336,7 +399,7 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 6] = [
+        let cases: [fn(&mut Value); 8] = [
             |v| v["buttons"][1]["id"] = json!("a"),
             |v| {
                 v["buttons"][0]["labels"].as_object_mut().unwrap().remove("switch");
@@ -345,12 +408,43 @@ mod tests {
             |v| v["config_ports"][0]["mode"] = json!("dinput"),
             |v| v["modes"][1]["extra_outputs"][0]["id"] = json!("a"),
             |v| v["modes"][1]["id"] = json!("xinput"),
+            |v| v["views"][1]["id"] = json!("front"),
+            |v| v["views"][1]["svg"] = json!("missing.svg"),
         ];
         for (i, break_it) in cases.iter().enumerate() {
             let mut v = minimal();
             break_it(&mut v);
             assert!(parse(&v).is_err(), "case {i} should fail");
         }
+    }
+
+    #[test]
+    fn view_marks_must_name_buttons_once_per_view() {
+        let v = minimal();
+        let bad: [(&'static str, &'static str); 4] = [
+            (
+                r#"<svg viewBox="0 0 100 50"><circle data-button="a" cx="10" cy="10" r="5"/></svg>"#,
+                BACK,
+            ),
+            (
+                FRONT,
+                r#"<svg viewBox="0 0 100 50"><circle data-button="nothing" cx="10" cy="10" r="5"/></svg>"#,
+            ),
+            (
+                FRONT,
+                r#"<svg viewBox="0 0 100 50"><circle data-button="paddle" cx="10" cy="10" r="5"/><circle data-button="paddle" cx="30" cy="10" r="5"/></svg>"#,
+            ),
+            (
+                FRONT,
+                r##"<svg viewBox="0 0 100 50"><circle data-button="paddle" cx="10" cy="10" r="5" fill="#ff0000"/></svg>"##,
+            ),
+        ];
+        for (i, (front, back)) in bad.iter().enumerate() {
+            assert!(parse_with(&v, front, back).is_err(), "case {i} should fail");
+        }
+        assert!(
+            matches!(parse_with(&v, FRONT, r#"<svg viewBox="0 0 100 50"/>"#), Err(Error::Decode(m)) if m.contains("'paddle' has no hotspot"))
+        );
     }
 
     #[test]
