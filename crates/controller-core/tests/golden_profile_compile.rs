@@ -290,3 +290,22 @@ fn dinput_macros_decode_as_refs_and_survive_or_leave_with_an_edit() {
         assert!(decode_slot(&dropped, slot, Mode::DInput).macro_refs.is_empty(), "slot {slot}");
     }
 }
+
+/// The official `XInput` capture `xinput_swap_left_and_right_sticks_on` writes
+/// `00 00 11 09 20 20 10 00` at canonical `0x00C8`, so slot 1 flags `10 00` land
+/// at device-native `0x00CC` after the -2 shift. Swap sticks is the only change.
+#[test]
+fn xinput_swap_sticks_writes_the_bytes_of_the_official_capture() {
+    let mut p = load("../../fixtures/pro3/xinput-slot1.profile.json");
+    p.sticks.swap_sticks = true;
+    p.sticks.invert_left_x = false;
+    p.sticks.invert_left_y = false;
+    p.sticks.invert_right_x = false;
+    p.sticks.invert_right_y = false;
+    p.sticks.swap_dpad_with_left_stick = false;
+    if let controller_core::model::Triggers::Analog(a) = &mut p.triggers {
+        a.swap_triggers = false;
+    }
+    let b = Pro3.compile_profile(&p, Slot::new(1).unwrap(), &[], &[]).unwrap();
+    assert_eq!(&b[0x00C8..0x00D0], &[0x11, 0x09, 0x20, 0x20, 0x10, 0x00, 0x00, 0x00]);
+}
