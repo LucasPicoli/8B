@@ -610,3 +610,6 @@ mod tests {
         assert_eq!(s.review_info((Mode::DInput, 3)).leftover, 2);
     }
 }
+
+#[cfg(test)]
+mod control_map;
