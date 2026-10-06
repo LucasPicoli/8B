@@ -199,3 +199,28 @@ export struct BatchInfo {
     detail: string,
     backup-path: string,
 }
+
+// One edited slot in the close question.
+export struct CloseSlot {
+    // Such as "XInput slot 2".
+    title: string,
+    // The name of the edits.
+    name: string,
+}
+
+// One controller's edited slots in the close question.
+export struct CloseGroup {
+    // The header label, such as "Pro 3 · XInput".
+    label: string,
+    slots: [CloseSlot],
+}
+
+// The question before closing the window over unsaved edits.
+export struct CloseInfo {
+    shown: bool,
+    // Edited slots on every controller.
+    total: int,
+    // The slots "Write n slots…" writes, or 0 when it is hidden.
+    write: int,
+    groups: [CloseGroup],
+}

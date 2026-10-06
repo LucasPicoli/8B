@@ -6,6 +6,7 @@
 mod batch;
 mod buttons;
 mod chooser;
+mod closing;
 mod controllers;
 mod files;
 mod holders;
@@ -50,9 +51,10 @@ use controller_core::model::Mode;
 use controller_core::service::read::leftover_macros;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use controller_core::Error;
-use slint::{ComponentHandle as _, Timer, TimerMode, Weak};
+use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 
 use crate::buttons::{hit, picked_output, render_views};
+use crate::closing::CloseOutcome;
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice};
 use crate::ui::AppWindow;
@@ -376,6 +378,46 @@ fn wire_writes(
     ui.on_open_backup_folder(move || open_folder(&backups));
 }
 
+/// Wires every close request (the title-bar button, Alt+F4) through the close check,
+/// and the answers to the close question.
+fn wire_close(
+    ui: &AppWindow,
+    state: &Rc<RefCell<AppState>>,
+    change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
+    commands: Sender<Command>,
+) {
+    let (weak, s) = (ui.as_weak(), Rc::clone(state));
+    ui.window().on_close_requested(move || {
+        let Some(ui) = weak.upgrade() else { return CloseRequestResponse::HideWindow };
+        let mut state = s.borrow_mut();
+        let outcome = state.close_requested();
+        render(&state, &ui);
+        if outcome == CloseOutcome::Close {
+            CloseRequestResponse::HideWindow
+        } else {
+            CloseRequestResponse::KeepWindowShown
+        }
+    });
+    let c = change.clone();
+    ui.on_close_cancelled(move || c(&AppState::cancel_close));
+    let c = change.clone();
+    ui.on_close_write(move || {
+        c(&|s| {
+            if let Some(port) = s.write_before_close() {
+                read(&commands, s, &port);
+            }
+        });
+    });
+    let weak = ui.as_weak();
+    ui.on_close_discard(move || {
+        if let Some(ui) = weak.upgrade() {
+            if let Err(e) = ui.hide() {
+                eprintln!("8b: could not close the window: {e}");
+            }
+        }
+    });
+}
+
 /// Wires the edits: the button picker, the name field, the settings, the import
 /// warning, the message bar and Discard.
 fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static)) {
@@ -444,7 +486,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     )?;
-    let (install_tx, retry_tx, write_tx) = (commands.clone(), commands.clone(), commands.clone());
+    let (install_tx, retry_tx, write_tx, close_tx) =
+        (commands.clone(), commands.clone(), commands.clone(), commands.clone());
 
     let weak = ui.as_weak();
     let s = Rc::clone(&state);
@@ -454,11 +497,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         while let Ok(event) = events.try_recv() {
             handle(&mut state, event, &commands);
         }
+        state.settle_close();
         render(&state, &ui);
     });
 
     wire_files(&ui, &state);
 
+    // The close check reads the state outside a change.
+    let close_state = Rc::clone(&state);
     // Every change from the window: apply it to the state, then render.
     let weak = ui.as_weak();
     let change = move |apply: &dyn Fn(&mut AppState)| {
@@ -482,6 +528,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
     wire_controllers(&ui, &change, retry_tx);
     wire_writes(&ui, &change, &write_tx, backups);
+    wire_close(&ui, &close_state, &change, close_tx);
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     wire_edits(&ui, &change);

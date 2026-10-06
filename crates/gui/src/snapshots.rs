@@ -728,6 +728,67 @@ fn the_batch_failure_dialog_with_a_backup() {
     shoot("batch-failed", &s);
 }
 
+/// A controller in `XInput` with each of `slots` (mode index, 0-based slot) renamed,
+/// and the window asked to close.
+fn closing(slots: &[(usize, usize)]) -> AppState {
+    let mut s = connected(Mode::XInput);
+    for (i, &(mode, slot)) in slots.iter().enumerate() {
+        s.select(mode, slot);
+        s.set_name(&format!("Edit {}", i + 1));
+    }
+    s.select(0, 0);
+    s.close_requested();
+    s
+}
+
+#[test]
+fn the_close_question_for_one_slot() {
+    let s = closing(&[(0, 1)]);
+    let info = window(&s).get_closing();
+    assert!(info.shown);
+    assert_eq!((info.total, info.write), (1, 1));
+    shoot("close-one-slot", &s);
+}
+
+#[test]
+fn the_close_question_for_three_slots() {
+    let s = closing(&[(0, 1), (1, 1), (2, 0)]);
+    assert_eq!(window(&s).get_closing().write, 3);
+    shoot("close-three-slots", &s);
+}
+
+#[test]
+fn the_close_question_without_write_for_an_unplugged_controller() {
+    let mut s = closing(&[(0, 1), (2, 0)]);
+    s.presence(PORT, None);
+    assert_eq!(window(&s).get_closing().write, 0);
+    shoot("close-no-write", &s);
+}
+
+#[test]
+fn the_close_question_over_two_controllers() {
+    let mut s = closing(&[(0, 0), (1, 1), (2, 0)]);
+    s.presence("3-2", Some(Mode::DInput));
+    s.read_finished("3-2", Ok(full_read()));
+    s.pick_controller(1);
+    s.select(2, 1);
+    s.set_name("Other pad");
+    s.close_requested();
+    let info = window(&s).get_closing();
+    assert_eq!((info.total, info.write), (4, 1));
+    shoot("close-two-controllers", &s);
+}
+
+#[test]
+fn the_close_question_over_the_batch_review() {
+    let mut s = batch_reviewing();
+    s.close_requested();
+    let ui = window(&s);
+    assert!(ui.get_batch().stage == 1 && ui.get_closing().shown);
+    assert_eq!(ui.get_closing().write, 0, "another dialog is open");
+    save("close-over-review", &ui);
+}
+
 slint::slint! {
     import { DialogShell } from "ui/parts.slint";
     export component Shell inherits Window {

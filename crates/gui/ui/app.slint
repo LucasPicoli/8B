@@ -5,13 +5,13 @@ import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { ChangedDialog, ClearDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
+import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, Theme, Palette }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Theme, Palette }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -106,6 +106,8 @@ export component AppWindow inherits Window {
     in property <string> writing-title;
     // The write of every edited slot: its review, progress or failure.
     in property <BatchInfo> batch;
+    // The question before closing over unsaved edits.
+    in property <CloseInfo> closing;
     // The footer button's text, and the sidebar bar's caption and button text.
     out property <string> write-label: "Write " + slot-title + "…";
     out property <string> edited-caption: edited-count == 1 ? "1 slot has unsaved edits" : edited-count + " slots have unsaved edits";
@@ -154,6 +156,10 @@ export component AppWindow inherits Window {
     callback batch-slot-toggled(int);
     callback batch-retried;
     callback batch-closed;
+    // The close question: back to the window, write first, or close anyway.
+    callback close-cancelled;
+    callback close-write;
+    callback close-discard;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
@@ -504,5 +510,13 @@ export component AppWindow inherits Window {
 
     if root.writing-title != "": WritingDialog {
         text: root.writing-title;
+    }
+
+    // Last, so it sits over any dialog that was open.
+    if root.closing.shown: CloseDialog {
+        info: root.closing;
+        cancelled => { root.close-cancelled(); }
+        write => { root.close-write(); }
+        discard => { root.close-discard(); }
     }
 }

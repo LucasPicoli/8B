@@ -300,6 +300,8 @@ export component DialogShell inherits Rectangle {
     // Optional left-aligned action, such as "Export…".
     in property <string> extra-text;
     in property <image> extra-icon;
+    // The left action loses data, such as "Discard and close": the red fill.
+    in property <bool> extra-destructive;
     // Where the card sits, for the pixel-alignment test.
     out property <length> card-x: card.x;
     out property <length> card-y: card.y;
@@ -398,6 +400,7 @@ export component DialogShell inherits Rectangle {
                     if root.extra-text != "": Button {
                         text: root.extra-text;
                         icon: root.extra-icon;
+                        destructive: root.extra-destructive;
                         clicked => { root.extra(); }
                     }
                     Rectangle { horizontal-stretch: 1; }

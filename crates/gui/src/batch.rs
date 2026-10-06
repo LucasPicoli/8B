@@ -8,6 +8,7 @@ use std::rc::Rc;
 use controller_core::model::Mode;
 use slint::{Model as _, ModelRc, VecModel};
 
+use crate::controllers::Controller;
 use crate::review::{count, WriteFailure};
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, BatchInfo, BatchSlot};
@@ -80,7 +81,12 @@ impl AppState {
     /// by mode, then by number.
     #[must_use]
     pub fn edited_slots(&self) -> Vec<Key> {
-        let Some(c) = self.active() else { return Vec::new() };
+        self.active().map(|c| self.edited_of(c)).unwrap_or_default()
+    }
+
+    /// Every slot of controller `c` with unsaved edits, in the sidebar's order.
+    #[must_use]
+    pub fn edited_of(&self, c: &Controller) -> Vec<Key> {
         let d = self.description;
         d.modes
             .iter()

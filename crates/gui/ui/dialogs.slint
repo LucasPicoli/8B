@@ -1,7 +1,7 @@
-// Review, clear, cross-mode import, failed write.
+// Review, clear, cross-mode import, failed write, close with edits.
 import { Theme, Button, ComboBox, LineEdit, Spinner } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
-import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
+import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, CloseInfo, CloseSlot } from "types.slint";
 
 export component Bullet {
     in property <string> text;
@@ -232,6 +232,82 @@ export component ChangedDialog inherits DialogShell {
             current-index: root.keep[i] ? 0 : 1;
             accessible-name: s;
             selected(v) => { root.picked(i, self.current-index == 0); }
+        }
+    }
+}
+
+// A read-only row of the close question: the slot, then the name of its edits.
+component CloseSlotRow inherits Rectangle {
+    in property <CloseSlot> slot;
+    // The last row has no rule under it.
+    in property <bool> last;
+    min-height: 32px;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        Text {
+            text: root.slot.title;
+            font-weight: 600;
+            color: Theme.fg;
+            vertical-alignment: center;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.slot.name != "" ? " · " + root.slot.name : "";
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+    }
+    if !root.last: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
+// The window was asked to close while edits are not written. Discard and close is
+// red in both forms: on the left beside "Write n slots…", or as the accept alone.
+export component CloseDialog inherits DialogShell {
+    in property <CloseInfo> info;
+    callback write;
+    callback discard;
+    property <bool> many: info.groups.length > 1;
+    icon: Icons.warning;
+    alarm: true;
+    destructive: info.write == 0;
+    extra-destructive: true;
+    title: "Close 8B without writing?";
+    subtitle: (many
+        ? info.total + " slots on " + info.groups.length + " controllers have unsaved edits. The edits are not on a controller yet"
+        : (info.total == 1 ? "1 slot has" : info.total + " slots have") + " unsaved edits. The edits are not on the controller yet")
+        + ", so closing 8B discards them.";
+    extra-text: info.write > 0 ? "Discard and close" : "";
+    accept-text: info.write == 0 ? "Discard and close"
+        : info.write == 1 ? "Write 1 slot…" : "Write " + info.write + " slots…";
+    extra => { root.discard(); }
+    accepted => {
+        if (root.info.write > 0) {
+            root.write();
+        } else {
+            root.discard();
+        }
+    }
+    for g in root.info.groups: VerticalLayout {
+        spacing: 4px;
+        if root.many: Text {
+            text: g.label;
+            font-size: Theme.text-caption;
+            font-weight: 600;
+            color: Theme.fg-muted;
+        }
+        Frame {
+            VerticalLayout {
+                for s[i] in g.slots: CloseSlotRow {
+                    slot: s;
+                    last: i == g.slots.length - 1;
+                }
+            }
         }
     }
 }

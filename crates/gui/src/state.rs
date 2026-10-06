@@ -146,6 +146,8 @@ pub struct AppState {
     pub pending_import: Option<PendingImport>,
     /// The review, the clear question and the write in flight.
     pub write: WriteState,
+    /// The window was asked to close over unsaved edits: the question is open.
+    pub closing: bool,
 }
 
 impl AppState {
@@ -170,6 +172,7 @@ impl AppState {
             notice: None,
             pending_import: None,
             write: WriteState::default(),
+            closing: false,
         }
     }
 
