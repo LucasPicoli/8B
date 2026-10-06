@@ -16,7 +16,7 @@ use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
 use crate::state::tests::{connected, full_read, new_state, PORT};
 use crate::state::{AppState, Rule};
-use crate::ui::AppWindow;
+use crate::ui::{AppWindow, Change};
 
 struct Headless;
 
@@ -503,6 +503,30 @@ fn review_of_an_empty_slot_with_leftover_macros() {
     s.begin_review().unwrap();
     s.review_read(PORT, true);
     shoot("review-new", &s);
+}
+
+/// The review of a long change list at the smallest window the app allows keeps the
+/// primary button inside the window, in the card's footer.
+#[test]
+fn review_footer_stays_on_screen_in_a_small_window() {
+    let ui = window(&reviewing());
+    ui.window().set_size(PhysicalSize::new(1024, 640));
+    let mut info = ui.get_review();
+    let long: Vec<_> = (0..30)
+        .map(|i| Change { what: format!("Button {i}").into(), from: "A".into(), to: "B".into() })
+        .collect();
+    info.changes = Rc::new(slint::VecModel::from(long)).into();
+    ui.set_review(info);
+    save("review-small-window", &ui);
+
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = usize::try_from(shot.width()).unwrap();
+    // The light theme's primary button fill, `Theme.accent-strong`.
+    let lower_half = &shot.as_slice()[320 * width..];
+    assert!(
+        lower_half.iter().filter(|p| (p.r, p.g, p.b) == (0x1b, 0x74, 0xa8)).count() > 200,
+        "no primary button on screen"
+    );
 }
 
 #[test]

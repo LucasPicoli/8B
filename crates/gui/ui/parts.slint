@@ -1,5 +1,5 @@
 // Pieces shared by the screens, coloured from `Theme`.
-import { Theme, Button } from "look/breeze/widgets.slint";
+import { Theme, Button, ScrollView } from "look/breeze/widgets.slint";
 import { Section, Change } from "types.slint";
 
 export global Icons {
@@ -311,7 +311,8 @@ export component DialogShell inherits Rectangle {
 
     card := Rectangle {
         width: root.card-width;
-        height: body.preferred-height;
+        // The middle scrolls when the card would not fit, so the footer stays on screen.
+        height: min(body.preferred-height, root.height - 48px);
         background: Theme.window;
         border-width: 1px;
         border-color: Theme.line;
@@ -351,13 +352,16 @@ export component DialogShell inherits Rectangle {
                     }
                 }
             }
-            VerticalLayout {
-                padding-left: 18px;
-                padding-right: 18px;
-                padding-top: 10px;
-                padding-bottom: 14px;
-                spacing: 10px;
-                @children
+            ScrollView {
+                preferred-height: middle.preferred-height;
+                middle := VerticalLayout {
+                    padding-left: 18px;
+                    padding-right: 18px;
+                    padding-top: 10px;
+                    padding-bottom: 14px;
+                    spacing: 10px;
+                    @children
+                }
             }
             if root.has-footer: Rectangle {
                 height: 1px;
