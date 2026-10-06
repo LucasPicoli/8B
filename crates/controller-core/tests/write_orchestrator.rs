@@ -755,8 +755,8 @@ fn dinput_remap_on_the_official_blob_changes_one_entry() {
         [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
     );
     let written = writes(&dev).remove(0);
-    // Slot 3's l4 now holds the bottom face value the official app writes in DInput.
-    assert_eq!(&written[L4_SLOT3..L4_SLOT3 + 4], &[0x00, 0x20, 0x00, 0x00]);
+    // Slot 3's l4 now holds the DInput bottom face value of a vendor-default slot.
+    assert_eq!(&written[L4_SLOT3..L4_SLOT3 + 4], &[0x00, 0x10, 0x00, 0x00]);
     let changed: Vec<usize> = (0..BLOB_SIZE).filter(|&i| written[i] != official[i]).collect();
     assert!(changed
         .iter()

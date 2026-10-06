@@ -118,8 +118,8 @@ fn decode_name(payload: &[u8], source_slot: u8, layout: DecodeLayout) -> String 
 const fn encodings_for_mode(mode: Mode) -> &'static [ButtonEncodingEntry] {
     match mode {
         Mode::Switch => &tables::SWITCH_ENCODINGS,
-        // dinput readback table is not yet hardware-verified; fall back to XInput.
-        Mode::XInput | Mode::DInput => &tables::XINPUT_ENCODINGS,
+        Mode::DInput => tables::DINPUT_ENCODINGS,
+        Mode::XInput => &tables::XINPUT_ENCODINGS,
     }
 }
 
@@ -612,19 +612,11 @@ fn keep_or_encode(base: u8, pct: i32, raw_max: i32, encode: fn(i32) -> u8) -> u8
 ///
 /// Returns `usize::MAX` (sentinel for "not found") rather than panicking.
 fn control_name_to_index(name: &str, mode: Mode) -> usize {
-    encodings_for(mode)
+    encodings_for_mode(mode)
         .iter()
         .take(tables::SOURCE_BUTTON_COUNT)
         .position(|e| e.source == name)
         .unwrap_or(usize::MAX)
-}
-
-/// Picks the write-mode encoding table for `mode`.
-const fn encodings_for(mode: Mode) -> &'static [tables::ButtonEncodingEntry] {
-    match mode {
-        Mode::Switch => &tables::SWITCH_ENCODINGS,
-        _ => &tables::XINPUT_ENCODINGS,
-    }
 }
 
 /// Returns the on-wire write encoding for a target control name.
@@ -636,7 +628,7 @@ const fn encodings_for(mode: Mode) -> &'static [tables::ButtonEncodingEntry] {
 /// # Errors
 /// Returns [`Error::Validation`] when `name` is not in the mode's encoding table.
 fn write_encoding(name: &str, mode: Mode) -> Result<[u8; 4]> {
-    encodings_for(mode)
+    encodings_for_mode(mode)
         .iter()
         .find(|e| e.source == name)
         .map(|e| e.variant_identity_encodings.first().copied().unwrap_or(e.encoding))
@@ -886,7 +878,7 @@ pub fn compile_profile(
                     write_encoding("turbo", mode).unwrap_or(tables::NULL_ENCODING)
                 })
             } else {
-                write_encoding(encodings_for(mode).get(i).map_or("", |e| e.source), mode)
+                write_encoding(encodings_for_mode(mode).get(i).map_or("", |e| e.source), mode)
                     .unwrap_or(tables::NULL_ENCODING)
             }
         });

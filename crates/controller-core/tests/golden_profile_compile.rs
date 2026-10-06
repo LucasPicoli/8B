@@ -134,11 +134,12 @@ fn read_modify_write_preserves_other_slot() {
 }
 
 /// A full `DInput` write by the official app, all three slots active, captured over USB.
-/// The payload sits at wire byte 18, as in every other mode.
+/// The payload sits at wire byte 18, as in every other mode. Its face buttons hold the
+/// `XInput` encodings, which a `DInput` slot presses as the other face of each pair.
 const DINPUT_OFFICIAL: &str = "../../fixtures/pro3/dinput-official.blob";
 
 #[test]
-fn dinput_official_write_decodes_to_defaults_and_recompiles_unchanged() {
+fn dinput_official_write_decodes_with_swapped_faces_and_recompiles_unchanged() {
     let official = std::fs::read(DINPUT_OFFICIAL).unwrap();
     for slot in 1..=3u8 {
         let raw = RawProfilePayload {
@@ -152,11 +153,17 @@ fn dinput_official_write_decodes_to_defaults_and_recompiles_unchanged() {
         let default = Pro3.default_profile(Mode::DInput);
         assert_eq!(profile.sticks, default.sticks, "slot {slot}");
         assert_eq!(profile.triggers, default.triggers, "slot {slot}");
-        // The app's default DInput buttons decode through the shared table: every button
-        // maps to itself and the four paddles are unassigned.
+        // The faces swap in pairs, every other button maps to itself, and the four
+        // paddles are unassigned.
         for m in &profile.button_mappings {
-            let paddle = ["rp", "lp", "l4", "r4"].contains(&m.source.as_str());
-            let want = if paddle { "disabled" } else { m.source.as_str() };
+            let want = match m.source.as_str() {
+                "right face" => "bottom face",
+                "bottom face" => "right face",
+                "top face" => "left face",
+                "left face" => "top face",
+                "rp" | "lp" | "l4" | "r4" => "disabled",
+                other => other,
+            };
             assert_eq!(m.target, want, "slot {slot}");
         }
         let mut rebuilt = Pro3
@@ -319,9 +326,11 @@ fn xinput_swap_sticks_writes_the_bytes_of_the_official_capture() {
 fn vendor_default_banks_decode_to_the_default_profile() {
     /// Bytes per slot of the button map: 22 entries of 4 bytes.
     const BUTTON_MAP_BYTES: usize = 22 * 4;
-    for (file, mode) in
-        [("vendor-default-xinput.blob", Mode::XInput), ("vendor-default-switch.blob", Mode::Switch)]
-    {
+    for (file, mode) in [
+        ("vendor-default-xinput.blob", Mode::XInput),
+        ("vendor-default-switch.blob", Mode::Switch),
+        ("vendor-default-dinput.blob", Mode::DInput),
+    ] {
         let base = std::fs::read(format!("../../fixtures/pro3/{file}")).unwrap();
         let default = Pro3.default_profile(mode);
         for slot in 1..=3u8 {

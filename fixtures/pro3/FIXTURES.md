@@ -22,18 +22,21 @@ gamepad configurator (see Section 2).
 
 One fixture does not come from the encoders. `dinput-official.blob` is a full
 `DInput` write by the official 8BitDo app, all three slots active, captured
-over USB with the payload read at wire byte 18. `golden_profile_compile.rs`
-decodes and recompiles it, and every byte except the struct CRC at `0x0C` must
-match.
+over USB with the payload read at wire byte 18. Its face buttons hold the `XInput`
+encodings, so in `DInput` they decode as A and B swapped, and X and Y swapped.
+`golden_profile_compile.rs` decodes and recompiles it, and every byte except the
+struct CRC at `0x0C` must match.
 
 `dinput-slot-marker.blob` is a `DInput` bank read from a real Pro 3. In slots 1
 and 2 the d-pad left entry holds `11 09 20 20`, a value no output table lists.
 The pad reads it as a bit mask and fires six outputs at once. The decoder
 reports it as `unrecognised`, and a recompile must keep the 4 bytes.
 
-`vendor-default-xinput.blob` and `vendor-default-switch.blob` are bank reads from
-a real Pro 3 after the official app wrote a profile with every setting at default
-into all three slots. Each back paddle holds its own code (its macro `key_map`,
+`vendor-default-xinput.blob`, `vendor-default-switch.blob` and
+`vendor-default-dinput.blob` are bank reads from a real Pro 3 after the official
+app wrote a profile with every setting at default into all three slots. The
+`DInput` bank holds the Switch face encodings, and a pad test confirmed that each
+face then presses as itself. Each back paddle holds its own code (its macro `key_map`,
 little-endian), not `00 00 00 00`, and Switch turbo holds Screenshot. Every slot
 must decode to the default profile, and its button map must recompile unchanged.
 

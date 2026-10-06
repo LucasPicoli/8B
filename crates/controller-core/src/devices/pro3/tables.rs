@@ -370,6 +370,18 @@ pub const SWITCH_ENCODINGS: [ButtonEncodingEntry; SOURCE_BUTTON_COUNT + 1] = [
     },
 ];
 
+/// Encoding table for **`DInput`** mode: the Switch table without its target-only
+/// `screenshot` entry.
+///
+/// A slot the vendor app writes with every setting at default in `DInput` holds the
+/// Switch face encodings (right face `00 20 00 00`), and a pad test confirmed that
+/// layout presses each face as itself. Every other entry matches the Switch table.
+pub const DINPUT_ENCODINGS: &[ButtonEncodingEntry] =
+    match SWITCH_ENCODINGS.first_chunk::<SOURCE_BUTTON_COUNT>() {
+        Some(entries) => entries,
+        None => &[],
+    };
+
 // ---------------------------------------------------------------------------
 // Macro Section-4 metadata layout (`record_macro_content_t`, 52B each).
 //
