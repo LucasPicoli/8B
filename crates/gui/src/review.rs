@@ -291,7 +291,7 @@ impl AppState {
                 format!("Wrote {title} to the controller."),
                 "The controller uses it while that slot’s light is on.",
             ),
-            WriteOp::Clear => (format!("Cleared {title}."), "Its macros stay stored."),
+            WriteOp::Clear => (format!("Cleared {title}."), ""),
         };
         self.notice = Some(Notice { error: false, title, body: body.to_owned() });
     }
