@@ -540,8 +540,9 @@ const DEV_TRIG_FLAG_BASE: usize = 0x00B0;
 /// Device-native base of the per-slot trigger-data block (canonical `TRIGGER_DATA_OFFSET` − 2).
 const DEV_TRIG_DATA_BASE: usize = 0x00B4;
 
-/// Device-native offset of the Section-3 global marker (canonical `0x00CA` − 2).
-const DEV_SECT3_MARKER: usize = 0x00C8;
+/// Device-native base of the per-slot Section-3 marker, in front of each slot's
+/// flags (canonical `0x00CA` − 2).
+const DEV_SECT3_MARKER_BASE: usize = 0x00C8;
 /// Device-native base of the per-slot stick/dpad flags (canonical `SLOT_FLAGS_OFFSET` − 2).
 const DEV_FLAGS_BASE: usize = 0x00CC;
 
@@ -762,10 +763,10 @@ pub fn compile_profile(
 
     // --- Section 3: stick/dpad flags + button map ---
 
-    // Global Section-3 marker (always at device-native 0x00C8).
-    put_slice(&mut buf, DEV_SECT3_MARKER, &tables::SLOT_MARKER)?;
-
-    // Per-slot flags (stride 8: [4B marker][2B flags][2B pad]).
+    // Per-slot flags (stride 8: [4B marker][2B flags][2B pad]). The pad ignores
+    // a slot's flags when the marker in front of them is missing.
+    let sect3_marker_off = DEV_SECT3_MARKER_BASE + idx * tables::SLOT_DATA_STRIDE;
+    put_slice(&mut buf, sect3_marker_off, &tables::SLOT_MARKER)?;
     let slot_flags_off = DEV_FLAGS_BASE + idx * tables::SLOT_DATA_STRIDE;
     let sticks = &profile.sticks;
     let mut flags0: u8 = 0;
@@ -796,11 +797,6 @@ pub fn compile_profile(
         flags1 |= 0x01;
     }
     put_slice(&mut buf, slot_flags_off, &[flags0, flags1])?;
-
-    // Inter-slot marker after each slot's flags (slots 1 and 2 only).
-    if s < 3 {
-        put_slice(&mut buf, slot_flags_off + 4, &tables::SLOT_MARKER)?;
-    }
 
     // Button-map sub-marker (device-native 0x00E0 + idx*0x5C).
     let btn_marker_off = DEV_BTN_MARKER_BASE + idx * tables::BUTTON_MAP_SLOT_STRIDE;

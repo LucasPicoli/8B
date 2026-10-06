@@ -70,6 +70,22 @@ fn slot_markers_land_in_the_right_flag_block() {
 }
 
 #[test]
+fn stick_flag_markers_sit_in_front_of_the_target_slot_flags() {
+    // Section 3: [marker 0x00C8 + i*8][flags 0x00CC + i*8]. The pad ignores a slot's
+    // flags without its own marker, so a slot 2 or 3 write must not rely on another slot's.
+    const MARKER: [u8; 4] = [0x11, 0x09, 0x20, 0x20];
+    for &(stem, slot, _idx, _mode) in PROFILES {
+        let p = load_profile(stem);
+        let b = Pro3.compile_profile(&p, Slot::new(slot).unwrap(), &[], &[]).unwrap();
+        for s in 1u8..=3 {
+            let off = 0x00C8 + (usize::from(s) - 1) * 8;
+            let expect = if s == slot { MARKER } else { [0, 0, 0, 0] };
+            assert_eq!(&b[off..off + 4], &expect, "{stem}: stick flag marker slot {s}");
+        }
+    }
+}
+
+#[test]
 fn spec_byte_vectors_for_tricky_remaps() {
     // Entry base 0x00E4 + idx*0x5C; entries are 22*4B in table order.
     let entry = |b: &[u8], idx: u8, i: usize| -> [u8; 4] {
