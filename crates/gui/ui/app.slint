@@ -1,6 +1,6 @@
 // The 8B window: the no-controller screen until a first read, then the sidebar
 // with every slot of every mode and the selected slot beside it.
-import { Theme, Button, LineEdit, ScrollView } from "look/breeze/widgets.slint";
+import { Theme, Button, LineEdit, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
@@ -88,6 +88,8 @@ export component AppWindow inherits Window {
     in property <[bool]> changed-keep;
     // Write to controller and Clear slot can be used now.
     in property <bool> can-write;
+    // The controller is read again before the review opens.
+    in property <bool> checking-slot;
     in property <bool> can-clear;
     // The review before a write, the clear question, a failed write, and the title
     // of the write that runs now (empty when none does).
@@ -378,6 +380,21 @@ export component AppWindow inherits Window {
                     }
                     Rectangle {
                         horizontal-stretch: 1;
+                    }
+                    if root.checking-slot: HorizontalLayout {
+                        horizontal-stretch: 0;
+                        spacing: 8px;
+                        VerticalLayout {
+                            alignment: center;
+                            Spinner { }
+                        }
+                        VerticalLayout {
+                            alignment: center;
+                            Text {
+                                text: "Checking the controller…";
+                                color: Theme.fg-muted;
+                            }
+                        }
                     }
                     VerticalLayout {
                         alignment: center;

@@ -354,6 +354,7 @@ fn count(n: usize) -> i32 {
 /// Pushes the review, the clear question, the failure and the busy sheet.
 pub fn render_writes(state: &AppState, ui: &AppWindow) {
     ui.set_can_write(state.can_write());
+    ui.set_checking_slot(state.write.reading_for.is_some());
     ui.set_can_clear(state.can_clear());
     ui.set_review(
         state.review_open().map(|(_, slot)| state.review_info(*slot)).unwrap_or_default(),
@@ -446,6 +447,7 @@ mod tests {
         assert_eq!(s.begin_review().as_deref(), Some(PORT));
         s.read_started(PORT);
         assert!(!s.can_write(), "no second press while the read runs");
+        assert_eq!(s.begin_review(), None, "a second press sends no second read");
         assert!(s.review_open().is_none());
         s.read_finished(PORT, Ok(read_with_macro()));
         s.review_read(PORT, true);

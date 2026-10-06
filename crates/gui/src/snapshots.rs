@@ -489,6 +489,18 @@ fn reviewing() -> AppState {
     s
 }
 
+/// Between the click and the review, the footer says the controller is being checked.
+#[test]
+fn footer_while_checking_the_slot() {
+    let mut s = connected(Mode::XInput);
+    s.set_name("Edited");
+    s.begin_review().unwrap();
+    s.read_started(PORT);
+    let ui = window(&s);
+    assert!(ui.get_checking_slot() && !ui.get_can_write());
+    save("checking-slot", &ui);
+}
+
 #[test]
 fn review_dialog() {
     shoot("review", &reviewing());
