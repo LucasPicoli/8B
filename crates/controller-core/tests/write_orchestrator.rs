@@ -520,8 +520,21 @@ fn patch_sticks_rules_run_before_any_write() {
     };
     let r = o.patch_sticks(Mode::XInput, slot(1), &conflict, &f);
     assert_failed(&r, ErrorCategory::ValidationFailure);
-    assert!(r.message.contains("D-pad"), "{}", r.message);
+    assert!(r.message.contains("swap_dpad_with_left_stick"), "{}", r.message);
+    assert!(r.message.contains("invert_left_x"), "{}", r.message);
     assert_eq!(dev.calls(), []);
+
+    // A slot that already swaps the D-pad refuses swap sticks too, and keeps what it holds.
+    let dpad = StickPatch { swap_dpad_with_left_stick: Some(true), ..StickPatch::default() };
+    let first = device(Mode::XInput, &base_blob(Mode::XInput));
+    assert!(orch(&first, dir.path()).patch_sticks(Mode::XInput, slot(1), &dpad, &f).success);
+    let held = writes(&first).pop().unwrap();
+    let dev = device(Mode::XInput, &held);
+    let swap = StickPatch { swap_sticks: Some(true), ..StickPatch::default() };
+    let r = orch(&dev, dir.path()).patch_sticks(Mode::XInput, slot(1), &swap, &f);
+    assert_failed(&r, ErrorCategory::ValidationFailure);
+    assert!(r.message.contains("swap_sticks"), "{}", r.message);
+    assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
 }
 
 #[test]

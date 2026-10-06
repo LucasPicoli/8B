@@ -10,6 +10,7 @@ use crate::error::{Error, Result};
 use crate::model::{
     ButtonMapping, CanonicalProfile, Mode, RawProfilePayload, Slot, Triggers, WriteResult,
 };
+use crate::service::validation::dpad_swap_clash;
 use crate::service::{ConfirmPolicy, ReadbackResult};
 
 /// Upper bound of a trigger min or max percent.
@@ -154,11 +155,8 @@ impl ProfileWriteOrchestrator<'_> {
             set(&mut s.invert_right_y, patch.invert_right_y);
             set(&mut s.swap_sticks, patch.swap_sticks);
             set(&mut s.swap_dpad_with_left_stick, patch.swap_dpad_with_left_stick);
-            if s.swap_dpad_with_left_stick && (s.invert_left_x || s.invert_left_y) {
-                return Err(Error::Validation(
-                    "Cannot swap the D-pad with the left stick while invert_left_x or invert_left_y is on."
-                        .to_owned(),
-                ));
+            if let Some(reason) = dpad_swap_clash(s) {
+                return Err(Error::Validation(reason));
             }
             Ok(())
         })

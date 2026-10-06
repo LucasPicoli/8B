@@ -112,15 +112,27 @@ fn analog_trigger_gap_small_passes() {
 }
 
 #[test]
-fn swap_dpad_with_left_stick_conditional() {
-    let mut p = make_valid_xinput_profile();
-    p["sticks"]["swap_dpad_with_left_stick"] = json!(true);
-    p["sticks"]["invert_left_x"] = json!(false);
-    p["sticks"]["invert_left_y"] = json!(false);
-    assert!(validate_profile(&p).unwrap().valid, "swap_dpad + no invert should pass");
-
-    p["sticks"]["invert_left_x"] = json!(true);
-    assert!(!validate_profile(&p).unwrap().valid, "swap_dpad + invert_left_x should fail");
+fn swap_dpad_with_left_stick_excludes_swap_sticks_and_the_left_inverts() {
+    let with = |flags: &[&str]| {
+        let mut p = make_valid_xinput_profile();
+        p["sticks"]["swap_dpad_with_left_stick"] = json!(true);
+        for f in flags {
+            p["sticks"][f] = json!(true);
+        }
+        validate_profile(&p).unwrap()
+    };
+    assert!(with(&[]).valid, "swap_dpad alone passes");
+    assert!(with(&["invert_right_x", "invert_right_y"]).valid, "the right inverts have no rule");
+    for flag in ["swap_sticks", "invert_left_x", "invert_left_y"] {
+        let r = with(&[flag]);
+        assert!(!r.valid, "swap_dpad + {flag} should fail");
+        let reason = &r.errors.first().unwrap().reason;
+        assert!(reason.contains(flag), "{reason}");
+    }
+    let r = with(&["swap_sticks", "invert_left_x"]);
+    assert_eq!(r.errors.len(), 1, "one message for the pair");
+    let reason = &r.errors.first().unwrap().reason;
+    assert!(reason.contains("swap_sticks and invert_left_x"), "{reason}");
 }
 
 #[test]

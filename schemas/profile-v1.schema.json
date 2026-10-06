@@ -394,43 +394,7 @@
           }
         }
       }
-    },
-    {
-      "if": {
-        "properties": {
-          "sticks": {
-            "type": "object",
-            "properties": {
-              "swap_dpad_with_left_stick": {
-                "const": true
-              }
-            },
-            "required": [
-              "swap_dpad_with_left_stick"
-            ]
-          }
-        }
-      },
-      "then": {
-        "properties": {
-          "sticks": {
-            "type": "object",
-            "properties": {
-              "invert_left_x": {
-                "const": false
-              },
-              "invert_left_y": {
-                "const": false
-              }
-            },
-            "required": [
-              "invert_left_x",
-              "invert_left_y"
-            ]
-          }
-        }
-      }
     }
   ],
-  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode. Semantic validator requirements not expressible in core JSON Schema: unique macro trigger values in macro_refs, and profile/macro file existence checks. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
+  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode. Semantic validator requirements not expressible in core JSON Schema: unique macro trigger values in macro_refs, and profile/macro file existence checks. The semantic validator also refuses swap_dpad_with_left_stick together with swap_sticks, invert_left_x or invert_left_y, so its message can name the flags. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
 }

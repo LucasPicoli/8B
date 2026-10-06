@@ -57,6 +57,12 @@ export component ReviewDialog inherits DialogShell {
         ? "The slot is empty. It gets a new profile."
         : "This replaces the profile “" + info.replaces + "” stored on the controller.";
     accept-text: "Write to controller";
+    accept-enabled: root.info.problem == "";
+    if root.info.problem != "": Text {
+        text: root.info.problem;
+        color: Theme.negative;
+        wrap: word-wrap;
+    }
     if !root.info.is-new: ChangeTable {
         model: root.info.changes;
     }

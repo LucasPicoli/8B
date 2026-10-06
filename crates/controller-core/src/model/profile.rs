@@ -61,6 +61,27 @@ pub struct Sticks {
     pub swap_dpad_with_left_stick: bool,
 }
 
+impl Sticks {
+    /// The flags, by their JSON names, that are on together with
+    /// `swap_dpad_with_left_stick`. The vendor app never allows that pair: swap sticks,
+    /// invert left X and invert left Y exclude the D-pad swap. Empty when the swap is
+    /// off or nothing clashes.
+    #[must_use]
+    pub fn dpad_swap_clashes(&self) -> Vec<&'static str> {
+        if !self.swap_dpad_with_left_stick {
+            return Vec::new();
+        }
+        [
+            ("swap_sticks", self.swap_sticks),
+            ("invert_left_x", self.invert_left_x),
+            ("invert_left_y", self.invert_left_y),
+        ]
+        .into_iter()
+        .filter_map(|(name, on)| on.then_some(name))
+        .collect()
+    }
+}
+
 /// Trigger configuration; shape depends on mode.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]

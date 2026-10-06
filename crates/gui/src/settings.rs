@@ -134,6 +134,23 @@ fn limit(limits: &Limits, pointer: &str) -> Option<LimitRange> {
     })
 }
 
+/// The D-pad swap flag, which the flags in [`DPAD_SWAP_EXCLUDES`] cannot be on with.
+const DPAD_SWAP: &str = "/sticks/swap_dpad_with_left_stick";
+/// The flags that exclude the D-pad swap (the vendor app's `SticksView` rule).
+const DPAD_SWAP_EXCLUDES: [&str; 3] =
+    ["/sticks/swap_sticks", "/sticks/invert_left_x", "/sticks/invert_left_y"];
+
+/// The flags that must be off while the flag at `pointer` is on.
+fn excluded_by(pointer: &str) -> &'static [&'static str] {
+    if pointer == DPAD_SWAP {
+        &DPAD_SWAP_EXCLUDES
+    } else if DPAD_SWAP_EXCLUDES.contains(&pointer) {
+        &[DPAD_SWAP]
+    } else {
+        &[]
+    }
+}
+
 /// Replaces the value at `pointer` in `profile` with `new`, when the old value is of
 /// the same JSON type.
 fn patch(profile: &mut CanonicalProfile, pointer: &str, new: Value) {
@@ -161,9 +178,17 @@ impl AppState {
     }
 
     /// Sets the flag at `pointer` in the selected slot. A pointer that names no flag
-    /// changes nothing.
+    /// changes nothing. Turning a flag on turns off the flags the vendor app never
+    /// allows with it: the D-pad swap excludes swap sticks and the left inverts.
     pub fn set_flag(&mut self, pointer: &str, on: bool) {
-        self.edit(|p| patch(p, pointer, on.into()));
+        self.edit(|p| {
+            patch(p, pointer, on.into());
+            if on {
+                for other in excluded_by(pointer) {
+                    patch(p, other, false.into());
+                }
+            }
+        });
     }
 }
 
@@ -352,6 +377,27 @@ mod tests {
         s.set_flag("/triggers/left_threshold_pct", true);
         s.set_number("/triggers/left_threshold_pct", 50.0);
         assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap(), &before);
+    }
+
+    #[test]
+    fn the_dpad_swap_and_the_left_stick_flags_turn_each_other_off() {
+        let mut s = connected(Mode::XInput);
+        s.set_flag("/sticks/swap_dpad_with_left_stick", true);
+        s.set_flag("/sticks/swap_sticks", true);
+        let st = sticks(&s);
+        assert!(st.swap_sticks && !st.swap_dpad_with_left_stick);
+        s.set_flag("/sticks/invert_left_x", true);
+        s.set_flag("/sticks/invert_left_y", true);
+        s.set_flag("/sticks/invert_right_x", true);
+        s.set_flag("/sticks/swap_dpad_with_left_stick", true);
+        let st = sticks(&s);
+        assert!(st.swap_dpad_with_left_stick);
+        assert!(!st.swap_sticks && !st.invert_left_x && !st.invert_left_y);
+        assert!(st.invert_right_x, "the right inverts have no rule");
+        s.set_flag("/sticks/invert_left_y", true);
+        assert!(!sticks(&s).swap_dpad_with_left_stick);
+        s.set_flag("/sticks/swap_sticks", false);
+        assert!(sticks(&s).invert_left_y, "turning a flag off touches no other");
     }
 
     #[test]

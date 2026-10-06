@@ -1092,6 +1092,25 @@ mod tests {
     }
 
     #[test]
+    fn a_slot_holding_the_dpad_swap_with_swap_sticks_and_an_invert_still_decodes() {
+        // The vendor app never writes this pair, but a pad can hold it: flags `11 01`.
+        let mut profile = default_profile(Mode::XInput);
+        profile.sticks.invert_left_x = true;
+        profile.sticks.swap_sticks = true;
+        profile.sticks.swap_dpad_with_left_stick = true;
+        let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
+        let raw = RawProfilePayload {
+            payload: blob,
+            source_slot: 1,
+            source_profile_index: 0,
+            mode_hint: Mode::XInput,
+        };
+        let back = map_profile(&Pro3, &raw).unwrap().canonical;
+        assert_eq!(back.sticks, profile.sticks);
+        assert_eq!(back.sticks.dpad_swap_clashes(), ["swap_sticks", "invert_left_x"]);
+    }
+
+    #[test]
     fn home_guide_is_forced_identity_even_with_spurious_encoding() {
         let entries = &tables::XINPUT_ENCODINGS;
         // A spurious turbo-like encoding at the home/guide index must stay identity.

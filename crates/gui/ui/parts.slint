@@ -292,6 +292,7 @@ export component DialogShell inherits Rectangle {
     in property <image> icon;
     in property <length> card-width: 520px;
     in property <string> accept-text;
+    in property <bool> accept-enabled: true;
     in property <string> cancel-text: "Cancel";
     in property <bool> destructive;
     // Icon in the error colour.
@@ -398,6 +399,7 @@ export component DialogShell inherits Rectangle {
                     }
                     if root.accept-text != "": Button {
                         text: root.accept-text;
+                        enabled: root.accept-enabled;
                         primary: !root.destructive;
                         destructive: root.destructive;
                         clicked => { root.accepted(); }

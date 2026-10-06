@@ -309,6 +309,20 @@ mod tests {
     }
 
     #[test]
+    fn a_file_with_the_dpad_swap_and_an_inverted_left_stick_is_refused() {
+        let mut s = connected(Mode::XInput);
+        let text = file(&s, Mode::XInput, 1, |p| {
+            p.sticks.invert_left_x = true;
+            p.sticks.swap_dpad_with_left_stick = true;
+        });
+        s.import((Mode::XInput, 2), "clash.json", Ok(text));
+        let notice = s.notice.clone().unwrap();
+        assert!(notice.error);
+        assert!(notice.body.contains("swap_dpad_with_left_stick cannot be on"), "{}", notice.body);
+        assert!(!s.slot(Mode::XInput, 2).unsaved());
+    }
+
+    #[test]
     fn macro_refs_in_the_file_are_skipped_with_a_note() {
         let mut s = connected(Mode::DInput);
         let text = file(&s, Mode::DInput, 1, |p| {

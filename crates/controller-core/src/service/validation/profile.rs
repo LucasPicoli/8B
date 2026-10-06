@@ -9,7 +9,7 @@ use super::{
     profile_validator, schema_errors, ProfileValidationResult, ValidationError, ValidationSummary,
 };
 use crate::error::{Error, Result};
-use crate::model::CanonicalProfileSummary;
+use crate::model::{CanonicalProfileSummary, Sticks};
 
 /// Validates a canonical profile JSON object (schema first, then semantics).
 ///
@@ -50,14 +50,36 @@ pub fn validate_all_profiles(profiles: &[CanonicalProfileSummary]) -> Result<Val
     Ok(ValidationSummary { results, all_valid })
 }
 
+/// The refusal for a profile with the D-pad swap on together with swap sticks, invert
+/// left X or invert left Y, naming each flag that clashes. `None` when none does.
+#[must_use]
+pub fn dpad_swap_clash(sticks: &Sticks) -> Option<String> {
+    let clashes = sticks.dpad_swap_clashes();
+    let (last, rest) = clashes.split_last()?;
+    let joined = if rest.is_empty() {
+        (*last).to_owned()
+    } else {
+        format!("{} and {last}", rest.join(", "))
+    };
+    Some(format!("swap_dpad_with_left_stick cannot be on together with {joined}."))
+}
+
 /// Accumulates every semantic error (port of `validateSemantics`).
 ///
-/// Only one rule is reachable post-schema: duplicate `macro_refs` triggers.
+/// Two rules are reachable post-schema: duplicate `macro_refs` triggers, and the
+/// D-pad swap with swap sticks or an inverted left stick (the vendor app's rule).
 /// Analog trigger min/max ordering and gap are deliberately NOT enforced
 /// (firmware-accepted; decoder auto-fixes), and macro-ref file existence is
 /// deferred to the orchestrator layer.
 fn semantic_errors(profile_json: &Value) -> Vec<ValidationError> {
     let mut errors = Vec::new();
+
+    let sticks =
+        profile_json.get("sticks").and_then(|s| serde_json::from_value::<Sticks>(s.clone()).ok());
+    if let Some(reason) = sticks.as_ref().and_then(dpad_swap_clash) {
+        errors
+            .push(ValidationError { path: "/sticks/swap_dpad_with_left_stick".to_owned(), reason });
+    }
 
     if let Some(refs) = profile_json.get("macro_refs").and_then(Value::as_array) {
         let mut seen: BTreeSet<&str> = BTreeSet::new();
