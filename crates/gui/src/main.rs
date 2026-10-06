@@ -80,8 +80,10 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         Event::Read { port, result: Err(f) } => {
             eprintln!("8b: read from {port} failed: {}; held by {:?}", f.error, f.holders);
         }
-        Event::Written { port, result, .. } => {
-            eprintln!("8b: write to {port}: {}", result.message);
+        Event::Written { port, results, .. } => {
+            for result in results {
+                eprintln!("8b: write to {port}: {}", result.message);
+            }
         }
         Event::Installed(Ok(())) => eprintln!("8b: udev rule installed"),
         Event::Installed(Err(e)) => eprintln!("8b: udev rule install failed: {e}"),
@@ -119,14 +121,11 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         }
         // Whatever the outcome, read the slot back: what the controller holds now is
         // what the window should show.
-        // A batch goes on with the next slot without a read; one read follows the last
-        // write, or the failure.
-        Event::Written { port, result, holders } => {
-            state.write_finished(&port, &result, holders::sentence(&holders));
-            match state.batch_after_write() {
-                Some(next) => send_write(commands, state, Some(next)),
-                None => read(commands, state, &port),
-            }
+        // A batch is one command, so one read follows it.
+        Event::Written { port, results, holders } => {
+            state.write_finished(&port, &results, holders::sentence(&holders).as_deref());
+            state.batch_after_write();
+            read(commands, state, &port);
         }
         Event::Installed(result) => {
             let ok = result.is_ok();
@@ -278,9 +277,13 @@ fn wire_controllers(
 }
 
 /// Sends a write to the worker. A write the worker cannot take does not start.
-fn send_write(commands: &Sender<Command>, state: &mut AppState, write: Option<(String, WriteJob)>) {
-    if let Some((port, job)) = write {
-        if commands.send(Command::Write(port, job)).is_err() {
+fn send_write(
+    commands: &Sender<Command>,
+    state: &mut AppState,
+    write: Option<(String, Vec<WriteJob>)>,
+) {
+    if let Some((port, jobs)) = write {
+        if commands.send(Command::Write(port, jobs)).is_err() {
             state.write.running = None;
             state.write.batch = None;
         }

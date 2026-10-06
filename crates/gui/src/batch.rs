@@ -1,7 +1,6 @@
 //! Writing every edited slot of the shown controller in one run: the review of all
-//! of them, then one write after another, stopping at the first that fails. The
-//! controller is read again before the review and once after the run, not between
-//! the slots.
+//! of them, then one worker command that writes them together. The controller is read
+//! again before the review and once after the run.
 
 use std::collections::BTreeSet;
 use std::rc::Rc;
@@ -43,11 +42,12 @@ pub enum Stage {
         /// The rows whose state is the opposite of their starting one.
         flipped: BTreeSet<Key>,
     },
-    /// The slots go one after another. The list is fixed.
+    /// The slots are being written in one run. The list is fixed.
     Running {
         /// The write of each slot, in order.
         jobs: Vec<WriteJob>,
-        /// The write the worker runs now: an index into `jobs`.
+        /// Where the run starts: an index into `jobs`. The slots before it were
+        /// written by an earlier run, and a retry starts at the slot that failed.
         at: usize,
     },
     /// The write at `at` failed, and the slots after it were not written.
@@ -185,9 +185,9 @@ impl AppState {
         }
     }
 
-    /// The user said yes to the review. Fixes the list of slots and returns the first
-    /// write to send.
-    pub fn confirm_batch(&mut self) -> Option<(String, WriteJob)> {
+    /// The user said yes to the review. Fixes the list of slots and returns the writes
+    /// to send.
+    pub fn confirm_batch(&mut self) -> Option<(String, Vec<WriteJob>)> {
         self.batch_review()?;
         let port = self.write.batch.take()?.port;
         let jobs: Vec<WriteJob> = self
@@ -195,55 +195,56 @@ impl AppState {
             .into_iter()
             .map(|key| self.upload_job(key))
             .collect::<Option<_>>()?;
-        let first = jobs.first()?.clone();
-        self.write.batch =
-            Some(Batch { port: port.clone(), stage: Stage::Running { jobs, at: 0 } });
-        Some(self.start(port, first))
-    }
-
-    /// A write came back and [`AppState::write_finished`] took it in. Returns the
-    /// write of the next slot when the batch goes on. A failure moves the batch to its
-    /// failure, and the last success ends it; then the caller reads the controller.
-    pub fn batch_after_write(&mut self) -> Option<(String, WriteJob)> {
-        if !matches!(self.write.batch, Some(Batch { stage: Stage::Running { .. }, .. })) {
+        if jobs.is_empty() {
             return None;
         }
-        let Batch { port, stage: Stage::Running { jobs, at } } = self.write.batch.take()? else {
-            return None;
+        self.write.batch =
+            Some(Batch { port: port.clone(), stage: Stage::Running { jobs: jobs.clone(), at: 0 } });
+        Some(self.start(port, jobs))
+    }
+
+    /// The writes came back and [`AppState::write_finished`] took them in. A failure
+    /// moves the batch to its failure, at the first slot that failed, and a success
+    /// ends it. Then the caller reads the controller.
+    pub fn batch_after_write(&mut self) {
+        if !matches!(self.write.batch, Some(Batch { stage: Stage::Running { .. }, .. })) {
+            return;
+        }
+        let Some(Batch { port, stage: Stage::Running { jobs, at } }) = self.write.batch.take()
+        else {
+            return;
         };
         if let Some(failure) = self.write.failed.take() {
             // The notice of the slots written before is not the whole story.
             self.notice = None;
-            self.write.batch = Some(Batch { port, stage: Stage::Failed { jobs, at, failure } });
-            return None;
-        }
-        let next = at.saturating_add(1);
-        if let Some(job) = jobs.get(next).cloned() {
-            self.notice = None;
+            let failed_at = jobs
+                .iter()
+                .skip(at)
+                .position(|j| (j.mode, j.slot) == (failure.job.mode, failure.job.slot))
+                .map_or(at, |i| at.saturating_add(i));
             self.write.batch =
-                Some(Batch { port: port.clone(), stage: Stage::Running { jobs, at: next } });
-            return Some(self.start(port, job));
+                Some(Batch { port, stage: Stage::Failed { jobs, at: failed_at, failure } });
+            return;
         }
         self.notice = Some(Notice {
             error: false,
             title: format!("Wrote {} to the controller.", slots(jobs.len())),
             body: "The controller uses a profile while its slot’s light is on.".to_owned(),
         });
-        None
     }
 
-    /// "Write again" after a failure: the failed slot and the slots after it go, in
-    /// order, with no new review. Returns the write to send.
-    pub fn retry_batch(&mut self) -> Option<(String, WriteJob)> {
+    /// "Write again" after a failure: the failed slot and the slots after it go in one
+    /// run, with no new review. Returns the writes to send.
+    pub fn retry_batch(&mut self) -> Option<(String, Vec<WriteJob>)> {
         if !matches!(self.write.batch, Some(Batch { stage: Stage::Failed { .. }, .. })) {
             return None;
         }
         let Batch { port, stage: Stage::Failed { jobs, at, .. } } = self.write.batch.take()? else {
             return None;
         };
-        let job = jobs.get(at)?.clone();
+        let rest = jobs.get(at..).filter(|r| !r.is_empty())?.to_vec();
         self.write.batch = Some(Batch { port: port.clone(), stage: Stage::Running { jobs, at } });
-        Some(self.start(port, job))
+        Some(self.start(port, rest))
     }
 
     /// The review of the slots that are still edited. A row starts open for the first
@@ -355,8 +356,16 @@ mod tests {
         (job.mode, job.slot.get())
     }
 
+    fn targets(jobs: &[WriteJob]) -> Vec<(Mode, u8)> {
+        jobs.iter().map(target).collect()
+    }
+
     fn ok(job: &WriteJob) -> WriteResult {
         WriteResult::success(job.mode, job.slot, "done")
+    }
+
+    fn oks(jobs: &[WriteJob]) -> Vec<WriteResult> {
+        jobs.iter().map(ok).collect()
     }
 
     #[test]
@@ -369,8 +378,8 @@ mod tests {
         s.begin_batch().unwrap();
         s.read_finished(PORT, Ok(full_read()));
         s.review_read(PORT, true);
-        let (_, first) = s.skip_empty_review().unwrap();
-        assert_eq!(target(&first), (Mode::XInput, 3));
+        let (_, jobs) = s.skip_empty_review().unwrap();
+        assert_eq!(targets(&jobs), [(Mode::XInput, 3), (Mode::DInput, 3)]);
         assert_eq!(s.batch_info().stage, STAGE_WRITING);
 
         let mut s = reviewing();
@@ -398,16 +407,16 @@ mod tests {
         s.read_finished(PORT, Ok(full_read()));
         s.review_read(PORT, true);
         assert!(!s.checking_batch() && !s.can_write() && !s.can_write_all(), "in review");
-        let (_, job) = s.confirm_batch().unwrap();
+        let (_, jobs) = s.confirm_batch().unwrap();
         assert!(!s.can_write() && !s.can_write_all() && !s.can_clear(), "while it runs");
         let bad = WriteResult::failure(
-            job.mode,
-            job.slot,
+            jobs[0].mode,
+            jobs[0].slot,
             controller_core::ErrorCategory::WriteFailure,
             "Write failed.",
         );
-        s.write_finished(PORT, &bad, None);
-        assert!(s.batch_after_write().is_none());
+        s.write_finished(PORT, &[bad], None);
+        s.batch_after_write();
         assert!(!s.can_write() && !s.can_write_all(), "in the failure");
         s.end_batch();
         assert!(s.can_write() && s.can_write_all());
@@ -542,26 +551,20 @@ mod tests {
     }
 
     #[test]
-    fn the_batch_writes_each_slot_in_order_and_reads_once_at_the_end() {
+    fn the_batch_goes_out_as_one_run_and_reads_once_at_the_end() {
         let mut s = reviewing();
-        let (port, first) = s.confirm_batch().unwrap();
-        assert_eq!((port.as_str(), target(&first)), (PORT, (Mode::XInput, 2)));
-        assert!(matches!(first.op, WriteOp::Upload { .. }));
-        assert_eq!(s.batch_info().stage, 2);
+        let (port, jobs) = s.confirm_batch().unwrap();
+        assert_eq!(port, PORT);
+        assert_eq!(targets(&jobs), [(Mode::XInput, 2), (Mode::XInput, 3), (Mode::DInput, 1)]);
+        assert!(matches!(jobs[0].op, WriteOp::Upload { .. }));
+        let info = s.batch_info();
+        assert_eq!((info.stage, info.at), (STAGE_WRITING, 0));
+        assert!(s.write.running.is_some());
 
-        s.write_finished(PORT, &ok(&first), None);
-        let (_, second) = s.batch_after_write().unwrap();
-        assert_eq!(target(&second), (Mode::XInput, 3));
-        assert!(s.write.running.is_some(), "the next write runs without a read");
-        assert_eq!(s.batch_info().at, 1);
+        s.write_finished(PORT, &oks(&jobs), None);
         assert!(!s.slot(Mode::XInput, 2).unsaved(), "a written slot is saved at once");
-
-        s.write_finished(PORT, &ok(&second), None);
-        let (_, third) = s.batch_after_write().unwrap();
-        assert_eq!(target(&third), (Mode::DInput, 1));
-
-        s.write_finished(PORT, &ok(&third), None);
-        assert!(s.batch_after_write().is_none());
+        assert!(!s.slot(Mode::XInput, 3).unsaved() && !s.slot(Mode::DInput, 1).unsaved());
+        s.batch_after_write();
         assert!(s.write.batch.is_none() && s.write.running.is_none());
         assert_eq!(s.edited_slots().len(), 0);
         let notice = s.notice.clone().unwrap();
@@ -572,18 +575,19 @@ mod tests {
     #[test]
     fn a_failure_stops_the_batch_keeps_the_edits_and_retries_the_rest() {
         let mut s = reviewing();
-        let (_, first) = s.confirm_batch().unwrap();
-        s.write_finished(PORT, &ok(&first), None);
-        let (_, second) = s.batch_after_write().unwrap();
+        let (_, jobs) = s.confirm_batch().unwrap();
+        // The second slot's bank failed, and the controller wrote the first.
         let mut bad = WriteResult::failure(
-            second.mode,
-            second.slot,
+            jobs[1].mode,
+            jobs[1].slot,
             controller_core::ErrorCategory::WriteFailure,
             "Write failed at chunk 12/53. Rollback failed.",
         );
         bad.backup_file_path = Some("/home/x/b.bin".to_owned());
-        s.write_finished(PORT, &bad, Some("Steam also has it open.".to_owned()));
-        assert!(s.batch_after_write().is_none(), "no next write, so the caller reads");
+        let results = [ok(&jobs[0]), bad.clone(), bad];
+        s.write_finished(PORT, &results, Some("Steam also has it open."));
+        assert!(s.write.failed.is_some(), "the failure waits for the batch to take it");
+        s.batch_after_write();
         assert!(s.write.failed.is_none(), "the single-slot failure does not open");
         assert!(s.notice.is_none());
         assert_eq!(s.edited_slots(), [(Mode::XInput, 3), (Mode::DInput, 1)]);
@@ -598,27 +602,27 @@ mod tests {
         assert_eq!(info.slots.row_count(), 3);
 
         let (_, again) = s.retry_batch().unwrap();
-        assert_eq!(again, second);
-        s.write_finished(PORT, &ok(&again), None);
-        let (_, third) = s.batch_after_write().unwrap();
-        assert_eq!(target(&third), (Mode::DInput, 1));
-        s.write_finished(PORT, &ok(&third), None);
-        assert!(s.batch_after_write().is_none());
+        assert_eq!(again, jobs[1..]);
+        let info = s.batch_info();
+        assert_eq!((info.stage, info.at), (STAGE_WRITING, 1));
+        s.write_finished(PORT, &oks(&again), None);
+        s.batch_after_write();
+        assert!(s.write.batch.is_none());
         assert_eq!(s.notice.unwrap().title, "Wrote 3 slots to the controller.");
     }
 
     #[test]
     fn closing_the_failure_keeps_every_edit_that_was_not_written() {
         let mut s = reviewing();
-        let (_, first) = s.confirm_batch().unwrap();
+        let (_, jobs) = s.confirm_batch().unwrap();
         let bad = WriteResult::failure(
-            first.mode,
-            first.slot,
+            jobs[0].mode,
+            jobs[0].slot,
             controller_core::ErrorCategory::Timeout,
             "usb error",
         );
-        s.write_finished(PORT, &bad, None);
-        assert!(s.batch_after_write().is_none());
+        s.write_finished(PORT, &[bad], None);
+        s.batch_after_write();
         s.end_batch();
         assert!(s.write.batch.is_none());
         assert_eq!(s.edited_slots().len(), 3);
@@ -631,9 +635,9 @@ mod tests {
         s.begin_batch().unwrap();
         s.read_finished(PORT, Ok(full_read()));
         s.review_read(PORT, true);
-        let (_, job) = s.confirm_batch().unwrap();
-        s.write_finished(PORT, &ok(&job), None);
-        assert!(s.batch_after_write().is_none());
+        let (_, jobs) = s.confirm_batch().unwrap();
+        s.write_finished(PORT, &oks(&jobs), None);
+        s.batch_after_write();
         assert_eq!(s.notice.unwrap().title, "Wrote 1 slot to the controller.");
     }
 
@@ -643,9 +647,9 @@ mod tests {
         s.set_name("Solo");
         s.begin_review().unwrap();
         s.review_read(PORT, true);
-        let (_, job) = s.confirm_review().unwrap();
-        s.write_finished(PORT, &ok(&job), None);
-        assert!(s.batch_after_write().is_none());
+        let (_, jobs) = s.confirm_review().unwrap();
+        s.write_finished(PORT, &oks(&jobs), None);
+        s.batch_after_write();
         assert!(s.notice.unwrap().title.starts_with("Wrote XInput slot 1"));
     }
 }

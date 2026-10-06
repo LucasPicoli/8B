@@ -45,8 +45,8 @@ pub struct WriteState {
     pub review: Option<Target>,
     /// Clear slot was pressed: the question waits for a yes.
     pub clearing: Option<Target>,
-    /// The write the worker is running, and the controller it goes to.
-    pub running: Option<(String, WriteJob)>,
+    /// The writes the worker is running, and the controller they go to.
+    pub running: Option<(String, Vec<WriteJob>)>,
     /// The last write failed.
     pub failed: Option<WriteFailure>,
     /// Write all was pressed: every edited slot goes in one run.
@@ -135,8 +135,8 @@ impl AppState {
     }
 
     /// A review or a batch review is about to open on slots that hold nothing: skip
-    /// the confirm and return the first write to send. Any other review stays.
-    pub fn skip_empty_review(&mut self) -> Option<(String, WriteJob)> {
+    /// the confirm and return the writes to send. Any other review stays.
+    pub fn skip_empty_review(&mut self) -> Option<(String, Vec<WriteJob>)> {
         if let Some(slot) = self.review_open().map(|t| t.1) {
             return if self.writes_nothing_over(slot) { self.confirm_review() } else { None };
         }
@@ -191,17 +191,17 @@ impl AppState {
         })
     }
 
-    /// Hands the write to the caller and marks it running.
-    pub fn start(&mut self, port: String, job: WriteJob) -> (String, WriteJob) {
-        self.write.running = Some((port.clone(), job.clone()));
-        (port, job)
+    /// Hands the writes to the caller and marks them running.
+    pub fn start(&mut self, port: String, jobs: Vec<WriteJob>) -> (String, Vec<WriteJob>) {
+        self.write.running = Some((port.clone(), jobs.clone()));
+        (port, jobs)
     }
 
     /// The user said yes to the review. Returns the write to send.
-    pub fn confirm_review(&mut self) -> Option<(String, WriteJob)> {
+    pub fn confirm_review(&mut self) -> Option<(String, Vec<WriteJob>)> {
         let (port, slot) = self.write.review.take()?;
         let job = self.upload_job(slot)?;
-        Some(self.start(port, job))
+        Some(self.start(port, vec![job]))
     }
 
     /// Clear slot was pressed.
@@ -217,16 +217,16 @@ impl AppState {
     }
 
     /// The user said yes to clearing. Returns the write to send.
-    pub fn confirm_clear(&mut self) -> Option<(String, WriteJob)> {
+    pub fn confirm_clear(&mut self) -> Option<(String, Vec<WriteJob>)> {
         let (port, (mode, number)) = self.write.clearing.take()?;
         let job = WriteJob { mode, slot: ProfileSlot::new(number).ok()?, op: WriteOp::Clear };
-        Some(self.start(port, job))
+        Some(self.start(port, vec![job]))
     }
 
     /// "Write again" after a failure. Returns the write to send.
-    pub fn retry_write(&mut self) -> Option<(String, WriteJob)> {
+    pub fn retry_write(&mut self) -> Option<(String, Vec<WriteJob>)> {
         let failed = self.write.failed.take()?;
-        Some(self.start(failed.port, failed.job))
+        Some(self.start(failed.port, vec![failed.job]))
     }
 
     /// The user closed the failure.
@@ -234,11 +234,28 @@ impl AppState {
         self.write.failed = None;
     }
 
-    /// The write came back. A success moves the edits into what the controller holds,
-    /// until the next read says what it holds; a failure keeps them. `holders` names
-    /// the other programs holding the controller.
-    pub fn write_finished(&mut self, port: &str, result: &WriteResult, holders: Option<String>) {
-        let Some((_, job)) = self.write.running.take() else { return };
+    /// The writes came back, one result per job. A success moves the edits into what the
+    /// controller holds, until the next read says what it holds; a failure keeps them,
+    /// and the jobs after the first failure are left alone. `holders` names the other
+    /// programs holding the controller.
+    pub fn write_finished(&mut self, port: &str, results: &[WriteResult], holders: Option<&str>) {
+        let Some((_, jobs)) = self.write.running.take() else { return };
+        for (job, result) in jobs.into_iter().zip(results) {
+            self.job_finished(port, job, result, holders);
+            if self.write.failed.is_some() {
+                return;
+            }
+        }
+    }
+
+    /// One write of a run came back.
+    fn job_finished(
+        &mut self,
+        port: &str,
+        job: WriteJob,
+        result: &WriteResult,
+        holders: Option<&str>,
+    ) {
         let key = (job.mode, result.slot);
         let title = format!("{} slot {}", job.mode.label(), result.slot);
         if !result.success {
@@ -439,7 +456,8 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
             .running
             .as_ref()
             .filter(|_| state.write.batch.is_none())
-            .map(|(_, job)| format!("Writing {} slot {}", job.mode.label(), job.slot.get()))
+            .and_then(|(_, jobs)| jobs.first())
+            .map(|job| format!("Writing {} slot {}", job.mode.label(), job.slot.get()))
             .unwrap_or_default()
             .into(),
     );
@@ -566,7 +584,8 @@ mod tests {
         s.begin_review().unwrap();
         s.read_finished(PORT, Ok(read_with_macro()));
         s.review_read(PORT, true);
-        let (port, job) = s.confirm_review().unwrap();
+        let (port, mut jobs) = s.confirm_review().unwrap();
+        let job = jobs.remove(0);
         assert_eq!(port, PORT);
         let WriteOp::Upload { profile, drop_macros } = &job.op else { panic!("an upload") };
         assert_eq!(drop_macros, &["rp"], "the macro whose button got another output goes");
@@ -575,7 +594,7 @@ mod tests {
         assert!(!s.can_write() && !s.can_clear(), "locked while the write runs");
 
         let ok = WriteResult::success(Mode::XInput, job.slot, "done");
-        s.write_finished(PORT, &ok, None);
+        s.write_finished(PORT, &[ok], None);
         let slot = s.slot(Mode::XInput, 1);
         assert!(!slot.unsaved() && slot.pad.unwrap().name == "Mine");
         assert!(s.notice.as_ref().is_some_and(|n| !n.error && n.title.contains("XInput slot 1")));
@@ -600,7 +619,8 @@ mod tests {
         s.begin_review().unwrap();
         s.read_finished(PORT, Ok(read_with_macro()));
         s.review_read(PORT, true);
-        let (_, job) = s.confirm_review().unwrap();
+        let (_, mut jobs) = s.confirm_review().unwrap();
+        let job = jobs.remove(0);
         let mut bad = WriteResult::failure(
             Mode::XInput,
             job.slot,
@@ -608,7 +628,7 @@ mod tests {
             "Write failed at chunk 12/53. Rollback failed.",
         );
         bad.backup_file_path = Some("/home/x/.local/state/8b/backups/b.bin".to_owned());
-        s.write_finished(PORT, &bad, Some("Steam also has it open.".to_owned()));
+        s.write_finished(PORT, &[bad], Some("Steam also has it open."));
         let failed = s.write.failed.clone().unwrap();
         assert_eq!(
             failed.detail,
@@ -617,7 +637,8 @@ mod tests {
         assert!(failed.backup.is_some());
         assert!(s.slot(Mode::XInput, 1).unsaved(), "the edits stay");
         assert!(!s.can_write(), "the dialog comes first");
-        let (_, again) = s.retry_write().unwrap();
+        let (_, mut agains) = s.retry_write().unwrap();
+        let again = agains.remove(0);
         assert_eq!(again, job);
         assert!(s.write.failed.is_none() && s.write.running.is_some());
     }
@@ -628,14 +649,15 @@ mod tests {
         s.begin_review().unwrap();
         s.read_finished(PORT, Ok(read_with_macro()));
         s.review_read(PORT, true);
-        let (_, job) = s.confirm_review().unwrap();
+        let (_, mut jobs) = s.confirm_review().unwrap();
+        let job = jobs.remove(0);
         let lost = WriteResult::failure(
             Mode::XInput,
             job.slot,
             ErrorCategory::Timeout,
             "usb error: Connection timed out (os error 110)",
         );
-        s.write_finished(PORT, &lost, None);
+        s.write_finished(PORT, &[lost], None);
         assert_eq!(
             s.write.failed.clone().unwrap().detail,
             "Could not reach the controller, so nothing was written. Usb error: Connection timed out (os error 110)."
@@ -649,10 +671,11 @@ mod tests {
         s.begin_clear();
         let info = s.clear_info((Mode::XInput, 1));
         assert_eq!((info.name.as_str(), info.macros, info.has_edits), ("XInput", 1, true));
-        let (_, job) = s.confirm_clear().unwrap();
+        let (_, mut jobs) = s.confirm_clear().unwrap();
+        let job = jobs.remove(0);
         assert_eq!((job.mode, job.slot.get(), &job.op), (Mode::XInput, 1, &WriteOp::Clear));
         let ok = WriteResult::success(Mode::XInput, job.slot, "Slot deactivated.");
-        s.write_finished(PORT, &ok, None);
+        s.write_finished(PORT, &[ok], None);
         let slot = s.slot(Mode::XInput, 1);
         assert_eq!((slot.pad, slot.edited), (None, None));
         s.begin_clear();
@@ -697,7 +720,8 @@ mod tests {
     #[test]
     fn an_empty_slot_with_no_macros_writes_without_the_review() {
         let mut s = empty_slot_write(0);
-        let (_, job) = s.skip_empty_review().unwrap();
+        let (_, mut jobs) = s.skip_empty_review().unwrap();
+        let job = jobs.remove(0);
         assert_eq!((job.mode, job.slot.get()), (Mode::DInput, 3));
         assert!(s.review_open().is_none() && s.write.running.is_some());
     }

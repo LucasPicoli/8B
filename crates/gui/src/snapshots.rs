@@ -552,7 +552,8 @@ fn clear_dialog() {
 #[test]
 fn writing_sheet_and_failure() {
     let mut s = reviewing();
-    let (_, job) = s.confirm_review().unwrap();
+    let (_, mut jobs) = s.confirm_review().unwrap();
+    let job = jobs.remove(0);
     shoot("writing", &s);
     let mut bad = controller_core::model::WriteResult::failure(
         Mode::XInput,
@@ -563,7 +564,7 @@ fn writing_sheet_and_failure() {
     bad.backup_file_path = Some(
         "/home/lucas/.local/state/8b/backups/backup-xinput-slot-1-20261005-120000.bin".to_owned(),
     );
-    s.write_finished(PORT, &bad, Some("steam also has the controller open.".to_owned()));
+    s.write_finished(PORT, &[bad], Some("steam also has the controller open."));
     shoot("write-failed", &s);
 }
 
@@ -684,40 +685,38 @@ fn the_batch_review_opens_and_closes_a_row_on_a_click() {
     assert_eq!(toggled.get(), 0);
 }
 
-/// The batch at slot 2 of 3, writing.
+/// The batch of 3 slots, writing in one run.
 fn batch_writing() -> AppState {
     let mut s = batch_reviewing();
-    let (_, first) = s.confirm_batch().unwrap();
-    s.write_finished(
-        PORT,
-        &controller_core::model::WriteResult::success(first.mode, first.slot, "done"),
-        None,
-    );
-    s.batch_after_write().unwrap();
+    s.confirm_batch().unwrap();
     s
 }
 
 #[test]
 fn the_batch_writing_dialog() {
     let s = batch_writing();
-    assert_eq!(window(&s).get_batch().at, 1);
+    assert_eq!(window(&s).get_batch().at, 0);
     shoot("batch-writing", &s);
 }
 
 #[test]
 fn the_batch_failure_dialog_with_a_backup() {
     let mut s = batch_writing();
-    let job = s.write.running.as_ref().unwrap().1.clone();
+    let jobs = s.write.running.as_ref().unwrap().1.clone();
+    // The first slot's bank went out; the second's failed and took the third with it.
+    let done = controller_core::model::WriteResult::success(jobs[0].mode, jobs[0].slot, "done");
     let mut bad = controller_core::model::WriteResult::failure(
-        job.mode,
-        job.slot,
+        jobs[1].mode,
+        jobs[1].slot,
         controller_core::ErrorCategory::WriteFailure,
         "Write failed at chunk 12/53. Rollback failed. Original profile saved to the file below.",
     );
     bad.backup_file_path = Some(
         "/home/lucas/.local/state/8b/backups/backup-xinput-slot-2-20261005-120000.bin".to_owned(),
     );
-    s.write_finished(PORT, &bad, Some("steam also has the controller open.".to_owned()));
-    assert!(s.batch_after_write().is_none());
+    let results = [done, bad.clone(), bad];
+    s.write_finished(PORT, &results, Some("steam also has the controller open."));
+    s.batch_after_write();
+    assert_eq!(window(&s).get_batch().at, 1);
     shoot("batch-failed", &s);
 }

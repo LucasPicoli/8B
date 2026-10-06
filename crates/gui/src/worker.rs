@@ -48,8 +48,8 @@ fn devnum(sysfs_path: &str) -> Option<u16> {
 pub enum Command {
     /// Read every bank of the controller on this USB port path.
     ReadAll(String),
-    /// Write one slot of the controller on this USB port path.
-    Write(String, WriteJob),
+    /// Write these slots of the controller on this USB port path, in one session.
+    Write(String, Vec<WriteJob>),
     /// Install the udev rule that grants access to the controller.
     InstallUdevRule,
 }
@@ -84,8 +84,8 @@ pub enum Event {
     Written {
         /// The USB port path the write went to.
         port: String,
-        /// How the write went, rollback included.
-        result: WriteResult,
+        /// How each write went, in the order of the command, rollback included.
+        results: Vec<WriteResult>,
         /// When it failed: the other programs that have the controller's config node
         /// open.
         holders: Vec<String>,
@@ -173,19 +173,20 @@ fn run(
                     }
                 }
             }
-            Ok(Command::Write(port, job)) => {
+            Ok(Command::Write(port, jobs)) => {
                 let dev = devices.entry(port.clone()).or_insert_with(|| open(&port));
-                let result = writes::run(dev.as_ref(), &job, site.backup_dir);
+                let results = writes::run(dev.as_ref(), &jobs, site.backup_dir);
                 // The write may have flipped the controller and back, which gave it a
-                // new device number. This job caused that: do not report it as a
+                // new device number. This write caused that: do not report it as a
                 // replug, or the window reads the controller a second time.
                 let debounce = presence.entry(port.clone()).or_default();
                 debounce.reported = scan_sysfs_all(sysfs, ports)
                     .iter()
                     .find(|usb| usb.port_path() == port)
                     .map(|usb| (usb.port.mode, devnum(&usb.sysfs_path)));
-                let holders = if result.success { Vec::new() } else { holders_of(site, &port) };
-                emit(Event::Written { port, result, holders });
+                let failed = results.iter().any(|r| !r.success);
+                let holders = if failed { holders_of(site, &port) } else { Vec::new() };
+                emit(Event::Written { port, results, holders });
             }
             Ok(Command::InstallUdevRule) => emit(Event::Installed(install())),
             Err(RecvTimeoutError::Timeout) => {
@@ -263,7 +264,7 @@ impl Debounce {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
     use std::collections::BTreeSet;
     use std::fs;
@@ -614,9 +615,10 @@ mod tests {
     fn a_write_reports_its_result() {
         let (tx, events, _dir) =
             writer(MockDevice::new().with_profiles(crate::state::tests::readable()));
-        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
+        tx.send(Command::Write(PORT.to_owned(), vec![upload_job()])).unwrap();
         match next(&events) {
-            Event::Written { port, result, holders } => {
+            Event::Written { port, results, holders } => {
+                let result = &results[0];
                 assert_eq!(port, PORT);
                 assert!(result.success, "{}", result.message);
                 assert_eq!(holders, Vec::<String>::new());
@@ -624,8 +626,21 @@ mod tests {
             other => panic!("expected a write, got {other:?}"),
         }
         let clear = WriteJob { op: WriteOp::Clear, ..upload_job() };
-        tx.send(Command::Write(PORT.to_owned(), clear)).unwrap();
-        assert!(matches!(next(&events), Event::Written { result, .. } if result.success));
+        tx.send(Command::Write(PORT.to_owned(), vec![clear])).unwrap();
+        assert!(matches!(next(&events), Event::Written { results, .. } if results[0].success));
+    }
+
+    #[test]
+    fn several_slots_in_one_command_report_one_result_each() {
+        let (tx, events, _dir) =
+            writer(MockDevice::new().with_profiles(crate::state::tests::readable()));
+        let second = WriteJob { slot: Slot::new(2).unwrap(), ..upload_job() };
+        tx.send(Command::Write(PORT.to_owned(), vec![upload_job(), second])).unwrap();
+        let Event::Written { results, .. } = next(&events) else { panic!("expected a write") };
+        assert_eq!(
+            results.iter().map(|r| (r.success, r.slot)).collect::<Vec<_>>(),
+            [(true, 1), (true, 2)]
+        );
     }
 
     #[test]
@@ -636,9 +651,10 @@ mod tests {
             Error::write("chunk refused"),
         );
         let (tx, events, _dir) = writer(dev);
-        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
+        tx.send(Command::Write(PORT.to_owned(), vec![upload_job()])).unwrap();
         match next(&events) {
-            Event::Written { result, .. } => {
+            Event::Written { results, .. } => {
+                let result = &results[0];
                 assert!(!result.success && result.rollback_succeeded, "{}", result.message);
                 assert!(result.message.contains("Rollback succeeded"));
                 assert_eq!(result.backup_file_path, None);
@@ -654,9 +670,10 @@ mod tests {
             .fail_nth(MockOp::WriteFullProfile, 0, Error::write("chunk refused"))
             .fail_nth(MockOp::WriteFullProfile, 1, Error::write("still refused"));
         let (tx, events, dir) = writer(dev);
-        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
-        let Event::Written { result, .. } = next(&events) else { panic!("expected a write") };
-        let saved = result.backup_file_path.expect("a backup file");
+        tx.send(Command::Write(PORT.to_owned(), vec![upload_job()])).unwrap();
+        let Event::Written { results, .. } = next(&events) else { panic!("expected a write") };
+        let result = &results[0];
+        let saved = result.backup_file_path.clone().expect("a backup file");
         assert!(Path::new(&saved).starts_with(dir.path().join("backups")), "{saved}");
         assert_eq!(fs::read(&saved).unwrap().len(), 2348);
     }
@@ -669,8 +686,8 @@ mod tests {
             Error::Disconnected,
         );
         let (tx, events, _dir) = writer(dev);
-        tx.send(Command::Write(PORT.to_owned(), upload_job())).unwrap();
-        assert!(matches!(next(&events), Event::Written { result, .. } if !result.success));
+        tx.send(Command::Write(PORT.to_owned(), vec![upload_job()])).unwrap();
+        assert!(matches!(next(&events), Event::Written { results, .. } if !results[0].success));
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         assert!(matches!(next(&events), Event::Read { result: Ok(_), .. }));
     }

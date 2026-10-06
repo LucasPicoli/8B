@@ -224,7 +224,9 @@ export component BatchReviewDialog inherits DialogShell {
 export component BatchWritingDialog inherits DialogShell {
     in property <BatchInfo> info;
     icon: Icons.pad;
-    title: "Writing slot " + (info.at + 1) + " of " + info.slots.length;
+    // The slots from `at` on go in one run, so they all show as writing.
+    property <int> m: info.slots.length - info.at;
+    title: m == 1 ? "Writing 1 slot" : "Writing " + m + " slots";
     subtitle: "Keep the controller plugged in.";
     cancel-text: "";
     accept-text: "";
@@ -232,7 +234,7 @@ export component BatchWritingDialog inherits DialogShell {
         VerticalLayout {
             for s[i] in root.info.slots: RunRow {
                 title: s.title;
-                kind: i < root.info.at ? 2 : i == root.info.at ? 1 : 0;
+                kind: i < root.info.at ? 2 : 1;
                 last: i == root.info.slots.length - 1;
             }
         }
