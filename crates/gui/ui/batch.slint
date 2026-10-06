@@ -1,0 +1,276 @@
+// Write every edited slot: the review, the progress and the failure.
+import { Theme, Spinner } from "look/breeze/widgets.slint";
+import { Icons, DialogShell, ChangeRow, Frame } from "parts.slint";
+import { BatchInfo, BatchSlot } from "types.slint";
+import { Bullet, BackupFile } from "dialogs.slint";
+
+// One slot in the review. The header opens and closes the slot's changes.
+component BatchSlotRow inherits Rectangle {
+    in property <BatchSlot> slot;
+    // The last row has no rule under it.
+    in property <bool> last;
+    callback toggled;
+    property <bool> has-body: slot.changes.length > 0 || slot.removed.length > 0 || slot.leftover > 0;
+
+    VerticalLayout {
+        header := Rectangle {
+            min-height: 32px;
+            background: ta.has-hover ? Theme.hover : transparent;
+            accessible-role: button;
+            accessible-label: root.slot.title + ", " + root.slot.name;
+            accessible-expandable: true;
+            accessible-expanded: root.slot.open;
+            accessible-action-default => { root.toggled(); }
+
+            fs := FocusScope {
+                focus-on-click: false;
+                key-pressed(e) => {
+                    if (e.text == " " || e.text == Key.Return) {
+                        root.toggled();
+                        return accept;
+                    }
+                    reject
+                }
+            }
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 8px;
+                Image {
+                    y: (parent.height - self.height) / 2;
+                    width: 14px;
+                    height: 14px;
+                    source: @image-url("icons/chevron.svg");
+                    colorize: Theme.fg-muted;
+                    transform-rotation: root.slot.open ? 0deg : -90deg;
+                }
+                Text {
+                    text: root.slot.title;
+                    font-weight: 600;
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: " · " + root.slot.name;
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.slot.is-new
+                        ? "New profile"
+                        : root.slot.changes.length == 1 ? "1 change" : root.slot.changes.length + " changes";
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                }
+            }
+            ta := TouchArea {
+                clicked => { root.toggled(); }
+            }
+            // Keyboard focus: the Breeze accent frame.
+            if fs.has-focus: Rectangle {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: parent.height - 4px;
+                border-radius: Theme.radius;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+        }
+        if root.slot.open && root.has-body: Rectangle {
+            height: 1px;
+            background: Theme.line-soft;
+        }
+        if root.slot.open && root.has-body: Rectangle {
+            background: Theme.window;
+            VerticalLayout {
+                for c[i] in root.slot.changes: ChangeRow {
+                    change: c;
+                    rule: i < root.slot.changes.length - 1 || root.slot.removed.length > 0 || root.slot.leftover > 0;
+                }
+                for r[i] in root.slot.removed: Rectangle {
+                    min-height: 32px;
+                    Text {
+                        x: 10px;
+                        width: parent.width - 20px;
+                        text: r;
+                        color: Theme.fg;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+                if root.slot.leftover > 0: Rectangle {
+                    min-height: 32px;
+                    Text {
+                        x: 10px;
+                        width: parent.width - 20px;
+                        text: root.slot.leftover == 1
+                            ? "The empty slot still holds 1 macro. Writing a profile removes it."
+                            : "The empty slot still holds " + root.slot.leftover + " macros. Writing a profile removes them.";
+                        color: Theme.fg;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+            }
+        }
+        if !root.last: Rectangle {
+            height: 1px;
+            background: Theme.line-soft;
+        }
+    }
+}
+
+// One slot of the run, in the writing and failure dialogs.
+component RunRow inherits Rectangle {
+    in property <string> title;
+    // 0 waiting, 1 writing, 2 written, 3 failed.
+    in property <int> kind;
+    // The run stopped, so a slot not reached reads "Not written".
+    in property <bool> stopped;
+    in property <bool> last;
+    min-height: 32px;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+        if root.kind == 2: Image {
+            y: (parent.height - self.height) / 2;
+            width: 14px;
+            height: 14px;
+            source: Icons.check;
+            colorize: Theme.positive;
+        }
+        if root.kind == 3: Image {
+            y: (parent.height - self.height) / 2;
+            width: 14px;
+            height: 14px;
+            source: Icons.close;
+            colorize: Theme.negative;
+        }
+        if root.kind == 1: Spinner {
+            y: (parent.height - self.height) / 2;
+            width: 14px;
+            height: 14px;
+        }
+        // Slint draws no dashed border, so the empty circle is solid.
+        if root.kind == 0: Rectangle {
+            y: (parent.height - self.height) / 2;
+            width: 14px;
+            height: 14px;
+            border-radius: 7px;
+            border-width: 1.5px;
+            border-color: Theme.line;
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: root.title;
+            font-weight: root.kind == 1 || root.kind == 3 ? 600 : 400;
+            color: root.kind == 0 ? Theme.fg-muted : Theme.fg;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            text: root.kind == 2 ? "Written"
+                : root.kind == 1 ? "Writing"
+                : root.kind == 3 ? "Failed"
+                : root.stopped ? "Not written" : "Waiting";
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
+    }
+    if !root.last: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
+export component BatchReviewDialog inherits DialogShell {
+    in property <BatchInfo> info;
+    callback toggled(int);
+    property <int> n: info.slots.length;
+    property <int> c: info.total-changes;
+    icon: Icons.stack;
+    title: "Write " + n + (n == 1 ? " slot" : " slots") + " to the controller?";
+    subtitle: (info.any-new ? "" : (c == 1 ? "1 change. " : c + " changes. ")) + "Slots without edits stay as they are.";
+    accept-text: "Write " + n + (n == 1 ? " slot" : " slots");
+    Frame {
+        VerticalLayout {
+            for s[i] in root.info.slots: BatchSlotRow {
+                slot: s;
+                last: i == root.n - 1;
+                toggled => { root.toggled(i); }
+            }
+        }
+    }
+    Bullet {
+        text: root.info.any-removed
+            ? "Each slot keeps its macros, except the ones listed as removed."
+            : "Each slot keeps the macros it has.";
+    }
+    Bullet {
+        text: "8B writes one slot at a time and reads each one back.";
+    }
+    Bullet {
+        text: "If a slot fails, 8B puts it back and stops. The slots after it are not written.";
+    }
+}
+
+// Shown while the batch runs. Blocks the window: nothing may change under a write.
+export component BatchWritingDialog inherits DialogShell {
+    in property <BatchInfo> info;
+    icon: Icons.pad;
+    title: "Writing slot " + (info.at + 1) + " of " + info.slots.length;
+    subtitle: "Keep the controller plugged in.";
+    cancel-text: "";
+    accept-text: "";
+    Frame {
+        VerticalLayout {
+            for s[i] in root.info.slots: RunRow {
+                title: s.title;
+                kind: i < root.info.at ? 2 : i == root.info.at ? 1 : 0;
+                last: i == root.info.slots.length - 1;
+            }
+        }
+    }
+}
+
+export component BatchFailedDialog inherits DialogShell {
+    in property <BatchInfo> info;
+    // The slots the retry writes: the failed one and those after it.
+    property <int> m: info.slots.length - info.at;
+    property <string> failed: info.slots[info.at].title;
+    icon: Icons.error;
+    alarm: true;
+    card-width: 560px;
+    title: "Writing " + failed + " failed";
+    subtitle: info.detail;
+    cancel-text: "Close";
+    accept-text: m == 1 ? "Write " + failed + " again" : "Write the " + m + " slots again";
+    extra-text: info.backup-path != "" ? "Open folder" : "";
+    extra-icon: Icons.folder;
+    Frame {
+        VerticalLayout {
+            for s[i] in root.info.slots: RunRow {
+                title: s.title;
+                kind: i < root.info.at ? 2 : i == root.info.at ? 3 : 0;
+                stopped: true;
+                last: i == root.info.slots.length - 1;
+            }
+        }
+    }
+    if root.info.backup-path != "": BackupFile {
+        path: root.info.backup-path;
+    }
+    Text {
+        text: root.m == 1
+            ? "Your edits to this slot are still here."
+            : "Your edits to the " + root.m + " slots are still here.";
+        color: Theme.fg-muted;
+        wrap: word-wrap;
+    }
+}

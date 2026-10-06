@@ -244,6 +244,7 @@ impl AppState {
             self.notice = None;
             self.pending_import = None;
             self.write.reading_for = None;
+            self.drop_waiting_batch();
         }
         self.active_port = Some(port);
     }
@@ -355,6 +356,7 @@ impl AppState {
             }
         }
         self.settle_review();
+        self.settle_batch();
     }
 
     /// Records which empty slots of the controller on `port` still hold macros.

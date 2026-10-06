@@ -3,6 +3,7 @@
 // A binary crate: `pub` marks what other modules use.
 #![allow(unreachable_pub)]
 
+mod batch;
 mod buttons;
 mod chooser;
 mod controllers;
@@ -116,9 +117,14 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         }
         // Whatever the outcome, read the slot back: what the controller holds now is
         // what the window should show.
+        // A batch goes on with the next slot without a read; one read follows the last
+        // write, or the failure.
         Event::Written { port, result, holders } => {
             state.write_finished(&port, &result, holders::sentence(&holders));
-            read(commands, state, &port);
+            match state.batch_after_write() {
+                Some(next) => send_write(commands, state, Some(next)),
+                None => read(commands, state, &port),
+            }
         }
         Event::Installed(result) => {
             let ok = result.is_ok();
@@ -268,6 +274,7 @@ fn send_write(commands: &Sender<Command>, state: &mut AppState, write: Option<(S
     if let Some((port, job)) = write {
         if commands.send(Command::Write(port, job)).is_err() {
             state.write.running = None;
+            state.write.batch = None;
         }
     }
 }
@@ -280,7 +287,8 @@ fn open_folder(folder: &std::path::Path) {
     }
 }
 
-/// Wires Write to controller, Clear slot and the answers to their dialogs.
+/// Wires the footer's write button, Clear slot, Write all and the answers to their
+/// dialogs.
 fn wire_writes(
     ui: &AppWindow,
     change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
@@ -304,6 +312,36 @@ fn wire_writes(
     });
     let c = change.clone();
     ui.on_review_cancelled(move || c(&AppState::cancel_review));
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_write_all_clicked(move || {
+        c(&|s| {
+            if let Some(port) = s.begin_batch() {
+                read(&tx, s, &port);
+            }
+        });
+    });
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_batch_confirmed(move || {
+        c(&|s| {
+            let write = s.confirm_batch();
+            send_write(&tx, s, write);
+        });
+    });
+    let c = change.clone();
+    ui.on_batch_cancelled(move || c(&AppState::end_batch));
+    let c = change.clone();
+    ui.on_batch_slot_toggled(move |row| {
+        c(&|s| s.toggle_batch_slot(usize::try_from(row).unwrap_or(usize::MAX)));
+    });
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_batch_retried(move || {
+        c(&|s| {
+            let write = s.retry_batch();
+            send_write(&tx, s, write);
+        });
+    });
+    let c = change.clone();
+    ui.on_batch_closed(move || c(&AppState::end_batch));
     let c = change.clone();
     ui.on_clear_clicked(move || c(&AppState::begin_clear));
     let (c, tx) = (change.clone(), commands.clone());

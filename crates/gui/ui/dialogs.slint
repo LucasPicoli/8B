@@ -3,7 +3,7 @@ import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
 import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
 
-component Bullet {
+export component Bullet {
     in property <string> text;
     in property <string> aside;
     HorizontalLayout {
@@ -17,6 +17,33 @@ component Bullet {
             text: root.text + (root.aside != "" ? " " + root.aside : "");
             color: Theme.fg;
             wrap: word-wrap;
+        }
+    }
+}
+
+// The file a failed write saved the old profile in, with a Copy button.
+export component BackupFile {
+    in property <string> path;
+    VerticalLayout {
+        spacing: 10px;
+        Text {
+            text: "The old profile is saved in this file:";
+            color: Theme.fg;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            field := LineEdit {
+                text: root.path;
+                read-only: true;
+                mono: true;
+                wrap: true;
+                accessible-name: "Backup file";
+            }
+            Button {
+                text: "Copy";
+                icon: Icons.copy;
+                clicked => { field.copy-all(); }
+            }
         }
     }
 }
@@ -118,24 +145,8 @@ export component FailedDialog inherits DialogShell {
     accept-text: info.is-clear ? "Try again" : "Write again";
     extra-text: info.backup-path != "" ? "Open folder" : "";
     extra-icon: Icons.folder;
-    if root.info.backup-path != "": Text {
-        text: "The old profile is saved in this file:";
-        color: Theme.fg;
-    }
-    if root.info.backup-path != "": HorizontalLayout {
-        spacing: 6px;
-        path := LineEdit {
-            text: root.info.backup-path;
-            read-only: true;
-            mono: true;
-            wrap: true;
-            accessible-name: "Backup file";
-        }
-        Button {
-            text: "Copy";
-            icon: Icons.copy;
-            clicked => { path.copy-all(); }
-        }
+    if root.info.backup-path != "": BackupFile {
+        path: root.info.backup-path;
     }
     if !root.info.is-clear: Text {
         text: "Your edits are still here, so you can write again.";

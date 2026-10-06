@@ -1,5 +1,5 @@
 // The device header and every slot of every mode.
-import { Theme, Button, ScrollView } from "look/breeze/widgets.slint";
+import { Theme, Button, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { Icons, Dot } from "parts.slint";
 import { ModeGroup, Slot } from "types.slint";
 
@@ -188,8 +188,16 @@ export component Sidebar inherits Rectangle {
     in property <bool> failed;
     in-out property <int> current-mode;
     in-out property <int> current-slot;
+    // Slots of the shown controller with unsaved edits, and whether Write all can be
+    // used now. While the controller is read again first, the bar says so.
+    in property <int> edited-count;
+    in property <string> edited-caption;
+    in property <string> write-all-label;
+    in property <bool> can-write-all;
+    in property <bool> checking-all;
     callback slot-picked(int, int);
     callback controller-picked(int);
+    callback write-all-clicked;
     width: 264px;
     background: Theme.view;
 
@@ -277,6 +285,44 @@ export component Sidebar inherits Rectangle {
                             picked => { root.slot-picked(gi, si); }
                         }
                     }
+                }
+            }
+        }
+
+        // Write all sits under the slot list it counts, apart from the footer's button.
+        if root.edited-count > 0: Rectangle {
+            height: 1px;
+            background: Theme.line-soft;
+        }
+        if root.edited-count > 0: Rectangle {
+            background: Theme.window;
+            VerticalLayout {
+                padding: 10px;
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 6px;
+                    if !root.checking-all: Dot {
+                        y: (parent.height - self.height) / 2;
+                    }
+                    if root.checking-all: Spinner {
+                        y: (parent.height - self.height) / 2;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.checking-all
+                            ? "Checking the controller…"
+                            : root.edited-caption;
+                        font-size: Theme.text-caption;
+                        color: Theme.fg-muted;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+                Button {
+                    text: root.write-all-label;
+                    icon: Icons.stack;
+                    enabled: root.can-write-all;
+                    clicked => { root.write-all-clicked(); }
                 }
             }
         }

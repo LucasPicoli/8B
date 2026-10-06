@@ -566,3 +566,158 @@ fn writing_sheet_and_failure() {
     s.write_finished(PORT, &bad, Some("steam also has the controller open.".to_owned()));
     shoot("write-failed", &s);
 }
+
+/// `XInput` slots 1 and 2 and `DInput` slot 1, each with edits in every tab, with
+/// Write all pressed and the controller read again.
+fn batch_reviewing() -> AppState {
+    let mut s = connected(Mode::XInput);
+    for (mode, slot) in [(0, 0), (0, 1), (2, 0)] {
+        s.select(mode, slot);
+        s.set_name("Edited");
+        s.set_output("r1", "disabled");
+        s.set_output("l1", "disabled");
+        s.set_number("/sticks/left_min_pct", 12.0);
+        s.set_number("/sticks/right_max_pct", 85.0);
+        s.set_flag("/sticks/invert_left_x", true);
+        s.set_flag("/triggers/swap_triggers", true);
+        s.set_number("/vibration/left_level", 1.0);
+    }
+    s.select(0, 0);
+    s.begin_batch().unwrap();
+    s.review_read(PORT, true);
+    s
+}
+
+#[test]
+fn the_footer_button_names_its_slot() {
+    let ui = window(&connected(Mode::XInput));
+    assert_eq!(ui.get_write_label(), "Write XInput slot 1…");
+    save("footer-write-label", &ui);
+}
+
+#[test]
+fn the_sidebar_bar_counts_the_edited_slots() {
+    let mut s = connected(Mode::XInput);
+    let clean = window(&s);
+    assert_eq!(clean.get_edited_count(), 0);
+    let blank = clean.window().take_snapshot().unwrap();
+    let width = usize::try_from(blank.width()).unwrap();
+    // The bottom of the sidebar is the slot list's white until a bar takes it.
+    let corner = |ui: &AppWindow| {
+        let shot = ui.window().take_snapshot().unwrap();
+        shot.as_slice()[790 * width + 100]
+    };
+    let plain = corner(&clean);
+
+    for (mode, slot) in [(0, 1), (0, 2), (2, 0)] {
+        s.select(mode, slot);
+        if s.slot(Mode::XInput, 3).pad.is_none() && (mode, slot) == (0, 2) {
+            s.start_from_default();
+        } else {
+            s.set_name("Edited");
+        }
+    }
+    let ui = window(&s);
+    assert_eq!(ui.get_edited_count(), 3);
+    assert_eq!(ui.get_edited_caption(), "3 slots have unsaved edits");
+    assert_eq!(ui.get_write_all_label(), "Write all 3 slots…");
+    assert!(ui.get_can_write_all());
+    assert_ne!(corner(&ui), plain, "the bar fills the foot of the sidebar");
+    save("sidebar-write-all", &ui);
+
+    s.select(0, 1);
+    s.discard();
+    s.select(0, 2);
+    s.discard();
+    let ui = window(&s);
+    assert_eq!(ui.get_edited_caption(), "1 slot has unsaved edits");
+    assert_eq!(ui.get_write_all_label(), "Write 1 slot…");
+}
+
+#[test]
+fn the_sidebar_bar_checks_the_controller_first() {
+    let mut s = connected(Mode::XInput);
+    s.set_name("Edited");
+    s.begin_batch().unwrap();
+    s.read_started(PORT);
+    let ui = window(&s);
+    assert!(ui.get_checking_all() && !ui.get_can_write_all() && !ui.get_can_write());
+    save("sidebar-write-all-checking", &ui);
+}
+
+#[test]
+fn the_batch_review() {
+    let mut s = batch_reviewing();
+    shoot("batch-review", &s);
+    s.toggle_batch_slot(1);
+    s.toggle_batch_slot(2);
+    shoot("batch-review-open", &s);
+}
+
+#[test]
+fn the_batch_review_keeps_its_buttons_in_a_small_window() {
+    let mut s = batch_reviewing();
+    s.toggle_batch_slot(1);
+    s.toggle_batch_slot(2);
+    let ui = window(&s);
+    ui.window().set_size(PhysicalSize::new(1024, 640));
+    save("batch-review-small-window", &ui);
+
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = usize::try_from(shot.width()).unwrap();
+    // The light theme's primary button fill, `Theme.accent-strong`.
+    let lower_half = &shot.as_slice()[320 * width..];
+    assert!(
+        lower_half.iter().filter(|p| (p.r, p.g, p.b) == (0x1b, 0x74, 0xa8)).count() > 200,
+        "no primary button on screen"
+    );
+}
+
+#[test]
+fn the_batch_review_opens_and_closes_a_row_on_a_click() {
+    let ui = window(&batch_reviewing());
+    let toggled = Rc::new(std::cell::Cell::new(-1));
+    let t = Rc::clone(&toggled);
+    ui.on_batch_slot_toggled(move |row| t.set(row));
+    // The header of the first row, in the card the review centres in the window.
+    click(&ui, 640.0, 216.0);
+    assert_eq!(toggled.get(), 0);
+}
+
+/// The batch at slot 2 of 3, writing.
+fn batch_writing() -> AppState {
+    let mut s = batch_reviewing();
+    let (_, first) = s.confirm_batch().unwrap();
+    s.write_finished(
+        PORT,
+        &controller_core::model::WriteResult::success(first.mode, first.slot, "done"),
+        None,
+    );
+    s.batch_after_write().unwrap();
+    s
+}
+
+#[test]
+fn the_batch_writing_dialog() {
+    let s = batch_writing();
+    assert_eq!(window(&s).get_batch().at, 1);
+    shoot("batch-writing", &s);
+}
+
+#[test]
+fn the_batch_failure_dialog_with_a_backup() {
+    let mut s = batch_writing();
+    let job = s.write.running.as_ref().unwrap().1.clone();
+    let mut bad = controller_core::model::WriteResult::failure(
+        job.mode,
+        job.slot,
+        controller_core::ErrorCategory::WriteFailure,
+        "Write failed at chunk 12/53. Rollback failed. Original profile saved to the file below.",
+    );
+    bad.backup_file_path = Some(
+        "/home/lucas/.local/state/8b/backups/backup-xinput-slot-2-20261005-120000.bin".to_owned(),
+    );
+    s.write_finished(PORT, &bad, Some("steam also has the controller open.".to_owned()));
+    assert!(s.batch_after_write().is_none());
+    shoot("batch-failed", &s);
+}

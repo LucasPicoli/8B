@@ -166,3 +166,34 @@ export struct FailedInfo {
     backup-path: string,
     is-clear: bool,
 }
+
+// One slot of a batch write: its row in the review, or in the progress list.
+export struct BatchSlot {
+    title: string,
+    // The name of the edits.
+    name: string,
+    changes: [Change],
+    // The controller holds nothing in the slot.
+    is-new: bool,
+    // "Removes macro 1 (name)" lines, and macros an empty slot still holds that
+    // the write replaces.
+    removed: [string],
+    leftover: int,
+    // The review shows the row's changes.
+    open: bool,
+}
+
+// The write of every edited slot: which dialog shows, and what is in it.
+export struct BatchInfo {
+    // 0 none, 1 review, 2 writing, 3 failed.
+    stage: int,
+    slots: [BatchSlot],
+    // The slot being written, or the one that failed (0-based).
+    at: int,
+    total-changes: int,
+    any-new: bool,
+    any-removed: bool,
+    // Why the write failed, and the file the old profile was saved in, or empty.
+    detail: string,
+    backup-path: string,
+}

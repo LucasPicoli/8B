@@ -11,7 +11,9 @@ use controller_core::error::ErrorCategory;
 use controller_core::model::{Mode, Slot as ProfileSlot, WriteResult};
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
+use crate::batch::{render_batch, Batch};
 use crate::buttons::{current, output_label};
+use crate::controllers::Controller;
 use crate::render::sentence;
 use crate::settings::pages_of;
 use crate::state::{AppState, Notice, SlotState};
@@ -47,6 +49,8 @@ pub struct WriteState {
     pub running: Option<(String, WriteJob)>,
     /// The last write failed.
     pub failed: Option<WriteFailure>,
+    /// Write all was pressed: every edited slot goes in one run.
+    pub batch: Option<Batch>,
 }
 
 impl AppState {
@@ -55,23 +59,29 @@ impl AppState {
         self.slot(slot.0, slot.1)
     }
 
-    /// The shown controller's port and the selected slot, when it can take a write
-    /// now: present, idle, with no write or dialog in the way.
-    fn writable(&self) -> Option<Target> {
+    /// The shown controller, when it can take a write now: present, idle, with no
+    /// write or dialog in the way.
+    pub fn idle(&self) -> Option<&Controller> {
         let c = self.active()?;
         let idle = !c.reading
             && c.mode.is_some()
             && self.write.running.is_none()
             && self.write.failed.is_none()
             && self.write.review.is_none()
-            && self.write.clearing.is_none();
-        if !idle {
-            return None;
-        }
+            && self.write.clearing.is_none()
+            && self.write.batch.is_none();
+        idle.then_some(c)
+    }
+
+    /// The shown controller's port and the selected slot, when it can take a write
+    /// now.
+    fn writable(&self) -> Option<Target> {
+        let c = self.idle()?;
         Some((c.port.clone(), self.selected_slot()?))
     }
 
-    /// Whether Write to controller is on: the selected slot holds edits.
+    /// Whether the footer's write button ("Write `XInput` slot 2…") is on: the selected
+    /// slot holds edits.
     #[must_use]
     pub fn can_write(&self) -> bool {
         self.writable().is_some_and(|(_, slot)| self.slot_at(slot).unsaved())
@@ -95,6 +105,7 @@ impl AppState {
     /// A read of `port` came back. If a review waits on it, it opens now, or ends if
     /// the read failed.
     pub fn review_read(&mut self, port: &str, ok: bool) {
+        self.batch_read(port, ok);
         if self.write.reading_for.as_ref().is_some_and(|t| t.0 == port) {
             let target = self.write.reading_for.take();
             if ok {
@@ -132,7 +143,7 @@ impl AppState {
     /// The job that writes the edits of `slot` of the shown controller: the profile
     /// with its own id and no macro references, and the macros whose button got
     /// another output.
-    fn upload_job(&self, slot: (Mode, u8)) -> Option<WriteJob> {
+    pub fn upload_job(&self, slot: (Mode, u8)) -> Option<WriteJob> {
         let state = self.slot_at(slot);
         let mut profile = state.edited.clone()?;
         let removed = state
@@ -157,7 +168,7 @@ impl AppState {
     }
 
     /// Hands the write to the caller and marks it running.
-    fn start(&mut self, port: String, job: WriteJob) -> (String, WriteJob) {
+    pub fn start(&mut self, port: String, job: WriteJob) -> (String, WriteJob) {
         self.write.running = Some((port.clone(), job.clone()));
         (port, job)
     }
@@ -290,7 +301,7 @@ impl AppState {
     }
 
     /// What the review of `slot` tells the user.
-    fn review_info(&self, slot: (Mode, u8)) -> ReviewInfo {
+    pub fn review_info(&self, slot: (Mode, u8)) -> ReviewInfo {
         let state = self.slot_at(slot);
         let removed: Vec<SharedString> = state
             .pad
@@ -347,15 +358,16 @@ fn change(what: &str, from: &str, to: &str) -> Change {
 }
 
 /// A count for the window.
-fn count(n: usize) -> i32 {
+pub fn count(n: usize) -> i32 {
     i32::try_from(n).unwrap_or(i32::MAX)
 }
 
-/// Pushes the review, the clear question, the failure and the busy sheet.
+/// Pushes the review, the clear question, the failure, the batch and the busy sheet.
 pub fn render_writes(state: &AppState, ui: &AppWindow) {
     ui.set_can_write(state.can_write());
     ui.set_checking_slot(state.write.reading_for.is_some());
     ui.set_can_clear(state.can_clear());
+    render_batch(state, ui);
     ui.set_review(
         state.review_open().map(|(_, slot)| state.review_info(*slot)).unwrap_or_default(),
     );
@@ -370,11 +382,13 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
         is_clear: f.job.op == WriteOp::Clear,
     });
     ui.set_write_failed(failed.unwrap_or_default());
+    // A batch shows its own progress.
     ui.set_writing_title(
         state
             .write
             .running
             .as_ref()
+            .filter(|_| state.write.batch.is_none())
             .map(|(_, job)| format!("Writing {} slot {}", job.mode.label(), job.slot.get()))
             .unwrap_or_default()
             .into(),

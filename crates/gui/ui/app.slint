@@ -6,11 +6,12 @@ import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
+import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, Theme, Palette }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, Theme, Palette }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -86,10 +87,16 @@ export component AppWindow inherits Window {
     in property <[string]> changed-slots;
     // The answer picked for each changed slot: true keeps the edits.
     in property <[bool]> changed-keep;
-    // Write to controller and Clear slot can be used now.
+    // The footer's write button ("Write XInput slot 2…") and Clear slot can be used
+    // now.
     in property <bool> can-write;
     // The controller is read again before the review opens.
     in property <bool> checking-slot;
+    // Slots of the shown controller with unsaved edits, whether the sidebar's Write
+    // all can be used now, and whether the controller is read again for it.
+    in property <int> edited-count;
+    in property <bool> can-write-all;
+    in property <bool> checking-all;
     in property <bool> can-clear;
     // The review before a write, the clear question, a failed write, and the title
     // of the write that runs now (empty when none does).
@@ -97,6 +104,12 @@ export component AppWindow inherits Window {
     in property <ClearInfo> clear;
     in property <FailedInfo> write-failed;
     in property <string> writing-title;
+    // The write of every edited slot: its review, progress or failure.
+    in property <BatchInfo> batch;
+    // The footer button's text, and the sidebar bar's caption and button text.
+    out property <string> write-label: "Write " + slot-title + "…";
+    out property <string> edited-caption: edited-count == 1 ? "1 slot has unsaved edits" : edited-count + " slots have unsaved edits";
+    out property <string> write-all-label: edited-count == 1 ? "Write 1 slot…" : "Write all " + edited-count + " slots…";
     // The message above the slot, such as an import result. Hidden when empty.
     in property <string> notice-title;
     in property <string> notice-body;
@@ -134,6 +147,13 @@ export component AppWindow inherits Window {
     callback write-retried;
     callback failure-closed;
     callback open-backup-folder;
+    callback write-all-clicked;
+    callback batch-confirmed;
+    callback batch-cancelled;
+    // A row of the batch review, opened or closed.
+    callback batch-slot-toggled(int);
+    callback batch-retried;
+    callback batch-closed;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
@@ -187,6 +207,12 @@ export component AppWindow inherits Window {
                 root.selected-row = -1;
                 root.controller-picked(i);
             }
+            edited-count: root.edited-count;
+            edited-caption: root.edited-caption;
+            write-all-label: root.write-all-label;
+            can-write-all: root.can-write-all;
+            checking-all: root.checking-all;
+            write-all-clicked => { root.write-all-clicked(); }
         }
         VerticalLayout {
             Rectangle {
@@ -399,7 +425,8 @@ export component AppWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Button {
-                            text: "Write to controller…";
+                            text: root.write-label;
+                            icon: Icons.write;
                             primary: true;
                             enabled: root.can-write;
                             clicked => { root.write-clicked(); }
@@ -449,6 +476,24 @@ export component AppWindow inherits Window {
         accepted => { root.write-retried(); }
         cancelled => { root.failure-closed(); }
         extra => { root.open-backup-folder(); }
+    }
+
+    if root.batch.stage == 1: BatchReviewDialog {
+        info: root.batch;
+        accepted => { root.batch-confirmed(); }
+        cancelled => { root.batch-cancelled(); }
+        toggled(i) => { root.batch-slot-toggled(i); }
+    }
+
+    if root.batch.stage == 3: BatchFailedDialog {
+        info: root.batch;
+        accepted => { root.batch-retried(); }
+        cancelled => { root.batch-closed(); }
+        extra => { root.open-backup-folder(); }
+    }
+
+    if root.batch.stage == 2: BatchWritingDialog {
+        info: root.batch;
     }
 
     if root.writing-title != "": WritingDialog {

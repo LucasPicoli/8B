@@ -16,6 +16,9 @@ export global Icons {
     out property <image> unplug: @image-url("icons/unplug.svg");
     out property <image> pad: @image-url("icons/pad.svg");
     out property <image> close: @image-url("icons/close.svg");
+    out property <image> write: @image-url("icons/write.svg");
+    out property <image> stack: @image-url("icons/stack.svg");
+    out property <image> check: @image-url("icons/check.svg");
 }
 
 // A frame or column heading.
@@ -194,34 +197,43 @@ export component TabBar inherits Rectangle {
     }
 }
 
+// One change: the setting at 600 in the left 46%, then "from  →  to".
+export component ChangeRow inherits Rectangle {
+    in property <Change> change;
+    // A 1px rule under the row.
+    in property <bool> rule;
+    min-height: 32px;
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 10px;
+        Text {
+            width: 46%;
+            text: root.change.what;
+            font-weight: 600;
+            color: Theme.fg;
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        Text {
+            text: root.change.from + "  →  " + root.change.to;
+            color: Theme.fg;
+            vertical-alignment: center;
+        }
+    }
+    if root.rule: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}
+
 export component ChangeTable inherits Frame {
     in property <[Change]> model;
     VerticalLayout {
-        for c[i] in root.model: Rectangle {
-            min-height: 32px;
-            HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 10px;
-                Text {
-                    width: 46%;
-                    text: c.what;
-                    font-weight: 600;
-                    color: Theme.fg;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-                Text {
-                    text: c.from + "  →  " + c.to;
-                    color: Theme.fg;
-                    vertical-alignment: center;
-                }
-            }
-            if i < root.model.length - 1: Rectangle {
-                y: parent.height - 1px;
-                height: 1px;
-                background: Theme.line-soft;
-            }
+        for c[i] in root.model: ChangeRow {
+            change: c;
+            rule: i < root.model.length - 1;
         }
     }
 }
