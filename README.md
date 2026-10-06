@@ -10,6 +10,8 @@
 | --- | --- |
 | 8BitDo Pro 3 | Edit button mapping, sticks, triggers and vibration in every slot of XInput, Switch and DInput. Clear slots. Import and export profiles as JSON. View macros (read-only). |
 
+To add another controller, see [Adding a controller](docs/adding-a-controller.md).
+
 ## Download
 
 Download the latest AppImage from the [releases page](https://github.com/LucasPicoli/8B/releases), run `chmod +x` on it, and start it. x86_64 is tested; the aarch64 build has not been tested on hardware.
