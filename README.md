@@ -1,5 +1,7 @@
 # 8B
 
+![8B editing a DInput profile: saved remaps in blue, unsaved edits in orange](docs/images/screenshot.png)
+
 8B is a Linux tool for reading and editing the profiles stored on 8BitDo controllers over a USB cable.
 
 8B is an independent project, not made or endorsed by 8BitDo.
@@ -11,6 +13,11 @@
 | 8BitDo Pro 3 | Edit button mapping, sticks, triggers and vibration in every slot of XInput, Switch and DInput. Clear slots. Import and export profiles as JSON. View macros (read-only). |
 
 To add another controller, see [Adding a controller](docs/adding-a-controller.md).
+
+## Roadmap
+
+- Macro creation and editing
+- Support for more controllers
 
 ## Download
 
