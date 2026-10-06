@@ -102,9 +102,10 @@ impl AppState {
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
         let parsed = text.and_then(|t| parse(&t));
         let converted = parsed.and_then(|p| {
-            let default = self.defaults.get(&slot.0).ok_or("This controller has no such mode.")?;
-            let (profile, losses) = convert_profile(self.description, &p, default)
-                .map_err(|e| sentence(&e.to_string()))?;
+            let default = |m| self.defaults.get(&m).ok_or("This controller has no such mode.");
+            let (profile, losses) =
+                convert_profile(self.description, &p, default(p.mode)?, default(slot.0)?)
+                    .map_err(|e| sentence(&e.to_string()))?;
             Ok((p.mode, p.macro_refs.len(), profile, losses))
         });
         match converted {

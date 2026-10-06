@@ -1,9 +1,11 @@
 //! Converts a profile made for one mode into another mode, for an import from a file.
 //!
 //! Buttons map by position, so a mapping keeps its canonical names and only the
-//! printed labels differ. Two things can be lost: an output the target mode lacks
-//! becomes [`DISABLED_OUTPUT`], and triggers of another form start from the target
-//! mode's defaults. Each loss is listed for the import warning.
+//! printed labels differ. A button still at its default takes the target mode's
+//! default (Switch turbo takes a screenshot, `XInput` turbo is turbo). Two things can
+//! be lost: an output the target mode lacks becomes [`DISABLED_OUTPUT`], and triggers
+//! of another form start from the target mode's defaults. Each loss is listed for the
+//! import warning.
 
 use std::mem::discriminant;
 
@@ -25,14 +27,18 @@ pub enum ConversionLoss {
     TriggersReset,
 }
 
-/// Converts `profile` into the mode of `target_default`, the profile a new slot of
-/// that mode starts from. A profile already in that mode comes back unchanged.
+/// Converts `profile` into the mode of `target_default`.
+///
+/// `target_default` is the profile a new slot of that mode starts from, and
+/// `source_default` is the same for `profile`'s mode. A profile already in the
+/// target mode comes back unchanged.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] if `description` has no entry for the target mode.
 pub fn convert_profile(
     description: &ControllerDescription,
     profile: &CanonicalProfile,
+    source_default: &CanonicalProfile,
     target_default: &CanonicalProfile,
 ) -> Result<(CanonicalProfile, Vec<ConversionLoss>)> {
     let to = target_default.mode;
@@ -46,6 +52,12 @@ pub fn convert_profile(
     }
     converted.mode = to;
     for mapping in &mut converted.button_mappings {
+        if default_target(source_default, &mapping.source) == Some(mapping.target.as_str()) {
+            if let Some(target) = default_target(target_default, &mapping.source) {
+                target.clone_into(&mut mapping.target);
+                continue;
+            }
+        }
         let target = mapping.target.as_str();
         let exists = target == DISABLED_OUTPUT
             || description.button(target).is_some()
@@ -64,6 +76,11 @@ pub fn convert_profile(
     Ok((converted, losses))
 }
 
+/// The output `source` has in `default`.
+fn default_target<'a>(default: &'a CanonicalProfile, source: &str) -> Option<&'a str> {
+    default.button_mappings.iter().find(|m| m.source == source).map(|m| m.target.as_str())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -74,7 +91,9 @@ mod tests {
     use crate::model::{ButtonMapping, Mode};
 
     fn convert(profile: &CanonicalProfile, to: Mode) -> (CanonicalProfile, Vec<ConversionLoss>) {
-        convert_profile(Pro3.description().unwrap(), profile, &Pro3.default_profile(to)).unwrap()
+        let d = Pro3.description().unwrap();
+        let from = Pro3.default_profile(profile.mode);
+        convert_profile(d, profile, &from, &Pro3.default_profile(to)).unwrap()
     }
 
     fn with_mapping(mode: Mode, source: &str, target: &str) -> CanonicalProfile {
@@ -104,7 +123,9 @@ mod tests {
                 let expected =
                     if reset { &Pro3.default_profile(to).triggers } else { &source.triggers };
                 assert_eq!(&p.triggers, expected, "{from} to {to}");
-                assert_eq!(p.button_mappings, source.button_mappings, "{from} to {to}");
+                // Every other button stays at its default, so it takes the new mode's.
+                let want = with_mapping(to, "r4", "bottom face").button_mappings;
+                assert_eq!(p.button_mappings, want, "{from} to {to}");
                 assert_eq!(
                     (p.name.as_str(), &p.sticks, &p.vibration),
                     ("Mine", &source.sticks, &source.vibration)

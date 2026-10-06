@@ -139,9 +139,13 @@ fn decode_target_control(
         }
     }
 
-    // Step 1: null/disabled. Checked before identity so unmapped back paddles
-    // (whose default IS null) report "disabled" rather than identity.
-    if value == tables::NULL_ENCODING {
+    // Step 1: null/disabled. A back paddle holding its own code is unassigned too:
+    // the vendor app writes that code as the paddle's default.
+    let is_paddle =
+        (tables::NULL_DEFAULT_FIRST_INDEX..tables::SOURCE_BUTTON_COUNT).contains(&source_index);
+    if value == tables::NULL_ENCODING
+        || (is_paddle && entries.get(source_index).is_some_and(|e| e.encoding == value))
+    {
         return "disabled".to_owned();
     }
 
@@ -448,7 +452,7 @@ fn decode_macro_refs(payload: &[u8], mode: Mode, source_slot: u8) -> Result<Vec<
 /// The profile a new slot of `mode` starts from, with an empty name.
 ///
 /// Each button holds its own table encoding, decoded the way a read decodes it, so a
-/// back paddle reads `disabled`. The values match a slot the vendor app makes with every
+/// back paddle reads `disabled` and Switch turbo reads `screenshot`. The values match a slot the vendor app makes with every
 /// setting at default: a 13% stick dead zone, full ranges, a 30% Switch trigger press
 /// point, no inversion or swap, and both motors at full strength.
 #[must_use]
@@ -459,9 +463,17 @@ pub fn default_profile(mode: Mode) -> CanonicalProfile {
         .iter()
         .take(tables::SOURCE_BUTTON_COUNT)
         .enumerate()
-        .map(|(i, e)| ButtonMapping {
-            source: e.source.to_owned(),
-            target: decode_target_control(entries, i, e.encoding),
+        .map(|(i, e)| {
+            // Switch turbo takes a screenshot by default.
+            let encoding = if mode == Mode::Switch && i == tables::TURBO_INDEX {
+                tables::SWITCH_TURBO_DEFAULT
+            } else {
+                e.encoding
+            };
+            ButtonMapping {
+                source: e.source.to_owned(),
+                target: decode_target_control(entries, i, encoding),
+            }
         })
         .collect();
     CanonicalProfile {
@@ -813,24 +825,31 @@ pub fn compile_profile(
         if source_idx >= tables::SOURCE_BUTTON_COUNT {
             continue;
         }
-        let enc = if mapping.target == "disabled" {
-            tables::NULL_ENCODING
-        } else if mapping.target == UNRECOGNISED_OUTPUT {
-            // Keep the entry as read. Only an entry that still decodes as unrecognised
-            // has bytes to keep; anything else would write a guess.
-            let kept = bytes4_at(&buf, entry_base + source_idx * tables::BUTTON_ENTRY_BYTES);
-            if decode_target_control(encodings_for_mode(mode), source_idx, kept)
-                != UNRECOGNISED_OUTPUT
-            {
-                return Err(Error::Validation(format!(
-                    "Button '{}' has no unrecognised entry to keep in slot {s}. \
-                     Pick an output for it.",
-                    mapping.source
-                )));
-            }
+        // Keep the entry as read when it already decodes to the target, so an
+        // untouched entry stays byte for byte (a paddle's `disabled` is either null
+        // or its own code).
+        let kept = bytes4_at(&buf, entry_base + source_idx * tables::BUTTON_ENTRY_BYTES);
+        let enc = if decode_target_control(encodings_for_mode(mode), source_idx, kept)
+            == mapping.target
+        {
             kept
+        } else if mapping.target == UNRECOGNISED_OUTPUT {
+            // Only an entry that still decodes as unrecognised has bytes to keep;
+            // anything else would write a guess.
+            return Err(Error::Validation(format!(
+                "Button '{}' has no unrecognised entry to keep in slot {s}. \
+                 Pick an output for it.",
+                mapping.source
+            )));
+        } else if mapping.target == "disabled" {
+            // A paddle's own code is its vendor default; other buttons go null.
+            if source_idx >= tables::NULL_DEFAULT_FIRST_INDEX {
+                write_encoding(&mapping.source, mode)?
+            } else {
+                tables::NULL_ENCODING
+            }
         } else if mapping.target == "screenshot" && mode == Mode::Switch {
-            [0x00, 0x00, 0x40, 0x00]
+            tables::SWITCH_TURBO_DEFAULT
         } else if mapping.target == "screenshot" {
             // XInput: "screenshot" is not a valid XInput target; write the source's
             // variant-first write encoding (the same encoding the source would get
@@ -855,13 +874,13 @@ pub fn compile_profile(
 
     // Switch turbo default override (index 12): screenshot encoding when not remapped.
     let switch_turbo_default: Option<[u8; 4]> =
-        if mode == Mode::Switch { Some([0x00, 0x00, 0x40, 0x00]) } else { None };
+        if mode == Mode::Switch { Some(tables::SWITCH_TURBO_DEFAULT) } else { None };
 
     // Write 22 button entries.
     for i in 0..tables::SOURCE_BUTTON_COUNT {
         let entry_off = entry_base + i * tables::BUTTON_ENTRY_BYTES;
         let enc = remap_overrides.get(i).copied().flatten().unwrap_or_else(|| {
-            if i == 12 {
+            if i == tables::TURBO_INDEX {
                 // Turbo (index 12): apply switch turbo default when in Switch mode.
                 switch_turbo_default.unwrap_or_else(|| {
                     write_encoding("turbo", mode).unwrap_or(tables::NULL_ENCODING)

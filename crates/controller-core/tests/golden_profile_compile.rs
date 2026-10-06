@@ -312,3 +312,30 @@ fn xinput_swap_sticks_writes_the_bytes_of_the_official_capture() {
     let b = Pro3.compile_profile(&p, Slot::new(1).unwrap(), &[], &[]).unwrap();
     assert_eq!(&b[0x00C8..0x00D0], &[0x11, 0x09, 0x20, 0x20, 0x10, 0x00, 0x00, 0x00]);
 }
+
+/// Every slot of a bank the official app wrote with every setting at default decodes
+/// to the default profile, and its button map recompiles unchanged.
+#[test]
+fn vendor_default_banks_decode_to_the_default_profile() {
+    /// Bytes per slot of the button map: 22 entries of 4 bytes.
+    const BUTTON_MAP_BYTES: usize = 22 * 4;
+    for (file, mode) in
+        [("vendor-default-xinput.blob", Mode::XInput), ("vendor-default-switch.blob", Mode::Switch)]
+    {
+        let base = std::fs::read(format!("../../fixtures/pro3/{file}")).unwrap();
+        let default = Pro3.default_profile(mode);
+        for slot in 1..=3u8 {
+            let profile = decode_slot(&base, slot, mode);
+            assert_eq!(profile.button_mappings, default.button_mappings, "{mode} slot {slot}");
+            assert_eq!(profile.sticks, default.sticks, "{mode} slot {slot}");
+            assert_eq!(profile.triggers, default.triggers, "{mode} slot {slot}");
+            assert_eq!(profile.vibration, default.vibration, "{mode} slot {slot}");
+            let out = Pro3
+                .compile_profile_keep_macros(&profile, Slot::new(slot).unwrap(), &base)
+                .unwrap();
+            let start = 0x00E4 + usize::from(slot - 1) * 0x5C;
+            let map = start..start + BUTTON_MAP_BYTES;
+            assert_eq!(&out[map.clone()], &base[map], "{mode} slot {slot}");
+        }
+    }
+}

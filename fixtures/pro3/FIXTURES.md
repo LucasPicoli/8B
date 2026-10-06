@@ -31,6 +31,12 @@ and 2 the d-pad left entry holds `11 09 20 20`, a value no output table lists.
 The pad reads it as a bit mask and fires six outputs at once. The decoder
 reports it as `unrecognised`, and a recompile must keep the 4 bytes.
 
+`vendor-default-xinput.blob` and `vendor-default-switch.blob` are bank reads from
+a real Pro 3 after the official app wrote a profile with every setting at default
+into all three slots. Each back paddle holds its own code (its macro `key_map`,
+little-endian), not `00 00 00 00`, and Switch turbo holds Screenshot. Every slot
+must decode to the default profile, and its button map must recompile unchanged.
+
 `dinput-macro.blob` is a `DInput` bank read from a real Pro 3, with a macro on `r4`
 in macro slot 3 of every slot. `dinput-macro.steps.bin` is that macro's step stream,
 read back from slot 1: 256 steps of 10 ms that sweep all four stick axes by one

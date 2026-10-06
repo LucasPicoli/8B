@@ -56,7 +56,11 @@ pub const NULL_ENCODING: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
 /// Index of `home/guide` — cannot be remapped, forced to identity.
 pub const HOME_GUIDE_INDEX: usize = 13;
-/// First index of the null-default back paddles (`rp`, `lp`, `l4`, `r4`).
+/// Index of `turbo`.
+pub const TURBO_INDEX: usize = 12;
+/// What Switch turbo does in a vendor-default slot: Screenshot (`00 00 40 00`).
+pub const SWITCH_TURBO_DEFAULT: [u8; 4] = [0x00, 0x00, 0x40, 0x00];
+/// First index of the back paddles (`rp`, `lp`, `l4`, `r4`).
 pub const NULL_DEFAULT_FIRST_INDEX: usize = 18;
 /// Number of physical source buttons (indices 0..22).
 pub const SOURCE_BUTTON_COUNT: usize = 22;
@@ -210,11 +214,28 @@ pub const XINPUT_ENCODINGS: [ButtonEncodingEntry; SOURCE_BUTTON_COUNT] = [
         encoding: [0x40, 0x00, 0x00, 0x00],
         variant_identity_encodings: &[],
     },
-    // 18-21: back paddles — null default, valid as SOURCE only.
-    ButtonEncodingEntry { source: "rp", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
-    ButtonEncodingEntry { source: "lp", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
-    ButtonEncodingEntry { source: "l4", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
-    ButtonEncodingEntry { source: "r4", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
+    // 18-21: back paddles, valid as SOURCE only. A vendor-default slot holds each
+    // paddle's own code (its macro key_map, little-endian), which means unassigned.
+    ButtonEncodingEntry {
+        source: "rp",
+        encoding: [0x00, 0x00, 0x00, 0x02],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "lp",
+        encoding: [0x00, 0x00, 0x00, 0x04],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "l4",
+        encoding: [0x00, 0x00, 0x20, 0x00],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "r4",
+        encoding: [0x00, 0x00, 0x00, 0x40],
+        variant_identity_encodings: &[],
+    },
 ];
 
 /// Readback-derived encoding table for **Switch** mode.
@@ -319,11 +340,28 @@ pub const SWITCH_ENCODINGS: [ButtonEncodingEntry; SOURCE_BUTTON_COUNT + 1] = [
         encoding: [0x40, 0x00, 0x00, 0x00],
         variant_identity_encodings: &[],
     },
-    // 18-21: back paddles — null default, valid as SOURCE only.
-    ButtonEncodingEntry { source: "rp", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
-    ButtonEncodingEntry { source: "lp", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
-    ButtonEncodingEntry { source: "l4", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
-    ButtonEncodingEntry { source: "r4", encoding: NULL_ENCODING, variant_identity_encodings: &[] },
+    // 18-21: back paddles, valid as SOURCE only. A vendor-default slot holds each
+    // paddle's own code (its macro key_map, little-endian), which means unassigned.
+    ButtonEncodingEntry {
+        source: "rp",
+        encoding: [0x00, 0x00, 0x00, 0x02],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "lp",
+        encoding: [0x00, 0x00, 0x00, 0x04],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "l4",
+        encoding: [0x00, 0x00, 0x20, 0x00],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "r4",
+        encoding: [0x00, 0x00, 0x00, 0x40],
+        variant_identity_encodings: &[],
+    },
     // 22: screenshot — target-only entry (switch turbo default).
     ButtonEncodingEntry {
         source: "screenshot",
