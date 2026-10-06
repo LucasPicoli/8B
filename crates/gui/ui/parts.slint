@@ -324,6 +324,9 @@ export component DialogShell inherits Rectangle {
 
     card := Rectangle {
         width: root.card-width;
+        // Centred on whole pixels: a half-pixel offset blurs the text.
+        x: round((root.width - self.width) / 2 / 1px) * 1px;
+        y: round((root.height - self.height) / 2 / 1px) * 1px;
         // The middle scrolls when the card would not fit, so the footer stays on screen.
         height: min(body.preferred-height, root.height - 48px);
         background: Theme.window;
