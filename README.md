@@ -1,6 +1,6 @@
 # 8B
 
-8B reads and edits the profiles stored on 8BitDo controllers over a USB cable.
+8B is a Linux tool for reading and editing the profiles stored on 8BitDo controllers over a USB cable.
 
 8B is an independent project, not made or endorsed by 8BitDo.
 
@@ -42,7 +42,7 @@ cargo run -p gui     # run the app
 just appimage        # build the x86_64 AppImage in a ubuntu:22.04 container
 ```
 
-`just appimage` needs [`just`](https://github.com/casey/just) and either `podman` or `docker`.
+`just appimage` needs [`just`](https://github.com/casey/just) (`cargo install just`, or your distro's package) and either `podman` or `docker`.
 
 A command-line tool, `8bitdo-pro-3`, lives in `crates/cli`.
 
