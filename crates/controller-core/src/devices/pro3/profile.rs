@@ -448,8 +448,9 @@ fn decode_macro_refs(payload: &[u8], mode: Mode, source_slot: u8) -> Result<Vec<
 /// The profile a new slot of `mode` starts from, with an empty name.
 ///
 /// Each button holds its own table encoding, decoded the way a read decodes it, so a
-/// back paddle reads `disabled`. Sticks and triggers span their full range, with no
-/// inversion or swap, and both motors run at full strength.
+/// back paddle reads `disabled`. The values match a slot the vendor app makes with every
+/// setting at default: a 13% stick dead zone, full ranges, a 30% Switch trigger press
+/// point, no inversion or swap, and both motors at full strength.
 #[must_use]
 pub fn default_profile(mode: Mode) -> CanonicalProfile {
     let neutral = DecodeLayout { shifted_by_two: false };
@@ -472,8 +473,19 @@ pub fn default_profile(mode: Mode) -> CanonicalProfile {
         mode,
         preferred_slot: None,
         // Slot 0 is out of range, so the decoders return their neutral values.
-        sticks: decode_sticks(&[], 0, neutral),
-        triggers: decode_triggers(&[], mode, 0, neutral),
+        sticks: Sticks {
+            left_min_pct: tables::DEFAULT_STICK_MIN_PCT,
+            right_min_pct: tables::DEFAULT_STICK_MIN_PCT,
+            ..decode_sticks(&[], 0, neutral)
+        },
+        triggers: match decode_triggers(&[], mode, 0, neutral) {
+            Triggers::Switch(sw) => Triggers::Switch(TriggersSwitch {
+                left_threshold_pct: tables::DEFAULT_SWITCH_THRESHOLD_PCT,
+                right_threshold_pct: tables::DEFAULT_SWITCH_THRESHOLD_PCT,
+                ..sw
+            }),
+            analog @ Triggers::Analog(_) => analog,
+        },
         vibration: Vibration {
             left_level: tables::VIBRATION_LEVEL_MAX,
             right_level: tables::VIBRATION_LEVEL_MAX,
@@ -987,6 +999,28 @@ mod tests {
             assert_eq!(back.sticks, profile.sticks, "{mode}");
             assert_eq!(back.triggers, profile.triggers, "{mode}");
             assert_eq!(back.vibration, profile.vibration, "{mode}");
+        }
+    }
+
+    #[test]
+    fn default_profile_matches_the_vendor_defaults_and_compiles_to_their_bytes() {
+        for mode in Mode::ALL {
+            let profile = default_profile(mode);
+            assert_eq!(profile.sticks.left_min_pct, 13, "{mode}");
+            assert_eq!(profile.sticks.right_min_pct, 13, "{mode}");
+            assert_eq!((profile.sticks.left_max_pct, profile.sticks.right_max_pct), (100, 100));
+            let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
+            assert_eq!(&blob[DEV_STICK_DATA_BASE..][..4], &[0x11, 0x80, 0x11, 0x80], "{mode}");
+            let want = if mode == Mode::Switch {
+                assert!(matches!(
+                    profile.triggers,
+                    Triggers::Switch(t) if (t.left_threshold_pct, t.right_threshold_pct) == (30, 30)
+                ));
+                [0x4D, 0xFF, 0x4D, 0xFF]
+            } else {
+                [0x00, 0xFF, 0x00, 0xFF]
+            };
+            assert_eq!(&blob[DEV_TRIG_DATA_BASE..][..4], &want, "{mode}");
         }
     }
 

@@ -75,6 +75,16 @@ pub const SWITCH_THRESHOLD_PCT_LO: i32 = 0;
 /// Upper clamp for the Switch trigger threshold percent.
 pub const SWITCH_THRESHOLD_PCT_HI: i32 = 90;
 
+/// Stick dead zone (min percent) of a vendor-default slot.
+///
+/// The vendor app writes byte `0x11` of `0x80`. Source: its Pro 3 `XInput` bank, and
+/// `fixtures/pro3/dinput-official.blob` (same bytes in all three slots).
+pub const DEFAULT_STICK_MIN_PCT: i32 = 13;
+/// Switch trigger press point (percent) of a vendor-default slot.
+///
+/// The vendor app writes byte 77 of `0xFF`, its documented Switch threshold default.
+pub const DEFAULT_SWITCH_THRESHOLD_PCT: i32 = 30;
+
 /// Raw-byte denominator for stick percent conversion.
 pub const STICK_RAW_MAX: i32 = 128;
 /// Raw-byte denominator for trigger percent conversion.

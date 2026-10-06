@@ -149,6 +149,9 @@ fn dinput_official_write_decodes_to_defaults_and_recompiles_unchanged() {
         };
         let profile = Pro3.map_profile(&raw).unwrap().canonical;
         assert_eq!(profile.mode, Mode::DInput);
+        let default = Pro3.default_profile(Mode::DInput);
+        assert_eq!(profile.sticks, default.sticks, "slot {slot}");
+        assert_eq!(profile.triggers, default.triggers, "slot {slot}");
         // The app's default DInput buttons decode through the shared table: every button
         // maps to itself and the four paddles are unassigned.
         for m in &profile.button_mappings {
