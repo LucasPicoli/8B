@@ -314,6 +314,12 @@ export component AppWindow inherits Window {
                 padding-left: 16px;
                 padding-right: 16px;
                 padding-top: 10px;
+                // Good news fades; an error stays until it is closed.
+                Timer {
+                    interval: 5s;
+                    running: !root.notice-error;
+                    triggered => { root.notice-closed(); }
+                }
                 MessageBar {
                     error: root.notice-error;
                     info: !root.notice-error;
