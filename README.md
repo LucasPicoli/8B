@@ -1,0 +1,51 @@
+# 8B
+
+8B reads and edits the profiles stored on 8BitDo controllers over a USB cable.
+
+8B is an independent project, not made or endorsed by 8BitDo.
+
+## Supported devices
+
+| Controller | Supported features |
+| --- | --- |
+| 8BitDo Pro 3 | Edit button mapping, sticks, triggers and vibration in every slot of XInput, Switch and DInput. Clear slots. Import and export profiles as JSON. View macros (read-only). |
+
+## Download
+
+Download the latest AppImage from the [releases page](https://github.com/LucasPicoli/8B/releases), run `chmod +x` on it, and start it. x86_64 is tested; the aarch64 build has not been tested on hardware.
+
+## USB permission
+
+Linux blocks apps from opening the controller until a device rule allows it. On first run, 8B asks to install one and prompts for your password once (through `pkexec`). It writes two files:
+
+- `/etc/udev/rules.d/70-8b.rules` gives the logged-in user access to 8BitDo controllers.
+- `/etc/systemd/system/8b-keepalive@.service` keeps a controller in XInput mode from reconnecting every second while no program has it open.
+
+It then reloads systemd and udev. If you prefer, the window shows the same steps as one command to run yourself.
+
+To remove both:
+
+```sh
+sudo rm /etc/udev/rules.d/70-8b.rules /etc/systemd/system/8b-keepalive@.service
+sudo systemctl daemon-reload
+sudo udevadm control --reload-rules
+```
+
+Then unplug the controller and plug it back in. 8B asks again the next time you run it.
+
+## Build from source
+
+The toolchain is pinned in `rust-toolchain.toml`; `rustup` installs it on the first build.
+
+```sh
+cargo run -p gui     # run the app
+just appimage        # build the x86_64 AppImage in a ubuntu:22.04 container
+```
+
+`just appimage` needs [`just`](https://github.com/casey/just) and either `podman` or `docker`.
+
+A command-line tool, `8bitdo-pro-3`, lives in `crates/cli`.
+
+## Licence
+
+GPL-3.0-or-later.
