@@ -1044,6 +1044,51 @@ mod tests {
     }
 
     #[test]
+    fn every_output_on_a_paddle_reads_back_as_written() {
+        for mode in Mode::ALL {
+            let entries = encodings_for_mode(mode);
+            let paddles = ["rp", "lp", "l4", "r4"];
+            let targets = entries
+                .iter()
+                .map(|e| e.source)
+                .filter(|t| !paddles.contains(t))
+                .chain(["disabled"]);
+            for target in targets {
+                for paddle in paddles {
+                    if super::super::edit::validate_remap(mode, paddle, target).is_err() {
+                        continue;
+                    }
+                    let mut profile = default_profile(mode);
+                    for m in &mut profile.button_mappings {
+                        if m.source == paddle {
+                            target.clone_into(&mut m.target);
+                        }
+                    }
+                    // Onto a fresh blob, and onto a slot holding the vendor defaults.
+                    let vendor =
+                        compile_profile(&default_profile(mode), Slot::new(1).unwrap(), &[], &[])
+                            .unwrap();
+                    for base in [&[][..], &vendor] {
+                        let blob =
+                            compile_profile(&profile, Slot::new(1).unwrap(), base, &[]).unwrap();
+                        let raw = RawProfilePayload {
+                            payload: blob,
+                            source_slot: 1,
+                            source_profile_index: 0,
+                            mode_hint: mode,
+                        };
+                        let back = map_profile(&Pro3, &raw).unwrap().canonical;
+                        assert_eq!(
+                            back.button_mappings, profile.button_mappings,
+                            "{mode} {paddle} -> {target}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
     fn too_small_payload_is_decode_error() {
         let raw = RawProfilePayload {
             payload: vec![0u8; 16],
