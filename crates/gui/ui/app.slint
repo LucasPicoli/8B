@@ -5,7 +5,7 @@ import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { AboutDialog, ChangedDialog, ClearDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
+import { ChangedDialog, ClearDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
 import { Palette } from "std-widgets.slint";
@@ -14,6 +14,8 @@ export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, Setti
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
+    // Wayland ignores this and reads the icon from the .desktop file by app ID.
+    icon: @image-url("../../../packaging/linux/io.github.LucasPicoli.8B.svg");
     preferred-width: 1280px;
     preferred-height: 800px;
     min-width: 1024px;
@@ -57,7 +59,6 @@ export component AppWindow inherits Window {
     in property <bool> can-read-again;
     // The last read failed: the status dot shows it.
     in property <bool> read-failed;
-    in property <string> version;
     // Narrow window: toolbar buttons drop their text, like KDE toolbars.
     // Set from Rust: bound to the window width here, it forms a layout loop.
     in property <bool> compact;
@@ -153,7 +154,6 @@ export component AppWindow inherits Window {
         error: root.install-error;
         install => { root.install-rule(); }
         skip => { root.rule-skipped(); }
-        about => { root.dialog = "about"; }
     }
 
     if !root.asks-for-rule && !root.has-controller: NoControllerScreen {
@@ -161,7 +161,6 @@ export component AppWindow inherits Window {
         error: root.read-error;
         connected: root.connected;
         can-read-again: root.can-read-again;
-        about => { root.dialog = "about"; }
         read-again => { root.read-again(); }
     }
 
@@ -186,7 +185,6 @@ export component AppWindow inherits Window {
                 root.selected-row = -1;
                 root.controller-picked(i);
             }
-            about => { root.dialog = "about"; }
         }
         VerticalLayout {
             Rectangle {
@@ -438,10 +436,5 @@ export component AppWindow inherits Window {
 
     if root.writing-title != "": WritingDialog {
         text: root.writing-title;
-    }
-
-    if root.dialog == "about": AboutDialog {
-        version: root.version;
-        cancelled => { root.dialog = ""; }
     }
 }

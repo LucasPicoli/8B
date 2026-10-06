@@ -1,5 +1,4 @@
-// Review, clear, cross-mode import, failed write and About.
-import { AboutSlint } from "std-widgets.slint";
+// Review, clear, cross-mode import, failed write.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
 import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
@@ -210,28 +209,5 @@ export component ChangedDialog inherits DialogShell {
             accessible-name: s;
             selected(v) => { root.picked(i, self.current-index == 0); }
         }
-    }
-}
-
-export component AboutDialog inherits DialogShell {
-    in property <string> version;
-    icon: Icons.pad;
-    title: "8B";
-    subtitle: "Version " + version;
-    cancel-text: "Close";
-    Text {
-        text: "Reads and edits the profiles stored on 8BitDo controllers over USB.";
-        color: Theme.fg;
-        wrap: word-wrap;
-    }
-    Text {
-        text: "8B is an independent project, not made or endorsed by 8BitDo.";
-        color: Theme.fg-muted;
-        wrap: word-wrap;
-    }
-    Frame {
-        background: Theme.view;
-        height: 104px;
-        AboutSlint { }
     }
 }

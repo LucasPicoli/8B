@@ -363,7 +363,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Wayland matches the window to its `.desktop` file by this ID, for the task bar icon.
     // Slint has no platform until the first window exists, and the ID must precede `show`.
     slint::set_xdg_app_id("io.github.LucasPicoli.8B")?;
-    ui.set_version(env!("CARGO_PKG_VERSION").into());
     let defaults = description.modes.iter().map(|m| (m.id, Pro3.default_profile(m.id))).collect();
     let mut first = AppState::new(description, defaults);
     first.rule = udev::rule_state();

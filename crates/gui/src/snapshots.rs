@@ -314,15 +314,6 @@ fn picking_another_slot_clears_the_selected_button() {
     assert_eq!(ui.get_selected_row(), -1);
 }
 
-#[test]
-fn about() {
-    let s = connected(Mode::XInput);
-    let ui = window(&s);
-    ui.set_version("0.1.0".into());
-    ui.set_dialog("about".into());
-    save("about", &ui);
-}
-
 /// The editor at `width`×800, with the toolbar fitted to it.
 fn toolbar_at(width: u32) -> AppWindow {
     let s = connected(Mode::XInput);

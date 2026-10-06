@@ -190,7 +190,6 @@ export component Sidebar inherits Rectangle {
     in-out property <int> current-slot;
     callback slot-picked(int, int);
     callback controller-picked(int);
-    callback about;
     width: 264px;
     background: Theme.view;
 
@@ -279,21 +278,6 @@ export component Sidebar inherits Rectangle {
                         }
                     }
                 }
-            }
-        }
-
-        Rectangle {
-            height: 1px;
-            background: Theme.line-soft;
-        }
-        HorizontalLayout {
-            padding: 6px;
-            alignment: start;
-            Button {
-                text: "About 8B";
-                icon: Icons.info;
-                flat: true;
-                clicked => { root.about(); }
             }
         }
     }

@@ -11,7 +11,6 @@ export component NoControllerScreen inherits Rectangle {
     in property <bool> connected;
     // No read runs, so "Try again" can be pressed.
     in property <bool> can-read-again;
-    callback about;
     callback read-again;
     background: Theme.window;
     Placeholder {
@@ -43,18 +42,6 @@ export component NoControllerScreen inherits Rectangle {
             acted => { root.read-again(); }
         }
     }
-    HorizontalLayout {
-        y: parent.height - self.height;
-        height: 44px;
-        padding: 6px;
-        alignment: start;
-        Button {
-            text: "About 8B";
-            icon: Icons.info;
-            flat: true;
-            clicked => { root.about(); }
-        }
-    }
 }
 
 export component PermissionScreen inherits Rectangle {
@@ -73,7 +60,6 @@ export component PermissionScreen inherits Rectangle {
     in property <string> error;
     callback install;
     callback skip;
-    callback about;
     background: Theme.window;
     VerticalLayout {
         alignment: center;
@@ -171,18 +157,6 @@ export component PermissionScreen inherits Rectangle {
                     }
                 }
             }
-        }
-    }
-    HorizontalLayout {
-        y: parent.height - self.height;
-        height: 44px;
-        padding: 6px;
-        alignment: start;
-        Button {
-            text: "About 8B";
-            icon: Icons.info;
-            flat: true;
-            clicked => { root.about(); }
         }
     }
 }
