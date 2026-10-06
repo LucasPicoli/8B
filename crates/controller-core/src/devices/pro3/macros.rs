@@ -129,13 +129,13 @@ pub fn parse_macro_file_name(path: &str) -> Option<(u8, &str)> {
     Some((macro_slot, parts.next()?))
 }
 
-/// Maps the `gamepad_mode` descriptor byte to a [`Mode`] (`3` → `XInput`, else
-/// `Switch`). Mirrors `MacroDecoder::gamepadByteToMode`.
+/// Maps the `gamepad_mode` descriptor byte to a [`Mode`] (`3` → `XInput`, `1` → `DInput`,
+/// else `Switch`). Extends `MacroDecoder::gamepadByteToMode`, which has no `DInput`.
 const fn gamepad_byte_to_mode(byte: u8) -> Mode {
-    if byte == tables::MACRO_GAMEPAD_MODE_XINPUT {
-        Mode::XInput
-    } else {
-        Mode::Switch
+    match byte {
+        tables::MACRO_GAMEPAD_MODE_XINPUT => Mode::XInput,
+        tables::MACRO_GAMEPAD_MODE_DINPUT => Mode::DInput,
+        _ => Mode::Switch,
     }
 }
 

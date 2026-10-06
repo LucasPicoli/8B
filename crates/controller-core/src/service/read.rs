@@ -37,16 +37,15 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 /// `src/core/macro_read_service.cpp` (lines ~85-210).
 ///
 /// # Control flow
-/// 1. Reject `Mode::DInput` (not a valid macro mode).
-/// 2. Read all profile blobs.
-/// 3. Select the mode's blob via [`blob_for_mode`].
-/// 4. Verify blob size == `0x092C`.
-/// 5. Check that `profile_slot` is active; inactive slot → `Err`.
-/// 6. Decode macro metadata descriptors from Section 4.
-/// 7. For each descriptor, read the step stream and decode it.
+/// 1. Read all profile blobs.
+/// 2. Select the mode's blob via [`blob_for_mode`].
+/// 3. Verify blob size == `0x092C`.
+/// 4. Check that `profile_slot` is active; inactive slot → `Err`.
+/// 5. Decode macro metadata descriptors from Section 4.
+/// 6. For each descriptor, read the step stream and decode it.
 ///
 /// # Errors
-/// - [`Error::Validation`] if `mode` is `DInput` or the slot is inactive.
+/// - [`Error::Validation`] if the slot is inactive.
 /// - [`Error::Usb`] if no blob is available or the blob size mismatches.
 /// - Any [`Error`] propagated from the codec or device I/O.
 pub fn read_macros(
@@ -55,15 +54,10 @@ pub fn read_macros(
     mode: Mode,
     profile_slot: Slot,
 ) -> Result<MacroReadResult> {
-    // 1. Mode validation — DInput does not support macros.
-    if mode == Mode::DInput {
-        return Err(Error::Validation("invalid mode 'dinput': must be xinput or switch".into()));
-    }
-
-    // 2. Read profile blobs.
+    // 1. Read profile blobs.
     let read = dev.read_all_profiles()?;
 
-    // 3-4. Pick the mode's blob, then size-check it.
+    // 2-3. Pick the mode's blob, then size-check it.
     let blob = blob_for_mode(&read, mode)
         .ok_or_else(|| Error::Usb("no blob available for mode".into()))?;
 
@@ -71,19 +65,19 @@ pub fn read_macros(
         return Err(Error::Usb(format!("readback blob size mismatch: {}", blob.len())));
     }
 
-    // 5. Active-slot check — a zeroed blob (or any inactive slot) is an error.
+    // 4. Active-slot check — a zeroed blob (or any inactive slot) is an error.
     if !crate::detect::is_slot_active(blob, profile_slot)? {
         return Err(Error::Validation(format!("no active profile in slot {}", profile_slot.get())));
     }
 
-    // 6. Decode Section-4 macro metadata.
+    // 5. Decode Section-4 macro metadata.
     let metadata = codec.decode_macro_metadata(blob, profile_slot)?;
 
     if metadata.is_empty() {
         return Ok(MacroReadResult { macros: Vec::new() });
     }
 
-    // 7. Read step stream for each active macro and decode.
+    // 6. Read step stream for each active macro and decode.
     let mut macros = Vec::with_capacity(metadata.len());
 
     for mut def in metadata {
@@ -171,13 +165,30 @@ mod tests {
     }
 
     #[test]
-    fn read_macros_dinput_is_rejected() {
-        // Mode validation runs before any device call, so no profile setup needed.
-        let dev = MockDevice::new();
-        let result = read_macros(&dev, &Pro3, Mode::DInput, Slot::new(1).unwrap());
-        assert!(result.is_err(), "expected Err for DInput mode");
-        let err = result.unwrap_err();
-        assert!(matches!(err, Error::Validation(_)), "expected Validation error, got: {err:?}");
+    fn read_macros_reads_the_dinput_macro_from_a_real_pad() {
+        // A DInput bank read from a Pro 3: macro slot 3 of each slot holds a 256-step
+        // stick sweep on `r4`. The stream is the one read back from slot 1.
+        let bank = std::fs::read("../../fixtures/pro3/dinput-macro.blob").unwrap();
+        let stream = std::fs::read("../../fixtures/pro3/dinput-macro.steps.bin").unwrap();
+        let dev = MockDevice::new()
+            .with_profiles(ProfileReadResult {
+                raw_blobs: vec![zeroed_blob(), zeroed_blob(), bank],
+                ..Default::default()
+            })
+            .with_macro_stream(
+                Mode::DInput,
+                Slot::new(1).unwrap(),
+                MacroSlot::new(3).unwrap(),
+                stream,
+            );
+        let result = read_macros(&dev, &Pro3, Mode::DInput, Slot::new(1).unwrap()).unwrap();
+        assert_eq!(result.macros.len(), 1, "the empty descriptors are skipped");
+        let m = &result.macros[0];
+        assert_eq!((m.name.as_str(), m.trigger.as_str()), ("mx_d14", "r4"));
+        assert_eq!((m.mode, m.macro_slot, m.repeat_count), (Mode::DInput, Some(3), 1));
+        assert_eq!(m.steps.len(), 256);
+        assert_eq!((m.steps[0].duration_ms, m.steps[0].left_stick_x), (10, 0x7F));
+        assert_eq!((m.steps[1].left_stick_x, m.steps[1].left_stick_y), (0x80, 0x7E));
     }
 
     #[test]

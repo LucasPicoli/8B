@@ -358,6 +358,9 @@ pub const MACRO_INTERVAL_MS_OFFSET: usize = 48;
 
 /// `gamepad_mode` byte value that denotes `XInput`.
 pub const MACRO_GAMEPAD_MODE_XINPUT: u8 = 3;
+/// `gamepad_mode` byte value that denotes `DInput`. A `DInput` bank also writes it into
+/// its empty descriptors, so it says nothing about whether the descriptor holds a macro.
+pub const MACRO_GAMEPAD_MODE_DINPUT: u8 = 1;
 
 // ---------------------------------------------------------------------------
 // Macro step layout (`record_content_t`, 10B each).

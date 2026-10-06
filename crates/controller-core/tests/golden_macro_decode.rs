@@ -67,5 +67,7 @@ fn profile_read_fills_macro_refs_from_section4() {
         path: "xinput-slot1-macro0-GoldenMac.json".to_owned(),
     };
     assert_eq!(read(Mode::XInput), vec![expected]);
-    assert!(read(Mode::DInput).is_empty(), "DInput has no macros");
+    let dinput = read(Mode::DInput);
+    assert_eq!(dinput.len(), 1, "every mode reads its descriptors");
+    assert_eq!(dinput[0].path, "dinput-slot1-macro0-GoldenMac.json");
 }

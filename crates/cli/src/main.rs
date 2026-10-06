@@ -91,7 +91,7 @@ enum Commands {
     /// Read macros from a profile slot and report them as JSON.
     #[command(name = "read-macro")]
     ReadMacro {
-        /// Mode: xinput or switch (dinput not supported for macros).
+        /// Mode: xinput, switch or dinput.
         mode: Mode,
         /// Profile slot (1–3).
         slot: u8,

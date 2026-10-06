@@ -31,6 +31,16 @@ and 2 the d-pad left entry holds `11 09 20 20`, a value no output table lists.
 The pad reads it as a bit mask and fires six outputs at once. The decoder
 reports it as `unrecognised`, and a recompile must keep the 4 bytes.
 
+`dinput-macro.blob` is a `DInput` bank read from a real Pro 3, with a macro on `r4`
+in macro slot 3 of every slot. `dinput-macro.steps.bin` is that macro's step stream,
+read back from slot 1: 256 steps of 10 ms that sweep all four stick axes by one
+step each, with `d-pad up` and `d-pad right` taps in between. `DInput` stores macros
+like `XInput` and Switch: Section 4 at `0x068C`, 216 bytes per slot, four 52-byte
+descriptors, 10-byte steps. Two things differ. The `gamepad_mode` byte is `1`, and a
+`DInput` bank writes that byte into its empty descriptors too, so only `key_map` and
+`max_steps` tell an empty descriptor from a used one. The step button bits are read
+with the Switch table, which no `DInput` capture has confirmed.
+
 ---
 
 ## 2. How to Validate on a Configurator

@@ -286,12 +286,6 @@ pub fn run_dump(output_dir: &str) -> i32 {
 /// # Returns
 /// Process exit code.
 pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
-    // Validate macro mode before any device I/O (mirrors C++ `validateMacroMode`).
-    if mode == Mode::DInput {
-        eprintln!("Invalid mode 'dinput' for read-macro. Must be xinput or switch.");
-        return 2;
-    }
-
     let slot_typed = match Slot::new(slot) {
         Ok(s) => s,
         Err(e) => {

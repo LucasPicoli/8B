@@ -268,3 +268,25 @@ fn unrecognised_target_without_bytes_to_keep_is_refused() {
     assert_eq!(target_of(&profile, "d-pad left"), "unrecognised");
     assert!(Pro3.compile_profile_keep_macros(&profile, Slot::new(1).unwrap(), &base).is_err());
 }
+
+/// A `DInput` bank read from a real pad. Macro slot 3 of every slot holds a macro on `r4`.
+const DINPUT_MACRO: &str = "../../fixtures/pro3/dinput-macro.blob";
+
+#[test]
+fn dinput_macros_decode_as_refs_and_survive_or_leave_with_an_edit() {
+    let base = std::fs::read(DINPUT_MACRO).unwrap();
+    for slot in 1..=3u8 {
+        let profile = decode_slot(&base, slot, Mode::DInput);
+        let want = format!("dinput-slot{slot}-macro3-mx_d{slot}4.json");
+        let refs: Vec<_> = profile.macro_refs.iter().map(|m| (&*m.path, &*m.trigger)).collect();
+        assert_eq!(refs, [(want.as_str(), "r4")], "slot {slot}");
+
+        // An edit keeps the descriptors byte for byte, and dropping the trigger clears them.
+        let at = Slot::new(slot).unwrap();
+        let kept = Pro3.compile_profile_keep_macros(&profile, at, &base).unwrap();
+        let region = 0x068C + usize::from(slot - 1) * 216..0x068C + usize::from(slot) * 216;
+        assert_eq!(kept[region.clone()], base[region.clone()], "slot {slot} keeps");
+        let dropped = Pro3.drop_macros(&base, at, &["r4".to_owned()]).unwrap();
+        assert!(decode_slot(&dropped, slot, Mode::DInput).macro_refs.is_empty(), "slot {slot}");
+    }
+}
