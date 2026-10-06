@@ -366,6 +366,8 @@ export component DialogShell inherits Rectangle {
                 }
             }
             ScrollView {
+                // The widget's 50px floor would leave a band when there are no body rows.
+                min-height: 0px;
                 preferred-height: middle.preferred-height;
                 middle := VerticalLayout {
                     padding-left: 18px;

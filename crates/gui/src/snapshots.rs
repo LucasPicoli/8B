@@ -550,6 +550,13 @@ fn clear_dialog() {
 }
 
 #[test]
+fn clear_dialog_without_body_rows() {
+    let mut s = connected(Mode::XInput);
+    s.begin_clear();
+    shoot("clear-bare", &s);
+}
+
+#[test]
 fn writing_sheet_and_failure() {
     let mut s = reviewing();
     let (_, mut jobs) = s.confirm_review().unwrap();
