@@ -8,5 +8,5 @@ pub mod readback;
 pub mod rollback;
 pub mod validation;
 
-pub use readback::{readback_and_confirm, ConfirmPolicy, ReadbackResult};
+pub use readback::{bank_of, confirm_slot, readback_and_confirm, ConfirmPolicy, ReadbackResult};
 pub use rollback::{attempt_rollback, save_backup, FailedWrite};

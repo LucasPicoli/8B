@@ -7,7 +7,7 @@
 
 use crate::detect::is_slot_active;
 use crate::error::{Error, Result};
-use crate::model::{Mode, Slot};
+use crate::model::{Mode, ProfileReadResult, Slot};
 use crate::service::read::blob_for_mode;
 use crate::transport::device_io::DeviceIo;
 use crate::transport::write_input::PROFILE_SIZE;
@@ -35,6 +35,26 @@ pub struct ReadbackResult {
     pub message: String,
 }
 
+/// Returns the blob of `mode`'s bank from a full read, checked for size.
+///
+/// # Errors
+/// Returns [`Error::Usb`] if the read has no blob for `mode` or one that is not 2348
+/// bytes.
+pub fn bank_of(read: &ProfileReadResult, mode: Mode) -> Result<&Vec<u8>> {
+    if read.raw_blobs.is_empty() {
+        return Err(Error::Usb("pre-write readback returned no blobs".to_owned()));
+    }
+    let blob = blob_for_mode(read, mode)
+        .ok_or_else(|| Error::Usb(format!("no blob available for mode '{mode}'")))?;
+    if blob.len() != PROFILE_SIZE {
+        return Err(Error::Usb(format!(
+            "readback blob size mismatch (expected {PROFILE_SIZE}, got {})",
+            blob.len()
+        )));
+    }
+    Ok(blob)
+}
+
 /// Reads the blob for `mode`, checks `slot` for an existing profile, and applies `policy`.
 ///
 /// A declined or aborted overwrite is not an error: it returns `Ok` with
@@ -50,23 +70,26 @@ pub fn readback_and_confirm(
     policy: &ConfirmPolicy,
 ) -> Result<ReadbackResult> {
     let read = dev.read_all_profiles()?;
-    if read.raw_blobs.is_empty() {
-        return Err(Error::Usb("pre-write readback returned no blobs".to_owned()));
-    }
-    let blob = blob_for_mode(&read, mode)
-        .ok_or_else(|| Error::Usb(format!("no blob available for mode '{mode}'")))?;
-    if blob.len() != PROFILE_SIZE {
-        return Err(Error::Usb(format!(
-            "readback blob size mismatch (expected {PROFILE_SIZE}, got {})",
-            blob.len()
-        )));
-    }
+    confirm_slot(bank_of(&read, mode)?, mode, slot, policy)
+}
 
+/// Checks `slot` of the bank `blob` for an existing profile and applies `policy`.
+/// [`readback_and_confirm`] after the read, so a batch can read once and confirm
+/// each of its slots.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if the slot's marker cannot be read from `blob`.
+pub fn confirm_slot(
+    blob: &[u8],
+    mode: Mode,
+    slot: Slot,
+    policy: &ConfirmPolicy,
+) -> Result<ReadbackResult> {
     let n = slot.get();
     let slot_active = is_slot_active(blob, slot)?;
     let result = |proceed: bool, message: String| ReadbackResult {
         proceed,
-        backup_blob: blob.clone(),
+        backup_blob: blob.to_vec(),
         slot_active,
         message,
     };

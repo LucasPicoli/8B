@@ -46,7 +46,7 @@ pub(super) fn failure_from(mode: Mode, slot: Slot, err: &Error) -> WriteResult {
 pub struct ProfileWriteOrchestrator<'a> {
     pub(super) dev: &'a dyn DeviceIo,
     pub(super) codec: &'a dyn ProtocolCodec,
-    backup_dir: &'a Path,
+    pub(super) backup_dir: &'a Path,
 }
 
 impl<'a> ProfileWriteOrchestrator<'a> {
@@ -94,28 +94,39 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             Ok(parsed) => parsed,
             Err(e) => return failure_from(mode, slot, &e),
         };
-        let mut result = self.run(mode, slot, policy, "Profile uploaded successfully.", |rb| {
-            let blob = if rb.slot_active {
-                self.codec.compile_profile_keep_macros(&parsed, slot, &rb.backup_blob)
-            } else {
-                self.codec.compile_profile(&parsed, slot, &rb.backup_blob, &[])
-            };
-            let mut blob =
-                blob.map_err(|e| Error::Validation(format!("Compilation failed: {}", text(&e))))?;
-            if rb.slot_active && !drop_macros.is_empty() {
-                blob = self.codec.drop_macros(&blob, slot, drop_macros)?;
-            }
+        let mut result = self.run(mode, slot, policy, UPLOADED, |rb| {
+            let blob =
+                self.build_upload(&parsed, slot, drop_macros, &rb.backup_blob, rb.slot_active)?;
             Ok(Plan::Write(blob))
         });
-        if result.success && !parsed.macro_refs.is_empty() {
-            let n = parsed.macro_refs.len();
-            result.message = format!(
-                "{} Ignored {n} macro reference(s): the slot keeps the macros it has.",
-                result.message
-            );
+        if result.success {
+            result.message = with_ignored(result.message, parsed.macro_refs.len());
         }
         result.profile_id = parsed.id;
         result
+    }
+
+    /// The bank blob with `parsed` in `slot` of `base`. An occupied slot keeps its macros,
+    /// except those the buttons in `drop_macros` start.
+    pub(super) fn build_upload(
+        &self,
+        parsed: &CanonicalProfile,
+        slot: Slot,
+        drop_macros: &[String],
+        base: &[u8],
+        slot_active: bool,
+    ) -> Result<Vec<u8>> {
+        let blob = if slot_active {
+            self.codec.compile_profile_keep_macros(parsed, slot, base)
+        } else {
+            self.codec.compile_profile(parsed, slot, base, &[])
+        };
+        let blob =
+            blob.map_err(|e| Error::Validation(format!("Compilation failed: {}", text(&e))))?;
+        if slot_active && !drop_macros.is_empty() {
+            return self.codec.drop_macros(&blob, slot, drop_macros);
+        }
+        Ok(blob)
     }
 
     /// Clears `slot` of `mode`. An already empty slot succeeds without a write.
@@ -164,7 +175,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             Ok(back_to) => back_to,
             Err(e) => return failure_from(mode, slot, &e),
         };
-        let mut result = self.write(mode, slot, &rb, &blob, done);
+        let mut result = self.write(mode, slot, &rb.backup_blob, rb.slot_active, &blob, done);
         if let Some(back_to) = back_to {
             if let Err(e) = self.dev.end_write(back_to) {
                 result.message = format!(
@@ -178,11 +189,15 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     }
 
     /// Slot select, write, apply, with rollback if the write fails.
-    fn write(
+    ///
+    /// `backup` is the bank as read. It is written back if the write fails and
+    /// `was_active` says a slot of it held a profile.
+    pub(super) fn write(
         &self,
         mode: Mode,
         slot: Slot,
-        rb: &ReadbackResult,
+        backup: &[u8],
+        was_active: bool,
         blob: &[u8],
         done: &str,
     ) -> WriteResult {
@@ -197,8 +212,8 @@ impl<'a> ProfileWriteOrchestrator<'a> {
                     self.dev,
                     mode,
                     slot,
-                    &rb.backup_blob,
-                    rb.slot_active,
+                    backup,
+                    was_active,
                     FailedWrite::from_error(&e),
                     self.backup_dir,
                 );
@@ -216,8 +231,19 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     }
 }
 
+/// The success message of an upload, with the count of macro references it ignored.
+pub(super) fn with_ignored(message: String, ignored: usize) -> String {
+    if ignored == 0 {
+        return message;
+    }
+    format!("{message} Ignored {ignored} macro reference(s): the slot keeps the macros it has.")
+}
+
+/// Success message of an upload.
+pub(super) const UPLOADED: &str = "Profile uploaded successfully.";
+
 /// Validates an upload and parses it. No device access.
-fn check_upload(profile: &Value, mode: Mode) -> Result<CanonicalProfile> {
+pub(super) fn check_upload(profile: &Value, mode: Mode) -> Result<CanonicalProfile> {
     let validation = validate_profile(profile)?;
     if !validation.valid {
         let details: Vec<String> =
