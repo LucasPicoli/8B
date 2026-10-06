@@ -300,6 +300,9 @@ export component DialogShell inherits Rectangle {
     // Optional left-aligned action, such as "Export…".
     in property <string> extra-text;
     in property <image> extra-icon;
+    // Where the card sits, for the pixel-alignment test.
+    out property <length> card-x: card.x;
+    out property <length> card-y: card.y;
     callback accepted;
     callback cancelled;
     callback extra;
@@ -324,9 +327,9 @@ export component DialogShell inherits Rectangle {
 
     card := Rectangle {
         width: root.card-width;
-        // Centred on whole pixels: a half-pixel offset blurs the text.
-        x: round((root.width - self.width) / 2 / 1px) * 1px;
-        y: round((root.height - self.height) / 2 / 1px) * 1px;
+        // Centred on whole physical pixels: a fractional offset blurs the text.
+        x: round((root.width - self.width) / 2 / 1phx) * 1phx;
+        y: round((root.height - self.height) / 2 / 1phx) * 1phx;
         // The middle scrolls when the card would not fit, so the footer stays on screen.
         height: min(body.preferred-height, root.height - 48px);
         background: Theme.window;

@@ -727,3 +727,43 @@ fn the_batch_failure_dialog_with_a_backup() {
     assert_eq!(window(&s).get_batch().at, 1);
     shoot("batch-failed", &s);
 }
+
+slint::slint! {
+    import { DialogShell } from "ui/parts.slint";
+    export component Shell inherits Window {
+        in property <length> body-height;
+        out property <length> card-x: d.card-x;
+        out property <length> card-y: d.card-y;
+        d := DialogShell {
+            title: "t";
+            Rectangle { height: root.body-height; }
+        }
+    }
+}
+
+/// The dialog card sits on whole physical pixels at any window size, scale and content
+/// height. A half-pixel offset blurs its text.
+#[test]
+fn dialog_card_sits_on_whole_pixels() {
+    use slint::platform::WindowEvent;
+    let _ = slint::platform::set_platform(Box::new(Headless));
+    let ui = Shell::new().unwrap();
+    ui.show().unwrap();
+    for scale in [1.0_f32, 1.25, 1.5, 1.75, 2.0] {
+        ui.window().dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: scale });
+        for (w, h) in [(1280, 800), (1281, 801), (1024, 640), (1117, 723)] {
+            for body in [90.0, 91.0, 90.5, 91.3] {
+                ui.window().set_size(PhysicalSize::new(w, h));
+                ui.set_body_height(body);
+                let _ = ui.window().take_snapshot();
+                for v in [ui.get_card_x(), ui.get_card_y()] {
+                    let px = v * scale;
+                    assert!(
+                        (px - px.round()).abs() < 1e-3,
+                        "{px} physical px at scale {scale}, window {w}x{h}, body {body}"
+                    );
+                }
+            }
+        }
+    }
+}
