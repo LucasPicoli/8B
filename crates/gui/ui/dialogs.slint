@@ -1,5 +1,5 @@
 // Review, clear, cross-mode import, failed write.
-import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
+import { Theme, Button, ComboBox, LineEdit, Spinner } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
 import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo } from "types.slint";
 
@@ -169,6 +169,13 @@ export component WritingDialog inherits DialogShell {
     subtitle: "Keep the controller plugged in. A write from the Switch position takes about 10 seconds.";
     cancel-text: "";
     accept-text: "";
+    HorizontalLayout {
+        alignment: center;
+        Spinner {
+            width: 24px;
+            height: 24px;
+        }
+    }
 }
 
 export component MoveDialog inherits DialogShell {
