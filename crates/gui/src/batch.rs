@@ -140,6 +140,11 @@ impl AppState {
             .then_some(flipped)
     }
 
+    /// Whether the batch review is open for an answer.
+    pub fn batch_review_open(&self) -> bool {
+        self.batch_review().is_some()
+    }
+
     /// The edits are gone, such as after "Take the controller's": a waiting review
     /// ends.
     pub fn settle_batch(&mut self) {
@@ -352,6 +357,25 @@ mod tests {
 
     fn ok(job: &WriteJob) -> WriteResult {
         WriteResult::success(job.mode, job.slot, "done")
+    }
+
+    #[test]
+    fn a_batch_of_empty_slots_skips_its_review_and_a_mixed_one_keeps_it() {
+        let mut s = connected(Mode::XInput);
+        s.select(0, 2);
+        s.start_from_default();
+        s.select(2, 2);
+        s.start_from_default();
+        s.begin_batch().unwrap();
+        s.read_finished(PORT, Ok(full_read()));
+        s.review_read(PORT, true);
+        let (_, first) = s.skip_empty_review().unwrap();
+        assert_eq!(target(&first), (Mode::XInput, 3));
+        assert_eq!(s.batch_info().stage, STAGE_WRITING);
+
+        let mut s = reviewing();
+        assert!(s.skip_empty_review().is_none(), "occupied slots among them");
+        assert_eq!(s.batch_info().stage, STAGE_REVIEW);
     }
 
     #[test]

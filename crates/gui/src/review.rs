@@ -124,6 +124,30 @@ impl AppState {
             .then_some(target)
     }
 
+    /// Whether writing `slot` overwrites nothing: the controller holds no profile
+    /// there, no macro is left in it, and the write is not one the encoder refuses.
+    fn writes_nothing_over(&self, slot: (Mode, u8)) -> bool {
+        let state = self.slot_at(slot);
+        let leftover = self.active().and_then(|c| c.leftover.get(&slot)).copied().unwrap_or(0);
+        state.pad.is_none()
+            && leftover == 0
+            && state.edited.as_ref().is_some_and(|e| clash_text(e).is_empty())
+    }
+
+    /// A review or a batch review is about to open on slots that hold nothing: skip
+    /// the confirm and return the first write to send. Any other review stays.
+    pub fn skip_empty_review(&mut self) -> Option<(String, WriteJob)> {
+        if let Some(slot) = self.review_open().map(|t| t.1) {
+            return if self.writes_nothing_over(slot) { self.confirm_review() } else { None };
+        }
+        if self.batch_review_open()
+            && self.edited_slots().into_iter().all(|k| self.writes_nothing_over(k))
+        {
+            return self.confirm_batch();
+        }
+        None
+    }
+
     /// The edits of the review's slot are gone, such as after "Take the controller's":
     /// the review ends.
     pub fn settle_review(&mut self) {
@@ -656,6 +680,43 @@ mod tests {
         // Turning the swap off in the window clears it.
         s.set_flag("/sticks/swap_dpad_with_left_stick", false);
         assert_eq!(s.review_info((Mode::XInput, 1)).problem, "");
+    }
+
+    /// `DInput` slot 3, empty on the pad, started from default; Write pressed and the
+    /// slot read again.
+    fn empty_slot_write(leftover: usize) -> AppState {
+        let mut s = connected(Mode::DInput);
+        s.select(2, 2);
+        s.start_from_default();
+        s.set_leftover(PORT, [((Mode::DInput, 3), leftover)].into());
+        s.begin_review().unwrap();
+        s.review_read(PORT, true);
+        s
+    }
+
+    #[test]
+    fn an_empty_slot_with_no_macros_writes_without_the_review() {
+        let mut s = empty_slot_write(0);
+        let (_, job) = s.skip_empty_review().unwrap();
+        assert_eq!((job.mode, job.slot.get()), (Mode::DInput, 3));
+        assert!(s.review_open().is_none() && s.write.running.is_some());
+    }
+
+    #[test]
+    fn an_empty_slot_with_leftover_macros_keeps_the_review() {
+        let mut s = empty_slot_write(1);
+        assert!(s.skip_empty_review().is_none());
+        assert!(s.review_open().is_some());
+    }
+
+    #[test]
+    fn an_occupied_slot_keeps_the_review() {
+        let mut s = edited();
+        s.begin_review().unwrap();
+        s.read_finished(PORT, Ok(read_with_macro()));
+        s.review_read(PORT, true);
+        assert!(s.skip_empty_review().is_none());
+        assert!(s.review_open().is_some());
     }
 
     #[test]

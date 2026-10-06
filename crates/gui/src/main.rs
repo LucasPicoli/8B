@@ -106,6 +106,8 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             state.read_finished(&port, Ok(read));
             state.set_leftover(&port, leftover);
             state.review_read(&port, true);
+            let write = state.skip_empty_review();
+            send_write(commands, state, write);
         }
         Event::Read { port, result: Err(Failure { error, holders }) } => {
             let message = holders::sentence(&holders).map_or_else(
@@ -239,11 +241,11 @@ fn wire_controllers(
     change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
     commands: Sender<Command>,
 ) {
-    let c = change.clone();
+    let (c, tx) = (change.clone(), commands.clone());
     ui.on_read_again(move || {
         c(&|s| {
             if let Some(port) = s.retry_port() {
-                read(&commands, s, &port);
+                read(&tx, s, &port);
             }
         });
     });
@@ -265,8 +267,14 @@ fn wire_controllers(
             }
         });
     });
-    let c = change.clone();
-    ui.on_changed_applied(move || c(&AppState::apply_changed));
+    let (c, tx) = (change.clone(), commands);
+    ui.on_changed_applied(move || {
+        c(&|s| {
+            s.apply_changed();
+            let write = s.skip_empty_review();
+            send_write(&tx, s, write);
+        });
+    });
 }
 
 /// Sends a write to the worker. A write the worker cannot take does not start.
