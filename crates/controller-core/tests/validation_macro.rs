@@ -33,7 +33,7 @@ fn a_valid_step() -> Value {
 
 #[test]
 fn valid_macro_passes_validation() {
-    assert!(validate_macro(&make_valid_macro()).unwrap().is_empty());
+    assert_eq!(validate_macro(&make_valid_macro()).unwrap(), []);
 }
 
 // --- Schema-caught failures (C++ asserts only non-empty) ---------------------
@@ -42,21 +42,21 @@ fn valid_macro_passes_validation() {
 fn zero_steps_fails_schema() {
     let mut m = make_valid_macro();
     m["steps"] = json!([]);
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 #[test]
 fn home_guide_trigger_fails() {
     let mut m = make_valid_macro();
     m["trigger"] = json!("home/guide");
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 #[test]
 fn turbo_in_step_fails_and_mentions_press_or_turbo() {
     let m = set_step_buttons(make_valid_macro(), 0, json!(["turbo"]), json!([]));
     let errors = validate_macro(&m).unwrap();
-    assert!(!errors.is_empty());
+    assert_ne!(errors, []);
     assert!(errors
         .iter()
         .any(|e| e.reason.to_lowercase().contains("turbo") || e.path.contains("press")));
@@ -74,21 +74,21 @@ fn paddle_buttons_in_step_fail_schema() {
 fn name_too_long_fails() {
     let mut m = make_valid_macro();
     m["name"] = json!("1234567890123456"); // 16 chars
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 #[test]
 fn name_empty_fails() {
     let mut m = make_valid_macro();
     m["name"] = json!("");
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 #[test]
 fn repeat_count_zero_fails() {
     let mut m = make_valid_macro();
     m["repeat"] = json!({ "count": 0, "interval_ms": 0 });
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 // --- Genuinely-semantic (passes schema; exact message significant) ----------
@@ -97,7 +97,7 @@ fn repeat_count_zero_fails() {
 fn button_in_both_press_and_release_fails() {
     let m = set_step_buttons(make_valid_macro(), 0, json!(["bottom face"]), json!(["bottom face"]));
     let errors = validate_macro(&m).unwrap();
-    assert!(!errors.is_empty());
+    assert_ne!(errors, []);
     assert!(errors.iter().any(|e| e.reason.contains("both press and release")));
     // Exact ported message + path.
     assert!(errors.iter().any(|e| e.path == "/steps/0/actions/buttons"
@@ -132,7 +132,7 @@ fn multiple_semantic_errors_reported() {
 fn additional_properties_fails_schema() {
     let mut m = make_valid_macro();
     m["extra_field"] = json!("not allowed");
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn duplicate_button_in_press_fails_schema() {
     // uniqueItems on the press array (caught by schema, short-circuits semantic).
     let m =
         set_step_buttons(make_valid_macro(), 0, json!(["bottom face", "bottom face"]), json!([]));
-    assert!(!validate_macro(&m).unwrap().is_empty());
+    assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
 #[test]
@@ -152,6 +152,6 @@ fn schema_failure_short_circuits_semantics() {
     m["trigger"] = json!("home/guide"); // not in the macro-trigger enum -> schema rejects
     let m = set_step_buttons(m, 0, json!(["bottom face"]), json!(["bottom face"]));
     let errors = validate_macro(&m).unwrap();
-    assert!(!errors.is_empty());
+    assert_ne!(errors, []);
     assert!(errors.iter().all(|e| !e.reason.contains("appears in both press and release")));
 }

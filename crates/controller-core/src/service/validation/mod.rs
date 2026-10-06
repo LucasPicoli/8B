@@ -130,7 +130,7 @@ mod tests {
             "repeat": { "count": 1, "interval_ms": 0 },
             "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["bottom face"], "release": [] } } } ]
         });
-        assert!(schema_errors(v, &macro_json).is_empty());
+        assert_eq!(schema_errors(v, &macro_json), []);
     }
 
     #[test]
@@ -143,7 +143,7 @@ mod tests {
             "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["turbo"], "release": [] } } } ]
         });
         let errors = schema_errors(v, &macro_json);
-        assert!(!errors.is_empty());
+        assert_ne!(errors, []);
         assert!(errors.iter().any(|e| e.path.contains("press")));
     }
 }

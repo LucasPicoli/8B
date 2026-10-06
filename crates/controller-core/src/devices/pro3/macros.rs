@@ -418,7 +418,7 @@ mod tests {
     fn bitmask_decodes_buttons_in_bit_order() {
         // top face (bit 4) + r1 (bit 11) => 0x0810.
         assert_eq!(bitmask_to_step_button_names(0x0810), vec!["top face", "r1"]);
-        assert!(bitmask_to_step_button_names(0).is_empty());
+        assert_eq!(bitmask_to_step_button_names(0), Vec::<String>::new());
     }
 
     #[test]
@@ -464,6 +464,6 @@ mod tests {
         let steps = decode_macro_steps(&rec, 1, Mode::Switch).unwrap();
         assert_eq!(steps[0].trigger_left, 255);
         assert_eq!(steps[0].trigger_right, 0);
-        assert!(steps[0].pressed_buttons.is_empty());
+        assert_eq!(steps[0].pressed_buttons, Vec::<String>::new());
     }
 }

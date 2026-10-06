@@ -44,7 +44,7 @@ fn make_valid_switch_profile() -> Value {
 fn valid_xinput_profile_passes() {
     let r = validate_profile(&make_valid_xinput_profile()).unwrap();
     assert!(r.valid, "errors: {:?}", r.errors);
-    assert!(r.errors.is_empty());
+    assert_eq!(r.errors, []);
     assert_eq!(r.profile_id, "xinput-slot-1-index-0");
 }
 

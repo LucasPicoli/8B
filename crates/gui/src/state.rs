@@ -320,7 +320,7 @@ pub mod tests {
         };
         let mut canonical = Pro3.map_profile(&raw).expect("profile").canonical;
         canonical.name = name.to_owned();
-        canonical.macro_refs.truncate(0);
+        canonical.macro_refs.clear();
         for i in 0..macros {
             canonical.macro_refs.push(controller_core::model::MacroRef {
                 trigger: "p1".to_owned(),

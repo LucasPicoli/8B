@@ -494,7 +494,7 @@ mod tests {
         s.answer_move(None);
         assert_eq!(s.pending_move, None);
         assert_eq!(s.controller_labels(), ["Pro 3 · Disconnected", "Pro 3 · DInput"]);
-        assert!(s.move_candidates().is_empty());
+        assert_eq!(s.move_candidates(), Vec::<usize>::new());
     }
 
     #[test]
@@ -516,7 +516,7 @@ mod tests {
         assert_eq!(s.changed_choices(), [true, false]);
         assert_eq!(s.slot(Mode::Switch, 1).shown().unwrap().name, "Mine too", "not yet applied");
         s.apply_changed();
-        assert!(s.changed_slots().is_empty());
+        assert_eq!(s.changed_slots(), []);
         assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "Mine");
         assert_eq!(s.slot(Mode::Switch, 1).shown().unwrap().name, "Theirs too");
     }
@@ -527,7 +527,7 @@ mod tests {
         edit(&mut s, Mode::XInput, "Temp");
         edit(&mut s, Mode::XInput, "XInput");
         s.read_finished(PORT, Ok(read_with(Mode::XInput, "Theirs")));
-        assert!(s.changed_slots().is_empty());
+        assert_eq!(s.changed_slots(), []);
         assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "Theirs");
     }
 }

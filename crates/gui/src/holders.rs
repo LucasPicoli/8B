@@ -83,7 +83,10 @@ mod tests {
 
     #[test]
     fn no_proc_means_no_holders() {
-        assert!(holders(Path::new("/nonexistent"), Path::new("/dev/hidraw7"), 1).is_empty());
+        assert_eq!(
+            holders(Path::new("/nonexistent"), Path::new("/dev/hidraw7"), 1),
+            Vec::<String>::new()
+        );
     }
 
     #[test]

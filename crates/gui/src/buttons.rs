@@ -366,7 +366,7 @@ mod tests {
         let row = &rows(&s)[at];
         assert_eq!(row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap(), "B");
         assert!(row.changed);
-        assert!(s.slot(Mode::XInput, 1).edited.unwrap().macro_refs.is_empty());
+        assert_eq!(s.slot(Mode::XInput, 1).edited.unwrap().macro_refs, []);
         assert!(s.slot(Mode::XInput, 1).dirty().buttons);
         s.discard();
         assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");

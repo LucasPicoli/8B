@@ -619,7 +619,7 @@ mod tests {
             Event::Written { port, result, holders } => {
                 assert_eq!(port, PORT);
                 assert!(result.success, "{}", result.message);
-                assert!(holders.is_empty());
+                assert_eq!(holders, Vec::<String>::new());
             }
             other => panic!("expected a write, got {other:?}"),
         }

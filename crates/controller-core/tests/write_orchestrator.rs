@@ -233,7 +233,7 @@ fn upload_rejects_bad_input_before_touching_the_device() {
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.starts_with("Mode mismatch"), "{}", r.message);
 
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }
 
 #[test]
@@ -247,7 +247,7 @@ fn overwrite_policy_decides_whether_an_occupied_slot_is_written() {
         let dev = device(Mode::XInput, &base);
         let r = orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(1), &policy);
         assert_failed(&r, ErrorCategory::None);
-        assert!(dev.calls().is_empty());
+        assert_eq!(dev.calls(), []);
     }
     for policy in [ConfirmPolicy::Force, asking(true, &asked)] {
         let dev = device(Mode::XInput, &base);
@@ -403,7 +403,7 @@ fn deactivating_an_empty_slot_succeeds_without_writing() {
     let r = orch(&dev, dir.path()).deactivate_slot(Mode::XInput, slot(3), &ConfirmPolicy::Abort);
     assert!(r.success);
     assert!(r.message.contains("already empty"), "{}", r.message);
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +450,7 @@ fn remap_rejects_bad_names_before_touching_the_device() {
         let r = o.remap_button(Mode::XInput, slot(1), source, target, &ConfirmPolicy::Force);
         assert_failed(&r, ErrorCategory::ValidationFailure);
     }
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }
 
 #[test]
@@ -469,7 +469,7 @@ fn patches_on_an_empty_slot_are_refused_without_a_write() {
         assert_failed(r, ErrorCategory::ValidationFailure);
         assert!(r.message.contains("empty slot"), "{}", r.message);
     }
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }
 
 #[test]
@@ -521,7 +521,7 @@ fn patch_sticks_rules_run_before_any_write() {
     let r = o.patch_sticks(Mode::XInput, slot(1), &conflict, &f);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("D-pad"), "{}", r.message);
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }
 
 #[test]
@@ -585,7 +585,7 @@ fn patch_triggers_rejects_options_for_the_wrong_mode_and_bad_ranges() {
         &o.patch_triggers(Mode::Switch, slot(1), &too_high, &f),
         ErrorCategory::ValidationFailure,
     );
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }
 
 #[test]
@@ -599,7 +599,7 @@ fn patch_vibration_sets_both_levels_and_checks_the_range() {
         &o.patch_vibration(Mode::XInput, slot(1), 6, 1, &ConfirmPolicy::Force),
         ErrorCategory::ValidationFailure,
     );
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 
     let r = o.patch_vibration(Mode::XInput, slot(1), 1, 4, &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
@@ -840,5 +840,5 @@ fn nothing_to_write_flips_nothing() {
     let dir = tempfile::tempdir().unwrap();
     let r = orch(&dev, dir.path()).deactivate_slot(Mode::Switch, slot(3), &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
-    assert!(dev.calls().is_empty());
+    assert_eq!(dev.calls(), []);
 }

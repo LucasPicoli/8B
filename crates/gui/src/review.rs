@@ -384,7 +384,6 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
     use controller_core::model::MacroRef;
-    use slint::Model as _;
 
     use super::*;
     use crate::state::tests::{connected, full_read, PORT};

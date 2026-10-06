@@ -117,9 +117,9 @@ mod tests {
     fn xinput_and_dinput_round_trip_unchanged() {
         let source = with_mapping(Mode::XInput, "lp", "right face");
         let (dinput, losses) = convert(&source, Mode::DInput);
-        assert!(losses.is_empty());
+        assert_eq!(losses, []);
         let (back, losses) = convert(&dinput, Mode::XInput);
-        assert!(losses.is_empty());
+        assert_eq!(losses, []);
         assert_eq!(back, source);
     }
 

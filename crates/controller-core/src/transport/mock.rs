@@ -327,6 +327,6 @@ mod tests {
         assert!(dev.write_patch(Mode::XInput, 0, &[]).is_err());
         let (ps, ms) = (Slot::new(1).unwrap(), MacroSlot::new(0).unwrap());
         assert!(dev.write_macro_stream(Mode::XInput, ps, ms, &[0; 33]).is_err());
-        assert!(dev.calls().is_empty());
+        assert_eq!(dev.calls(), []);
     }
 }

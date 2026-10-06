@@ -354,7 +354,7 @@ mod tests {
             s.import((Mode::XInput, 1), "bad.json", text);
             let n = s.notice.take().unwrap();
             assert!(n.error && n.title == "Could not import “bad.json”.", "{n:?}");
-            assert!(!n.body.is_empty());
+            assert_ne!(n.body, "");
         }
         assert_eq!(s.slot(Mode::XInput, 1), before);
         assert_eq!(s.pending_import, None);
@@ -368,7 +368,7 @@ mod tests {
         assert_eq!(n.title, "Saved Switch slot 2 to “x.json”.");
         assert!(n.body.contains("not yet written"));
         s.exported((Mode::Switch, 2), false, Ok("x.json".to_owned()));
-        assert!(s.notice.take().unwrap().body.is_empty());
+        assert_eq!(s.notice.take().unwrap().body, "");
         s.exported((Mode::Switch, 2), false, Err("Permission denied.".to_owned()));
         assert!(s.notice.unwrap().error);
     }

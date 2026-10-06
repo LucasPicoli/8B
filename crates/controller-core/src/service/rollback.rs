@@ -165,7 +165,7 @@ mod tests {
         assert!(!r.success && !r.rollback_attempted && !r.rollback_succeeded);
         assert!(r.message.contains("chunk 30/53"));
         assert!(r.message.contains("no rollback needed"));
-        assert!(dev.calls().is_empty());
+        assert_eq!(dev.calls(), []);
         let none = attempt_rollback(&dev, Mode::XInput, slot(2), &[], true, FAILED, dir.path());
         assert!(!none.rollback_attempted);
     }
