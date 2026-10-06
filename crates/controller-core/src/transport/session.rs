@@ -17,7 +17,7 @@ use crate::device::ControllerSpec as _;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::Mode;
-use crate::protocol::bytes::read_u16_le;
+use crate::protocol::bytes::{read_u16_le, read_u8};
 use crate::protocol::framing::Framing;
 use crate::protocol::wire::{build_input_stream, build_start_config};
 use crate::protocol::wire_write::PACKET_LEN;
@@ -35,6 +35,11 @@ const DRAIN_MAX_REPORTS: usize = 512;
 const REENUMERATE_POLL: Duration = Duration::from_millis(50);
 /// `START_CONFIG` reply bytes that carry the model id (little-endian).
 const MODEL_ID_OFFSET: usize = 22;
+/// `START_CONFIG` reply bytes that carry the firmware version times 100
+/// (little-endian), as the vendor app reads it (`HIDManage.readGamePadNewVersion`).
+const FIRMWARE_VERSION_OFFSET: usize = 18;
+/// `START_CONFIG` reply byte that carries the firmware beta number, `0` for a release.
+const FIRMWARE_BETA_OFFSET: usize = 20;
 
 /// A controller to talk to: its model, and the USB port path it sits on, such as
 /// `8-5`. With no port, the first supported controller found.
@@ -68,6 +73,8 @@ pub(super) struct Session {
     pub(super) current_mode: Mode,
     /// The mode to flip to before a write, from the matched config port.
     pub(super) write_via: Option<Mode>,
+    /// The firmware version from the `START_CONFIG` reply, such as `1.04`.
+    pub(super) firmware_version: String,
 }
 
 impl Session {
@@ -109,6 +116,7 @@ impl Session {
             framing: found.port.framing,
             current_mode: found.port.mode,
             write_via: found.port.write_via,
+            firmware_version: String::new(),
         };
         session.pause()?;
         let reply = match session.send_recv(&build_start_config()) {
@@ -120,6 +128,7 @@ impl Session {
             }
         };
         identify(&reply, &to.spec.description()?.model_ids)?;
+        session.firmware_version = firmware_version(&reply)?;
         Ok(session)
     }
 
@@ -271,6 +280,17 @@ fn identify(reply: &[u8], supported: &[u16]) -> Result<()> {
     }
 }
 
+/// Reads the firmware version from a `START_CONFIG` reply: `1.04`, or
+/// `1.04 beta 12` for a beta build.
+fn firmware_version(reply: &[u8]) -> Result<String> {
+    let raw = read_u16_le(reply, FIRMWARE_VERSION_OFFSET)?;
+    let version = format!("{}.{:02}", raw / 100, raw % 100);
+    Ok(match read_u8(reply, FIRMWARE_BETA_OFFSET)? {
+        0 => version,
+        beta => format!("{version} beta {beta}"),
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::indexing_slicing)]
 mod tests {
@@ -280,6 +300,17 @@ mod tests {
         let mut reply = vec![0u8; PACKET_LEN];
         reply[MODEL_ID_OFFSET..MODEL_ID_OFFSET + 2].copy_from_slice(&model.to_le_bytes());
         reply
+    }
+
+    #[test]
+    fn firmware_version_reads_the_vendor_bytes() -> Result<()> {
+        let mut reply = vec![0u8; PACKET_LEN];
+        reply[FIRMWARE_VERSION_OFFSET..FIRMWARE_VERSION_OFFSET + 2]
+            .copy_from_slice(&104u16.to_le_bytes());
+        assert_eq!(firmware_version(&reply)?, "1.04");
+        reply[FIRMWARE_BETA_OFFSET] = 12;
+        assert_eq!(firmware_version(&reply)?, "1.04 beta 12");
+        Ok(())
     }
 
     #[test]

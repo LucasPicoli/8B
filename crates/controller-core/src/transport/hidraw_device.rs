@@ -312,6 +312,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
                     format!("Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}");
             }
             Ok(mut session) => {
+                readiness.firmware_version.clone_from(&session.firmware_version);
                 match read_blob(&mut session, slot_select) {
                     Err(e) => {
                         readiness.message = format!(

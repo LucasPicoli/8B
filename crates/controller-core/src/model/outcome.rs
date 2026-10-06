@@ -20,6 +20,9 @@ pub struct DeviceReadiness {
     pub product_id: String,
     /// Sysfs path of the device.
     pub sysfs_path: String,
+    /// Firmware version the pad reports, such as `1.04`. Empty when no
+    /// config session opened.
+    pub firmware_version: String,
     /// Human-readable status message.
     pub message: String,
 }

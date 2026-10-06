@@ -66,6 +66,7 @@ pub fn build_detect_payload(r: &DeviceReadiness) -> (Value, i32) {
         "vendor_id": r.vendor_id,
         "product_id": r.product_id,
         "sysfs_path": r.sysfs_path,
+        "firmware_version": if r.firmware_version.is_empty() { "unknown" } else { &r.firmware_version },
         "message": r.message,
         "exit_code": exit_code,
     });
@@ -369,6 +370,7 @@ mod tests {
             vendor_id: "2dc8".to_owned(),
             product_id: "310b".to_owned(),
             sysfs_path: "/sys/bus/usb/devices/1-1".to_owned(),
+            firmware_version: "1.04".to_owned(),
             message: "Supported device detected.".to_owned(),
         };
         let (payload, code) = build_detect_payload(&r);
@@ -378,6 +380,7 @@ mod tests {
         assert_eq!(payload["exit_code"], 0);
         assert_eq!(payload["active_slot_marker"], "1");
         assert_eq!(payload["active_slot_marker_verified"], true);
+        assert_eq!(payload["firmware_version"], "1.04");
     }
 
     #[test]
@@ -391,6 +394,7 @@ mod tests {
         assert_eq!(code, 1);
         assert_eq!(payload["supported_device_connected"], false);
         assert_eq!(payload["mode"], "unknown");
+        assert_eq!(payload["firmware_version"], "unknown");
         assert_eq!(payload["exit_code"], 1);
     }
 
