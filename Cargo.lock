@@ -909,6 +909,7 @@ dependencies = [
  "insta",
  "jsonschema",
  "kurbo",
+ "log",
  "roxmltree",
  "rustix 1.1.4",
  "serde",

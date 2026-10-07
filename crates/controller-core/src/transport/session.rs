@@ -4,11 +4,13 @@
 //! dropped, error paths included. While paused, config replies do not race the input
 //! reports on the shared IN endpoint (`DInput` and Switch).
 
+use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
 use std::io::{Read as _, Write as _};
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use log::{debug, info, trace, warn};
 use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::io::Errno;
 
@@ -33,6 +35,8 @@ const PAUSE_SETTLE: Duration = Duration::from_millis(500);
 const DRAIN_MAX_REPORTS: usize = 512;
 /// Poll interval while waiting for the controller to come back on USB.
 const REENUMERATE_POLL: Duration = Duration::from_millis(50);
+/// Request byte that carries the command, for the log.
+const REQUEST_CMD_OFFSET: usize = 2;
 /// `START_CONFIG` reply bytes that carry the model id (little-endian).
 const MODEL_ID_OFFSET: usize = 22;
 /// `START_CONFIG` reply bytes that carry the firmware version times 100
@@ -75,6 +79,10 @@ pub(super) struct Session {
     pub(super) write_via: Option<Mode>,
     /// The firmware version from the `START_CONFIG` reply, such as `1.04`.
     pub(super) firmware_version: String,
+    /// The last frame written, as sent on the wire. For the failure log.
+    last_sent: [u8; PACKET_LEN],
+    /// The last report read, as it came off the wire. For the failure log.
+    last_received: Option<Vec<u8>>,
 }
 
 impl Session {
@@ -117,6 +125,8 @@ impl Session {
             current_mode: found.port.mode,
             write_via: found.port.write_via,
             firmware_version: String::new(),
+            last_sent: [0; PACKET_LEN],
+            last_received: None,
         };
         session.pause()?;
         let reply = match session.send_recv(&build_start_config()) {
@@ -127,8 +137,12 @@ impl Session {
                 return Err(e);
             }
         };
-        identify(&reply, &to.spec.description()?.model_ids)?;
+        let model = identify(&reply, &to.spec.description()?.model_ids)?;
         session.firmware_version = firmware_version(&reply)?;
+        info!(
+            "controller opened: model 0x{model:04x}, mode {:?}, firmware {}",
+            session.current_mode, session.firmware_version
+        );
         Ok(session)
     }
 
@@ -149,7 +163,20 @@ impl Session {
     }
 
     fn write(&mut self, packet: &[u8; PACKET_LEN]) -> Result<()> {
-        self.file.write_all(&self.framing.request(packet)).map_err(|e| io_error(&e))
+        self.last_sent = self.framing.request(packet);
+        trace!("out {}", hex(&self.last_sent));
+        self.file.write_all(&self.last_sent).map_err(|e| io_error(&e))
+    }
+
+    /// Logs a failed command at `warn` with the last frame sent and the last report
+    /// read, as hex. The frames hold no profile name, path or serial.
+    pub(super) fn log_failure(&self, packet: &[u8; PACKET_LEN], error: &Error) {
+        let cmd = read_u8(packet, REQUEST_CMD_OFFSET).unwrap_or_default();
+        warn!(
+            "command 0x{cmd:02x} failed: {error}; sent {}; received {}",
+            hex(&self.last_sent),
+            self.last_received.as_deref().map_or_else(|| "nothing".to_owned(), hex)
+        );
     }
 
     /// Waits up to `timeout` for a report. `Ok(false)` on timeout or a signal.
@@ -166,13 +193,31 @@ impl Session {
     /// Sends one normal-layout packet and returns its reply in normal layout.
     ///
     /// Reports that are not the reply (gamepad input, other echoes) are skipped
-    /// until the session's reply budget runs out.
+    /// until the session's reply budget runs out. The command, its duration and the
+    /// skipped count go to the log, and a failure also logs the raw frames.
     ///
     /// # Errors
     /// Returns [`Error::Timeout`] when no reply arrives in time,
     /// [`Error::Disconnected`] when the device goes away, and [`Error::Usb`] on
     /// any other I/O failure.
     pub(super) fn send_recv(&mut self, packet: &[u8; PACKET_LEN]) -> Result<Vec<u8>> {
+        let start = Instant::now();
+        let mut skipped = 0usize;
+        self.last_received = None;
+        let result = self.exchange(packet, &mut skipped);
+        match &result {
+            Ok(_) => debug!(
+                "command 0x{:02x} ok in {} ms, {skipped} other reports skipped",
+                read_u8(packet, REQUEST_CMD_OFFSET).unwrap_or_default(),
+                start.elapsed().as_millis()
+            ),
+            Err(e) => self.log_failure(packet, e),
+        }
+        result
+    }
+
+    /// The send and the wait of [`Self::send_recv`]; counts the reports it skips.
+    fn exchange(&mut self, packet: &[u8; PACKET_LEN], skipped: &mut usize) -> Result<Vec<u8>> {
         self.write(packet)?;
         let deadline = Instant::now() + self.timeout;
         let mut buf = [0u8; PACKET_LEN];
@@ -185,9 +230,13 @@ impl Session {
                 continue;
             }
             let n = self.file.read(&mut buf).map_err(|e| io_error(&e))?;
-            if let Some(reply) = self.framing.reply(buf.get(..n).unwrap_or(&buf), packet) {
+            let raw = buf.get(..n).unwrap_or(&buf);
+            trace!("in {}", hex(raw));
+            self.last_received = Some(raw.to_vec());
+            if let Some(reply) = self.framing.reply(raw, packet) {
                 return Ok(reply);
             }
+            *skipped += 1;
         }
     }
 }
@@ -270,14 +319,25 @@ fn open_error(node: &Path, e: &std::io::Error) -> Error {
     }
 }
 
-/// Checks the model id in a `START_CONFIG` reply against `supported`.
-fn identify(reply: &[u8], supported: &[u16]) -> Result<()> {
+/// Checks the model id in a `START_CONFIG` reply against `supported` and returns it.
+fn identify(reply: &[u8], supported: &[u16]) -> Result<u16> {
     let model = read_u16_le(reply, MODEL_ID_OFFSET)?;
     if supported.contains(&model) {
-        Ok(())
+        Ok(model)
     } else {
         Err(Error::UnsupportedModel(model))
     }
+}
+
+/// Formats `bytes` as space-separated lowercase hex, for the log.
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().fold(String::with_capacity(bytes.len() * 3), |mut out, b| {
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        let _ = write!(out, "{b:02x}");
+        out
+    })
 }
 
 /// Reads the firmware version from a `START_CONFIG` reply: `1.04`, or
@@ -292,9 +352,59 @@ fn firmware_version(reply: &[u8]) -> Result<String> {
 }
 
 #[cfg(test)]
-#[allow(clippy::indexing_slicing)]
+#[allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::significant_drop_tightening)]
 mod tests {
+    use std::os::unix::net::UnixStream;
+    use std::sync::Mutex;
+
     use super::*;
+
+    /// Keeps every record, so a test can read back what the session logged.
+    struct Capture(Mutex<Vec<(log::Level, String)>>);
+
+    impl log::Log for Capture {
+        fn enabled(&self, _: &log::Metadata<'_>) -> bool {
+            true
+        }
+        fn log(&self, record: &log::Record<'_>) {
+            self.0.lock().unwrap().push((record.level(), record.args().to_string()));
+        }
+        fn flush(&self) {}
+    }
+
+    static CAPTURE: Capture = Capture(Mutex::new(Vec::new()));
+
+    #[test]
+    fn timeout_logs_one_warn_with_both_frames() {
+        log::set_logger(&CAPTURE).unwrap();
+        log::set_max_level(log::LevelFilter::Trace);
+        let (ours, mut peer) = UnixStream::pair().unwrap();
+        let mut session = Session {
+            file: File::from(std::os::fd::OwnedFd::from(ours)),
+            timeout: Duration::from_millis(50),
+            paused: false,
+            framing: Framing::Plain,
+            current_mode: Mode::DInput,
+            write_via: None,
+            firmware_version: String::new(),
+            last_sent: [0; PACKET_LEN],
+            last_received: None,
+        };
+        // A gamepad input report: read, not the reply, so the exchange goes on to time out.
+        peer.write_all(&[0x30, 0x01, 0x02]).unwrap();
+        let request = build_start_config();
+        assert!(matches!(session.send_recv(&request), Err(Error::Timeout)));
+
+        let lines = CAPTURE.0.lock().unwrap();
+        let warns: Vec<_> = lines.iter().filter(|(level, _)| *level == log::Level::Warn).collect();
+        assert_eq!(warns.len(), 1);
+        let line = &warns[0].1;
+        assert!(line.contains(&hex(&request)), "sent frame missing: {line}");
+        assert!(line.contains("received 30 01 02"), "received frame missing: {line}");
+        // The core logs frames and numbers only: no home path reaches a line.
+        let home = std::env::var("HOME").unwrap_or_else(|_| "/home".to_owned());
+        assert!(lines.iter().all(|(_, text)| !text.contains(&home)));
+    }
 
     fn reply_with(model: u16) -> Vec<u8> {
         let mut reply = vec![0u8; PACKET_LEN];

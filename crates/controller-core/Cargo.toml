@@ -19,6 +19,7 @@ jsonschema.workspace = true
 rustix.workspace = true
 kurbo.workspace = true
 roxmltree.workspace = true
+log.workspace = true
 
 [dev-dependencies]
 serial_test.workspace = true

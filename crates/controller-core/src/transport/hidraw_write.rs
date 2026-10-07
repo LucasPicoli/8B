@@ -104,7 +104,7 @@ fn exchange(
     validate: impl FnOnce(&[u8]) -> Result<()>,
 ) -> Result<()> {
     let resp = session.send_recv(packet)?;
-    validate(&resp)
+    validate(&resp).inspect_err(|e| session.log_failure(packet, e))
 }
 
 pub(super) fn write_full_profile(to: Target<'_>, blob: &[u8]) -> Result<()> {

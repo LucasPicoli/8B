@@ -20,6 +20,7 @@ insta = { version = "1", features = ["json"] }
 jsonschema = { version = "0.40", default-features = false }
 kurbo = "0.13"
 roxmltree = "0.21"
+log = "0.4"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

@@ -81,7 +81,8 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
         let pkt = build_upload_packet(offset_u16, &filler);
         let resp = session.send_recv(&pkt)?;
         // Validate the echoed offset/size against what we requested (matches C++).
-        let payload = decode_upload_response(&resp, offset_u16, chunk_size_u16)?;
+        let payload = decode_upload_response(&resp, offset_u16, chunk_size_u16)
+            .inspect_err(|e| session.log_failure(&pkt, e))?;
         blob.extend_from_slice(&payload);
         offset += chunk_size;
     }
