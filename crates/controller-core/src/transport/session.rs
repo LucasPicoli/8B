@@ -35,6 +35,9 @@ const PAUSE_SETTLE: Duration = Duration::from_millis(500);
 const DRAIN_MAX_REPORTS: usize = 512;
 /// Poll interval while waiting for the controller to come back on USB.
 const REENUMERATE_POLL: Duration = Duration::from_millis(50);
+/// Bytes of a frame that the failure log shows: the command header, which ends where
+/// the profile payload starts (byte 18).
+const LOG_HEADER_LEN: usize = 18;
 /// Request byte that carries the command, for the log.
 const REQUEST_CMD_OFFSET: usize = 2;
 /// `START_CONFIG` reply bytes that carry the model id (little-endian).
@@ -128,7 +131,7 @@ impl Session {
             last_sent: [0; PACKET_LEN],
             last_received: None,
         };
-        session.pause()?;
+        session.pause().inspect_err(|e| warn!("cannot pause the input stream: {e}"))?;
         let reply = match session.send_recv(&build_start_config()) {
             Ok(reply) => reply,
             Err(e) => {
@@ -137,8 +140,10 @@ impl Session {
                 return Err(e);
             }
         };
-        let model = identify(&reply, &to.spec.description()?.model_ids)?;
-        session.firmware_version = firmware_version(&reply)?;
+        let model = identify(&reply, &to.spec.description()?.model_ids)
+            .inspect_err(|e| warn!("cannot identify the controller: {e}"))?;
+        session.firmware_version = firmware_version(&reply)
+            .inspect_err(|e| warn!("cannot read the firmware version: {e}"))?;
         info!(
             "controller opened: model 0x{model:04x}, mode {:?}, firmware {}",
             session.current_mode, session.firmware_version
@@ -168,14 +173,15 @@ impl Session {
         self.file.write_all(&self.last_sent).map_err(|e| io_error(&e))
     }
 
-    /// Logs a failed command at `warn` with the last frame sent and the last report
-    /// read, as hex. The frames hold no profile name, path or serial.
+    /// Logs a failed command at `warn` with the header of the last frame sent and of
+    /// the last report read, as hex. The payload is withheld: a profile chunk carries
+    /// the profile name. Only `trace` shows whole frames.
     pub(super) fn log_failure(&self, packet: &[u8; PACKET_LEN], error: &Error) {
         let cmd = read_u8(packet, REQUEST_CMD_OFFSET).unwrap_or_default();
         warn!(
             "command 0x{cmd:02x} failed: {error}; sent {}; received {}",
-            hex(&self.last_sent),
-            self.last_received.as_deref().map_or_else(|| "nothing".to_owned(), hex)
+            header_hex(&self.last_sent),
+            self.last_received.as_deref().map_or_else(|| "nothing".to_owned(), header_hex)
         );
     }
 
@@ -329,6 +335,17 @@ fn identify(reply: &[u8], supported: &[u16]) -> Result<u16> {
     }
 }
 
+/// The first [`LOG_HEADER_LEN`] bytes of a frame as hex, with a note of what was held
+/// back.
+fn header_hex(frame: &[u8]) -> String {
+    let (head, payload) = frame.split_at(frame.len().min(LOG_HEADER_LEN));
+    if payload.is_empty() {
+        hex(head)
+    } else {
+        format!("{} (+{} payload bytes withheld)", hex(head), payload.len())
+    }
+}
+
 /// Formats `bytes` as space-separated lowercase hex, for the log.
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().fold(String::with_capacity(bytes.len() * 3), |mut out, b| {
@@ -358,6 +375,7 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::protocol::wire_write::build_write_packet;
 
     /// Keeps every record, so a test can read back what the session logged.
     struct Capture(Mutex<Vec<(log::Level, String)>>);
@@ -392,14 +410,17 @@ mod tests {
         };
         // A gamepad input report: read, not the reply, so the exchange goes on to time out.
         peer.write_all(&[0x30, 0x01, 0x02]).unwrap();
-        let request = build_start_config();
+        // A profile chunk: bytes 18 and up are the payload, which holds the name.
+        let request = build_write_packet(0, &[0xA7; 45]);
         assert!(matches!(session.send_recv(&request), Err(Error::Timeout)));
 
         let lines = CAPTURE.0.lock().unwrap();
         let warns: Vec<_> = lines.iter().filter(|(level, _)| *level == log::Level::Warn).collect();
         assert_eq!(warns.len(), 1);
         let line = &warns[0].1;
-        assert!(line.contains(&hex(&request)), "sent frame missing: {line}");
+        assert!(line.contains(&hex(&request[..LOG_HEADER_LEN])), "sent header missing: {line}");
+        assert!(line.contains("payload bytes withheld"), "{line}");
+        assert!(!line.contains("a7 a7"), "payload reached the log: {line}");
         assert!(line.contains("received 30 01 02"), "received frame missing: {line}");
         // The core logs frames and numbers only: no home path reaches a line.
         let home = std::env::var("HOME").unwrap_or_else(|_| "/home".to_owned());

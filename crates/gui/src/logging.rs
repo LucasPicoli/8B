@@ -95,12 +95,24 @@ fn formatter(
     }
 }
 
-/// `text` with every `home` written as `~`. An empty home or `/` hides nothing.
+/// `text` with `home` written as `~`, where it ends a path component: `/home/ada/x`
+/// and `/home/ada` change, `/home/adam` does not. An empty home or `/` hides nothing.
 fn hide_home(text: &str, home: Option<&str>) -> String {
-    match home {
-        Some(home) if home.len() > 1 => text.replace(home, "~"),
-        _ => text.to_owned(),
+    let Some(home) = home.filter(|h| h.len() > 1) else {
+        return text.to_owned();
+    };
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(at) = rest.find(home) {
+        let (before, tail) = rest.split_at(at);
+        let after = tail.get(home.len()..).unwrap_or_default();
+        out.push_str(before);
+        let in_name = after.chars().next().is_some_and(|c| c.is_alphanumeric() || "_-".contains(c));
+        out.push_str(if in_name { home } else { "~" });
+        rest = after;
     }
+    out.push_str(rest);
+    out
 }
 
 /// Moves the last run's log to `8b.prev.log` and opens a fresh `8b.log` in `dir`.
@@ -194,6 +206,7 @@ mod tests {
             hide_home("saved /home/ada/8b/x and /home/ada", Some("/home/ada")),
             "saved ~/8b/x and ~"
         );
+        assert_eq!(hide_home("/home/adam /home/ada.", Some("/home/ada")), "/home/adam ~.");
         assert_eq!(hide_home("/etc", Some("/")), "/etc");
         assert_eq!(hide_home("/home/ada", None), "/home/ada");
     }
