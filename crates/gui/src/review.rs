@@ -14,7 +14,6 @@ use slint::{Model as _, ModelRc, SharedString, VecModel};
 use crate::batch::{render_batch, Batch};
 use crate::buttons::{current, output_label};
 use crate::controllers::Controller;
-use crate::render::sentence;
 use crate::settings::pages_of;
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, Change, ClearInfo, FailedInfo, ReviewInfo};
@@ -264,7 +263,7 @@ impl AppState {
                 result.error_category,
                 ErrorCategory::Timeout | ErrorCategory::ConnectionFailure
             ) && !result.rollback_attempted;
-            let mut detail = sentence(&result.message);
+            let mut detail = crate::plain::write_failure(result).to_owned();
             if lost {
                 detail =
                     format!("Could not reach the controller, so nothing was written. {detail}");
@@ -627,12 +626,13 @@ mod tests {
             controller_core::ErrorCategory::WriteFailure,
             "Write failed at chunk 12/53. Rollback failed.",
         );
+        bad.rollback_attempted = true;
         bad.backup_file_path = Some("/home/x/.local/state/8b/backups/b.bin".to_owned());
         s.write_finished(PORT, &[bad], Some("Steam also has it open."));
         let failed = s.write.failed.clone().unwrap();
         assert_eq!(
             failed.detail,
-            "Write failed at chunk 12/53. Rollback failed. Steam also has it open."
+            "The controller did not accept the profile, and the slot could not be put back as it was. A copy of the old profile is saved. Steam also has it open."
         );
         assert!(failed.backup.is_some());
         assert!(s.slot(Mode::XInput, 1).unsaved(), "the edits stay");
@@ -660,7 +660,7 @@ mod tests {
         s.write_finished(PORT, &[lost], None);
         assert_eq!(
             s.write.failed.clone().unwrap().detail,
-            "Could not reach the controller, so nothing was written. Usb error: Connection timed out (os error 110)."
+            "Could not reach the controller, so nothing was written. Check the cable and that the mode switch has not moved."
         );
         assert!(s.slot(Mode::XInput, 1).unsaved(), "the edits stay");
     }

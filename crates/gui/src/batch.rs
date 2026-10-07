@@ -589,6 +589,7 @@ mod tests {
             controller_core::ErrorCategory::WriteFailure,
             "Write failed at chunk 12/53. Rollback failed.",
         );
+        bad.rollback_attempted = true;
         bad.backup_file_path = Some("/home/x/b.bin".to_owned());
         let results = [ok(&jobs[0]), bad.clone(), bad];
         s.write_finished(PORT, &results, Some("Steam also has it open."));
@@ -602,7 +603,8 @@ mod tests {
         assert_eq!((info.stage, info.at), (3, 1));
         assert_eq!(
             info.detail,
-            "Write failed at chunk 12/53. Rollback failed. Steam also has it open."
+            "The controller did not accept the profile, and the slot could not be put back as it was. \
+             A copy of the old profile is saved. Steam also has it open."
         );
         assert_eq!(info.backup_path, "/home/x/b.bin");
         assert_eq!(info.slots.row_count(), 3);

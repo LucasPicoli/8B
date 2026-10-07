@@ -12,6 +12,7 @@ mod files;
 mod holders;
 mod keepalive;
 mod logging;
+mod plain;
 mod portal;
 mod render;
 mod review;
@@ -130,10 +131,9 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             send_write(commands, state, write);
         }
         Event::Read { port, result: Err(Failure { error, holders }) } => {
-            let message = holders::hint(&holders, state.sandboxed).map_or_else(
-                || error.to_string(),
-                |names| format!("{} {names}", sentence(&error.to_string())),
-            );
+            let plain = plain::read_failure(&error);
+            let message = holders::hint(&holders, state.sandboxed)
+                .map_or_else(|| plain.to_owned(), |names| format!("{plain} {names}"));
             state.read_finished(&port, Err(message));
             state.review_read(&port, false);
         }
