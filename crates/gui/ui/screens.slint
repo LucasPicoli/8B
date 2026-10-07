@@ -35,6 +35,7 @@ export component NoControllerScreen inherits Rectangle {
         padding: 16px;
         MessageBar {
             error: true;
+            diagnostics: true;
             title: "Could not read the controller.";
             body: root.error;
             action: root.connected ? "Try again" : "";

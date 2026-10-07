@@ -1,7 +1,7 @@
 // The 8B window: the no-controller screen until a first read, then the sidebar
 // with every slot of every mode and the selected slot beside it.
 import { Theme, Button, LineEdit, ScrollView, Spinner } from "look/breeze/widgets.slint";
-import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
+import { MessageBar, Placeholder, Icons, TabBar, Diagnostics } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
@@ -11,7 +11,7 @@ import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Theme, Palette }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Theme, Palette, Diagnostics }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -314,6 +314,7 @@ export component AppWindow inherits Window {
                 padding-top: 10px;
                 MessageBar {
                     error: true;
+                    diagnostics: true;
                     title: root.read-error-title;
                     body: root.read-error;
                     action: root.connected || root.read-error-elsewhere ? "Try again" : "";

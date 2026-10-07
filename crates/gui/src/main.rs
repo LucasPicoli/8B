@@ -61,7 +61,7 @@ use crate::buttons::{hit, picked_output, render_views};
 use crate::closing::CloseOutcome;
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
-use crate::ui::AppWindow;
+use crate::ui::{AppWindow, Diagnostics};
 use crate::worker::{Command, Event, Failure};
 use crate::writes::WriteJob;
 
@@ -554,6 +554,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_hit(move |view, x, y| {
         hit(description, usize::try_from(view).unwrap_or(usize::MAX), x, y)
     });
+
+    ui.global::<Diagnostics<'_>>().on_text(|| logging::diagnostics().into());
 
     let weak = ui.as_weak();
     ui.on_theme_changed(move || {

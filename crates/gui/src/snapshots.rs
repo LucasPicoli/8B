@@ -16,11 +16,20 @@ use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
 use crate::state::tests::{connected, full_read, new_state, PORT};
 use crate::state::{AppState, Rule};
-use crate::ui::{AppWindow, Change};
+use crate::ui::{AppWindow, Change, Diagnostics};
 
 struct Headless;
 
+thread_local! {
+    /// What the window last put on the clipboard.
+    static CLIPBOARD: std::cell::RefCell<String> = const { std::cell::RefCell::new(String::new()) };
+}
+
 impl Platform for Headless {
+    fn set_clipboard_text(&self, text: &str, _: slint::platform::Clipboard) {
+        CLIPBOARD.with_borrow_mut(|c| text.clone_into(c));
+    }
+
     fn create_window_adapter(&self) -> Result<Rc<dyn WindowAdapter>, PlatformError> {
         Ok(MinimalSoftwareWindow::new(RepaintBufferType::NewBuffer))
     }
@@ -846,4 +855,29 @@ fn dialog_card_sits_on_whole_pixels() {
             }
         }
     }
+}
+
+/// A click on "Copy diagnostics" puts the diagnostics on the clipboard, and the label
+/// says "Copied".
+#[test]
+fn copy_diagnostics_fills_the_clipboard() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    use slint::{Global as _, LogicalPosition};
+    let mut s = new_state();
+    s.worker_stopped = true;
+    let ui = window(&s);
+    Diagnostics::get(&ui).on_text(|| "run header\nlog line".into());
+    save("stopped", &ui);
+    let at = LogicalPosition::new(440.0, 444.0);
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at });
+    ui.window().dispatch_event(WindowEvent::PointerPressed {
+        position: at,
+        button: PointerEventButton::Left,
+    });
+    ui.window().dispatch_event(WindowEvent::PointerReleased {
+        position: at,
+        button: PointerEventButton::Left,
+    });
+    assert_eq!(CLIPBOARD.with_borrow(Clone::clone), "run header\nlog line");
+    save("stopped-copied", &ui);
 }

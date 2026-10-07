@@ -6,7 +6,8 @@
 
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 use env_logger::fmt::Formatter;
 use env_logger::{Builder, Logger, Target};
@@ -22,11 +23,16 @@ const PREV_NAME: &str = "8b.prev.log";
 const LOG_LIMIT: u64 = 2 * 1024 * 1024;
 /// The last line of a full file.
 const FULL_LINE: &str = "log full: no more lines are written\n";
+/// Log lines "Copy diagnostics" carries after the run header.
+const DIAGNOSTIC_LINES: usize = 200;
 /// The file records 8B and the core at `debug` whatever stderr shows. Other crates
 /// stop at `info`: the Wayland client logs a line per protocol event at `debug`.
 const FILE_SPEC: &str = "info,8b=debug,controller_core=debug";
 /// Stderr shows this level unless `RUST_LOG` says otherwise.
 const STDERR_SPEC: &str = "warn";
+
+/// The log file of this run, once it is open.
+static LOG_PATH: OnceLock<PathBuf> = OnceLock::new();
 
 /// Starts logging for the run: the header line, then the file and stderr sinks.
 /// `RUST_LOG`, when set, replaces both levels.
@@ -37,6 +43,7 @@ pub fn init(sandboxed: bool) {
     let opened = rotate(&dir).map(|file| Capped::new(file, LOG_LIMIT));
     let (file, failed) = match opened {
         Ok(capped) => {
+            let _ = LOG_PATH.set(dir.join(LOG_NAME));
             (Some(sink(rust_log.as_deref().unwrap_or(FILE_SPEC), home.as_deref(), capped)), None)
         }
         Err(e) => (None, Some(e)),
@@ -63,6 +70,29 @@ pub fn init(sandboxed: bool) {
     if let Some(e) = failed {
         log::warn!("cannot open the log file, logging to stderr only: {e}");
     }
+}
+
+/// The text "Copy diagnostics" copies: the run header and the last
+/// [`DIAGNOSTIC_LINES`] lines of the log. Home is already written as `~` in the file.
+#[must_use]
+pub fn diagnostics() -> String {
+    LOG_PATH.get().and_then(|path| fs::read(path).ok()).map_or_else(
+        || format!("8b {}, no log file\n", env!("CARGO_PKG_VERSION")),
+        |bytes| tail(&String::from_utf8_lossy(&bytes), DIAGNOSTIC_LINES),
+    )
+}
+
+/// The first line of `text`, then its last `n` lines, with a note when lines between
+/// are left out.
+fn tail(text: &str, n: usize) -> String {
+    let lines: Vec<&str> = text.lines().collect();
+    let skipped = lines.len().saturating_sub(n + 1);
+    if skipped == 0 {
+        return text.to_owned();
+    }
+    let header = lines.first().copied().unwrap_or_default();
+    let kept = lines.iter().skip(lines.len() - n).copied().collect::<Vec<_>>().join("\n");
+    format!("{header}\n({skipped} earlier lines left out)\n{kept}\n")
 }
 
 /// Which package the run came from, for the header line.
@@ -245,6 +275,14 @@ mod tests {
         capped.write_all(b"too much\n").unwrap();
         capped.write_all(b"dropped\n").unwrap();
         assert_eq!(String::from_utf8(out).unwrap(), format!("12345\n6789\n{FULL_LINE}"));
+    }
+
+    #[test]
+    fn diagnostics_keep_the_header_and_the_last_lines() {
+        let text = "header\n1\n2\n3\n4\n5\n";
+        assert_eq!(tail(text, 5), text, "a log that fits is copied whole");
+        assert_eq!(tail(text, 2), "header\n(3 earlier lines left out)\n4\n5\n");
+        assert_eq!(tail("", 2), "");
     }
 
     #[test]

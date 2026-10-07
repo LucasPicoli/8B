@@ -255,6 +255,7 @@ export component BatchFailedDialog inherits DialogShell {
     accept-text: m == 1 ? "Write " + failed + " again" : "Write the " + m + " slots again";
     extra-text: info.backup-path != "" ? "Open folder" : "";
     extra-icon: Icons.folder;
+    diagnostics: true;
     Frame {
         VerticalLayout {
             for s[i] in root.info.slots: RunRow {

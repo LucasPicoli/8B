@@ -151,6 +151,7 @@ export component FailedDialog inherits DialogShell {
     accept-text: info.is-clear ? "Try again" : "Write again";
     extra-text: info.backup-path != "" ? "Open folder" : "";
     extra-icon: Icons.folder;
+    diagnostics: true;
     if root.info.backup-path != "": BackupFile {
         path: root.info.backup-path;
     }
@@ -162,8 +163,7 @@ export component FailedDialog inherits DialogShell {
 }
 
 // The worker thread has ended, so no command reaches the controller. It is not
-// restarted: the same packet could panic again. "Copy diagnostics" joins the footer
-// as the extra action (ticket 22).
+// restarted: the same packet could panic again.
 export component StoppedDialog inherits DialogShell {
     icon: Icons.error;
     alarm: true;
@@ -171,6 +171,7 @@ export component StoppedDialog inherits DialogShell {
     subtitle: "Restart 8B.";
     cancel-text: "";
     accept-text: "Close";
+    diagnostics: true;
 }
 
 // Shown while a write runs. Blocks the window: nothing may change under the write.

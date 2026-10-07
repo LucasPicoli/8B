@@ -21,6 +21,45 @@ export global Icons {
     out property <image> check: @image-url("icons/check.svg");
 }
 
+// What "Copy diagnostics" puts on the clipboard: the run header and the tail of the log.
+export global Diagnostics {
+    pure callback text() -> string;
+}
+
+// A flat button that copies the diagnostics, then says "Copied" for 2 seconds. Slint
+// has no clipboard call, so a hidden text input holds the text and copies it.
+export component CopyDiagnostics inherits Rectangle {
+    property <bool> copied;
+    preferred-width: btn.preferred-width;
+    preferred-height: btn.preferred-height;
+    horizontal-stretch: 0;
+    btn := Button {
+        width: parent.width;
+        height: parent.height;
+        flat: true;
+        text: root.copied ? "Copied" : "Copy diagnostics";
+        icon: root.copied ? Icons.check : Icons.copy;
+        clicked => {
+            field.text = Diagnostics.text();
+            field.select-all();
+            field.copy();
+            field.clear-selection();
+            root.copied = true;
+        }
+    }
+    field := TextInput {
+        visible: false;
+        read-only: true;
+        width: 0;
+        height: 0;
+    }
+    Timer {
+        interval: 2s;
+        running: root.copied;
+        triggered => { root.copied = false; }
+    }
+}
+
 // A frame or column heading.
 export component SmallHead inherits Text {
     font-weight: 600;
@@ -55,6 +94,8 @@ export component MessageBar inherits Rectangle {
     in property <image> icon: error ? Icons.error : info ? Icons.info : Icons.warning;
     in property <string> title;
     in property <string> body;
+    // A "Copy diagnostics" button before the action.
+    in property <bool> diagnostics;
     // A button before Close, such as "Try again". Hidden when empty.
     in property <string> action;
     in property <bool> action-enabled: true;
@@ -89,6 +130,7 @@ export component MessageBar inherits Rectangle {
             wrap: word-wrap;
             vertical-alignment: center;
         }
+        if root.diagnostics: CopyDiagnostics { }
         if root.action != "": Button {
             text: root.action;
             enabled: root.action-enabled;
@@ -300,6 +342,8 @@ export component DialogShell inherits Rectangle {
     // Optional left-aligned action, such as "Export…".
     in property <string> extra-text;
     in property <image> extra-icon;
+    // "Copy diagnostics" beside the left action, for an error.
+    in property <bool> diagnostics;
     // The left action loses data, such as "Discard and close": the red fill.
     in property <bool> extra-destructive;
     // Where the card sits, for the pixel-alignment test.
@@ -308,7 +352,7 @@ export component DialogShell inherits Rectangle {
     callback accepted;
     callback cancelled;
     callback extra;
-    property <bool> has-footer: extra-text != "" || cancel-text != "" || accept-text != "";
+    property <bool> has-footer: diagnostics || extra-text != "" || cancel-text != "" || accept-text != "";
     background: Theme.scrim;
     accessible-role: groupbox;
     accessible-label: title;
@@ -403,6 +447,7 @@ export component DialogShell inherits Rectangle {
                         destructive: root.extra-destructive;
                         clicked => { root.extra(); }
                     }
+                    if root.diagnostics: CopyDiagnostics { }
                     Rectangle { horizontal-stretch: 1; }
                     if root.cancel-text != "": Button {
                         text: root.cancel-text;
