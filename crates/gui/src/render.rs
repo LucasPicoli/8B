@@ -174,6 +174,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     // Not denied: the controller works without the rule, so offer an update and a skip.
     ui.set_rule_outdated(state.access.is_none() && state.rule == Rule::Outdated);
     ui.set_rule_skippable(state.access.is_none());
+    ui.set_sandboxed(state.sandboxed);
     ui.set_installing(state.install == Install::Running);
     ui.set_install_error(match &state.install {
         Install::Failed(e) => e.as_str().into(),

@@ -112,6 +112,7 @@ pub fn spawn(
     ports: Vec<ConfigPort>,
     install: Installer,
     backup_dir: PathBuf,
+    sandboxed: bool,
     emit: impl Fn(Event) + Send + 'static,
 ) -> io::Result<Sender<Command>> {
     let (tx, rx) = mpsc::channel();
@@ -119,7 +120,7 @@ pub fn spawn(
         run(
             &open,
             &rx,
-            &Site { sysfs: &sysfs, ports: &ports, backup_dir: &backup_dir },
+            &Site { sysfs: &sysfs, ports: &ports, backup_dir: &backup_dir, sandboxed },
             install,
             &emit,
         );
@@ -132,10 +133,15 @@ struct Site<'a> {
     sysfs: &'a Path,
     ports: &'a [ConfigPort],
     backup_dir: &'a Path,
+    /// In the Flatpak sandbox `/proc` shows no other program, so it is not scanned.
+    sandboxed: bool,
 }
 
 /// The other programs that have the config node of the controller on `port` open.
 fn holders_of(site: &Site<'_>, port: &str) -> Vec<String> {
+    if site.sandboxed {
+        return Vec::new();
+    }
     scan_sysfs_all(site.sysfs, site.ports)
         .into_iter()
         .find(|usb| usb.port_path() == port)
@@ -337,6 +343,7 @@ mod tests {
             ports,
             installed,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -370,6 +377,7 @@ mod tests {
             ports,
             installed,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -406,6 +414,7 @@ mod tests {
             ports,
             installed,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -430,6 +439,7 @@ mod tests {
             vec![],
             installed,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -452,6 +462,7 @@ mod tests {
             vec![],
             installed,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -503,6 +514,7 @@ mod tests {
             vec![],
             installed,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -530,6 +542,7 @@ mod tests {
             vec![],
             refused,
             PathBuf::new(),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },
@@ -554,9 +567,17 @@ mod tests {
             })
         });
         let (etx, events) = mpsc::channel();
-        let tx = spawn(open, sysfs.path().to_owned(), ports, installed, PathBuf::new(), move |e| {
-            let _ = etx.send(e);
-        })
+        let tx = spawn(
+            open,
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            PathBuf::new(),
+            false,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
         .unwrap();
         let seen: BTreeSet<_> = (0..2)
             .map(|_| match next(&events) {
@@ -603,6 +624,7 @@ mod tests {
             vec![],
             installed,
             dir.path().join("backups"),
+            false,
             move |e| {
                 let _ = etx.send(e);
             },

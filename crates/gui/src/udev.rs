@@ -7,6 +7,7 @@
 //! instead.
 
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 use controller_core::transport::udev::{
@@ -32,6 +33,15 @@ const PKEXEC_DISMISSED: i32 = 126;
 /// authentication agent, or another polkit failure. KDE's agent also returns it
 /// when its prompt is closed.
 const PKEXEC_NOT_AUTHORISED: i32 = 127;
+
+/// Where Flatpak marks its sandbox.
+const FLATPAK_INFO: &str = "/.flatpak-info";
+
+/// Whether the app runs in the Flatpak sandbox.
+#[must_use]
+pub fn sandboxed() -> bool {
+    Path::new(FLATPAK_INFO).exists()
+}
 
 /// The installed files against the ones this build installs. A file that cannot
 /// be read counts as missing.

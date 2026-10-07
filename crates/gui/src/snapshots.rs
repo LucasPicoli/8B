@@ -177,6 +177,15 @@ fn read_failed_with_holders() {
 }
 
 #[test]
+fn read_failed_in_the_sandbox() {
+    let mut s = connected(Mode::Switch);
+    s.sandboxed = true;
+    let hint = crate::holders::hint(&[], s.sandboxed).unwrap();
+    s.read_finished(PORT, Err(format!("Device communication timed out. {hint}")));
+    shoot("read-failed-sandbox", &s);
+}
+
+#[test]
 fn read_failed_trying_again() {
     let mut s = connected(Mode::Switch);
     s.read_finished(PORT, Err("device communication timed out".to_owned()));
@@ -195,6 +204,16 @@ fn denied(rule: Rule) -> AppState {
 #[test]
 fn permission_denied() {
     shoot("permission-denied", &denied(Rule::Missing));
+}
+
+#[test]
+fn permission_denied_in_the_sandbox() {
+    let mut s = denied(Rule::Missing);
+    assert!(!window(&s).get_sandboxed());
+    s.sandboxed = true;
+    let ui = window(&s);
+    assert!(ui.get_sandboxed() && ui.get_asks_for_rule());
+    save("permission-denied-sandbox", &ui);
 }
 
 #[test]

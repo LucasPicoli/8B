@@ -56,9 +56,13 @@ export component PermissionScreen inherits Rectangle {
     in property <bool> skippable;
     // The password prompt is open.
     in property <bool> installing;
+    // In the Flatpak sandbox there is no password prompt: only the command installs
+    // the rule, and "Check again" reads the controller once it has run.
+    in property <bool> sandboxed;
     // Why the last install failed, empty when it did not.
     in property <string> error;
     callback install;
+    callback check;
     callback skip;
     background: Theme.window;
     VerticalLayout {
@@ -92,6 +96,8 @@ export component PermissionScreen inherits Rectangle {
                         ? "The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in."
                         : root.outdated
                         ? "The installed rule is from an older version of 8B. The new rule also stops 8BitDo controllers in XInput mode from reconnecting every second while Steam is closed. Updating asks for your password once."
+                        : root.sandboxed
+                        ? "Linux blocks apps from changing a controller’s settings until a device rule allows it. Run the command below in a terminal on this computer, then choose Check again."
                         : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
@@ -105,17 +111,22 @@ export component PermissionScreen inherits Rectangle {
                         body: root.error + " Run the command below instead.";
                     }
                 }
-                if !root.rule-installed: HorizontalLayout {
+                if !root.rule-installed || root.sandboxed: HorizontalLayout {
                     alignment: center;
                     padding-top: 12px;
                     padding-bottom: 20px;
                     spacing: 8px;
-                    Button {
+                    if !root.sandboxed: Button {
                         text: root.installing ? "Waiting for your password…"
                             : root.outdated ? "Update rule…" : "Install rule…";
                         primary: true;
                         enabled: !root.installing;
                         clicked => { root.install(); }
+                    }
+                    if root.sandboxed: Button {
+                        text: "Check again";
+                        primary: true;
+                        clicked => { root.check(); }
                     }
                     if root.skippable: Button {
                         text: "Not now";
@@ -124,13 +135,14 @@ export component PermissionScreen inherits Rectangle {
                         clicked => { root.skip(); }
                     }
                 }
-                if root.rule-installed: Rectangle { height: 20px; }
+                if root.rule-installed && !root.sandboxed: Rectangle { height: 20px; }
                 Frame {
                     VerticalLayout {
                         padding: 14px;
                         spacing: 8px;
                         Text {
-                            text: root.rule-installed ? "To install the rule again, run this in a terminal:" : "Or run this in a terminal:";
+                            text: root.rule-installed ? "To install the rule again, run this in a terminal:"
+                                : root.sandboxed ? "Run this in a terminal:" : "Or run this in a terminal:";
                             color: Theme.fg;
                         }
                         HorizontalLayout {

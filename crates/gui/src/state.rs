@@ -140,6 +140,10 @@ pub struct AppState {
     pub rule: Rule,
     /// The user skipped the install for this run.
     pub rule_skipped: bool,
+    /// The window runs in the Flatpak sandbox: no `pkexec`, no view of the host's
+    /// rule files and no names for the programs that hold the controller. Read once
+    /// at start.
+    pub sandboxed: bool,
     /// The message above the slot. Cleared when another slot is picked.
     pub notice: Option<Notice>,
     /// A file for another mode, waiting for the user's yes.
@@ -169,6 +173,7 @@ impl AppState {
             install: Install::Idle,
             rule: Rule::Current,
             rule_skipped: false,
+            sandboxed: false,
             notice: None,
             pending_import: None,
             write: WriteState::default(),
@@ -177,12 +182,13 @@ impl AppState {
     }
 
     /// A read of the controller on `port` was denied. `rule` is the installed rule
-    /// now.
+    /// now. In the sandbox the rule files are out of sight, so the screen asks for
+    /// access only while a read is denied, never for the rule alone.
     pub fn read_denied(&mut self, port: &str, rule: Rule) {
         if let Some(c) = self.controller_mut(port) {
             c.reading = false;
         }
-        self.rule = rule;
+        self.rule = if self.sandboxed { Rule::Current } else { rule };
         self.access =
             Some(if rule == Rule::Current { Access::StillDenied } else { Access::Denied });
     }
@@ -443,6 +449,19 @@ pub mod tests {
         assert_eq!(s.access, Some(Access::StillDenied));
         s.read_finished(PORT, Ok(full_read()));
         assert_eq!(s.access, None);
+    }
+
+    #[test]
+    fn the_sandbox_asks_only_while_a_read_is_denied() {
+        let mut s = new_state();
+        s.sandboxed = true;
+        s.presence(PORT, Some(Mode::XInput));
+        // The sandbox cannot see the host's rule, so it reads as missing.
+        s.read_denied(PORT, Rule::Missing);
+        assert_eq!(s.access, Some(Access::Denied));
+        assert!(s.asks_for_rule());
+        s.read_finished(PORT, Ok(full_read()));
+        assert!(!s.asks_for_rule(), "a good read ends the question");
     }
 
     #[test]

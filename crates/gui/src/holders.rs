@@ -45,6 +45,20 @@ pub fn sentence(holders: &[String]) -> Option<String> {
     ))
 }
 
+/// What a failure says in the sandbox, where `/proc` hides the other programs.
+const MAYBE_HELD: &str = "Another program may be using the controller. Close it and try again.";
+
+/// The sentence a failed read or write adds: [`sentence`] outside the sandbox, a
+/// guess inside it, where no names can be found.
+#[must_use]
+pub fn hint(holders: &[String], sandboxed: bool) -> Option<String> {
+    if sandboxed {
+        Some(MAYBE_HELD.to_owned())
+    } else {
+        sentence(holders)
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -86,6 +100,16 @@ mod tests {
         assert_eq!(
             holders(Path::new("/nonexistent"), Path::new("/dev/hidraw7"), 1),
             Vec::<String>::new()
+        );
+    }
+
+    #[test]
+    fn the_sandbox_guesses_and_names_no_one() {
+        let steam = ["steam".to_owned()];
+        assert_eq!(hint(&steam, false), sentence(&steam));
+        assert_eq!(
+            hint(&[], true).unwrap(),
+            "Another program may be using the controller. Close it and try again."
         );
     }
 

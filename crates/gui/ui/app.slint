@@ -73,6 +73,8 @@ export component AppWindow inherits Window {
     // Opening works without the rule, so the screen offers a skip.
     in property <bool> rule-skippable;
     in property <bool> installing;
+    // The app runs in the Flatpak sandbox: the rule is installed by a command only.
+    in property <bool> sandboxed;
     // Why the last rule install failed, empty when it did not.
     in property <string> install-error;
     in property <string> udev-command;
@@ -124,6 +126,7 @@ export component AppWindow inherits Window {
     callback changed-picked(int, bool);
     callback changed-applied;
     callback install-rule;
+    callback check-again;
     callback rule-skipped;
     callback name-edited(string);
     // A row index and an index into that row's outputs.
@@ -179,8 +182,10 @@ export component AppWindow inherits Window {
         outdated: root.rule-outdated;
         skippable: root.rule-skippable;
         installing: root.installing;
+        sandboxed: root.sandboxed;
         error: root.install-error;
         install => { root.install-rule(); }
+        check => { root.check-again(); }
         skip => { root.rule-skipped(); }
     }
 

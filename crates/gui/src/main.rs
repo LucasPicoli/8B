@@ -56,7 +56,7 @@ use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 use crate::buttons::{hit, picked_output, render_views};
 use crate::closing::CloseOutcome;
 use crate::render::{fit_toolbar, render, sentence};
-use crate::state::{AppState, Notice};
+use crate::state::{AppState, Notice, Rule};
 use crate::ui::AppWindow;
 use crate::worker::{Command, Event, Failure};
 use crate::writes::WriteJob;
@@ -66,6 +66,15 @@ use crate::writes::WriteJob;
 fn read(commands: &Sender<Command>, state: &mut AppState, port: &str) {
     if commands.send(Command::ReadAll(port.to_owned())).is_ok() {
         state.read_started(port);
+    }
+}
+
+/// Asks the worker to read every controller that is present.
+fn read_present(commands: &Sender<Command>, state: &mut AppState) {
+    let present: Vec<String> =
+        state.controllers.iter().filter(|c| c.mode.is_some()).map(|c| c.port.clone()).collect();
+    for port in present {
+        read(commands, state, &port);
     }
 }
 
@@ -114,7 +123,7 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             send_write(commands, state, write);
         }
         Event::Read { port, result: Err(Failure { error, holders }) } => {
-            let message = holders::sentence(&holders).map_or_else(
+            let message = holders::hint(&holders, state.sandboxed).map_or_else(
                 || error.to_string(),
                 |names| format!("{} {names}", sentence(&error.to_string())),
             );
@@ -125,7 +134,8 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         // what the window should show.
         // A batch is one command, so one read follows it.
         Event::Written { port, results, holders } => {
-            state.write_finished(&port, &results, holders::sentence(&holders).as_deref());
+            let hint = holders::hint(&holders, state.sandboxed);
+            state.write_finished(&port, &results, hint.as_deref());
             state.batch_after_write();
             read(commands, state, &port);
         }
@@ -134,15 +144,7 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             state.install_finished(result);
             // The rule applies to the nodes already present: read again, no replug.
             if ok {
-                let present: Vec<String> = state
-                    .controllers
-                    .iter()
-                    .filter(|c| c.mode.is_some())
-                    .map(|c| c.port.clone())
-                    .collect();
-                for port in present {
-                    read(commands, state, &port);
-                }
+                read_present(commands, state);
             }
         }
     }
@@ -456,7 +458,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     slint::set_xdg_app_id("io.github.LucasPicoli._8B")?;
     let defaults = description.modes.iter().map(|m| (m.id, Pro3.default_profile(m.id))).collect();
     let mut first = AppState::new(description, defaults);
-    first.rule = udev::rule_state();
+    let sandboxed = udev::sandboxed();
+    first.sandboxed = sandboxed;
+    // The sandbox cannot see the host's rule files: ask only when a read is denied.
+    first.rule = if sandboxed { Rule::Current } else { udev::rule_state() };
     let state = Rc::new(RefCell::new(first));
     render_views(description, &ui);
     render(&state.borrow(), &ui);
@@ -480,14 +485,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         description.config_ports.clone(),
         udev::install_rule,
         backups.clone(),
+        sandboxed,
         move |event| {
             if events_tx.send(event).is_ok() {
                 let _ = weak.upgrade_in_event_loop(|ui| ui.invoke_worker_event());
             }
         },
     )?;
-    let (install_tx, retry_tx, write_tx, close_tx) =
-        (commands.clone(), commands.clone(), commands.clone(), commands.clone());
+    let (install_tx, check_tx, retry_tx, write_tx, close_tx) =
+        (commands.clone(), commands.clone(), commands.clone(), commands.clone(), commands.clone());
 
     let weak = ui.as_weak();
     let s = Rc::clone(&state);
@@ -526,6 +532,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
     });
+    let c = change.clone();
+    ui.on_check_again(move || c(&|s| read_present(&check_tx, s)));
     wire_controllers(&ui, &change, retry_tx);
     wire_writes(&ui, &change, &write_tx, backups);
     wire_close(&ui, &close_state, &change, close_tx);
