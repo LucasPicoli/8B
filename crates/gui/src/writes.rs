@@ -12,17 +12,22 @@ pub use controller_core::orchestrator::{WriteJob, WriteOp};
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
 
-/// Where a failed rollback saves the old profile: `$XDG_STATE_HOME/8b/backups`, else
-/// `~/.local/state/8b/backups`. An empty variable counts as unset, as the XDG spec
-/// says.
+/// Where 8B keeps its state: `$XDG_STATE_HOME/8b`, else `~/.local/state/8b`. An empty
+/// variable counts as unset, as the XDG spec says.
 #[must_use]
-pub fn backup_dir(xdg_state_home: Option<OsString>, home: Option<OsString>) -> PathBuf {
+pub fn state_dir(xdg_state_home: Option<OsString>, home: Option<OsString>) -> PathBuf {
     let base = xdg_state_home
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
         .or_else(|| home.filter(|v| !v.is_empty()).map(|h| Path::new(&h).join(".local/state")))
         .unwrap_or_else(|| PathBuf::from(".local/state"));
-    base.join("8b/backups")
+    base.join("8b")
+}
+
+/// Where a failed rollback saves the old profile: `backups` in the state dir.
+#[must_use]
+pub fn backup_dir(xdg_state_home: Option<OsString>, home: Option<OsString>) -> PathBuf {
+    state_dir(xdg_state_home, home).join("backups")
 }
 
 /// Runs `jobs` against `dev` in one pass, one result per job. Overwriting is forced:

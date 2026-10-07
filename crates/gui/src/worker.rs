@@ -14,6 +14,7 @@ use controller_core::device::ConfigPort;
 use controller_core::model::{Mode, ProfileReadResult, WriteResult};
 use controller_core::transport::DeviceIo;
 use controller_core::Error;
+use log::warn;
 
 use crate::holders::{holders, PROC};
 use crate::keepalive::Keepalive;
@@ -227,7 +228,7 @@ fn run(
 fn read_with_retry(dev: &dyn DeviceIo) -> Result<ProfileReadResult, Error> {
     match dev.read_all_profiles() {
         Err(e @ (Error::Timeout | Error::Usb(_) | Error::Io(_) | Error::Decode(_))) => {
-            eprintln!("8b: read failed: {e}; trying again");
+            warn!("read failed: {e}; trying again");
             thread::sleep(RETRY_AFTER);
             dev.read_all_profiles()
         }

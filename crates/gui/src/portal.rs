@@ -3,6 +3,7 @@
 
 use std::thread;
 
+use log::info;
 use slint::{Color, ComponentHandle as _, Weak};
 use zbus::zvariant::OwnedValue;
 
@@ -40,11 +41,11 @@ mod proxy {
 pub fn follow_accent(ui: Weak<AppWindow>) {
     let spawned = thread::Builder::new().name("portal".to_owned()).spawn(move || {
         if let Err(e) = watch(&ui) {
-            eprintln!("8b: no desktop accent: {e}");
+            info!("no desktop accent: {e}");
         }
     });
     if let Err(e) = spawned {
-        eprintln!("8b: no desktop accent: {e}");
+        info!("no desktop accent: {e}");
     }
 }
 

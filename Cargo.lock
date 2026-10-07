@@ -1847,6 +1847,8 @@ name = "gui"
 version = "0.1.0"
 dependencies = [
  "controller-core",
+ "env_logger",
+ "log",
  "serde_json",
  "slint",
  "slint-build",

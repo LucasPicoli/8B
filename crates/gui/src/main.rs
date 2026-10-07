@@ -11,6 +11,7 @@ mod controllers;
 mod files;
 mod holders;
 mod keepalive;
+mod logging;
 mod portal;
 mod render;
 mod review;
@@ -52,6 +53,7 @@ use controller_core::model::Mode;
 use controller_core::service::read::leftover_macros;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use controller_core::Error;
+use log::{info, warn};
 use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 
 use crate::buttons::{hit, picked_output, render_views};
@@ -84,21 +86,25 @@ fn read_present(commands: &Sender<Command>, state: &mut AppState) {
 fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
     match &event {
         Event::Presence { port, mode } => {
-            eprintln!("8b: controller on {port} {}", mode.map_or("gone", Mode::label));
+            info!("controller on {port} {}", mode.map_or("gone", Mode::label));
         }
         Event::Read { port, result: Ok(read) } => {
-            eprintln!("8b: read {} slots from {port}", read.profiles.len());
+            info!("read {} slots from {port}", read.profiles.len());
         }
         Event::Read { port, result: Err(f) } => {
-            eprintln!("8b: read from {port} failed: {}; held by {:?}", f.error, f.holders);
+            warn!("read from {port} failed: {}; held by {:?}", f.error, f.holders);
         }
         Event::Written { port, results, .. } => {
             for result in results {
-                eprintln!("8b: write to {port}: {}", result.message);
+                if result.success {
+                    info!("write to {port}: {}", result.message);
+                } else {
+                    warn!("write to {port} failed: {}", result.message);
+                }
             }
         }
-        Event::Installed(Ok(())) => eprintln!("8b: udev rule installed"),
-        Event::Installed(Err(e)) => eprintln!("8b: udev rule install failed: {e}"),
+        Event::Installed(Ok(())) => info!("udev rule installed"),
+        Event::Installed(Err(e)) => warn!("udev rule install failed: {e}"),
     }
     match event {
         Event::Presence { port, mode } => {
@@ -163,7 +169,7 @@ fn on_thread(ui: Weak<AppWindow>, jobs: Sender<Job>, ask: impl FnOnce() -> Job +
         }
     });
     if let Err(e) = spawned {
-        eprintln!("8b: no file dialog: {e}");
+        warn!("no file dialog: {e}");
     }
 }
 
@@ -299,7 +305,7 @@ fn send_write(
 /// to stderr.
 fn open_folder(folder: &std::path::Path) {
     if let Err(e) = std::process::Command::new("xdg-open").arg(folder).spawn() {
-        eprintln!("8b: could not open {}: {e}", folder.display());
+        warn!("could not open {}: {e}", folder.display());
     }
 }
 
@@ -415,7 +421,7 @@ fn wire_close(
     ui.on_close_discard(move || {
         if let Some(ui) = weak.upgrade() {
             if let Err(e) = ui.hide() {
-                eprintln!("8b: could not close the window: {e}");
+                warn!("could not close the window: {e}");
             }
         }
     });
@@ -452,6 +458,8 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let sandboxed = udev::sandboxed();
+    logging::init(sandboxed);
     let description = Pro3.description()?;
     let ui = AppWindow::new()?;
     // Wayland matches the window to its `.desktop` file by this ID, for the task bar icon.
@@ -459,7 +467,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     slint::set_xdg_app_id("io.github.LucasPicoli._8B")?;
     let defaults = description.modes.iter().map(|m| (m.id, Pro3.default_profile(m.id))).collect();
     let mut first = AppState::new(description, defaults);
-    let sandboxed = udev::sandboxed();
     first.sandboxed = sandboxed;
     // The sandbox cannot see the host's rule files: ask only when a read is denied.
     first.rule = if sandboxed { Rule::Current } else { udev::rule_state() };

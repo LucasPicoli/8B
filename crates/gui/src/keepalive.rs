@@ -8,6 +8,7 @@ use std::fs::File;
 use std::path::PathBuf;
 
 use controller_core::detect::{xpad_event, DetectedUsb};
+use log::warn;
 
 /// One controller whose event node should be held: its port path, its USB device
 /// number and the node to open.
@@ -43,9 +44,8 @@ impl Keepalive {
             if self.held.contains_key(&port) {
                 continue;
             }
-            let file = File::open(&node)
-                .map_err(|e| eprintln!("8b: cannot hold {}: {e}", node.display()))
-                .ok();
+            let file =
+                File::open(&node).map_err(|e| warn!("cannot hold {}: {e}", node.display())).ok();
             self.held.insert(port, (num, file));
         }
     }
