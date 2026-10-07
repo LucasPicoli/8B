@@ -5,7 +5,7 @@ import { MessageBar, Placeholder, Icons, TabBar } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, WritingDialog } from "dialogs.slint";
+import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot } from "types.slint";
@@ -109,6 +109,8 @@ export component AppWindow inherits Window {
     in property <BatchInfo> batch;
     // The question before closing over unsaved edits.
     in property <CloseInfo> closing;
+    // The worker thread has ended.
+    in property <bool> worker-stopped;
     // The footer button's text, and the sidebar bar's caption and button text.
     out property <string> write-label: "Write " + slot-title + "…";
     out property <string> edited-caption: edited-count == 1 ? "1 slot has unsaved edits" : edited-count + " slots have unsaved edits";
@@ -160,6 +162,7 @@ export component AppWindow inherits Window {
     callback batch-closed;
     // The close question: back to the window, write first, or close anyway.
     callback close-cancelled;
+    callback stopped-closed;
     callback close-write;
     callback close-discard;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
@@ -513,6 +516,11 @@ export component AppWindow inherits Window {
 
     if root.writing-title != "": WritingDialog {
         text: root.writing-title;
+    }
+
+    if root.worker-stopped: StoppedDialog {
+        accepted => { root.stopped-closed(); }
+        cancelled => { root.stopped-closed(); }
     }
 
     // Last, so it sits over any dialog that was open.

@@ -68,7 +68,7 @@ use crate::writes::WriteJob;
 /// Asks the worker to read the controller on `port`, and once asked, marks the read
 /// started.
 fn read(commands: &Sender<Command>, state: &mut AppState, port: &str) {
-    if commands.send(Command::ReadAll(port.to_owned())).is_ok() {
+    if state.send(commands, Command::ReadAll(port.to_owned())) {
         state.read_started(port);
     }
 }
@@ -294,7 +294,7 @@ fn send_write(
     write: Option<(String, Vec<WriteJob>)>,
 ) {
     if let Some((port, jobs)) = write {
-        if commands.send(Command::Write(port, jobs)).is_err() {
+        if !state.send(commands, Command::Write(port, jobs)) {
             state.write.running = None;
             state.write.batch = None;
         }
@@ -409,6 +409,8 @@ fn wire_close(
     });
     let c = change.clone();
     ui.on_close_cancelled(move || c(&AppState::cancel_close));
+    let c = change.clone();
+    ui.on_stopped_closed(move || c(&|s| s.worker_stopped = false));
     let c = change.clone();
     ui.on_close_write(move || {
         c(&|s| {
@@ -535,7 +537,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let c = change.clone();
     ui.on_install_rule(move || {
         c(&|s| {
-            if install_tx.send(Command::InstallUdevRule).is_ok() {
+            if s.send(&install_tx, Command::InstallUdevRule) {
                 s.install_started();
             }
         });

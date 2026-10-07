@@ -49,6 +49,12 @@ pub fn init(sandboxed: bool) {
     log::set_max_level(both.max_level());
     // A second logger in the same process is a bug in a test, not a reason to stop.
     let _ = log::set_boxed_logger(Box::new(both));
+    // A panic on the worker thread would otherwise reach stderr only.
+    let default = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("panic: {info}");
+        default(info);
+    }));
     log::info!(
         "8b {}, build {}, sandboxed {sandboxed}",
         env!("CARGO_PKG_VERSION"),

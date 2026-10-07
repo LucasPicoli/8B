@@ -151,6 +151,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_files(state, ui);
     render_writes(state, ui);
     render_close(state, ui);
+    ui.set_worker_stopped(state.worker_stopped);
     ui.set_read_error(state.read_error().map(sentence).unwrap_or_default().into());
     ui.set_read_error_elsewhere(state.failed_elsewhere());
     ui.set_read_error_title(

@@ -2,6 +2,7 @@
 //! window shows. Pure: no Slint, no I/O.
 
 use std::collections::BTreeMap;
+use std::sync::mpsc::Sender;
 
 use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
 use controller_core::model::{ButtonMapping, CanonicalProfile, Mode};
@@ -9,6 +10,7 @@ use controller_core::model::{ButtonMapping, CanonicalProfile, Mode};
 use crate::controllers::Controller;
 use crate::files::PendingImport;
 use crate::review::WriteState;
+use crate::worker::Command;
 
 /// The name a profile started from default gets.
 pub const NEW_PROFILE_NAME: &str = "New profile";
@@ -113,6 +115,8 @@ pub struct Notice {
 }
 
 /// Everything the window shows, kept between renders.
+// One independent flag per question the window can ask, not a state.
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct AppState {
     /// The controller model.
@@ -152,6 +156,9 @@ pub struct AppState {
     pub write: WriteState,
     /// The window was asked to close over unsaved edits: the question is open.
     pub closing: bool,
+    /// A command could not reach the worker: its thread has ended, so the stopped
+    /// message shows. The worker is not restarted.
+    pub worker_stopped: bool,
 }
 
 impl AppState {
@@ -178,7 +185,19 @@ impl AppState {
             pending_import: None,
             write: WriteState::default(),
             closing: false,
+            worker_stopped: false,
         }
+    }
+
+    /// Sends `command` to the worker. A send that fails means the worker thread is
+    /// gone: the stopped message shows, and the answer is `false`.
+    pub fn send(&mut self, commands: &Sender<Command>, command: Command) -> bool {
+        let sent = commands.send(command).is_ok();
+        if !sent {
+            log::error!("the worker has stopped: a command could not be sent");
+            self.worker_stopped = true;
+        }
+        sent
     }
 
     /// A read of the controller on `port` was denied. `rule` is the installed rule
@@ -304,6 +323,17 @@ pub mod tests {
     use controller_core::model::{CanonicalProfileSummary, ProfileReadResult, RawProfilePayload};
 
     use super::*;
+
+    #[test]
+    fn a_send_to_a_stopped_worker_shows_the_stopped_message() {
+        let mut s = new_state();
+        let (tx, rx) = std::sync::mpsc::channel();
+        assert!(s.send(&tx, Command::InstallUdevRule));
+        assert!(!s.worker_stopped);
+        drop(rx);
+        assert!(!s.send(&tx, Command::InstallUdevRule));
+        assert!(s.worker_stopped);
+    }
 
     /// The USB port path of the controller [`connected`] reads.
     pub const PORT: &str = "8-5";
