@@ -16,6 +16,7 @@ use controller_core::transport::DeviceIo;
 use controller_core::Error;
 
 use crate::holders::{holders, PROC};
+use crate::keepalive::Keepalive;
 use crate::writes::{self, WriteJob};
 
 /// Where the kernel lists USB devices.
@@ -160,6 +161,7 @@ fn run(
     let (sysfs, ports) = (site.sysfs, site.ports);
     let mut devices: BTreeMap<String, Box<dyn DeviceIo + Send>> = BTreeMap::new();
     let mut presence: BTreeMap<String, Debounce> = BTreeMap::new();
+    let mut keepalive = Keepalive::default();
     loop {
         match rx.recv_timeout(POLL) {
             Ok(Command::ReadAll(port)) => {
@@ -196,7 +198,9 @@ fn run(
             }
             Ok(Command::InstallUdevRule) => emit(Event::Installed(install())),
             Err(RecvTimeoutError::Timeout) => {
-                let seen: BTreeMap<String, Sighting> = scan_sysfs_all(sysfs, ports)
+                let found = scan_sysfs_all(sysfs, ports);
+                keepalive.sync(&found, |usb| devnum(&usb.sysfs_path));
+                let seen: BTreeMap<String, Sighting> = found
                     .iter()
                     .map(|usb| {
                         (usb.port_path().to_owned(), (usb.port.mode, devnum(&usb.sysfs_path)))

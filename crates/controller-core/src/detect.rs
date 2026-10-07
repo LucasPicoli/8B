@@ -105,6 +105,25 @@ pub fn config_hidraw(device_dir: &Path, interface: u8) -> Option<PathBuf> {
         .next()
 }
 
+/// Returns the `/dev/input/eventN` node of the interface that the `xpad` driver holds, for
+/// the device at `device_dir`.
+///
+/// Walks `<device_dir>/<if-dir>/input/inputN/eventN`. `None` for a device with no
+/// `xpad` interface, or while the kernel has not made the node yet.
+#[must_use]
+pub fn xpad_event(device_dir: &Path) -> Option<PathBuf> {
+    let children = |dir: PathBuf| std::fs::read_dir(dir).into_iter().flatten().flatten();
+    children(device_dir.to_path_buf())
+        .filter(|iface| {
+            std::fs::read_link(iface.path().join("driver"))
+                .is_ok_and(|d| d.file_name().is_some_and(|n| n == "xpad"))
+        })
+        .flat_map(|iface| children(iface.path().join("input")))
+        .flat_map(|input| children(input.path()))
+        .find(|e| e.file_name().to_str().is_some_and(|n| n.starts_with("event")))
+        .map(|e| Path::new("/dev/input").join(e.file_name()))
+}
+
 fn read_trimmed(path: &Path) -> Option<String> {
     std::fs::read_to_string(path).ok().map(|s| s.trim().to_lowercase())
 }
@@ -170,5 +189,20 @@ mod tests {
         write(&dev.join("8-5:1.2/0003:2DC8:310B.0003/hidraw/hidraw7/dev"), "");
         assert_eq!(config_hidraw(dev, 2), Some(PathBuf::from("/dev/hidraw7")));
         assert_eq!(config_hidraw(dev, 1), None);
+    }
+
+    #[test]
+    fn xpad_event_finds_the_node_of_the_xpad_interface() {
+        let dir = tempfile::tempdir().unwrap();
+        let dev = dir.path();
+        write(&dev.join("8-5:1.0/input/input23/event17/dev"), "");
+        write(&dev.join("8-5:1.0/input/input23/name"), "pad");
+        write(&dev.join("8-5:1.2/input/input24/event18/dev"), "");
+        std::os::unix::fs::symlink("../../bus/usb/drivers/xpad", dev.join("8-5:1.0/driver"))
+            .unwrap();
+        std::os::unix::fs::symlink("../../bus/usb/drivers/usbhid", dev.join("8-5:1.2/driver"))
+            .unwrap();
+        assert_eq!(xpad_event(dev), Some(PathBuf::from("/dev/input/event17")));
+        assert_eq!(xpad_event(&dev.join("missing")), None);
     }
 }

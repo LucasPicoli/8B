@@ -10,6 +10,7 @@ mod closing;
 mod controllers;
 mod files;
 mod holders;
+mod keepalive;
 mod portal;
 mod render;
 mod review;
