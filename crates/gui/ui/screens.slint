@@ -47,7 +47,6 @@ export component NoControllerScreen inherits Rectangle {
 export component PermissionScreen inherits Rectangle {
     in property <string> command;
     in property <string> rule-path;
-    in property <string> unit-path;
     // The rule is in place and access is still denied: ask for a replug instead.
     in property <bool> rule-installed;
     // An older rule is installed and access works: ask for an update.
@@ -161,7 +160,7 @@ export component PermissionScreen inherits Rectangle {
                             }
                         }
                         Text {
-                            text: (root.rule-installed ? "It installs " : "Both install ") + root.rule-path + " and " + root.unit-path + ". They give the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers, and keep 8BitDo controllers in XInput mode connected.";
+                            text: "It installs " + root.rule-path + ". It gives the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers.";
                             font-size: Theme.text-caption;
                             color: Theme.fg-muted;
                             wrap: word-wrap;

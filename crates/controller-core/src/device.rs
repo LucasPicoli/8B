@@ -37,6 +37,11 @@ pub struct ConfigPort {
     /// no writes in place. `None` means writes go out in this mode.
     #[serde(default)]
     pub write_via: Option<Mode>,
+    /// Whether the controller resets and reconnects in this current mode while no
+    /// program holds its event node open, so the udev keepalive rule must cover this
+    /// USB id. `false` when omitted.
+    #[serde(default)]
+    pub needs_keepalive: bool,
 }
 
 /// Protocol bytes of a controller model, plus a pointer to its description.

@@ -79,7 +79,6 @@ export component AppWindow inherits Window {
     in property <string> install-error;
     in property <string> udev-command;
     in property <string> udev-rule-path;
-    in property <string> keepalive-unit-path;
     in-out property <string> dialog;
     // A file for another mode waits for a yes.
     in property <ImportWarning> import-warning;
@@ -177,7 +176,6 @@ export component AppWindow inherits Window {
     if root.asks-for-rule: PermissionScreen {
         command: root.udev-command;
         rule-path: root.udev-rule-path;
-        unit-path: root.keepalive-unit-path;
         rule-installed: root.rule-installed;
         outdated: root.rule-outdated;
         skippable: root.rule-skippable;

@@ -1,5 +1,5 @@
-//! Installs the udev rule that lets the user at the seat open the controller, and
-//! the unit that keeps a pad in `XInput` mode connected.
+//! Installs the udev rules through `pkexec`: the access rule that lets the user at the
+//! seat open the controller, and the keepalive fix that keeps a pad connected.
 //!
 //! `pkexec` runs a shell line as root with the file texts passed as arguments, so
 //! root never reads the `AppImage`'s FUSE mount. When it fails, the window shows
@@ -11,19 +11,26 @@ use std::path::Path;
 use std::process::Command;
 
 use controller_core::transport::udev::{
-    KEEPALIVE_UNIT, KEEPALIVE_UNIT_PATH, UDEV_RULE, UDEV_RULE_PATH,
+    keepalive_rule, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT, KEEPALIVE_UNIT_PATH, UDEV_RULE,
+    UDEV_RULE_0_1_0, UDEV_RULE_PATH,
 };
 
 use crate::state::Rule;
 
-/// Writes `$1` to `$2` and `$3` to `$4`, reloads systemd and the rules, re-applies
-/// them to present hidraw nodes, and waits until udev has set the new access, so
-/// the next open needs no replug.
-const INSTALL_SCRIPT: &str = "printf '%s' \"$1\" > \"$2\" \
+/// Writes `$1` to `$2`, reloads the rules, re-applies them to present hidraw nodes,
+/// and waits until udev has set the new access, so the next open needs no replug.
+const ACCESS_SCRIPT: &str = "printf '%s' \"$1\" > \"$2\" \
+    && udevadm control --reload-rules \
+    && udevadm trigger --subsystem-match=hidraw --action=change \
+    && udevadm settle";
+
+/// Writes `$1` to `$2` and `$3` to `$4`, reloads systemd and the rules, and
+/// re-applies them to present input nodes, so the unit starts with no replug.
+const KEEPALIVE_SCRIPT: &str = "printf '%s' \"$1\" > \"$2\" \
     && printf '%s' \"$3\" > \"$4\" \
     && systemctl daemon-reload \
     && udevadm control --reload-rules \
-    && udevadm trigger --subsystem-match=hidraw --action=change \
+    && udevadm trigger --subsystem-match=input --action=change \
     && udevadm settle";
 
 /// `pkexec` exit code when the password prompt was closed.
@@ -43,32 +50,53 @@ pub fn sandboxed() -> bool {
     Path::new(FLATPAK_INFO).exists()
 }
 
-/// The installed files against the ones this build installs. A file that cannot
-/// be read counts as missing.
+/// The installed access rule against the one this build installs. A file that
+/// cannot be read counts as missing. The combined rule of 0.1.0 still grants the same
+/// access, so it counts as current.
 #[must_use]
 pub fn rule_state() -> Rule {
-    let rule = fs::read_to_string(UDEV_RULE_PATH).ok();
-    let unit = fs::read_to_string(KEEPALIVE_UNIT_PATH).ok();
-    match (rule.as_deref(), unit.as_deref()) {
-        (None, _) => Rule::Missing,
-        (Some(UDEV_RULE), Some(KEEPALIVE_UNIT)) => Rule::Current,
-        _ => Rule::Outdated,
+    classify(fs::read_to_string(UDEV_RULE_PATH).ok().as_deref())
+}
+
+/// [`rule_state`] for the text of the installed file, if any.
+fn classify(installed: Option<&str>) -> Rule {
+    match installed {
+        None => Rule::Missing,
+        Some(UDEV_RULE | UDEV_RULE_0_1_0) => Rule::Current,
+        Some(_) => Rule::Outdated,
     }
 }
 
-/// Installs the rule through `pkexec`. Blocks while the password prompt is open.
+/// Installs the access rule through `pkexec`. Blocks while the password prompt is open.
 ///
 /// # Errors
 /// Returns why the install failed, as a sentence for the window.
 pub fn install_rule() -> Result<(), String> {
-    let out = Command::new("pkexec")
-        .args(["/bin/sh", "-c", INSTALL_SCRIPT, "sh", UDEV_RULE, UDEV_RULE_PATH])
-        .args([KEEPALIVE_UNIT, KEEPALIVE_UNIT_PATH])
-        .output()
-        .map_err(|e| match e.kind() {
-            std::io::ErrorKind::NotFound => "pkexec is not installed.".to_owned(),
-            _ => format!("pkexec did not start: {e}."),
-        })?;
+    pkexec(ACCESS_SCRIPT, &[UDEV_RULE, UDEV_RULE_PATH])
+}
+
+/// Installs the keepalive rule and unit through `pkexec`. Blocks while the password
+/// prompt is open.
+///
+/// # Errors
+/// Returns why the install failed, as a sentence for the window.
+#[expect(dead_code, reason = "the keepalive offer in the editor calls it")]
+pub fn install_keepalive() -> Result<(), String> {
+    pkexec(
+        KEEPALIVE_SCRIPT,
+        &[&keepalive_rule(), KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT, KEEPALIVE_UNIT_PATH],
+    )
+}
+
+/// Runs `script` as root with `args` as `$1` and up.
+fn pkexec(script: &str, args: &[&str]) -> Result<(), String> {
+    let out =
+        Command::new("pkexec").args(["/bin/sh", "-c", script, "sh"]).args(args).output().map_err(
+            |e| match e.kind() {
+                std::io::ErrorKind::NotFound => "pkexec is not installed.".to_owned(),
+                _ => format!("pkexec did not start: {e}."),
+            },
+        )?;
     match out.status.code() {
         Some(0) => Ok(()),
         Some(PKEXEC_DISMISSED | PKEXEC_NOT_AUTHORISED) => {
@@ -79,5 +107,22 @@ pub fn install_rule() -> Result<(), String> {
             let last = stderr.lines().last().unwrap_or_default().trim();
             Err(format!("The install command failed ({}): {last}", out.status))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_0_1_0_combined_rule_reads_as_current() {
+        assert_eq!(classify(Some(UDEV_RULE_0_1_0)), Rule::Current);
+        assert_eq!(classify(Some(UDEV_RULE)), Rule::Current);
+    }
+
+    #[test]
+    fn a_missing_or_different_file_is_not_current() {
+        assert_eq!(classify(None), Rule::Missing);
+        assert_eq!(classify(Some("KERNEL==\"hidraw*\"\n")), Rule::Outdated);
     }
 }

@@ -68,10 +68,11 @@ Each `config_ports` entry in `description.json` has these fields:
 | `interface` | USB interface number whose hidraw node carries the config reports |
 | `framing` | `plain`, or `wrapped` for a Nintendo-style id (see `protocol/framing.rs`) |
 | `write_via` | Optional. A mode to flip to before a write, when this mode takes no writes in place |
+| `needs_keepalive` | Optional, `false` when omitted. `true` if the controller resets in this mode while no program holds its event node open (see the keepalive rule below) |
 
 The Pro 3 lists three ports: `2dc8:310b` for XInput (interface 2, plain),
 `057e:2009` for Switch (interface 0, wrapped, `write_via` DInput) and `2dc8:6009`
-for DInput (interface 0, plain).
+for DInput (interface 0, plain). Only the XInput port sets `needs_keepalive`.
 
 ### The udev rule
 
@@ -85,12 +86,23 @@ logged-in user access to it:
    id and the rule must not open every Nintendo device.
 3. A model with a new vendor id needs a new line in `UDEV_RULE`. Match the vendor
    and, if the vendor makes other devices, the product id.
-4. The keepalive line matches `xpad` event nodes of vendor `2dc8` only. It exists
-   because the Pro 3 resets in XInput mode when nothing polls it. Add a line only if
-   the new model does the same.
 
-An installed rule is compared to `UDEV_RULE` byte for byte, so after a change the
-app asks users to update it.
+An installed access rule is compared to `UDEV_RULE` byte for byte, so after a change
+the app asks users to update it. The rule of 0.1.0 (`UDEV_RULE_0_1_0`) also counts as
+current.
+
+### The keepalive rule
+
+Some pads reset when nothing polls them. The Pro 3 in XInput mode reconnects every
+1.6 s until a program opens its event node, because `xpad` polls a wired pad only
+while that node is open. That fix is a separate install from the access rule:
+`71-8b-keepalive.rules` plus the `8b-keepalive@.service` unit, with their own command
+(`keepalive_command`).
+
+`keepalive_rule()` writes one line per config port with `needs_keepalive: true`,
+matching the `xpad` event node by vendor and product id. A new model that resets the
+same way sets the field on its port and needs no change in `udev.rs`, once its
+description is listed in `descriptions()` there.
 
 ## The protocol layer a model can reuse
 

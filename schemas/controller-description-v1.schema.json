@@ -114,6 +114,10 @@
         "write_via": {
           "description": "Optional. The mode to flip the controller to before a write, when this mode takes no writes in place. That mode needs a port of its own without write_via.",
           "$ref": "#/$defs/ModeId"
+        },
+        "needs_keepalive": {
+          "description": "Optional, false when omitted. True when the controller resets and reconnects in this mode while no program holds its event node open. 8B then offers a udev rule that matches this USB id and starts a unit to hold the node.",
+          "type": "boolean"
         }
       }
     },

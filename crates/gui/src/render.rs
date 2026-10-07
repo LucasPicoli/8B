@@ -3,7 +3,7 @@
 
 use std::rc::Rc;
 
-use controller_core::transport::udev::{manual_command, KEEPALIVE_UNIT_PATH, UDEV_RULE_PATH};
+use controller_core::transport::udev::{manual_command, UDEV_RULE_PATH};
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::render_buttons;
@@ -182,7 +182,6 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     });
     ui.set_udev_command(manual_command().into());
     ui.set_udev_rule_path(UDEV_RULE_PATH.into());
-    ui.set_keepalive_unit_path(KEEPALIVE_UNIT_PATH.into());
 }
 
 /// Narrower than this, in logical pixels, toolbar buttons show only their icon.

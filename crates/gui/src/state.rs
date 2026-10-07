@@ -78,14 +78,14 @@ pub enum Access {
     StillDenied,
 }
 
-/// The installed udev rule and keepalive unit, against the ones this build installs.
+/// The installed access rule, against the one this build installs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Rule {
-    /// Both files match.
+    /// The file matches.
     Current,
     /// No rule file.
     Missing,
-    /// The rule file is from an older build, or the unit is missing or differs.
+    /// The rule file differs from the one this build installs.
     Outdated,
 }
 

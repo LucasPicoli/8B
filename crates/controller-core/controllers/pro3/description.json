@@ -13,7 +13,8 @@
       },
       "mode": "xinput",
       "interface": 2,
-      "framing": "plain"
+      "framing": "plain",
+      "needs_keepalive": true
     },
     {
       "usb": {
