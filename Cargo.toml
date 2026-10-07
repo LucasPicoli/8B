@@ -21,6 +21,7 @@ jsonschema = { version = "0.40", default-features = false }
 kurbo = "0.13"
 roxmltree = "0.21"
 log = "0.4"
+env_logger = { version = "0.11", default-features = false, features = ["auto-color", "humantime"] }
 
 [workspace.lints.rust]
 unsafe_code = "deny"

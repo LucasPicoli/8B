@@ -15,7 +15,7 @@ pub(crate) mod write;
 use std::path::PathBuf;
 
 use clap::builder::BoolishValueParser;
-use clap::{Args, Parser, Subcommand};
+use clap::{ArgAction, Args, Parser, Subcommand};
 
 use commands::{run_detect, run_dump, run_read, run_read_macro};
 use controller_core::model::{Mode, Slot};
@@ -39,6 +39,9 @@ const EXIT_USAGE: i32 = 2;
 #[derive(Debug, Parser)]
 #[command(name = "8bitdo-pro-3", version, about)]
 struct Cli {
+    /// Log to stderr: -v for debug, -vv for trace. `RUST_LOG` overrides it.
+    #[arg(short, long, global = true, action = ArgAction::Count)]
+    verbose: u8,
     #[command(subcommand)]
     command: Commands,
 }
@@ -257,8 +260,20 @@ fn no_option(verb: &str, example: &str) -> i32 {
     EXIT_USAGE
 }
 
+/// The log filter for `-v` flags: `warn`, then `debug`, then `trace`. A non-empty
+/// `RUST_LOG` wins over the flags.
+fn log_spec(verbose: u8, rust_log: Option<&str>) -> String {
+    rust_log.filter(|s| !s.is_empty()).map_or_else(
+        || (["warn", "debug", "trace"].get(usize::from(verbose)).unwrap_or(&"trace")).to_string(),
+        str::to_owned,
+    )
+}
+
 fn main() {
     let cli = Cli::parse();
+    env_logger::Builder::new()
+        .parse_filters(&log_spec(cli.verbose, std::env::var("RUST_LOG").ok().as_deref()))
+        .init();
 
     let code = match cli.command {
         Commands::Detect => run_detect(),
@@ -299,4 +314,29 @@ fn main() {
     };
 
     std::process::exit(code);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verbose_flags_raise_the_level() {
+        assert_eq!(log_spec(0, None), "warn");
+        assert_eq!(log_spec(1, None), "debug");
+        assert_eq!(log_spec(2, None), "trace");
+        assert_eq!(log_spec(5, None), "trace");
+    }
+
+    #[test]
+    fn rust_log_wins_over_the_flags() {
+        assert_eq!(log_spec(2, Some("controller_core=info")), "controller_core=info");
+        assert_eq!(log_spec(1, Some("")), "debug");
+    }
+
+    #[test]
+    fn verbose_counts_repeats_before_or_after_the_verb() {
+        assert_eq!(Cli::parse_from(["8b", "-vv", "detect"]).verbose, 2);
+        assert_eq!(Cli::parse_from(["8b", "detect", "-v"]).verbose, 1);
+    }
 }

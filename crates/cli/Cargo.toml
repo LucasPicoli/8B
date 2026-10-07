@@ -14,6 +14,7 @@ path = "src/main.rs"
 controller-core = { path = "../controller-core" }
 serde_json.workspace = true
 clap.workspace = true
+env_logger.workspace = true
 
 [lints]
 workspace = true
