@@ -20,7 +20,7 @@ case $arch in
     *) echo "unknown arch: $arch" >&2; exit 1 ;;
 esac
 MAX_GLIBC=2.35
-APP_ID=io.github.LucasPicoli.8B
+APP_ID=io.github.LucasPicoli._8B
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)

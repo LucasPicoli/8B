@@ -3,6 +3,6 @@ Type=Application
 Name=8B
 Comment=Edit the button, stick and trigger profiles stored on 8BitDo controllers
 Exec=8b
-Icon=io.github.LucasPicoli.8B
+Icon=io.github.LucasPicoli._8B
 Terminal=false
 Categories=Utility;Settings;HardwareSettings;
