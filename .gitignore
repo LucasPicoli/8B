@@ -1,3 +1,5 @@
 /target
 **/*.rs.bk
 /packaging/linux/out/
+/packaging/flatpak/cargo-sources.json
+/packaging/flatpak/out/

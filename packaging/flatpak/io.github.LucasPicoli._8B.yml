@@ -1,0 +1,55 @@
+id: io.github.LucasPicoli._8B
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: 8b
+
+finish-args:
+  # Only --device=all exposes /dev/hidraw*; no portal covers it.
+  - --device=all
+  - --socket=wayland
+  # Not fallback-x11: it hides X11 under Wayland, and Copy then reaches no clipboard.
+  - --socket=x11
+  - --share=ipc
+  - --device=dri
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+
+modules:
+  - name: 8b
+    buildsystem: simple
+    build-options:
+      env:
+        # The generated cargo/config in cargo-sources.json lives under this path.
+        CARGO_HOME: /run/build/8b/cargo
+        CARGO_NET_OFFLINE: 'true'
+    build-commands:
+      - cargo --offline fetch --manifest-path Cargo.toml --verbose
+      - cargo build --offline --release --locked -p gui
+      - install -Dm755 target/release/8b -t ${FLATPAK_DEST}/bin
+      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.desktop -t ${FLATPAK_DEST}/share/applications
+      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo
+      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B-16.png ${FLATPAK_DEST}/share/icons/hicolor/16x16/apps/io.github.LucasPicoli._8B.png
+      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B-32.png ${FLATPAK_DEST}/share/icons/hicolor/32x32/apps/io.github.LucasPicoli._8B.png
+      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/io.github.LucasPicoli._8B.png
+      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/io.github.LucasPicoli._8B.svg
+    sources:
+      # An allowlist: the repo root also holds a local target/ and other large, non-build dirs.
+      - type: file
+        path: ../../Cargo.toml
+      - type: file
+        path: ../../Cargo.lock
+      - type: dir
+        path: ../../crates
+        dest: crates
+      - type: dir
+        path: ../../schemas
+        dest: schemas
+      - type: dir
+        path: ../linux
+        dest: packaging/linux
+        skip: [out]
+      - cargo-sources.json

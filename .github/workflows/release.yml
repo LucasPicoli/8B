@@ -20,6 +20,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Tag matches the workspace version
         run: |
+          # A pre-release tag such as v0.1.1-rc.1 may sit on any workspace version.
+          case $GITHUB_REF_NAME in *-*) exit 0 ;; esac
           version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
           [ "${GITHUB_REF_NAME#v}" = "$version" ] || { echo "tag $GITHUB_REF_NAME, workspace version $version" >&2; exit 1; }
       - run: packaging/linux/prepare-container.sh
@@ -32,8 +34,67 @@ jobs:
             packaging/linux/out/8B-*.AppImage.zsync
             packaging/linux/out/8B-*.AppImage.sha256
           if-no-files-found: error
+  # The crate list is the same for both arches. The Flatpak build image has no aiohttp or uv,
+  # so the generator runs here and hands the file over as an artifact.
+  flatpak-sources:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Tag matches the workspace version
+        run: |
+          # A pre-release tag such as v0.1.1-rc.1 may sit on any workspace version.
+          case $GITHUB_REF_NAME in *-*) exit 0 ;; esac
+          version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
+          [ "${GITHUB_REF_NAME#v}" = "$version" ] || { echo "tag $GITHUB_REF_NAME, workspace version $version" >&2; exit 1; }
+      - run: pipx install uv
+      - run: packaging/flatpak/cargo-sources.sh
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: flatpak-sources
+          path: packaging/flatpak/cargo-sources.json
+          if-no-files-found: error
+  flatpak:
+    needs: flatpak-sources
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-24.04
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-26.08@sha256:6ed6921bb5a9e1a916989971844f159b854b7b225880c381fa34f7a158863039
+      options: --privileged
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: flatpak-sources
+          path: packaging/flatpak
+      - id: v
+        run: echo "bundle=8B-${GITHUB_REF_NAME#v}-${{ matrix.arch }}.flatpak" >> "$GITHUB_OUTPUT"
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@79327416609af08178ad73b352877e51450790b3 # v6.8
+        with:
+          manifest-path: packaging/flatpak/io.github.LucasPicoli._8B.yml
+          bundle: ${{ steps.v.outputs.bundle }}
+          arch: ${{ matrix.arch }}
+          branch: stable
+          repository-url: https://dl.flathub.org/repo/flathub.flatpakrepo
+          cache: false
+          # The next step uploads the bundle together with its checksum.
+          upload-artifact: false
+      - run: sha256sum "${{ steps.v.outputs.bundle }}" > "${{ steps.v.outputs.bundle }}.sha256"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: flatpak-${{ matrix.arch }}
+          path: |
+            8B-*.flatpak
+            8B-*.flatpak.sha256
+          if-no-files-found: error
   release:
-    needs: build
+    needs: [build, flatpak]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

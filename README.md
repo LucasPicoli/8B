@@ -23,20 +23,24 @@ To add another controller, see [Adding a controller](docs/adding-a-controller.md
 
 Download the latest AppImage from the [releases page](https://github.com/LucasPicoli/8B/releases), run `chmod +x` on it, and start it. x86_64 is tested; the aarch64 build has not been tested on hardware.
 
-## USB permission
+### Flatpak
 
-Linux blocks apps from opening the controller until a device rule allows it. On first run, 8B asks to install one and prompts for your password once (through `pkexec`). It writes two files:
-
-- `/etc/udev/rules.d/70-8b.rules` gives the logged-in user access to 8BitDo controllers.
-- `/etc/systemd/system/8b-keepalive@.service` keeps a controller in XInput mode from reconnecting every second while no program has it open.
-
-It then reloads systemd and udev. If you prefer, the window shows the same steps as one command to run yourself.
-
-To remove both:
+The releases page also has `8B-<version>-x86_64.flatpak` and `8B-<version>-aarch64.flatpak`, each with a `.sha256` file. Install one with:
 
 ```sh
-sudo rm /etc/udev/rules.d/70-8b.rules /etc/systemd/system/8b-keepalive@.service
-sudo systemctl daemon-reload
+flatpak install --user 8B-<version>-x86_64.flatpak
+```
+
+Flatpak offers to add the Flathub remote and downloads the freedesktop runtime from it, so the install needs a network connection. x86_64 is tested; the aarch64 bundle has not been tested on hardware.
+
+## USB permission
+
+Linux blocks apps from opening the controller until a device rule allows it. On first run, 8B asks to install one and prompts for your password once (through `pkexec`). It writes `/etc/udev/rules.d/70-8b.rules`, which gives the logged-in user access to 8BitDo controllers, then reloads udev. If you prefer, the window shows the same steps as one command to run yourself.
+
+To remove it:
+
+```sh
+sudo rm /etc/udev/rules.d/70-8b.rules
 sudo udevadm control --reload-rules
 ```
 
