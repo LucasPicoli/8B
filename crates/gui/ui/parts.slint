@@ -27,7 +27,8 @@ export global Diagnostics {
 }
 
 // A flat button that copies the diagnostics, then says "Copied" for 2 seconds. Slint
-// has no clipboard call, so a hidden text input holds the text and copies it.
+// has no clipboard call, so a hidden text input holds the text and copies it. It is
+// emptied at once: even hidden, a long text sizes the layout around it.
 export component CopyDiagnostics inherits Rectangle {
     property <bool> copied;
     preferred-width: btn.preferred-width;
@@ -43,7 +44,7 @@ export component CopyDiagnostics inherits Rectangle {
             field.text = Diagnostics.text();
             field.select-all();
             field.copy();
-            field.clear-selection();
+            field.text = "";
             root.copied = true;
         }
     }

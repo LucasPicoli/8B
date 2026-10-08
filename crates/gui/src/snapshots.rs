@@ -4,6 +4,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
 use std::collections::HashSet;
+use std::fmt::Write as _;
 use std::io::Write as _;
 use std::rc::Rc;
 
@@ -880,4 +881,40 @@ fn copy_diagnostics_fills_the_clipboard() {
     });
     assert_eq!(CLIPBOARD.with_borrow(Clone::clone), "run header\nlog line");
     save("stopped-copied", &ui);
+}
+
+/// A long log on the clipboard leaves the read-error bar its own height.
+#[test]
+fn copying_a_long_log_keeps_the_bar_size() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    use slint::{Global as _, LogicalPosition};
+    let mut s = new_state();
+    s.presence(PORT, Some(Mode::XInput));
+    s.read_finished(PORT, Err("device communication timed out".to_owned()));
+    let ui = window(&s);
+    let long: String = (0..200).fold(String::new(), |mut out, i| {
+        let _ = writeln!(out, "log line {i}");
+        out
+    });
+    Diagnostics::get(&ui).on_text(move || long.clone().into());
+    let red = |ui: &AppWindow| {
+        let shot = ui.window().take_snapshot().unwrap();
+        shot.as_slice().iter().filter(|p| u16::from(p.r) > u16::from(p.g.max(p.b)) + 10).count()
+    };
+    let before = red(&ui);
+    save("bar-before-copy", &ui);
+    let at = LogicalPosition::new(1100.0, 39.0);
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at });
+    ui.window().dispatch_event(WindowEvent::PointerPressed {
+        position: at,
+        button: PointerEventButton::Left,
+    });
+    ui.window().dispatch_event(WindowEvent::PointerReleased {
+        position: at,
+        button: PointerEventButton::Left,
+    });
+    assert!(CLIPBOARD.with_borrow(|c| c.starts_with("log line 0")), "the click copied");
+    save("bar-after-copy", &ui);
+    let after = red(&ui);
+    assert!(after < before * 2, "the bar grew: {before} red pixels before the copy, {after} after");
 }
