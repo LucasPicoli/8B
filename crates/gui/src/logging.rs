@@ -23,7 +23,7 @@ const PREV_NAME: &str = "8b.prev.log";
 const LOG_LIMIT: u64 = 2 * 1024 * 1024;
 /// The last line of a full file.
 const FULL_LINE: &str = "log full: no more lines are written\n";
-/// Log lines "Copy diagnostics" carries after the run header.
+/// Log lines "Copy diagnostics" carries after the run header, counted after repeats merge.
 const DIAGNOSTIC_LINES: usize = 200;
 /// The file records 8B and the core at `debug` whatever stderr shows. Other crates
 /// stop at `info`: the Wayland client logs a line per protocol event at `debug`.
@@ -82,17 +82,112 @@ pub fn diagnostics() -> String {
     )
 }
 
-/// The first line of `text`, then its last `n` lines, with a note when lines between
-/// are left out.
+/// The first line of `text`, then the last `n` lines after [`collapse`], with a note
+/// when lines between are left out.
 fn tail(text: &str, n: usize) -> String {
-    let lines: Vec<&str> = text.lines().collect();
-    let skipped = lines.len().saturating_sub(n + 1);
-    if skipped == 0 {
-        return text.to_owned();
+    let mut lines = text.lines();
+    let Some(header) = lines.next() else {
+        return String::new();
+    };
+    let body = collapse(lines);
+    let skipped = body.len().saturating_sub(n);
+    let note = (skipped > 0).then(|| format!("({skipped} earlier lines left out)"));
+    std::iter::once(header.to_owned())
+        .chain(note)
+        .chain(body.into_iter().skip(skipped))
+        .map(|line| line + "\n")
+        .collect()
+}
+
+/// `lines` with each run of consecutive `debug` or `info` lines that match apart from
+/// the timestamp and the `in N ms` figure merged into one. `warn` and `error` lines
+/// are never merged.
+fn collapse<'a>(lines: impl Iterator<Item = &'a str>) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut run: Option<Run<'a>> = None;
+    for line in lines {
+        match (run.take(), Run::parse(line)) {
+            (Some(mut open), Some(next)) if open.key == next.key => {
+                open.absorb(&next);
+                run = Some(open);
+            }
+            (open, next) => {
+                out.extend(open.map(|r| r.render()));
+                match next {
+                    Some(next) => run = Some(next),
+                    None => out.push(line.to_owned()),
+                }
+            }
+        }
     }
-    let header = lines.first().copied().unwrap_or_default();
-    let kept = lines.iter().skip(lines.len() - n).copied().collect::<Vec<_>>().join("\n");
-    format!("{header}\n({skipped} earlier lines left out)\n{kept}\n")
+    out.extend(run.map(|r| r.render()));
+    out
+}
+
+/// One or more log lines that [`collapse`] shows as one.
+struct Run<'a> {
+    /// The words of the first line: timestamp, level, source, text.
+    words: Vec<&'a str>,
+    /// Index in `words` of the `N` of `in N ms`, if the line has one.
+    ms_at: Option<usize>,
+    /// The line without its timestamp and with `N` blanked: equal keys merge.
+    key: String,
+    count: usize,
+    /// Lowest and highest `N` seen.
+    ms: (u64, u64),
+    /// Timestamp of the last line.
+    until: &'a str,
+}
+
+impl<'a> Run<'a> {
+    /// `None` for a line that must stand alone: a `warn` or `error`, or text that is
+    /// not a log line.
+    fn parse(line: &'a str) -> Option<Self> {
+        let words: Vec<&str> = line.split(' ').collect();
+        let (until, level) = (words.first().copied()?, words.get(1).copied()?);
+        if !matches!(level, "DEBUG" | "INFO" | "TRACE") {
+            return None;
+        }
+        let ms_at = words.windows(3).position(
+            |w| matches!(w, ["in", n, unit] if n.parse::<u64>().is_ok() && unit.starts_with("ms")),
+        );
+        let ms_at = ms_at.map(|i| i + 1);
+        let ms = ms_at.and_then(|i| words.get(i)?.parse().ok()).unwrap_or(0);
+        let key = words
+            .iter()
+            .enumerate()
+            .skip(1)
+            .map(|(i, w)| if Some(i) == ms_at { "#" } else { w })
+            .collect::<Vec<_>>()
+            .join(" ");
+        Some(Self { words, ms_at, key, count: 1, ms: (ms, ms), until })
+    }
+
+    fn absorb(&mut self, next: &Self) {
+        self.count += 1;
+        self.ms = (self.ms.0.min(next.ms.0), self.ms.1.max(next.ms.1));
+        self.until = next.until;
+    }
+
+    /// The first line, with the range of `N` and the count when several were merged.
+    fn render(&self) -> String {
+        if self.count == 1 {
+            return self.words.join(" ");
+        }
+        let range = match self.ms {
+            (lo, hi) if lo == hi => lo.to_string(),
+            (lo, hi) => format!("{lo} to {hi}"),
+        };
+        let line = self.words.iter().enumerate().fold(String::new(), |mut acc, (i, w)| {
+            if i > 0 {
+                acc.push(' ');
+            }
+            acc.push_str(if Some(i) == self.ms_at { &range } else { w });
+            acc
+        });
+        let time = self.until.split_once('T').map_or(self.until, |(_, t)| t.trim_end_matches('Z'));
+        format!("{line} (x{}, until {time})", self.count)
+    }
 }
 
 /// Which package the run came from, for the header line.
@@ -283,6 +378,50 @@ mod tests {
         assert_eq!(tail(text, 5), text, "a log that fits is copied whole");
         assert_eq!(tail(text, 2), "header\n(3 earlier lines left out)\n4\n5\n");
         assert_eq!(tail("", 2), "");
+    }
+
+    fn debug(second: u32, ms: u32) -> String {
+        format!(
+            "2026-10-08T01:21:{second:02}Z DEBUG controller_core::transport::session command 0x02 ok in {ms} ms, 0 other reports skipped"
+        )
+    }
+
+    #[test]
+    fn a_run_of_matching_lines_becomes_one() {
+        let lines: Vec<String> = (0..54).map(|i| debug(40 + i / 27, 11 + i % 41)).collect();
+        let merged = collapse(lines.iter().map(String::as_str));
+        assert_eq!(
+            merged,
+            ["2026-10-08T01:21:40Z DEBUG controller_core::transport::session command 0x02 ok in 11 to 51 ms, 0 other reports skipped (x54, until 01:21:41)"]
+        );
+    }
+
+    #[test]
+    fn a_warn_or_a_different_line_splits_the_run() {
+        let warn = "2026-10-08T01:21:41Z WARN  controller_core::transport::session read failed";
+        let other = "2026-10-08T01:21:41Z DEBUG controller_core::transport::session command 0x05 ok in 4 ms, 0 other reports skipped";
+        let lines =
+            [debug(40, 11), debug(40, 12), warn.into(), warn.into(), debug(41, 13), other.into()];
+        let merged = collapse(lines.iter().map(String::as_str));
+        let first = merged.first().map(String::as_str).unwrap_or_default();
+        assert!(first.ends_with("in 11 to 12 ms, 0 other reports skipped (x2, until 01:21:40)"));
+        assert_eq!(
+            merged.get(1..),
+            Some(&[warn.into(), warn.into(), debug(41, 13), other.into()][..])
+        );
+    }
+
+    #[test]
+    fn the_window_counts_lines_after_the_merge() {
+        let mut text = String::from("header\n");
+        for i in 0..500 {
+            text.push_str(&debug(40, i));
+            text.push('\n');
+        }
+        text.push_str("2026-10-08T01:21:42Z ERROR 8b boom\n");
+        let out = tail(&text, 3);
+        assert_eq!(out.lines().count(), 3, "header, one merged line, the error: {out}");
+        assert!(out.ends_with("ERROR 8b boom\n"));
     }
 
     #[test]
