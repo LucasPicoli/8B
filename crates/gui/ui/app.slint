@@ -299,9 +299,6 @@ export component AppWindow inherits Window {
             }
 
             if !root.connected: HorizontalLayout {
-                padding-left: 16px;
-                padding-right: 16px;
-                padding-top: 10px;
                 MessageBar {
                     icon: Icons.unplug;
                     title: "The controller was unplugged.";
@@ -309,9 +306,6 @@ export component AppWindow inherits Window {
                 }
             }
             if root.read-error != "": HorizontalLayout {
-                padding-left: 16px;
-                padding-right: 16px;
-                padding-top: 10px;
                 MessageBar {
                     error: true;
                     diagnostics: true;
@@ -324,9 +318,6 @@ export component AppWindow inherits Window {
             }
 
             if root.notice-title != "": HorizontalLayout {
-                padding-left: 16px;
-                padding-right: 16px;
-                padding-top: 10px;
                 // Good news fades; an error stays until it is closed.
                 Timer {
                     interval: 5s;
