@@ -1,10 +1,16 @@
+<div align="center">
+
+<img src="packaging/linux/io.github.LucasPicoli._8B.svg" alt="8B app icon" width="128" height="128">
+
 # 8B
+
+**Read and edit the profiles stored on your 8BitDo controller, over USB, on Linux.**
+
+[Download](#download) · [Supported devices](#supported-devices) · [USB permission](#usb-permission) · [Build from source](#build-from-source) · [Licence](#licence)
 
 ![8B editing a DInput profile: saved remaps in blue, unsaved edits in orange](docs/images/screenshot.png)
 
-8B is a Linux tool for reading and editing the profiles stored on 8BitDo controllers over a USB cable.
-
-8B is an independent project, not made or endorsed by 8BitDo.
+</div>
 
 ## Supported devices
 
@@ -16,22 +22,13 @@ To add another controller, see [Adding a controller](docs/adding-a-controller.md
 
 ## Roadmap
 
-- Macro creation and editing
-- Support for more controllers
+- [ ] Macro creation and editing
+- [ ] Support for more controllers
+- [ ] Internationalization (translated interface)
 
 ## Download
 
 Download the latest AppImage from the [releases page](https://github.com/LucasPicoli/8B/releases), run `chmod +x` on it, and start it. x86_64 is tested; the aarch64 build has not been tested on hardware.
-
-### Flatpak
-
-The releases page also has `8B-<version>-x86_64.flatpak` and `8B-<version>-aarch64.flatpak`, each with a `.sha256` file. Install one with:
-
-```sh
-flatpak install --user 8B-<version>-x86_64.flatpak
-```
-
-Flatpak offers to add the Flathub remote and downloads the freedesktop runtime from it, so the install needs a network connection. x86_64 is tested; the aarch64 bundle has not been tested on hardware.
 
 ## USB permission
 
@@ -61,4 +58,7 @@ A command-line tool, `8bitdo-pro-3`, lives in `crates/cli`.
 
 ## Licence
 
-GPL-3.0-or-later.
+8B is licensed under GPL-3.0-or-later. See [LICENSE](LICENSE).
+
+> [!NOTE]
+> 8B is an independent project, not made or endorsed by 8BitDo.
