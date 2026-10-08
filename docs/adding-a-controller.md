@@ -4,6 +4,9 @@ The 8BitDo Pro 3 is the only supported model, so every path below uses it as the
 example. Nothing here has been tested against a second model. Where the code still
 assumes the Pro 3, this guide says so (see "What is tied to the Pro 3 today").
 
+To learn your controller's protocol first, see
+[Reverse engineering a controller](reverse-engineering.md).
+
 ## What a model is made of
 
 A model has four parts:

@@ -18,7 +18,8 @@
 | --- | --- |
 | 8BitDo Pro 3 | Edit button mapping, sticks, triggers and vibration in every slot of XInput, Switch and DInput. Clear slots. Import and export profiles as JSON. View macros (read-only). |
 
-To add another controller, see [Adding a controller](docs/adding-a-controller.md).
+To add another controller, start with [Reverse engineering a controller](docs/reverse-engineering.md),
+then see [Adding a controller](docs/adding-a-controller.md).
 
 ## Roadmap
 
