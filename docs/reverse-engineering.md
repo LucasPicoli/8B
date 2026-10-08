@@ -104,18 +104,21 @@ that name in every filter and command in this section.
 
 ### Tell the framing apart
 
-The first bytes of a request tell you which family the pad belongs to:
+The first bytes of a request tell you which family the pad belongs to. The middle
+column is the value for `framing` in your description:
 
-| A request starts with | Framing | Seen on |
-| --- | --- | --- |
-| `81 04 <command>` | Pro 3 framing, the request follows at byte 2 | Pro 3, Ultimate 2 |
-| `81 <length> 04 <command>` | V1 framing, with a length byte before the `04` | Pro 2 (`81 3e 04`) |
-| `01 66 aa` | Wrapped Pro 3 framing, used under a Nintendo USB id | Pro 3 in Switch mode |
+| A request starts with | `framing` | What it is | Seen on |
+| --- | --- | --- | --- |
+| `81 04 <command>` | `plain` | The request follows at byte 2 | Pro 3, Ultimate 2 |
+| `81 <length> 04 <command>` | `length` | A length byte after the `81` moves the request to byte 3 | Pro 2 (`81 3e 04`) |
+| `01 66 aa` | `wrapped` | A Nintendo report prefix, used under a Nintendo USB id | Pro 3 in Switch mode |
 
-The Pro 3 framing is in
-[`protocol/framing.rs`](../crates/controller-core/src/protocol/framing.rs). The Pro 2
-facts come from [TheJayMann/8bitdo-spec](https://github.com/TheJayMann/8bitdo-spec),
-and the Ultimate 2 facts from
+All three are in
+[`protocol/framing.rs`](../crates/controller-core/src/protocol/framing.rs). The length
+byte is 17 plus the request's chunk length: `3e` for a 45-byte chunk, `11` for a
+command with none. A `length` pad replies in the `plain` layout. The Pro 2 facts come
+from [TheJayMann/8bitdo-spec](https://github.com/TheJayMann/8bitdo-spec), whose scripts
+read and write a real Pro 2, and the Ultimate 2 facts from
 [ascendedent/8bitdo-Linux-Software](https://github.com/ascendedent/8bitdo-Linux-Software).
 If your pad starts its requests with something else, open an issue with the capture.
 A new framing is a new `Framing` variant, not a new protocol layer.

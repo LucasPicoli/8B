@@ -135,7 +135,7 @@ impl Session {
             Ok(reply) => reply,
             Err(e) => {
                 // A wrapped id that stays silent may be a Nintendo pad: send nothing more.
-                session.paused = session.framing == Framing::Plain;
+                session.paused = session.framing != Framing::Wrapped;
                 return Err(e);
             }
         };

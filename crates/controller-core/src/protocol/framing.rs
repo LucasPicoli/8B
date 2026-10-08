@@ -14,6 +14,11 @@ const WRAPPED_IN: [u8; 3] = [0x81, 0x66, 0xA5];
 const REPLY_HEAD: [u8; 2] = [0x02, 0x04];
 /// Request byte that carries the command.
 const REQ_CMD: usize = 2;
+/// Request bytes that carry the chunk length, little-endian.
+const REQ_CHUNK_LEN: usize = 6;
+/// Bytes a length-framed request counts before its data: the `04` and the 16-byte
+/// request header.
+const LENGTH_HEADER: usize = 17;
 /// Reply byte that echoes the request's command.
 const REPLY_CMD_ECHO: usize = 4;
 
@@ -26,6 +31,10 @@ pub enum Framing {
     /// Nintendo-id framing: request `01 66 AA` + normal\[1..\] (normal byte k at k+2),
     /// reply `81 66 A5` + normal\[2..\] (normal byte k at k+1).
     Wrapped,
+    /// Length-byte framing of older 8BitDo pads such as the Pro 2. The request is
+    /// `81 <len>` followed by normal\[1..\] (normal byte k at k+1), where `len` is 17
+    /// plus the chunk length. Replies are plain.
+    Length,
 }
 
 impl Framing {
@@ -35,15 +44,20 @@ impl Framing {
     /// keeps 44 bytes. The CRC stays the one taken over 45; the device accepts it.
     #[must_use]
     pub fn request(self, normal: &[u8; PACKET_LEN]) -> [u8; PACKET_LEN] {
+        let prefixed = |head: &[u8]| {
+            let mut wire = [0u8; PACKET_LEN];
+            for (dst, b) in wire.iter_mut().zip(head.iter().chain(normal.iter().skip(1))) {
+                *dst = *b;
+            }
+            wire
+        };
         match self {
             Self::Plain => *normal,
-            Self::Wrapped => {
-                let mut wire = [0u8; PACKET_LEN];
-                let src = WRAPPED_OUT.iter().chain(normal.iter().skip(1));
-                for (dst, b) in wire.iter_mut().zip(src) {
-                    *dst = *b;
-                }
-                wire
+            Self::Wrapped => prefixed(&WRAPPED_OUT),
+            Self::Length => {
+                let chunk = normal.get(REQ_CHUNK_LEN).copied().unwrap_or(0);
+                let len = (LENGTH_HEADER + usize::from(chunk)).min(PACKET_LEN - 2);
+                prefixed(&[normal[0], u8::try_from(len).unwrap_or(u8::MAX)])
             }
         }
     }
@@ -55,7 +69,7 @@ impl Framing {
     #[must_use]
     pub fn reply(self, raw: &[u8], request: &[u8; PACKET_LEN]) -> Option<Vec<u8>> {
         let mut normal = match self {
-            Self::Plain => raw.starts_with(&REPLY_HEAD).then(|| raw.to_vec())?,
+            Self::Plain | Self::Length => raw.starts_with(&REPLY_HEAD).then(|| raw.to_vec())?,
             Self::Wrapped => {
                 let rest = raw.strip_prefix(&WRAPPED_IN)?;
                 REPLY_HEAD.iter().chain(rest).copied().collect()
@@ -74,6 +88,7 @@ impl Framing {
 mod tests {
     use super::*;
     use crate::protocol::wire::{build_start_config, build_upload_packet};
+    use crate::protocol::wire_write::{build_apply, build_write_packet};
 
     #[test]
     fn wrapped_request_shifts_normal_bytes_by_two() {
@@ -83,6 +98,31 @@ mod tests {
         // CRC at normal 8..10 lands at 10..12; payload at 18 lands at 20, cut to 44.
         assert_eq!(&wire[10..12], &normal[8..10]);
         assert_eq!(&wire[20..], &normal[18..62]);
+    }
+
+    /// The Pro 2 read and apply packets of TheJayMann/8bitdo-spec, which reads and
+    /// writes a real Pro 2 (`Pro2/diReadPro2.sh`, `Pro2/diWritePro2.sh`).
+    #[test]
+    fn length_request_inserts_the_length_byte() {
+        // Read 45 bytes at offset 45 of a 1652-byte blob: `81 3e 04 02 00 00 00 2d 00`,
+        // then the CRC, then `74 06 00 00 2d 00`.
+        let normal = build_upload_packet(45, &[0xCC; 45], 1652);
+        let wire = Framing::Length.request(&normal);
+        assert_eq!(&wire[..9], &[0x81, 0x3E, 0x04, 0x02, 0x00, 0x00, 0x00, 0x2D, 0x00]);
+        assert_eq!(&wire[11..17], &[0x74, 0x06, 0x00, 0x00, 0x2D, 0x00]);
+        assert_eq!(&wire[19..], &normal[18..63], "the payload moves one byte");
+        // Apply has no chunk, so its length is 17: `81 11 04 06`.
+        let apply = Framing::Length.request(&build_apply());
+        assert_eq!(&apply[..4], &[0x81, 0x11, 0x04, 0x06]);
+    }
+
+    #[test]
+    fn length_replies_are_plain() {
+        // The write ack the Pro 2 script waits for: `02 04 04 00 01 00`.
+        let request = build_write_packet(0, &[0; 45], 1652);
+        let ack = [0x02, 0x04, 0x04, 0x00, 0x01, 0x00, 0x2D, 0x00];
+        assert!(Framing::Length.reply(&ack, &request).is_some());
+        assert!(Framing::Length.reply(&[0x81, 0x3E, 0x04, 0x01], &request).is_none());
     }
 
     #[test]

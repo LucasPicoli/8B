@@ -79,7 +79,7 @@ Each `config_ports` entry in `description.json` has these fields:
 | `usb` | `vendor` and `product`, written as `"0x2dc8"` |
 | `mode` | The current mode this USB id stands for: `xinput`, `switch` or `dinput` |
 | `interface` | USB interface number whose hidraw node carries the config reports |
-| `framing` | `plain`, or `wrapped` for a Nintendo-style id (see `protocol/framing.rs`) |
+| `framing` | `plain`, `wrapped` for a Nintendo-style id, or `length` for a pad such as the Pro 2 that puts a length byte after the `81` (see `protocol/framing.rs`) |
 | `write_via` | Optional. A mode to flip to before a write, when this mode takes no writes in place |
 | `needs_keepalive` | Optional, `false` when omitted. `true` if the controller resets in this mode while no program holds its event node open (see the keepalive rule below) |
 
@@ -175,6 +175,9 @@ Pro 3:
 5. Two models that share a USB id must also share its interface and framing.
    Detection opens the node of the first model that lists the id before the model id
    says which pad it is.
+6. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
+   `0x0123`. TheJayMann's Pro 2 scripts send a zero CRC and the parameter `0x15`, so
+   a Pro 2 port needs both to come from the model.
 
 ## Prove the port is correct
 
