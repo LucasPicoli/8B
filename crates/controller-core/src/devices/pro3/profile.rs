@@ -123,6 +123,14 @@ fn encodings_for_mode(mode: Mode) -> &'static [ButtonEncodingEntry] {
     }
 }
 
+/// Whether the mode has a target-only output (past the 22 sources) with this code.
+///
+/// A back paddle's own code means "unassigned" only when this is false. When it is
+/// true, the code sends that output, so "disabled" has to be `00 00 00 00`.
+fn has_target_only_output(entries: &[ButtonEncodingEntry], value: [u8; 4]) -> bool {
+    entries.iter().skip(tables::SOURCE_BUTTON_COUNT).any(|e| e.encoding == value)
+}
+
 /// Resolves the target-control name for a single button entry.
 ///
 /// Port of C++ `decodeTargetControl`, except step 8: a value that matches no table
@@ -145,10 +153,9 @@ fn decode_target_control(
     // decodes as that output in step 4.
     let is_paddle =
         (tables::NULL_DEFAULT_FIRST_INDEX..tables::SOURCE_BUTTON_COUNT).contains(&source_index);
-    let is_output = entries.iter().skip(tables::SOURCE_BUTTON_COUNT).any(|e| e.encoding == value);
     if value == tables::NULL_ENCODING
         || (is_paddle
-            && !is_output
+            && !has_target_only_output(entries, value)
             && entries.get(source_index).is_some_and(|e| e.encoding == value))
     {
         return "disabled".to_owned();
@@ -838,10 +845,14 @@ pub fn compile_profile(
                 mapping.source
             )));
         } else if mapping.target == "disabled" {
-            // A paddle's own code is its vendor default; other buttons go null. In
-            // `DInput` that code sends the paddle's button, so a paddle goes null too.
-            if source_idx >= tables::NULL_DEFAULT_FIRST_INDEX && mode != Mode::DInput {
-                write_encoding(&mapping.source, mode)?
+            // A paddle's own code is its vendor default, unless the mode has an output
+            // for that code (then it sends a button and disabled is null). Other
+            // buttons go null.
+            let own = write_encoding(&mapping.source, mode)?;
+            if source_idx >= tables::NULL_DEFAULT_FIRST_INDEX
+                && !has_target_only_output(encodings_for_mode(mode), own)
+            {
+                own
             } else {
                 tables::NULL_ENCODING
             }
