@@ -45,6 +45,31 @@ export component NoControllerScreen inherits Rectangle {
     }
 }
 
+// The command that installs the rule, read-only, with Copy.
+component CommandFrame inherits Frame {
+    in property <string> command;
+    in property <string> title;
+    VerticalLayout {
+        padding: 14px;
+        spacing: 8px;
+        Text {
+            text: root.title;
+            color: Theme.fg;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            LineEdit {
+                text: root.command;
+                read-only: true;
+                mono: true;
+                wrap: true;
+                accessible-name: "Command that installs the rule";
+            }
+            CopyButton { source => { root.command } }
+        }
+    }
+}
+
 export component PermissionScreen inherits Rectangle {
     in property <string> command;
     in property <string> rule-path;
@@ -72,7 +97,10 @@ export component PermissionScreen inherits Rectangle {
     callback skip;
     background: Theme.window;
     VerticalLayout {
-        alignment: center;
+        // Anchored where a typical screen centres, so a bar appearing under the
+        // buttons does not move them.
+        alignment: start;
+        padding-top: max(16px, (root.height - 460px) / 2);
         HorizontalLayout {
             alignment: center;
             VerticalLayout {
@@ -101,20 +129,35 @@ export component PermissionScreen inherits Rectangle {
                     text: root.rule-installed
                         ? "The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in."
                         : root.outdated
-                        ? "The installed rule is from an older version of 8B. Updating it asks for your password once."
+                        ? "The installed rule is from an older version of 8B. Updating replaces this file:"
                         : root.sandboxed
-                        ? "Linux blocks apps from changing a controller’s settings until a device rule allows it. Run the command below in a terminal on this computer, then choose Check again."
-                        : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
+                        ? "Linux blocks apps from changing a controller’s settings until a device rule allows it. The command adds this file:"
+                        : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing adds this file:";
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
                     wrap: word-wrap;
                 }
-                Text {
-                    text: "8B writes one file, " + root.rule-path + ". It lets the person signed in at this computer open 8BitDo and Switch Pro controllers. Nothing else on the system changes.";
-                    font-size: Theme.text-caption;
+                if !root.rule-installed: Text {
+                    text: root.rule-path;
+                    font-family: Theme.mono-family;
+                    color: Theme.fg;
+                    horizontal-alignment: center;
+                }
+                if !root.rule-installed: Text {
+                    text: "It lets the person signed in at this computer open 8BitDo and Switch Pro controllers. It changes nothing else. "
+                        + (root.sandboxed ? "Run the command in a terminal on this computer, then choose Check again."
+                            : "It asks for your password once.");
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
                     wrap: word-wrap;
+                }
+                // In the sandbox the command comes first: the buttons follow it.
+                if root.sandboxed: VerticalLayout {
+                    padding-top: 10px;
+                    CommandFrame {
+                        command: root.command;
+                        title: "Run this in a terminal:";
+                    }
                 }
                 HorizontalLayout {
                     alignment: center;
@@ -131,6 +174,8 @@ export component PermissionScreen inherits Rectangle {
                     if root.denied: Button {
                         text: root.checking ? "Checking…" : "Check again";
                         primary: root.sandboxed || root.rule-installed;
+                        // Wide enough for "Checking…", so the label swap moves nothing.
+                        min-width: 104px;
                         enabled: !root.installing && !root.checking;
                         clicked => { root.check(); }
                     }
@@ -141,39 +186,24 @@ export component PermissionScreen inherits Rectangle {
                         clicked => { root.skip(); }
                     }
                 }
-                if root.error != "": MessageBar {
-                    error: true;
-                    title: "Could not install the rule.";
-                    body: root.error + " Run the command below instead.";
-                }
-                if root.error == "" && root.still-blocked: MessageBar {
-                    title: root.rule-installed ? "Still blocked."
-                        : root.sandboxed ? "Still blocked. Run the command, then check again."
-                        : "Still blocked. Install the rule or run the command, then check again.";
-                    body: root.rule-installed ? "Unplug the controller and plug it in again, then check again." : "";
-                }
-                Rectangle { height: 14px; }
-                Frame {
-                    VerticalLayout {
-                        padding: 14px;
-                        spacing: 8px;
-                        Text {
-                            text: root.rule-installed ? "To install the rule again, run this in a terminal:"
-                                : root.sandboxed ? "Run this in a terminal:" : "Or run this in a terminal:";
-                            color: Theme.fg;
-                        }
-                        HorizontalLayout {
-                            spacing: 6px;
-                            LineEdit {
-                                text: root.command;
-                                read-only: true;
-                                mono: true;
-                                wrap: true;
-                                accessible-name: "Command that installs the rule";
-                            }
-                            CopyButton { source => { root.command } }
-                        }
+                // A slot as tall as a one-line bar, so a bar appearing moves nothing.
+                VerticalLayout {
+                    min-height: 33px;
+                    if root.error != "": MessageBar {
+                        error: true;
+                        title: "Could not install the rule.";
+                        body: root.error + " Run the command instead.";
                     }
+                    if root.error == "" && root.still-blocked: MessageBar {
+                        title: root.rule-installed ? "Still blocked."
+                            : root.sandboxed ? "Still blocked. Run the command, then check again."
+                            : "Still blocked. Install the rule or run the command, then check again.";
+                    }
+                }
+                if !root.sandboxed: CommandFrame {
+                    command: root.command;
+                    title: root.rule-installed ? "To install the rule again, run this in a terminal:"
+                        : "Or run this in a terminal:";
                 }
             }
         }
