@@ -26,9 +26,12 @@ export global Diagnostics {
     pure callback text() -> string;
 }
 
-// A flat button that copies the diagnostics, then says "Copied" for 2 seconds. Slint
-// has no clipboard call, so a hidden text input holds the text and copies it. It is
-// emptied at once: even hidden, a long text sizes the layout around it.
+// A flat button that copies the diagnostics. For 2 seconds after a click a green
+// check and "Copied" stand in its place, at the button's width, so nothing moves and
+// no hover frame shows. The button stays under them, see-through, so it keeps focus
+// and a second click copies again. Slint has no clipboard call, so a hidden text input
+// holds the text and copies it. It is emptied at once: even hidden, a long text sizes
+// the layout around it.
 export component CopyDiagnostics inherits Rectangle {
     property <bool> copied;
     preferred-width: btn.preferred-width;
@@ -37,15 +40,37 @@ export component CopyDiagnostics inherits Rectangle {
     btn := Button {
         width: parent.width;
         height: parent.height;
+        opacity: root.copied ? 0 : 1;
         flat: true;
-        text: root.copied ? "Copied" : "Copy diagnostics";
-        icon: root.copied ? Icons.check : Icons.copy;
+        text: "Copy diagnostics";
+        icon: Icons.copy;
         clicked => {
             field.text = Diagnostics.text();
             field.select-all();
             field.copy();
             field.text = "";
             root.copied = true;
+            timer.restart();
+        }
+    }
+    // The check takes the copy icon's place: the button's 10px inset, left-aligned.
+    if root.copied: HorizontalLayout {
+        alignment: start;
+        padding-left: 10px;
+        spacing: 6px;
+        accessible-role: text;
+        accessible-label: "Copied to the clipboard";
+        Image {
+            source: Icons.check;
+            colorize: Theme.positive;
+            width: 16px;
+            height: 16px;
+            y: (parent.height - self.height) / 2;
+        }
+        Text {
+            text: "Copied";
+            color: Theme.fg;
+            vertical-alignment: center;
         }
     }
     field := TextInput {
@@ -54,7 +79,7 @@ export component CopyDiagnostics inherits Rectangle {
         width: 0;
         height: 0;
     }
-    Timer {
+    timer := Timer {
         interval: 2s;
         running: root.copied;
         triggered => { root.copied = false; }
