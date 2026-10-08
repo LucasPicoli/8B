@@ -145,19 +145,11 @@ export component PermissionScreen inherits Rectangle {
                 }
                 if !root.rule-installed: Text {
                     text: "It lets the person signed in at this computer open 8BitDo and Switch Pro controllers. It changes nothing else. "
-                        + (root.sandboxed ? "Run the command in a terminal on this computer, then choose Check again."
+                        + (root.sandboxed ? "Run the command below in a terminal on this computer, then choose Check again."
                             : "It asks for your password once.");
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
                     wrap: word-wrap;
-                }
-                // In the sandbox the command comes first: the buttons follow it.
-                if root.sandboxed: VerticalLayout {
-                    padding-top: 10px;
-                    CommandFrame {
-                        command: root.command;
-                        title: "Run this in a terminal:";
-                    }
                 }
                 HorizontalLayout {
                     alignment: center;
@@ -200,10 +192,10 @@ export component PermissionScreen inherits Rectangle {
                             : "Still blocked. Install the rule or run the command, then check again.";
                     }
                 }
-                if !root.sandboxed: CommandFrame {
+                CommandFrame {
                     command: root.command;
                     title: root.rule-installed ? "To install the rule again, run this in a terminal:"
-                        : "Or run this in a terminal:";
+                        : root.sandboxed ? "Run this in a terminal:" : "Or run this in a terminal:";
                 }
             }
         }
