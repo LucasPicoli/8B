@@ -33,9 +33,14 @@ export global Diagnostics {
 // holds the text and copies it. It is emptied at once: even hidden, a long text sizes
 // the layout around it.
 export component CopyDiagnostics inherits Rectangle {
+    // Where "Copied" sits in the button's width: under the copy icon in a footer, next
+    // to the following button in a message bar.
+    in property <LayoutAlignment> label-alignment: start;
     property <bool> copied;
     preferred-width: btn.preferred-width;
-    preferred-height: btn.preferred-height;
+    // A button's height, even in a bar that grows for a wrapped message.
+    min-height: Theme.control-height;
+    max-height: Theme.control-height;
     horizontal-stretch: 0;
     btn := Button {
         width: parent.width;
@@ -53,10 +58,11 @@ export component CopyDiagnostics inherits Rectangle {
             timer.restart();
         }
     }
-    // The check takes the copy icon's place: the button's 10px inset, left-aligned.
+    // Inset 10px like the button's own content.
     if root.copied: HorizontalLayout {
-        alignment: start;
+        alignment: root.label-alignment;
         padding-left: 10px;
+        padding-right: 10px;
         spacing: 6px;
         accessible-role: text;
         accessible-label: "Copied to the clipboard";
@@ -156,7 +162,9 @@ export component MessageBar inherits Rectangle {
             wrap: word-wrap;
             vertical-alignment: center;
         }
-        if root.diagnostics: CopyDiagnostics { }
+        if root.diagnostics: CopyDiagnostics {
+            label-alignment: end;
+        }
         if root.action != "": Button {
             text: root.action;
             enabled: root.action-enabled;

@@ -886,12 +886,30 @@ fn copy_diagnostics_fills_the_clipboard() {
 /// A long log on the clipboard leaves the read-error bar its own height.
 #[test]
 fn copying_a_long_log_keeps_the_bar_size() {
+    for dark in [false, true] {
+        copy_from_the_bar(dark);
+    }
+}
+
+/// Clicks "Copy diagnostics" in a two-line read-error bar, in dark colours when `dark`.
+fn copy_from_the_bar(dark: bool) {
     use slint::platform::{PointerEventButton, WindowEvent};
     use slint::{Global as _, LogicalPosition};
     let mut s = new_state();
     s.presence(PORT, Some(Mode::XInput));
-    s.read_finished(PORT, Err("device communication timed out".to_owned()));
+    // Two lines in the bar, as with the holders' names.
+    s.read_finished(
+        PORT,
+        Err("The controller did not answer in time. steam, vivaldi-bin and winedevice.exe \
+             also have the controller open. Close them and try again. The controller stays \
+             plugged in."
+            .to_owned()),
+    );
     let ui = window(&s);
+    if dark {
+        ui.global::<crate::ui::Palette<'_>>().set_color_scheme(slint::language::ColorScheme::Dark);
+    }
+    let theme = if dark { "dark" } else { "light" };
     let long: String = (0..200).fold(String::new(), |mut out, i| {
         let _ = writeln!(out, "log line {i}");
         out
@@ -902,9 +920,10 @@ fn copying_a_long_log_keeps_the_bar_size() {
         shot.as_slice().iter().filter(|p| u16::from(p.r) > u16::from(p.g.max(p.b)) + 10).count()
     };
     let before = red(&ui);
-    save("bar-before-copy", &ui);
+    // Hovered, so the frame shows the button's height beside "Try again".
     let at = LogicalPosition::new(1100.0, 39.0);
     ui.window().dispatch_event(WindowEvent::PointerMoved { position: at });
+    save(&format!("bar-before-copy-{theme}"), &ui);
     ui.window().dispatch_event(WindowEvent::PointerPressed {
         position: at,
         button: PointerEventButton::Left,
@@ -914,7 +933,7 @@ fn copying_a_long_log_keeps_the_bar_size() {
         button: PointerEventButton::Left,
     });
     assert!(CLIPBOARD.with_borrow(|c| c.starts_with("log line 0")), "the click copied");
-    save("bar-after-copy", &ui);
+    save(&format!("bar-after-copy-{theme}"), &ui);
     let after = red(&ui);
     assert!(after < before * 2, "the bar grew: {before} red pixels before the copy, {after} after");
 }
