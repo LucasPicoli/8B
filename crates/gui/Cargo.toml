@@ -16,7 +16,8 @@ env_logger.workspace = true
 log.workspace = true
 # The settings tabs name each profile value by its JSON pointer.
 serde_json.workspace = true
-slint = { version = "1.18", default-features = false, features = ["compat-1-2", "std", "backend-winit", "renderer-femtovg", "accessibility"] }
+# `unstable-winit-030` reaches the winit window, to ask for attention on a held close.
+slint = { version = "1.18", default-features = false, features = ["compat-1-2", "std", "backend-winit", "renderer-femtovg", "accessibility", "unstable-winit-030"] }
 # The copy Slint already pulls in, plus the blocking API for the portal thread.
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 

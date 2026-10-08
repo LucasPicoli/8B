@@ -55,6 +55,8 @@ use controller_core::service::read::leftover_macros;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use controller_core::Error;
 use log::{info, warn};
+use slint::winit_030::winit::window::UserAttentionType;
+use slint::winit_030::WinitWindowAccessor as _;
 use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 
 use crate::buttons::{hit, picked_output, render_views};
@@ -402,10 +404,16 @@ fn wire_close(
         let outcome = state.close_requested();
         render(&state, &ui);
         if outcome == CloseOutcome::Close {
-            CloseRequestResponse::HideWindow
-        } else {
-            CloseRequestResponse::KeepWindowShown
+            return CloseRequestResponse::HideWindow;
         }
+        // A close from the task bar reaches a window in the back: flag it there, since
+        // Wayland lets no app raise itself.
+        ui.window().with_winit_window(|w| {
+            if !w.has_focus() {
+                w.request_user_attention(Some(UserAttentionType::Informational));
+            }
+        });
+        CloseRequestResponse::KeepWindowShown
     });
     let c = change.clone();
     ui.on_close_cancelled(move || c(&AppState::cancel_close));
