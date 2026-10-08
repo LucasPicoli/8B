@@ -41,7 +41,7 @@ fn window(state: &AppState) -> AppWindow {
     // Each test runs on its own thread, and the platform is per thread.
     let _ = slint::platform::set_platform(Box::new(Headless));
     let ui = AppWindow::new().unwrap();
-    render_views(state.description, &ui);
+    render_views(state.description(), &ui);
     render(state, &ui);
     ui.window().set_size(PhysicalSize::new(1280, 800));
     ui.show().unwrap();
@@ -358,11 +358,11 @@ fn slot_with_a_macro() {
 fn a_click_on_the_drawing_selects_the_button_row() {
     let s = connected(Mode::XInput);
     let ui = window(&s);
-    let d = s.description;
+    let d = s.description();
     ui.on_hit(move |view, x, y| crate::buttons::hit(d, usize::try_from(view).unwrap(), x, y));
     // The left bumper on the front view at this size.
     click(&ui, 428.0, 190.0);
-    let l1 = s.description.buttons.iter().position(|b| b.id == "l1").unwrap();
+    let l1 = s.description().buttons.iter().position(|b| b.id == "l1").unwrap();
     assert_eq!(ui.get_selected_row(), i32::try_from(l1).unwrap());
 }
 
@@ -416,7 +416,7 @@ fn tab(name: &str, state: &AppState, tab: i32, dark: bool) {
     let ui = window(state);
     if dark {
         ui.global::<crate::ui::Palette<'_>>().set_color_scheme(slint::language::ColorScheme::Dark);
-        render_views(state.description, &ui);
+        render_views(state.description(), &ui);
     }
     ui.set_tab(tab);
     save(&format!("{name}-{}", if dark { "dark" } else { "light" }), &ui);
@@ -477,7 +477,7 @@ fn a_slider_drag_survives_the_render_after_each_move() {
 /// A Switch file with a Screenshot output, waiting to go into `XInput` slot 3.
 fn cross_mode_import() -> AppState {
     let mut s = connected(Mode::XInput);
-    let mut p = s.defaults.get(&Mode::Switch).unwrap().clone();
+    let mut p = s.defaults().get(&Mode::Switch).unwrap().clone();
     "switch-slot-1-index-0".clone_into(&mut p.id);
     "Racing".clone_into(&mut p.name);
     if let Some(m) = p.button_mappings.iter_mut().find(|m| m.source == "r4") {

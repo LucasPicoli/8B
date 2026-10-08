@@ -10,7 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use controller_core::detect::{config_hidraw, scan_sysfs_all};
-use controller_core::device::ConfigPort;
+use controller_core::device::{ConfigPort, Model};
 use controller_core::model::{Mode, ProfileReadResult, WriteResult};
 use controller_core::transport::DeviceIo;
 use controller_core::Error;
@@ -83,8 +83,8 @@ pub enum Event {
     Read {
         /// The USB port path the read went to.
         port: String,
-        /// The read, or why it failed.
-        result: Result<ProfileReadResult, Failure>,
+        /// The model the controller named and the read, or why it failed.
+        result: Result<(&'static dyn Model, ProfileReadResult), Failure>,
     },
     /// The result of [`Command::Write`] for `port`.
     Written {
@@ -189,7 +189,13 @@ fn run(
                         presence.entry(port.clone()).or_default().forget();
                         emit(Event::Presence { port, mode: None });
                     }
-                    Ok(read) => emit(Event::Read { port, result: Ok(read) }),
+                    Ok(read) => match dev.model() {
+                        Ok(model) => emit(Event::Read { port, result: Ok((model, read)) }),
+                        Err(error) => {
+                            let holders = holders_of(site, &port);
+                            emit(Event::Read { port, result: Err(Failure { error, holders }) });
+                        }
+                    },
                     Err(error) => {
                         let holders = holders_of(site, &port);
                         emit(Event::Read { port, result: Err(Failure { error, holders }) });
@@ -452,7 +458,7 @@ mod tests {
 
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         match next(&events) {
-            Event::Read { result: Ok(read), .. } => assert_eq!(read.profiles.len(), 9),
+            Event::Read { result: Ok((_, read)), .. } => assert_eq!(read.profiles.len(), 9),
             other => panic!("expected a read, got {other:?}"),
         }
 

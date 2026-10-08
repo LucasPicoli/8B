@@ -70,7 +70,7 @@ fn start(switch: bool) -> (AppState, (Mode, u8)) {
         return (s, (Mode::XInput, 1));
     }
     s.select(1, 0);
-    let default = s.defaults[&Mode::Switch].clone();
+    let default = s.defaults()[&Mode::Switch].clone();
     s.active_mut().unwrap().slots.get_mut(&(Mode::Switch, 1)).unwrap().pad = Some(default);
     (s, (Mode::Switch, 1))
 }

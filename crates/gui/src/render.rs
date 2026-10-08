@@ -8,7 +8,7 @@ use controller_core::transport::udev::{
 };
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
-use crate::buttons::render_buttons;
+use crate::buttons::{render_buttons, render_views};
 use crate::closing::render_close;
 use crate::files::render_files;
 use crate::review::render_writes;
@@ -19,7 +19,7 @@ use crate::ui::{AppWindow, ModeGroup, Slot};
 /// The sidebar: every slot of every mode, in the description's order.
 #[must_use]
 pub fn groups(state: &AppState) -> Vec<ModeGroup> {
-    let description = state.description;
+    let description = state.description();
     (0_i32..)
         .zip(&description.modes)
         .map(|(gi, mode)| {
@@ -126,8 +126,13 @@ pub fn sentence(message: &str) -> String {
 
 /// Pushes the whole visible screen.
 pub fn render(state: &AppState, ui: &AppWindow) {
+    let description = state.description();
+    if state.views_of.get().is_none_or(|drawn| !std::ptr::eq(drawn, description)) {
+        render_views(description, ui);
+        state.views_of.set(Some(description));
+    }
     ui.set_has_controller(state.has_controller());
-    ui.set_device_name(state.description.short_name.as_str().into());
+    ui.set_device_name(state.description().short_name.as_str().into());
     ui.set_controllers(strings(state.controller_labels()));
     ui.set_current_controller(i32::try_from(state.active_index()).unwrap_or(0));
     ui.set_move_from(strings(move_from(state)));
@@ -146,7 +151,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     if ui.get_profile_name() != name {
         ui.set_profile_name(name.into());
     }
-    ui.set_name_max(state.description.limits.profile_name_length.max);
+    ui.set_name_max(state.description().limits.profile_name_length.max);
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
     render_settings(state, ui);
@@ -160,7 +165,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
         if state.failed_elsewhere() {
             format!(
                 "Could not read the {} plugged into another USB port.",
-                state.description.short_name
+                state.description().short_name
             )
         } else {
             "Could not read the controller.".to_owned()

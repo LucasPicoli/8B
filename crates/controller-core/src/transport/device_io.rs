@@ -1,5 +1,6 @@
 //! The `DeviceIo` trait: device operations the services/orchestrators depend on.
 
+use crate::device::Model;
 use crate::error::Result;
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 
@@ -8,8 +9,17 @@ use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 /// Every write method opens its own USB session and releases it before returning,
 /// so callers sequence the protocol steps (slot select, write, apply).
 pub trait DeviceIo {
-    /// Reads the profiles of every mode's bank, in [`Mode::ALL`] order, from any
-    /// current mode. `raw_blobs` holds one blob per bank in the same order.
+    /// The model of the attached controller, from the model id its `START_CONFIG`
+    /// reply carries. Opens a session unless an earlier one already identified it.
+    ///
+    /// # Errors
+    /// Returns a connection error if no supported device is present, and
+    /// [`crate::Error::UnsupportedModel`] for a model id no supported model lists.
+    fn model(&self) -> Result<&'static dyn Model>;
+
+    /// Reads the profiles of every mode's bank, in the order of the model's
+    /// description, from any current mode. `raw_blobs` holds one blob per bank in the
+    /// same order.
     ///
     /// # Errors
     /// Returns a connection/timeout/decode error on failure.
@@ -51,7 +61,8 @@ pub trait DeviceIo {
     /// [`crate::Error::Timeout`] if it does not come back in time.
     fn end_write(&self, back_to: Mode) -> Result<()>;
 
-    /// Writes a complete 2348-byte profile blob as 53 chunks, each ACK-checked.
+    /// Writes a complete profile blob of the model's blob size in 45-byte chunks, each
+    /// ACK-checked. A Pro 3 blob is 2348 bytes in 53 chunks.
     ///
     /// The target slot is encoded in the blob itself, so there is no slot argument.
     /// [`Self::send_slot_select`] must come first or the device ACKs but ignores the write.

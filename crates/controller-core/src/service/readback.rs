@@ -5,12 +5,11 @@
 //! rollback backup and the read-modify-write base for `compile_profile`, which is how
 //! the macros already on the controller survive a write.
 
-use crate::detect::is_slot_active;
+use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::model::{Mode, ProfileReadResult, Slot};
 use crate::service::read::blob_for_mode;
 use crate::transport::device_io::DeviceIo;
-use crate::transport::write_input::PROFILE_SIZE;
 
 /// What to do when the target slot already holds a profile.
 pub enum ConfirmPolicy {
@@ -35,42 +34,49 @@ pub struct ReadbackResult {
     pub message: String,
 }
 
-/// Returns the blob of `mode`'s bank from a full read, checked for size.
+/// Returns the blob of `mode`'s bank from a full read of `model`, checked for size.
 ///
 /// # Errors
-/// Returns [`Error::Usb`] if the read has no blob for `mode` or one that is not 2348
-/// bytes.
-pub fn bank_of(read: &ProfileReadResult, mode: Mode) -> Result<&Vec<u8>> {
+/// Returns [`Error::Usb`] if the read has no blob for `mode` or one that is not the
+/// model's blob size.
+pub fn bank_of<'r>(
+    model: &dyn Model,
+    read: &'r ProfileReadResult,
+    mode: Mode,
+) -> Result<&'r Vec<u8>> {
     if read.raw_blobs.is_empty() {
         return Err(Error::Usb("pre-write readback returned no blobs".to_owned()));
     }
-    let blob = blob_for_mode(read, mode)
+    let blob = blob_for_mode(model, read, mode)
         .ok_or_else(|| Error::Usb(format!("no blob available for mode '{mode}'")))?;
-    if blob.len() != PROFILE_SIZE {
+    let size = model.blob_size();
+    if blob.len() != size {
         return Err(Error::Usb(format!(
-            "readback blob size mismatch (expected {PROFILE_SIZE}, got {})",
+            "readback blob size mismatch (expected {size}, got {})",
             blob.len()
         )));
     }
     Ok(blob)
 }
 
-/// Reads the blob for `mode`, checks `slot` for an existing profile, and applies `policy`.
+/// Reads the blob for `mode` from `dev` as `model`, checks `slot` for an existing
+/// profile, and applies `policy`.
 ///
 /// A declined or aborted overwrite is not an error: it returns `Ok` with
 /// `proceed == false` and the reason in `message`.
 ///
 /// # Errors
 /// Returns the device's error if the read fails. Returns [`Error::Usb`] if the read
-/// returned no blob for `mode` or a blob that is not 2348 bytes.
+/// returned no blob for `mode` or a blob that is not the model's blob size.
 pub fn readback_and_confirm(
     dev: &dyn DeviceIo,
+    model: &dyn Model,
     mode: Mode,
     slot: Slot,
     policy: &ConfirmPolicy,
 ) -> Result<ReadbackResult> {
     let read = dev.read_all_profiles()?;
-    confirm_slot(bank_of(&read, mode)?, mode, slot, policy)
+    confirm_slot(model, bank_of(model, &read, mode)?, mode, slot, policy)
 }
 
 /// Checks `slot` of the bank `blob` for an existing profile and applies `policy`.
@@ -80,13 +86,14 @@ pub fn readback_and_confirm(
 /// # Errors
 /// Returns [`Error::Decode`] if the slot's marker cannot be read from `blob`.
 pub fn confirm_slot(
+    model: &dyn Model,
     blob: &[u8],
     mode: Mode,
     slot: Slot,
     policy: &ConfirmPolicy,
 ) -> Result<ReadbackResult> {
     let n = slot.get();
-    let slot_active = is_slot_active(blob, slot)?;
+    let slot_active = model.slot_active(blob, slot)?;
     let result = |proceed: bool, message: String| ReadbackResult {
         proceed,
         backup_blob: blob.to_vec(),
@@ -122,11 +129,12 @@ mod tests {
 
     use super::*;
     use crate::detect::ACTIVE_SLOT_MARKER;
+    use crate::devices::pro3::Pro3;
     use crate::model::ProfileReadResult;
     use crate::transport::mock::MockDevice;
 
     fn blob(active: &[u8]) -> Vec<u8> {
-        let mut b = vec![0u8; PROFILE_SIZE];
+        let mut b = vec![0u8; 0x092C];
         for &s in active {
             let off = (usize::from(s) - 1) * 4;
             b[off..off + 4].copy_from_slice(&ACTIVE_SLOT_MARKER);
@@ -161,7 +169,8 @@ mod tests {
     fn empty_slot_proceeds_without_asking() {
         let dev = device(Mode::XInput, &blob(&[1]));
         let calls = Arc::new(AtomicUsize::new(0));
-        let r = readback_and_confirm(&dev, Mode::XInput, slot(2), &asking(false, &calls)).unwrap();
+        let r = readback_and_confirm(&dev, &Pro3, Mode::XInput, slot(2), &asking(false, &calls))
+            .unwrap();
         assert!(r.proceed && !r.slot_active);
         assert_eq!(calls.load(Ordering::SeqCst), 0);
         assert_eq!(r.backup_blob, blob(&[1]));
@@ -170,7 +179,8 @@ mod tests {
     #[test]
     fn active_slot_abort_policy_refuses() {
         let dev = device(Mode::XInput, &blob(&[2]));
-        let r = readback_and_confirm(&dev, Mode::XInput, slot(2), &ConfirmPolicy::Abort).unwrap();
+        let r = readback_and_confirm(&dev, &Pro3, Mode::XInput, slot(2), &ConfirmPolicy::Abort)
+            .unwrap();
         assert!(!r.proceed && r.slot_active);
         assert!(r.message.contains("Use --force to overwrite"));
         assert_eq!(r.backup_blob, blob(&[2]));
@@ -180,10 +190,12 @@ mod tests {
     fn active_slot_ask_decline_and_accept() {
         let dev = device(Mode::XInput, &blob(&[3]));
         let calls = Arc::new(AtomicUsize::new(0));
-        let no = readback_and_confirm(&dev, Mode::XInput, slot(3), &asking(false, &calls)).unwrap();
+        let no = readback_and_confirm(&dev, &Pro3, Mode::XInput, slot(3), &asking(false, &calls))
+            .unwrap();
         assert!(!no.proceed);
         assert_eq!(no.message, "Write aborted by user.");
-        let yes = readback_and_confirm(&dev, Mode::XInput, slot(3), &asking(true, &calls)).unwrap();
+        let yes = readback_and_confirm(&dev, &Pro3, Mode::XInput, slot(3), &asking(true, &calls))
+            .unwrap();
         assert!(yes.proceed && yes.slot_active);
         assert_eq!(calls.load(Ordering::SeqCst), 2);
     }
@@ -191,38 +203,44 @@ mod tests {
     #[test]
     fn active_slot_force_proceeds_without_asking() {
         let dev = device(Mode::DInput, &blob(&[1]));
-        let r = readback_and_confirm(&dev, Mode::DInput, slot(1), &ConfirmPolicy::Force).unwrap();
+        let r = readback_and_confirm(&dev, &Pro3, Mode::DInput, slot(1), &ConfirmPolicy::Force)
+            .unwrap();
         assert!(r.proceed && r.slot_active);
     }
 
     #[test]
     fn force_on_empty_slot_proceeds() {
         let dev = device(Mode::DInput, &blob(&[]));
-        let r = readback_and_confirm(&dev, Mode::DInput, slot(1), &ConfirmPolicy::Force).unwrap();
+        let r = readback_and_confirm(&dev, &Pro3, Mode::DInput, slot(1), &ConfirmPolicy::Force)
+            .unwrap();
         assert!(r.proceed && !r.slot_active);
     }
 
     #[test]
     fn switch_reads_the_switch_bank() {
         let dev = device(Mode::Switch, &blob(&[2]));
-        let r = readback_and_confirm(&dev, Mode::Switch, slot(2), &ConfirmPolicy::Abort).unwrap();
+        let r = readback_and_confirm(&dev, &Pro3, Mode::Switch, slot(2), &ConfirmPolicy::Abort)
+            .unwrap();
         assert!(r.slot_active && !r.proceed);
     }
 
     #[test]
     fn read_error_propagates() {
         let dev = MockDevice::new();
-        let err = readback_and_confirm(&dev, Mode::XInput, slot(1), &ConfirmPolicy::Force);
+        let err = readback_and_confirm(&dev, &Pro3, Mode::XInput, slot(1), &ConfirmPolicy::Force);
         assert!(matches!(err, Err(Error::NoDevice)));
     }
 
     #[test]
     fn missing_or_wrong_size_blob_is_an_error() {
         let none = blobs(vec![]);
-        assert!(readback_and_confirm(&none, Mode::XInput, slot(1), &ConfirmPolicy::Force).is_err());
+        assert!(readback_and_confirm(&none, &Pro3, Mode::XInput, slot(1), &ConfirmPolicy::Force)
+            .is_err());
         let bad = device(Mode::DInput, &[0u8; 10]);
-        assert!(readback_and_confirm(&bad, Mode::DInput, slot(1), &ConfirmPolicy::Force).is_err());
+        assert!(readback_and_confirm(&bad, &Pro3, Mode::DInput, slot(1), &ConfirmPolicy::Force)
+            .is_err());
         let short = blobs(vec![blob(&[]), blob(&[])]);
-        assert!(readback_and_confirm(&short, Mode::DInput, slot(1), &ConfirmPolicy::Force).is_err());
+        assert!(readback_and_confirm(&short, &Pro3, Mode::DInput, slot(1), &ConfirmPolicy::Force)
+            .is_err());
     }
 }

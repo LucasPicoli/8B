@@ -186,9 +186,21 @@ pub struct ProfileReadResult {
     pub raw_blobs: Vec<Vec<u8>>,
 }
 
+/// Builds the canonical `{mode}-slot-{slot}-index-{index}` id.
+#[must_use]
+pub fn canonical_id(mode: Mode, source_slot: u8, source_profile_index: u8) -> String {
+    format!("{}-slot-{source_slot}-index-{source_profile_index}", mode.as_str())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn canonical_id_uses_mode_slot_index() {
+        assert_eq!(canonical_id(Mode::XInput, 1, 0), "xinput-slot-1-index-0");
+        assert_eq!(canonical_id(Mode::Switch, 2, 1), "switch-slot-2-index-1");
+    }
 
     #[allow(clippy::unwrap_used)]
     #[test]

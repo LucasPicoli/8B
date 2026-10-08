@@ -7,8 +7,6 @@
 
 use std::time::Duration;
 
-use crate::device::ControllerSpec as _;
-use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::{MacroSlot, Mode, Slot};
 use crate::protocol::bytes::take;
@@ -60,7 +58,7 @@ pub(super) fn begin_write(to: Target<'_>) -> Result<Option<Mode>> {
         return Ok(None);
     };
     let back_to = session.current_mode;
-    let flip = to.spec.mode_flip_command(via).ok_or_else(|| {
+    let flip = session.model()?.mode_flip_command(via).ok_or_else(|| {
         Error::write(format!("this controller cannot flip from {back_to} to {via} mode"))
     })?;
     session.send_last(&flip)?;
@@ -74,7 +72,9 @@ pub(super) fn begin_write(to: Target<'_>) -> Result<Option<Mode>> {
 
 /// Sends the close command, then waits for the controller to come back in `back_to`.
 pub(super) fn end_write(to: Target<'_>, back_to: Mode) -> Result<()> {
-    Session::open(to, WRITE_TIMEOUT)?.send_last(&to.spec.mode_close_command())?;
+    let session = Session::open(to, WRITE_TIMEOUT)?;
+    let close = session.model()?.mode_close_command();
+    session.send_last(&close)?;
     wait_for_mode(to, back_to, REENUMERATE_BUDGET)?;
     std::thread::sleep(RETURN_SETTLE);
     Ok(())
@@ -108,14 +108,16 @@ fn exchange(
 }
 
 pub(super) fn write_full_profile(to: Target<'_>, blob: &[u8]) -> Result<()> {
-    check_profile_blob(blob)?;
-    let chunks = plan_profile_chunks();
-    let total = chunks.len();
     let mut session = open(to)?;
+    let blob_size = session.model()?.blob_size();
+    check_profile_blob(blob, blob_size)?;
+    let total_len = len_u16(blob_size)?;
+    let chunks = plan_profile_chunks(blob_size);
+    let total = chunks.len();
     for (i, &(offset, size)) in chunks.iter().enumerate() {
         let send = |session: &mut Session| -> Result<()> {
             let data = take(blob, usize::from(offset), size)?;
-            let packet = build_write_packet(offset, data);
+            let packet = build_write_packet(offset, data, total_len);
             let size16 = len_u16(size)?;
             exchange(session, &packet, |r| validate_write_response(r, offset, size16))
         };
@@ -128,7 +130,7 @@ pub(super) fn write_patch(to: Target<'_>, offset: u16, data: &[u8]) -> Result<()
     check_patch(data)?;
     let size = len_u16(data.len())?;
     let mut session = open(to)?;
-    let packet = build_write_packet(offset, data);
+    let packet = build_write_packet(offset, data, len_u16(session.model()?.blob_size())?);
     for i in 0..PATCH_PACKETS {
         exchange(&mut session, &packet, |r| validate_write_response(r, offset, size))
             .map_err(|e| chunk_failure(i, PATCH_PACKETS, "patch packet", &e))?;
@@ -138,8 +140,20 @@ pub(super) fn write_patch(to: Target<'_>, offset: u16, data: &[u8]) -> Result<()
 
 /// Opens a session, sends one simple command and checks its echo.
 fn command(to: Target<'_>, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
+    command_with(to, |_| Ok(*packet), echo, what)
+}
+
+/// [`command`] with a packet built from the open session, for a command whose bytes
+/// depend on the model.
+fn command_with(
+    to: Target<'_>,
+    build: impl FnOnce(&Session) -> Result<[u8; PACKET_LEN]>,
+    echo: u8,
+    what: &str,
+) -> Result<()> {
     let mut session = open(to)?;
-    exchange(&mut session, packet, |r| validate_command_response(r, echo)).map_err(|e| {
+    let packet = build(&session)?;
+    exchange(&mut session, &packet, |r| validate_command_response(r, echo)).map_err(|e| {
         if matches!(e, Error::Decode(_)) {
             rejected(what, &e)
         } else {
@@ -149,8 +163,8 @@ fn command(to: Target<'_>, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> R
 }
 
 pub(super) fn send_slot_select(to: Target<'_>, mode: Mode) -> Result<()> {
-    let packet = build_slot_select(to.spec.slot_select_value(mode));
-    command(to, &packet, CMD_SLOT_SELECT, "slot select")
+    let build = |s: &Session| Ok(build_slot_select(s.model()?.slot_select_value(mode)));
+    command_with(to, build, CMD_SLOT_SELECT, "slot select")
 }
 
 pub(super) fn send_apply(to: Target<'_>) -> Result<()> {
@@ -168,7 +182,6 @@ const fn profile_slot0(profile_slot: Slot) -> u8 {
 
 fn erase_in_session(
     session: &mut Session,
-    spec: Pro3,
     mode: Mode,
     profile_slot: Slot,
     macro_slot: MacroSlot,
@@ -176,7 +189,7 @@ fn erase_in_session(
     let packet = build_erase_macro(
         MACRO_CMD_MODE,
         profile_slot0(profile_slot),
-        spec.macro_gamepad_mode(mode),
+        session.model()?.macro_gamepad_mode(mode),
         macro_slot.get(),
     );
     exchange(session, &packet, validate_erase_response).map_err(|e| {
@@ -195,7 +208,7 @@ pub(super) fn erase_macro(
     macro_slot: MacroSlot,
 ) -> Result<()> {
     let mut session = open(to)?;
-    erase_in_session(&mut session, to.spec, mode, profile_slot, macro_slot)
+    erase_in_session(&mut session, mode, profile_slot, macro_slot)
 }
 
 pub(super) fn write_macro_stream(
@@ -208,9 +221,9 @@ pub(super) fn write_macro_stream(
     check_macro_stream(stream, macro_slot)?;
     let total_len = macro_total_len(stream.len(), macro_slot)?;
     let base = macro_flash_base(macro_slot)?;
-    let gamepad_mode = to.spec.macro_gamepad_mode(mode);
     let mut session = open(to)?;
-    erase_in_session(&mut session, to.spec, mode, profile_slot, macro_slot)?;
+    let gamepad_mode = session.model()?.macro_gamepad_mode(mode);
+    erase_in_session(&mut session, mode, profile_slot, macro_slot)?;
 
     let total = stream.len() / MACRO_CHUNK_LEN;
     for (i, data) in stream.chunks(MACRO_CHUNK_LEN).enumerate() {

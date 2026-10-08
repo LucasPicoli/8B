@@ -5,7 +5,6 @@
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
-use controller_core::devices::pro3::Pro3;
 use controller_core::model::WriteResult;
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 pub use controller_core::orchestrator::{WriteJob, WriteOp};
@@ -37,7 +36,16 @@ pub fn run(dev: &dyn DeviceIo, jobs: &[WriteJob], backup_dir: &Path) -> Vec<Writ
     // The orchestrator reports a backup file it cannot create; a missing folder is
     // the common cause, so make it first.
     let _ = std::fs::create_dir_all(backup_dir);
-    ProfileWriteOrchestrator::new(dev, &Pro3, backup_dir).write_slots(jobs, &ConfirmPolicy::Force)
+    let model = match dev.model() {
+        Ok(model) => model,
+        Err(e) => {
+            let fail = |job: &WriteJob| {
+                WriteResult::failure(job.mode, job.slot, e.category(), e.to_string())
+            };
+            return jobs.iter().map(fail).collect();
+        }
+    };
+    ProfileWriteOrchestrator::new(dev, model, backup_dir).write_slots(jobs, &ConfirmPolicy::Force)
 }
 
 #[cfg(test)]

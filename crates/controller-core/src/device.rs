@@ -68,8 +68,23 @@ pub trait ControllerSpec {
     fn mode_close_command(&self) -> [u8; PACKET_LEN];
 }
 
+/// One supported controller model: its protocol bytes and its codec. The registry in
+/// [`crate::devices`] lists one per model.
+pub trait Model: ControllerSpec + ProtocolCodec + std::fmt::Debug + Sync {}
+
+impl<T: ControllerSpec + ProtocolCodec + std::fmt::Debug + Sync> Model for T {}
+
 /// Pure byte-level codec for a controller model (no device I/O).
 pub trait ProtocolCodec {
+    /// Whether `slot` of `blob` holds a profile. The default checks the active-slot
+    /// marker the 8BitDo app writes at `(slot - 1) * 4`.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Decode`] if `blob` is too short to hold the marker.
+    fn slot_active(&self, blob: &[u8], slot: Slot) -> Result<bool> {
+        crate::detect::is_slot_active(blob, slot)
+    }
+
     /// Decodes a raw blob into a canonical profile summary.
     ///
     /// # Errors
@@ -116,9 +131,10 @@ pub trait ProtocolCodec {
         macro_slot: MacroSlot,
     ) -> Result<Vec<u8>>;
 
-    /// Compiles a canonical profile into the device-native 2348-byte blob.
+    /// Compiles a canonical profile into the device-native blob of
+    /// [`ControllerSpec::blob_size`] bytes.
     ///
-    /// `base_blob` (when 2348 bytes) is the read-modify-write baseline whose
+    /// `base_blob` (when it is a full blob) is the read-modify-write baseline whose
     /// non-target slots are preserved; otherwise a fresh zeroed blob is used.
     /// `macros` are already-resolved Section-4 descriptors for the target slot.
     ///

@@ -12,7 +12,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::error::{Error, ErrorCategory, Result};
 use crate::model::{Mode, Slot, WriteResult};
 use crate::transport::device_io::DeviceIo;
-use crate::transport::write_input::PROFILE_SIZE;
 
 /// Where a failed write stopped.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -101,14 +100,12 @@ pub fn attempt_rollback(
 /// Never overwrites an existing file.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `blob` is not 2348 bytes, or [`Error::Io`] if the
-/// file cannot be created or written (including a name collision).
+/// Returns [`Error::Validation`] if `blob` is empty, or [`Error::Io`] if the file
+/// cannot be created or written (including a name collision). The readback that made
+/// the backup already checked its size.
 pub fn save_backup(mode: Mode, slot: Slot, blob: &[u8], dir: &Path) -> Result<PathBuf> {
-    if blob.len() != PROFILE_SIZE {
-        return Err(Error::Validation(format!(
-            "backup blob must be {PROFILE_SIZE} bytes, got {}",
-            blob.len()
-        )));
+    if blob.is_empty() {
+        return Err(Error::Validation("backup blob is empty".to_owned()));
     }
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
     let name = format!("backup-{mode}-slot-{}-{}.bin", slot.get(), utc_stamp(secs));
@@ -141,7 +138,7 @@ mod tests {
     use crate::transport::mock::{MockCall, MockDevice, MockOp};
 
     fn backup() -> Vec<u8> {
-        let mut b = vec![0u8; PROFILE_SIZE];
+        let mut b = vec![0u8; 0x092C];
         b[0x14] = 0xAA;
         b[0x15] = 0xBB;
         b
@@ -262,7 +259,6 @@ mod tests {
         assert_eq!(name.len(), "backup-switch-slot-3-YYYYMMDD-HHMMSS.bin".len());
         assert_eq!(std::fs::read(&path).unwrap(), backup());
         assert!(save_backup(Mode::Switch, slot(3), &[], dir.path()).is_err());
-        assert!(save_backup(Mode::Switch, slot(3), &[1; 100], dir.path()).is_err());
     }
 
     #[test]

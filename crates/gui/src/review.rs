@@ -5,9 +5,9 @@
 
 use std::rc::Rc;
 
-use controller_core::devices::pro3::macros::parse_macro_file_name;
-use controller_core::devices::pro3::profile::canonical_id;
 use controller_core::error::ErrorCategory;
+use controller_core::model::macros::parse_macro_file_name;
+use controller_core::model::profile::canonical_id;
 use controller_core::model::{CanonicalProfile, Mode, Slot as ProfileSlot, WriteResult};
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
@@ -302,7 +302,7 @@ impl AppState {
     pub fn change_list(&self, slot: (Mode, u8)) -> Vec<Change> {
         let state = self.slot_at(slot);
         let (Some(pad), Some(edited)) = (&state.pad, &state.edited) else { return Vec::new() };
-        let d = self.description;
+        let d = self.description();
         let mode = slot.0;
         let mut out = Vec::new();
         if pad.name != edited.name {

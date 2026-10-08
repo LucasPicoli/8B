@@ -10,7 +10,7 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::device::ProtocolCodec;
+use crate::device::Model;
 use crate::error::{Error, ErrorCategory, Result};
 use crate::model::{CanonicalProfile, Mode, Slot, WriteResult};
 use crate::service::validation::validate_profile;
@@ -45,20 +45,17 @@ pub(super) fn failure_from(mode: Mode, slot: Slot, err: &Error) -> WriteResult {
 /// Create one per operation. It holds no state between calls.
 pub struct ProfileWriteOrchestrator<'a> {
     pub(super) dev: &'a dyn DeviceIo,
-    pub(super) codec: &'a dyn ProtocolCodec,
+    pub(super) model: &'a dyn Model,
     pub(super) backup_dir: &'a Path,
 }
 
 impl<'a> ProfileWriteOrchestrator<'a> {
-    /// Creates an orchestrator. `backup_dir` receives the backup file when a rollback
-    /// fails (the CLI passes the current directory, the GUI its data directory).
+    /// Creates an orchestrator that writes to `dev` as `model`, normally
+    /// [`DeviceIo::model`]. `backup_dir` receives the backup file when a rollback fails
+    /// (the CLI passes the current directory, the GUI its data directory).
     #[must_use]
-    pub const fn new(
-        dev: &'a dyn DeviceIo,
-        codec: &'a dyn ProtocolCodec,
-        backup_dir: &'a Path,
-    ) -> Self {
-        Self { dev, codec, backup_dir }
+    pub const fn new(dev: &'a dyn DeviceIo, model: &'a dyn Model, backup_dir: &'a Path) -> Self {
+        Self { dev, model, backup_dir }
     }
 
     /// Writes a canonical profile JSON into `slot` of `mode`.
@@ -117,14 +114,14 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         slot_active: bool,
     ) -> Result<Vec<u8>> {
         let blob = if slot_active {
-            self.codec.compile_profile_keep_macros(parsed, slot, base)
+            self.model.compile_profile_keep_macros(parsed, slot, base)
         } else {
-            self.codec.compile_profile(parsed, slot, base, &[])
+            self.model.compile_profile(parsed, slot, base, &[])
         };
         let blob =
             blob.map_err(|e| Error::Validation(format!("Compilation failed: {}", text(&e))))?;
         if slot_active && !drop_macros.is_empty() {
-            return self.codec.drop_macros(&blob, slot, drop_macros);
+            return self.model.drop_macros(&blob, slot, drop_macros);
         }
         Ok(blob)
     }
@@ -137,7 +134,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
                 let n = slot.get();
                 return Ok(Plan::Nothing(format!("Slot {n} in {mode} mode is already empty.")));
             }
-            Ok(Plan::Write(self.codec.deactivate_profile(&rb.backup_blob, slot)?))
+            Ok(Plan::Write(self.model.deactivate_profile(&rb.backup_blob, slot)?))
         })
     }
 
@@ -158,7 +155,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     ) -> WriteResult {
         let fail = |category, message: String| WriteResult::failure(mode, slot, category, message);
 
-        let rb = match readback_and_confirm(self.dev, mode, slot, policy) {
+        let rb = match readback_and_confirm(self.dev, self.model, mode, slot, policy) {
             Ok(rb) => rb,
             Err(e) => return failure_from(mode, slot, &e),
         };

@@ -11,9 +11,9 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use controller_core::devices::pro3::macros::{macro_file_name, macro_to_canonical_json};
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::macros::macro_to_canonical_json;
 use controller_core::error::{Error, ErrorCategory};
+use controller_core::model::macros::macro_file_name;
 use controller_core::model::{DeviceReadiness, Mode, Slot};
 use controller_core::orchestrator::profile::{detect_and_read_all, DetectAndReadResult};
 use controller_core::service::read::{read_macros, MacroReadResult};
@@ -235,7 +235,7 @@ pub fn run_read() -> i32 {
         return code;
     };
 
-    let out = detect_and_read_all(&dev, &Pro3);
+    let out = detect_and_read_all(&dev);
     let (payload, code) = build_read_payload(&out);
     emit_json(&payload);
     code
@@ -254,7 +254,7 @@ pub fn run_dump(output_dir: &str) -> i32 {
         return 1;
     };
 
-    let out = detect_and_read_all(&dev, &Pro3);
+    let out = detect_and_read_all(&dev);
     if !out.success {
         eprintln!("{}", out.message);
         return exit_code_for_category(out.error_category);
@@ -303,7 +303,7 @@ pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
         return code;
     };
 
-    match read_macros(&dev, &Pro3, mode, slot_typed) {
+    match read_macros(&dev, mode, slot_typed) {
         Err(e) => {
             eprintln!("{e}");
             let (payload, code) = build_read_macro_err_payload(mode, slot, &e);

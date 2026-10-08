@@ -7,25 +7,20 @@ use crate::error::{Error, Result};
 use crate::model::MacroSlot;
 use crate::protocol::wire_write::{MACRO_CHUNK_LEN, MACRO_PAGE_LEN};
 
-/// Size of a full profile blob.
-pub const PROFILE_SIZE: usize = 0x092C;
 /// Bytes per profile read/write chunk.
 pub const PROFILE_CHUNK: usize = 45;
 /// A patch write sends its packet this many times.
 pub const PATCH_PACKETS: usize = 2;
 
-/// Rejects a profile blob that is not exactly [`PROFILE_SIZE`] bytes.
+/// Rejects a profile blob that is not exactly `size` bytes, the model's blob size.
 ///
 /// # Errors
 /// Returns [`Error::Write`] on a wrong size.
-pub fn check_profile_blob(blob: &[u8]) -> Result<()> {
-    if blob.len() == PROFILE_SIZE {
+pub fn check_profile_blob(blob: &[u8], size: usize) -> Result<()> {
+    if blob.len() == size {
         Ok(())
     } else {
-        Err(Error::write(format!(
-            "profile blob must be exactly {PROFILE_SIZE} bytes, got {}",
-            blob.len()
-        )))
+        Err(Error::write(format!("profile blob must be exactly {size} bytes, got {}", blob.len())))
     }
 }
 
@@ -81,12 +76,13 @@ pub fn macro_total_len(stream_len: usize, macro_slot: MacroSlot) -> Result<u16> 
     u16::try_from(total).map_err(|_| Error::write("macro total length overflows 16 bits"))
 }
 
-/// Splits a profile blob into `(offset, size)` chunks: 52 of 45 bytes, then one of 8.
+/// Splits a `size`-byte profile blob into `(offset, size)` chunks of [`PROFILE_CHUNK`]
+/// bytes and a shorter last one. A Pro 3 blob is 52 of 45 bytes, then one of 8.
 #[must_use]
-pub fn plan_profile_chunks() -> Vec<(u16, usize)> {
-    (0..PROFILE_SIZE)
+pub fn plan_profile_chunks(size: usize) -> Vec<(u16, usize)> {
+    (0..size)
         .step_by(PROFILE_CHUNK)
-        .filter_map(|off| Some((u16::try_from(off).ok()?, PROFILE_CHUNK.min(PROFILE_SIZE - off))))
+        .filter_map(|off| Some((u16::try_from(off).ok()?, PROFILE_CHUNK.min(size - off))))
         .collect()
 }
 
@@ -95,20 +91,22 @@ pub fn plan_profile_chunks() -> Vec<(u16, usize)> {
 mod tests {
     use super::*;
 
+    const PRO3_BLOB: usize = 0x092C;
+
     #[test]
     fn profile_chunks_are_52_by_45_then_8() {
-        let chunks = plan_profile_chunks();
+        let chunks = plan_profile_chunks(PRO3_BLOB);
         assert_eq!(chunks.len(), 53);
         assert!(chunks.iter().take(52).all(|&(_, size)| size == 45));
         assert_eq!(chunks.last().copied(), Some((2340, 8)));
-        assert_eq!(chunks.iter().map(|&(_, s)| s).sum::<usize>(), PROFILE_SIZE);
+        assert_eq!(chunks.iter().map(|&(_, s)| s).sum::<usize>(), PRO3_BLOB);
         assert_eq!(chunks.get(1).copied(), Some((45, 45)));
     }
 
     #[test]
     fn blob_and_patch_checks() {
-        assert!(check_profile_blob(&[0; PROFILE_SIZE]).is_ok());
-        assert!(check_profile_blob(&[0; 10]).is_err());
+        assert!(check_profile_blob(&[0; PRO3_BLOB], PRO3_BLOB).is_ok());
+        assert!(check_profile_blob(&[0; 10], PRO3_BLOB).is_err());
         assert!(check_patch(&[1]).is_ok());
         assert!(check_patch(&[]).is_err());
     }

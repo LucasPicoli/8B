@@ -5,7 +5,6 @@ use crate::protocol::bytes::{read_u16_le, take};
 use crate::protocol::crc16::crc16_modbus;
 
 const PACKET_LEN: usize = 64;
-const PROFILE_SIG: [u8; 2] = [0x2C, 0x09]; // 0x092C little-endian
 /// Where every request carries its payload and starts its CRC window, in every mode.
 /// The two bytes before it are zero. Official `DInput` writes use 18 too.
 pub const PAYLOAD_OFFSET: usize = 18;
@@ -35,13 +34,15 @@ pub const fn build_slot_select(slot_select_value: u8) -> [u8; PACKET_LEN] {
     p
 }
 
-/// Builds a `PROFILE_UPLOAD` request for `chunk` at `offset`.
+/// Builds a `PROFILE_UPLOAD` request for `chunk` at `offset` of a `blob_size`-byte blob.
+///
+/// Bytes 10 and 11 carry the low half of the blob size, `2c 09` on a Pro 3.
 ///
 /// The `0xCC` filler sits at [`PAYLOAD_OFFSET`] in every mode, and the
 /// CRC-16/MODBUS covers it. A `DInput` request with the filler at 16 makes the
 /// device return a repeating 4-byte pattern instead of the blob.
 #[must_use]
-pub fn build_upload_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
+pub fn build_upload_packet(offset: u16, chunk: &[u8], blob_size: u16) -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];
     let len = chunk.len().min(PACKET_LEN - PAYLOAD_OFFSET);
     p[0] = 0x81;
@@ -53,8 +54,9 @@ pub fn build_upload_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
     let len_bytes = (len as u16).to_le_bytes();
     p[6] = len_bytes[0];
     p[7] = len_bytes[1];
-    p[10] = PROFILE_SIG[0];
-    p[11] = PROFILE_SIG[1];
+    let size_bytes = blob_size.to_le_bytes();
+    p[10] = size_bytes[0];
+    p[11] = size_bytes[1];
     let off_bytes = offset.to_le_bytes();
     p[14] = off_bytes[0];
     p[15] = off_bytes[1];
@@ -222,7 +224,7 @@ mod tests {
     #[test]
     fn upload_packet_has_header_size_and_crc() {
         let chunk = [0xCCu8; 45];
-        let pkt = build_upload_packet(0, &chunk);
+        let pkt = build_upload_packet(0, &chunk, 0x092C);
         assert_eq!(&pkt[0..4], &[0x81, 0x04, 0x02, 0x00]);
         assert_eq!(u16::from_le_bytes([pkt[6], pkt[7]]), 45); // chunk size
         assert_eq!(&pkt[10..12], &[0x2C, 0x09]); // profile sig

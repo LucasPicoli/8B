@@ -1,6 +1,7 @@
 //! App state on the UI thread: what each controller holds, the edits, and what the
 //! window shows. Pure: no Slint, no I/O.
 
+use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc::Sender;
 
@@ -119,10 +120,11 @@ pub struct Notice {
 #[allow(clippy::struct_excessive_bools)]
 #[derive(Debug)]
 pub struct AppState {
-    /// The controller model.
-    pub description: &'static ControllerDescription,
-    /// The profile a new slot starts from, per mode, with an empty name.
-    pub defaults: BTreeMap<Mode, CanonicalProfile>,
+    /// The model shown before any controller is read: the first supported one.
+    pub fallback_description: &'static ControllerDescription,
+    /// The profile a new slot of the fallback model starts from, per mode, with an
+    /// empty name.
+    pub fallback_defaults: BTreeMap<Mode, CanonicalProfile>,
     /// Every controller present, and every unplugged one that holds edits, in the
     /// order they appeared.
     pub controllers: Vec<Controller>,
@@ -170,9 +172,28 @@ pub struct AppState {
     /// A command could not reach the worker: its thread has ended, so the stopped
     /// message shows. The worker is not restarted.
     pub worker_stopped: bool,
+    /// The description whose views the window last drew. [`crate::render::render`]
+    /// draws them again when the shown controller is another model.
+    pub views_of: Cell<Option<&'static ControllerDescription>>,
 }
 
 impl AppState {
+    /// The description of the controller the window shows, or the fallback model's
+    /// while that controller has not been read.
+    #[must_use]
+    pub fn description(&self) -> &'static ControllerDescription {
+        self.active().and_then(|c| c.description).unwrap_or(self.fallback_description)
+    }
+
+    /// The profile a new slot of each mode starts from, for the controller the window
+    /// shows, or for the fallback model while that controller has not been read.
+    #[must_use]
+    pub fn defaults(&self) -> &BTreeMap<Mode, CanonicalProfile> {
+        self.active()
+            .filter(|c| c.description.is_some())
+            .map_or(&self.fallback_defaults, |c| &c.defaults)
+    }
+
     /// A window with no controller seen yet. `defaults` holds the profile a new slot
     /// of each mode starts from.
     #[must_use]
@@ -181,8 +202,8 @@ impl AppState {
         defaults: BTreeMap<Mode, CanonicalProfile>,
     ) -> Self {
         Self {
-            description,
-            defaults,
+            fallback_description: description,
+            fallback_defaults: defaults,
             controllers: Vec::new(),
             active_port: None,
             pending_move: None,
@@ -201,6 +222,7 @@ impl AppState {
             write: WriteState::default(),
             closing: false,
             worker_stopped: false,
+            views_of: Cell::new(None),
         }
     }
 
@@ -270,7 +292,9 @@ impl AppState {
 
     /// Shows slot `slot` (0-based) of the mode at `mode` in the description.
     pub fn select(&mut self, mode: usize, slot: usize) {
-        if mode < self.description.modes.len() && slot < usize::from(self.description.slot_count) {
+        if mode < self.description().modes.len()
+            && slot < usize::from(self.description().slot_count)
+        {
             if self.selected != (mode, slot) {
                 self.notice = None;
                 self.write.reading_for = None;
@@ -282,7 +306,7 @@ impl AppState {
     /// The mode and 1-based slot number of the selected slot.
     #[must_use]
     pub fn selected_slot(&self) -> Option<(Mode, u8)> {
-        let mode = self.description.modes.get(self.selected.0)?.id;
+        let mode = self.description().modes.get(self.selected.0)?.id;
         let number = u8::try_from(self.selected.1 + 1).ok()?;
         Some((mode, number))
     }
@@ -329,7 +353,7 @@ impl AppState {
 
     /// Renames the selected slot's profile, cut to the controller's name length.
     pub fn set_name(&mut self, name: &str) {
-        let max = usize::try_from(self.description.limits.profile_name_length.max).unwrap_or(0);
+        let max = usize::try_from(self.description().limits.profile_name_length.max).unwrap_or(0);
         let name: String = name.chars().take(max).collect();
         self.edit(|p| p.name = name);
     }
@@ -344,7 +368,7 @@ impl AppState {
     /// Fills an empty selected slot's working copy with the mode's default profile.
     pub fn start_from_default(&mut self) {
         let Some((mode, _)) = self.selected_slot() else { return };
-        let Some(mut profile) = self.defaults.get(&mode).cloned() else { return };
+        let Some(mut profile) = self.defaults().get(&mode).cloned() else { return };
         NEW_PROFILE_NAME.clone_into(&mut profile.name);
         if let Some(slot) = self.selected_mut().filter(|s| s.shown().is_none()) {
             slot.edited = Some(profile);

@@ -3,6 +3,8 @@
 use std::collections::HashMap;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
+use crate::device::Model;
+use crate::devices::models;
 use crate::error::{Error, Result};
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 use crate::transport::device_io::DeviceIo;
@@ -113,6 +115,7 @@ struct WriteLog {
 /// [`MockDevice::fail_nth`] says otherwise. The mock does not model device state.
 #[derive(Default)]
 pub struct MockDevice {
+    model: Option<&'static dyn Model>,
     profiles: Option<ProfileReadResult>,
     macro_streams: HashMap<(&'static str, u8, u8), Vec<u8>>,
     readiness: Option<DeviceReadiness>,
@@ -126,6 +129,14 @@ impl MockDevice {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Configures what [`DeviceIo::model`] returns. Without it, the mock is the first
+    /// model in the registry.
+    #[must_use]
+    pub fn with_model(mut self, model: &'static dyn Model) -> Self {
+        self.model = Some(model);
+        self
     }
 
     /// Configures what [`DeviceIo::read_all_profiles`] returns.
@@ -199,6 +210,10 @@ impl MockDevice {
 }
 
 impl DeviceIo for MockDevice {
+    fn model(&self) -> Result<&'static dyn Model> {
+        self.model.or_else(|| models().first().copied()).ok_or(Error::NoDevice)
+    }
+
     fn read_all_profiles(&self) -> Result<ProfileReadResult> {
         let mut failures = self.read_failures.lock().unwrap_or_else(PoisonError::into_inner);
         if !failures.is_empty() {
@@ -235,7 +250,7 @@ impl DeviceIo for MockDevice {
     }
 
     fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()> {
-        check_profile_blob(blob)?;
+        check_profile_blob(blob, self.model()?.blob_size())?;
         self.record(MockCall::WriteFullProfile { mode, blob: blob.to_vec() })
     }
 

@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use controller_core::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT};
-use controller_core::devices::pro3::macros::parse_macro_file_name;
+use controller_core::model::macros::parse_macro_file_name;
 use controller_core::model::{CanonicalProfile, Mode};
 use controller_core::view::{VIEW_FILL_COLOR, VIEW_LINE_COLOR};
 use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedString, VecModel};
@@ -57,7 +57,7 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
 /// Turbo can go back to Turbo and an unrecognised entry shows as Unknown.
 #[must_use]
 pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec<(String, String)> {
-    let description = state.description;
+    let description = state.description();
     let extras = description.mode(mode).map(|m| m.extra_outputs.as_slice()).unwrap_or_default();
     let mut list: Vec<String> = description
         .buttons
@@ -67,7 +67,7 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
         .chain(extras.iter().map(|o| o.id.clone()))
         .chain([DISABLED_OUTPUT.to_owned()])
         .collect();
-    let default = state.defaults.get(&mode).map(|p| target(p, button));
+    let default = state.defaults().get(&mode).map(|p| target(p, button));
     for id in [default, Some(current)].into_iter().flatten() {
         if !list.iter().any(|o| o == id) {
             list.insert(0, id.to_owned());
@@ -84,7 +84,7 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
 #[must_use]
 pub fn picked_output(state: &AppState, row: usize, choice: usize) -> Option<(String, String)> {
     let (mode, number) = state.selected_slot()?;
-    let button = state.description.buttons.get(row)?;
+    let button = state.description().buttons.get(row)?;
     let slot = state.slot(mode, number);
     let current = current(slot.shown()?, &button.id);
     let (output, _) = choices(state, mode, &button.id, &current).into_iter().nth(choice)?;
@@ -109,7 +109,7 @@ pub fn sections(state: &AppState) -> Vec<Section> {
 /// Whether `button`, a remappable button, outputs something other than it does in
 /// `mode`'s default profile.
 fn remapped(state: &AppState, mode: Mode, button: &str, current: &str) -> bool {
-    state.defaults.get(&mode).is_some_and(|d| target(d, button) != current)
+    state.defaults().get(&mode).is_some_and(|d| target(d, button) != current)
 }
 
 /// The mapping table of the selected slot: one row per button, in the
@@ -120,7 +120,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
     let slot = state.slot(mode, number);
     let Some(shown) = slot.shown() else { return Vec::new() };
     state
-        .description
+        .description()
         .buttons
         .iter()
         .map(|b| {
@@ -148,7 +148,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
 /// default profile's.
 #[must_use]
 pub fn spots(state: &AppState) -> Vec<Spot> {
-    let description = state.description;
+    let description = state.description();
     let Some((mode, number)) = state.selected_slot() else { return Vec::new() };
     let slot = state.slot(mode, number);
     let Some(shown) = slot.shown() else { return Vec::new() };
@@ -303,7 +303,7 @@ mod tests {
     #[test]
     fn a_pick_names_the_row_button_and_the_chosen_output() {
         let s = read(Mode::XInput);
-        let row = s.description.buttons.iter().position(|b| b.id == "r1").unwrap();
+        let row = s.description().buttons.iter().position(|b| b.id == "r1").unwrap();
         assert_eq!(picked_output(&s, row, 17), Some(("r1".to_owned(), "disabled".to_owned())));
         assert_eq!(picked_output(&s, row, 99), None);
         assert_eq!(picked_output(&s, 99, 0), None);
@@ -324,8 +324,9 @@ mod tests {
         pad.button_mappings[1].target = UNRECOGNISED_OUTPUT.to_owned();
         s.set_output("r1", "disabled");
         let rows = rows(&s);
-        let row =
-            |id: &str| rows[s.description.buttons.iter().position(|b| b.id == id).unwrap()].clone();
+        let row = |id: &str| {
+            rows[s.description().buttons.iter().position(|b| b.id == id).unwrap()].clone()
+        };
         assert!(row("home/guide").fixed && !row("l1").fixed);
         assert!(row("r1").remapped && !row("l2").remapped && !row("rp").remapped);
         assert!(row("bottom face").unknown);
@@ -359,7 +360,7 @@ mod tests {
     #[test]
     fn a_button_with_a_macro_shows_the_macro_as_its_output() {
         let s = with_macro();
-        let at = s.description.buttons.iter().position(|b| b.id == "rp").unwrap();
+        let at = s.description().buttons.iter().position(|b| b.id == "rp").unwrap();
         let row = &rows(&s)[at];
         assert_eq!(row.output, 0, "the macro comes first");
         assert_eq!(row.outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
@@ -373,7 +374,7 @@ mod tests {
     #[test]
     fn a_pick_removes_the_macro_and_discard_brings_it_back() {
         let mut s = with_macro();
-        let at = s.description.buttons.iter().position(|b| b.id == "rp").unwrap();
+        let at = s.description().buttons.iter().position(|b| b.id == "rp").unwrap();
         let (button, output) = picked_output(&s, at, 1).unwrap();
         assert_eq!((button.as_str(), output.as_str()), ("rp", "right face"));
         s.set_output(&button, &output);

@@ -102,9 +102,9 @@ impl AppState {
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
         let parsed = text.and_then(|t| parse(&t));
         let converted = parsed.and_then(|p| {
-            let default = |m| self.defaults.get(&m).ok_or("This controller has no such mode.");
+            let default = |m| self.defaults().get(&m).ok_or("This controller has no such mode.");
             let (profile, losses) =
-                convert_profile(self.description, &p, default(p.mode)?, default(slot.0)?)
+                convert_profile(self.description(), &p, default(p.mode)?, default(slot.0)?)
                     .map_err(|e| sentence(&e.to_string()))?;
             Ok((p.mode, p.macro_refs.len(), profile, losses))
         });
@@ -152,17 +152,17 @@ impl AppState {
         let PendingImport { slot: (mode, number), file_name, mut profile, skipped_macros, .. } =
             pending;
         let active = self.active().map(|c| c.port.clone());
-        let defaults = &self.defaults;
+        let default = self.defaults().get(&mode).cloned();
         let Some(c) = self.controllers.iter_mut().find(|c| Some(&c.port) == active.as_ref()) else {
             return;
         };
         let state = c.slots.entry((mode, number)).or_default();
-        let base = state.pad.as_ref().or_else(|| defaults.get(&mode));
+        let base = state.pad.as_ref().or(default.as_ref());
         profile.id = base.map(|b| b.id.clone()).unwrap_or_default();
         profile.preferred_slot = base.and_then(|b| b.preferred_slot);
         profile.macro_refs = state.pad.as_ref().map(|p| p.macro_refs.clone()).unwrap_or_default();
         state.edited = Some(profile);
-        if let Some(i) = self.description.modes.iter().position(|m| m.id == mode) {
+        if let Some(i) = self.description().modes.iter().position(|m| m.id == mode) {
             self.select(i, usize::from(number).saturating_sub(1));
         }
         let skipped = match skipped_macros {
@@ -200,7 +200,7 @@ pub fn swapped_letters(description: &ControllerDescription, from: Mode, to: Mode
 #[must_use]
 pub fn import_warning(state: &AppState) -> ImportWarning {
     let Some(p) = &state.pending_import else { return ImportWarning::default() };
-    let d = state.description;
+    let d = state.description();
     let (from, to) = (p.from, p.slot.0);
     let lost: Vec<Change> = p
         .losses
@@ -254,7 +254,7 @@ mod tests {
 
     /// A Switch default profile as an export file holds it, after `change`.
     fn switch_file(s: &AppState, change: impl FnOnce(&mut CanonicalProfile)) -> String {
-        let mut p = s.defaults[&Mode::Switch].clone();
+        let mut p = s.defaults()[&Mode::Switch].clone();
         "switch-slot-1-index-0".clone_into(&mut p.id);
         "Switch".clone_into(&mut p.name);
         change(&mut p);
@@ -408,7 +408,7 @@ mod tests {
             w.letters,
             "Switch A is XInput B, Switch B is XInput A, Switch X is XInput Y, Switch Y is XInput X"
         );
-        let d = s.description;
+        let d = s.description();
         assert_eq!(swapped_letters(d, Mode::XInput, Mode::DInput), "");
         s.cancel_import();
         assert!(!import_warning(&s).shown);

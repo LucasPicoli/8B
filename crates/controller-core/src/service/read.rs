@@ -1,18 +1,14 @@
 //! Read services: thin orchestration of [`DeviceIo`] + codec calls.
 //!
 //! Ports `macro_read_service.cpp::readMacros`. The C++ read split the banks by
-//! product id; this one reads all three, so a blob is picked by mode alone.
+//! product id; this one reads every bank of the model, so a blob is picked by mode alone.
 
 use std::collections::BTreeMap;
 
-use crate::device::ProtocolCodec;
-use crate::devices::pro3::Pro3;
+use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::model::{MacroDefinition, MacroSlot, Mode, ProfileReadResult, Slot};
 use crate::transport::device_io::DeviceIo;
-
-/// Expected size of a profile blob in bytes.
-const EXPECTED_BLOB_SIZE: usize = 0x092C;
 
 /// The result of a successful [`read_macros`] call.
 #[derive(Debug, Clone)]
@@ -39,7 +35,7 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 /// # Control flow
 /// 1. Read all profile blobs.
 /// 2. Select the mode's blob via [`blob_for_mode`].
-/// 3. Verify blob size == `0x092C`.
+/// 3. Verify the blob is the model's blob size.
 /// 4. Check that `profile_slot` is active; inactive slot → `Err`.
 /// 5. Decode macro metadata descriptors from Section 4.
 /// 6. For each descriptor, read the step stream and decode it.
@@ -48,25 +44,21 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 /// - [`Error::Validation`] if the slot is inactive.
 /// - [`Error::Usb`] if no blob is available or the blob size mismatches.
 /// - Any [`Error`] propagated from the codec or device I/O.
-pub fn read_macros(
-    dev: &dyn DeviceIo,
-    codec: &Pro3,
-    mode: Mode,
-    profile_slot: Slot,
-) -> Result<MacroReadResult> {
+pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result<MacroReadResult> {
     // 1. Read profile blobs.
     let read = dev.read_all_profiles()?;
+    let codec = dev.model()?;
 
     // 2-3. Pick the mode's blob, then size-check it.
-    let blob = blob_for_mode(&read, mode)
+    let blob = blob_for_mode(codec, &read, mode)
         .ok_or_else(|| Error::Usb("no blob available for mode".into()))?;
 
-    if blob.len() != EXPECTED_BLOB_SIZE {
+    if blob.len() != codec.blob_size() {
         return Err(Error::Usb(format!("readback blob size mismatch: {}", blob.len())));
     }
 
     // 4. Active-slot check — a zeroed blob (or any inactive slot) is an error.
-    if !crate::detect::is_slot_active(blob, profile_slot)? {
+    if !codec.slot_active(blob, profile_slot)? {
         return Err(Error::Validation(format!("no active profile in slot {}", profile_slot.get())));
     }
 
@@ -104,10 +96,15 @@ pub fn read_macros(
     Ok(MacroReadResult { macros })
 }
 
-/// Returns the blob of `mode`'s bank from a full read, which holds one blob per mode
-/// in [`Mode::ALL`] order. `None` when the read is short.
-pub(crate) fn blob_for_mode(read: &ProfileReadResult, mode: Mode) -> Option<&Vec<u8>> {
-    let index = Mode::ALL.iter().position(|&m| m == mode)?;
+/// Returns the blob of `mode`'s bank from a full read of `model`, which holds one blob
+/// per mode in the order of the model's description. `None` when the read is short or
+/// the model has no such mode.
+pub(crate) fn blob_for_mode<'r>(
+    model: &dyn Model,
+    read: &'r ProfileReadResult,
+    mode: Mode,
+) -> Option<&'r Vec<u8>> {
+    let index = model.description().ok()?.modes.iter().position(|m| m.id == mode)?;
     read.raw_blobs.get(index)
 }
 
@@ -117,16 +114,13 @@ pub(crate) fn blob_for_mode(read: &ProfileReadResult, mode: Mode) -> Option<&Vec
 /// replaces them, and a clear leaves them. A slot whose descriptors cannot be decoded
 /// is left out.
 #[must_use]
-pub fn leftover_macros(
-    codec: &dyn ProtocolCodec,
-    read: &ProfileReadResult,
-) -> BTreeMap<(Mode, u8), usize> {
+pub fn leftover_macros(model: &dyn Model, read: &ProfileReadResult) -> BTreeMap<(Mode, u8), usize> {
     read.profiles
         .iter()
         .filter(|p| p.id.is_empty())
         .filter_map(|p| {
-            let blob = blob_for_mode(read, p.mode)?;
-            let found = codec.decode_macro_metadata(blob, Slot::new(p.source_slot).ok()?).ok()?;
+            let blob = blob_for_mode(model, read, p.mode)?;
+            let found = model.decode_macro_metadata(blob, Slot::new(p.source_slot).ok()?).ok()?;
             (!found.is_empty()).then_some(((p.mode, p.source_slot), found.len()))
         })
         .collect()
@@ -136,6 +130,8 @@ pub fn leftover_macros(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::device::ProtocolCodec as _;
+    use crate::devices::pro3::Pro3;
     use crate::model::ProfileReadResult;
     use crate::transport::mock::MockDevice;
 
@@ -158,7 +154,7 @@ mod tests {
             raw_blobs: vec![zeroed_blob(), zeroed_blob(), zeroed_blob()],
             ..Default::default()
         });
-        let result = read_macros(&dev, &Pro3, Mode::XInput, Slot::new(1).unwrap());
+        let result = read_macros(&dev, Mode::XInput, Slot::new(1).unwrap());
         assert!(result.is_err(), "expected Err for inactive slot");
         let err = result.unwrap_err();
         assert!(matches!(err, Error::Validation(_)), "expected Validation error, got: {err:?}");
@@ -181,7 +177,7 @@ mod tests {
                 MacroSlot::new(3).unwrap(),
                 stream,
             );
-        let result = read_macros(&dev, &Pro3, Mode::DInput, Slot::new(1).unwrap()).unwrap();
+        let result = read_macros(&dev, Mode::DInput, Slot::new(1).unwrap()).unwrap();
         assert_eq!(result.macros.len(), 1, "the empty descriptors are skipped");
         let m = &result.macros[0];
         assert_eq!((m.name.as_str(), m.trigger.as_str()), ("mx_d14", "r4"));
@@ -198,7 +194,7 @@ mod tests {
             raw_blobs: vec![active_slot1_blob(), zeroed_blob(), zeroed_blob()],
             ..Default::default()
         });
-        let result = read_macros(&dev, &Pro3, Mode::XInput, Slot::new(1).unwrap());
+        let result = read_macros(&dev, Mode::XInput, Slot::new(1).unwrap());
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
         assert!(result.unwrap().macros.is_empty(), "expected empty macro list");
     }
@@ -226,7 +222,7 @@ mod tests {
                 stream,
             );
 
-        let result = read_macros(&dev, &Pro3, Mode::XInput, Slot::new(1).unwrap()).unwrap();
+        let result = read_macros(&dev, Mode::XInput, Slot::new(1).unwrap()).unwrap();
         assert_eq!(result.macros.len(), 1, "expected exactly one macro");
         assert_eq!(result.macros[0].name, "GoldenMac");
         assert_eq!(result.macros[0].steps.len(), 3);

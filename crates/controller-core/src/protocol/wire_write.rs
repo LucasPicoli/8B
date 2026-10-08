@@ -16,7 +16,6 @@ pub const MACRO_CHUNK_LEN: usize = 32;
 /// Bytes erased per macro slot, and the flash stride between macro slots.
 pub const MACRO_PAGE_LEN: u16 = 0x1000;
 
-const PROFILE_SIG: u16 = 0x092C;
 const CMD_PROFILE_WRITE: u8 = 0x01;
 const CMD_WRITE_MACRO: u8 = 0x03;
 const CMD_ERASE_MACRO: u8 = 0x04;
@@ -63,15 +62,15 @@ fn len_u16(len: usize) -> u16 {
     u16::try_from(len).unwrap_or(u16::MAX)
 }
 
-/// Builds a `PROFILE_WRITE` packet for `chunk` at blob `offset`.
+/// Builds a `PROFILE_WRITE` packet for `chunk` at `offset` of a `blob_size`-byte blob.
 ///
 /// The payload and its CRC window start at [`PAYLOAD_OFFSET`] in every mode. The C++
 /// oracle put `DInput` payloads at 16; the official app's `DInput` writes use 18.
 #[must_use]
-pub fn build_write_packet(offset: u16, chunk: &[u8]) -> [u8; PACKET_LEN] {
+pub fn build_write_packet(offset: u16, chunk: &[u8], blob_size: u16) -> [u8; PACKET_LEN] {
     let mut p = header(CMD_PROFILE_WRITE, 0x00);
     put16(&mut p, OFF_CHUNK_SIZE, len_u16(chunk.len()));
-    put16(&mut p, OFF_SIG_OR_TOTAL, PROFILE_SIG);
+    put16(&mut p, OFF_SIG_OR_TOTAL, blob_size);
     put16(&mut p, OFF_FLASH_OFFSET, offset);
     put_payload(&mut p, PAYLOAD_OFFSET, chunk, PACKET_LEN);
     stamp_crc(&mut p, chunk.len());
@@ -228,7 +227,7 @@ mod tests {
     #[test]
     fn write_packet_layout() {
         let chunk = [0xAB; 45];
-        let p = build_write_packet(0x0087, &chunk);
+        let p = build_write_packet(0x0087, &chunk, 0x092C);
         assert_eq!(&p[0..4], &[0x81, 0x04, 0x01, 0x00]);
         assert_eq!(u16::from_le_bytes([p[6], p[7]]), 45);
         assert_eq!(&p[10..12], &[0x2C, 0x09]);

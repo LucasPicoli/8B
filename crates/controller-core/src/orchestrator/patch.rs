@@ -5,16 +5,13 @@
 //! C++ code, every patched field is range checked here, and the slot's macros are kept.
 
 use super::write::{failure_from, text, Plan, ProfileWriteOrchestrator};
-use crate::devices::pro3::tables;
+use crate::description::{Limits, TriggerKind};
 use crate::error::{Error, Result};
 use crate::model::{
     ButtonMapping, CanonicalProfile, Mode, RawProfilePayload, Slot, Triggers, WriteResult,
 };
 use crate::service::validation::dpad_swap_clash;
 use crate::service::{ConfirmPolicy, ReadbackResult};
-
-/// Upper bound of a trigger min or max percent.
-const TRIGGER_PCT_MAX: i32 = 100;
 
 /// Stick fields to change. A `None` field keeps the value on the controller.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -91,7 +88,7 @@ impl ProfileWriteOrchestrator<'_> {
         target: &str,
         policy: &ConfirmPolicy,
     ) -> WriteResult {
-        if let Err(e) = self.codec.validate_remap(mode, source, target) {
+        if let Err(e) = self.model.validate_remap(mode, source, target) {
             return failure_from(mode, slot, &e);
         }
         self.patch(mode, slot, policy, "remap", "Button remapped.", |profile| {
@@ -114,32 +111,15 @@ impl ProfileWriteOrchestrator<'_> {
         patch: &StickPatch,
         policy: &ConfirmPolicy,
     ) -> WriteResult {
-        let ranges = check_ranges(&[
-            (
-                "left_min_pct",
-                patch.left_min_pct,
-                tables::STICK_MIN_PCT_LO,
-                tables::STICK_MIN_PCT_HI,
-            ),
-            (
-                "left_max_pct",
-                patch.left_max_pct,
-                tables::STICK_MAX_PCT_LO,
-                tables::STICK_MAX_PCT_HI,
-            ),
-            (
-                "right_min_pct",
-                patch.right_min_pct,
-                tables::STICK_MIN_PCT_LO,
-                tables::STICK_MIN_PCT_HI,
-            ),
-            (
-                "right_max_pct",
-                patch.right_max_pct,
-                tables::STICK_MAX_PCT_LO,
-                tables::STICK_MAX_PCT_HI,
-            ),
-        ]);
+        let ranges = self.limits().and_then(|l| {
+            let (min, max) = (l.stick_min_pct, l.stick_max_pct);
+            check_ranges(&[
+                ("left_min_pct", patch.left_min_pct, min.min, min.max),
+                ("left_max_pct", patch.left_max_pct, max.min, max.max),
+                ("right_min_pct", patch.right_min_pct, min.min, min.max),
+                ("right_max_pct", patch.right_max_pct, max.min, max.max),
+            ])
+        });
         if let Err(e) = ranges {
             return failure_from(mode, slot, &e);
         }
@@ -174,26 +154,21 @@ impl ProfileWriteOrchestrator<'_> {
         let analog =
             [patch.left_min_pct, patch.left_max_pct, patch.right_min_pct, patch.right_max_pct];
         let thresholds = [patch.left_threshold_pct, patch.right_threshold_pct];
-        let checked = if mode == Mode::Switch {
+        let (limits, kind) = match self.limits().and_then(|l| Ok((l, self.trigger_kind(mode)?))) {
+            Ok(found) => found,
+            Err(e) => return failure_from(mode, slot, &e),
+        };
+        let checked = if kind == TriggerKind::Threshold {
             if analog.iter().any(Option::is_some) {
                 Err(Error::Validation(
                     "left_min_pct, left_max_pct, right_min_pct and right_max_pct do not apply in switch mode. Use left_threshold_pct and right_threshold_pct."
                         .to_owned(),
                 ))
             } else {
+                let range = limits.trigger_threshold_pct;
                 check_ranges(&[
-                    (
-                        "left_threshold_pct",
-                        patch.left_threshold_pct,
-                        tables::SWITCH_THRESHOLD_PCT_LO,
-                        tables::SWITCH_THRESHOLD_PCT_HI,
-                    ),
-                    (
-                        "right_threshold_pct",
-                        patch.right_threshold_pct,
-                        tables::SWITCH_THRESHOLD_PCT_LO,
-                        tables::SWITCH_THRESHOLD_PCT_HI,
-                    ),
+                    ("left_threshold_pct", patch.left_threshold_pct, range.min, range.max),
+                    ("right_threshold_pct", patch.right_threshold_pct, range.min, range.max),
                 ])
             }
         } else if thresholds.iter().any(Option::is_some) {
@@ -202,11 +177,12 @@ impl ProfileWriteOrchestrator<'_> {
                     .to_owned(),
             ))
         } else {
+            let range = limits.trigger_pct;
             check_ranges(&[
-                ("left_min_pct", patch.left_min_pct, 0, TRIGGER_PCT_MAX),
-                ("left_max_pct", patch.left_max_pct, 0, TRIGGER_PCT_MAX),
-                ("right_min_pct", patch.right_min_pct, 0, TRIGGER_PCT_MAX),
-                ("right_max_pct", patch.right_max_pct, 0, TRIGGER_PCT_MAX),
+                ("left_min_pct", patch.left_min_pct, range.min, range.max),
+                ("left_max_pct", patch.left_max_pct, range.min, range.max),
+                ("right_min_pct", patch.right_min_pct, range.min, range.max),
+                ("right_max_pct", patch.right_max_pct, range.min, range.max),
             ])
         };
         if let Err(e) = checked {
@@ -231,7 +207,8 @@ impl ProfileWriteOrchestrator<'_> {
         })
     }
 
-    /// Sets both vibration levels (0 to 5) in an occupied slot.
+    /// Sets both vibration levels in an occupied slot, in the model's range (0 to 5 on a
+    /// Pro 3).
     #[must_use]
     pub fn patch_vibration(
         &self,
@@ -242,10 +219,13 @@ impl ProfileWriteOrchestrator<'_> {
         policy: &ConfirmPolicy,
     ) -> WriteResult {
         let (left, right) = (i32::from(left), i32::from(right));
-        let levels = check_ranges(&[
-            ("left vibration level", Some(left), 0, tables::VIBRATION_LEVEL_MAX),
-            ("right vibration level", Some(right), 0, tables::VIBRATION_LEVEL_MAX),
-        ]);
+        let levels = self.limits().and_then(|l| {
+            let range = l.vibration_level;
+            check_ranges(&[
+                ("left vibration level", Some(left), range.min, range.max),
+                ("right vibration level", Some(right), range.min, range.max),
+            ])
+        });
         if let Err(e) = levels {
             return failure_from(mode, slot, &e);
         }
@@ -261,6 +241,20 @@ impl ProfileWriteOrchestrator<'_> {
                 Ok(())
             },
         )
+    }
+
+    /// The value ranges of the model's description.
+    fn limits(&self) -> Result<Limits> {
+        Ok(self.model.description()?.limits)
+    }
+
+    /// How the model tunes the triggers in `mode`.
+    fn trigger_kind(&self, mode: Mode) -> Result<TriggerKind> {
+        let description = self.model.description()?;
+        description
+            .mode(mode)
+            .map(|m| m.trigger_kind)
+            .ok_or_else(|| Error::Validation(format!("This controller has no {mode} mode.")))
     }
 
     /// Shared patch flow: the slot must be occupied, its profile is decoded, `edit` changes
@@ -287,7 +281,7 @@ impl ProfileWriteOrchestrator<'_> {
                 mode_hint: mode,
             };
             let mut profile = self
-                .codec
+                .model
                 .map_profile(&raw)
                 .map_err(|e| {
                     Error::write(format!("Failed to decode the existing profile: {}", text(&e)))
@@ -295,7 +289,7 @@ impl ProfileWriteOrchestrator<'_> {
                 .canonical;
             edit(&mut profile)?;
             let blob = self
-                .codec
+                .model
                 .compile_profile_keep_macros(&profile, slot, &rb.backup_blob)
                 .map_err(|e| Error::write(format!("Compilation failed: {}", text(&e))))?;
             Ok(Plan::Write(blob))

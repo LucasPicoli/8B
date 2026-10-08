@@ -66,3 +66,51 @@ pub struct MacroDefinition {
     /// Original macro slot (0–3) or `None`.
     pub macro_slot: Option<u8>,
 }
+
+/// The file name of an exported macro, and the `path` a read puts in `macro_refs`.
+///
+/// The shape is `<mode>-slot<slot>-macro<m>-<name>.json`. Each character of the name
+/// other than a letter, a digit, `-` or `_` becomes `_`.
+#[must_use]
+pub fn macro_file_name(mode: Mode, profile_slot: u8, def: &MacroDefinition) -> String {
+    let safe_name: String = def
+        .name
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+        .collect();
+    let m_slot = def.macro_slot.unwrap_or(0);
+    format!("{mode}-slot{profile_slot}-macro{m_slot}-{safe_name}.json")
+}
+
+/// The macro slot (0–3) and the name in a [`macro_file_name`] path, or `None` when
+/// `path` has another shape.
+#[must_use]
+pub fn parse_macro_file_name(path: &str) -> Option<(u8, &str)> {
+    let mut parts = path.strip_suffix(".json")?.splitn(4, '-');
+    let (_mode, _slot) = (parts.next()?, parts.next()?);
+    let macro_slot = parts.next()?.strip_prefix("macro")?.parse().ok()?;
+    Some((macro_slot, parts.next()?))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_macro_file_name_parses_back_to_its_slot_and_name() {
+        let def = MacroDefinition {
+            name: "My-macro 1".into(),
+            mode: Mode::XInput,
+            trigger: "l1".into(),
+            repeat_count: 1,
+            interval_ms: 0,
+            steps: Vec::new(),
+            macro_slot: Some(2),
+        };
+        let path = macro_file_name(Mode::XInput, 1, &def);
+        assert_eq!(parse_macro_file_name(&path), Some((2, "My-macro_1")));
+        assert_eq!(parse_macro_file_name("m.json"), None);
+        assert_eq!(parse_macro_file_name("xinput-slot1-macroX-a.json"), None);
+    }
+}

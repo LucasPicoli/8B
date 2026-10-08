@@ -12,11 +12,13 @@
 //! even on truncated or corrupted input.
 
 use crate::description::UNRECOGNISED_OUTPUT;
-use crate::devices::pro3::macros::{decode_macro_metadata, encode_macro_metadata, macro_file_name};
+use crate::devices::pro3::macros::{decode_macro_metadata, encode_macro_metadata};
 use crate::devices::pro3::tables;
 use crate::devices::pro3::tables::ButtonEncodingEntry;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
+use crate::model::macros::macro_file_name;
+use crate::model::profile::canonical_id;
 use crate::model::{
     ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroRef, MacroSlot,
     Mode, RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
@@ -382,12 +384,6 @@ fn detect_source_slot(payload: &[u8], layout: DecodeLayout) -> u8 {
         }
     }
     0
-}
-
-/// Builds the canonical `{mode}-slot-{slot}-index-{index}` id.
-#[must_use]
-pub fn canonical_id(mode: Mode, source_slot: u8, source_profile_index: u8) -> String {
-    format!("{}-slot-{source_slot}-index-{source_profile_index}", mode.as_str())
 }
 
 /// Decodes a raw Pro 3 profile blob into a canonical profile summary.
@@ -980,12 +976,6 @@ mod tests {
         assert_eq!(to_percent(102, 128), 80);
         assert_eq!(to_percent(200, 128), 100);
         assert_eq!(to_percent(5, 0), 0);
-    }
-
-    #[test]
-    fn canonical_id_uses_mode_slot_index() {
-        assert_eq!(canonical_id(Mode::XInput, 1, 0), "xinput-slot-1-index-0");
-        assert_eq!(canonical_id(Mode::Switch, 2, 1), "switch-slot-2-index-1");
     }
 
     #[test]

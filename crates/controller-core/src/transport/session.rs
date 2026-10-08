@@ -14,8 +14,8 @@ use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::io::Errno;
 
 use crate::detect::{config_hidraw, scan_sysfs_all, DetectedUsb};
-use crate::device::ControllerSpec as _;
-use crate::devices::pro3::Pro3;
+use crate::device::Model;
+use crate::devices::{config_ports, find_model, models};
 use crate::error::{Error, Result};
 use crate::model::Mode;
 use crate::protocol::bytes::{hex, read_u16_le, read_u8};
@@ -47,23 +47,20 @@ const FIRMWARE_VERSION_OFFSET: usize = 18;
 /// `START_CONFIG` reply byte that carries the firmware beta number, `0` for a release.
 const FIRMWARE_BETA_OFFSET: usize = 20;
 
-/// A controller to talk to: its model, and the USB port path it sits on, such as
-/// `8-5`. With no port, the first supported controller found.
+/// A controller to talk to: the USB port path it sits on, such as `8-5`. With no port,
+/// the first supported controller found. The session finds out the model.
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Target<'a> {
-    /// The controller model.
-    pub(super) spec: Pro3,
     /// The USB port path, or `None` for the first controller found.
     pub(super) port: Option<&'a str>,
 }
 
 impl Target<'_> {
     /// The target's USB device, if present.
-    fn find(self) -> Result<Option<DetectedUsb>> {
-        let ports = &self.spec.description()?.config_ports;
-        Ok(scan_sysfs_all(Path::new(SYSFS_USB_DEVICES), ports)
+    fn find(self) -> Option<DetectedUsb> {
+        scan_sysfs_all(Path::new(SYSFS_USB_DEVICES), &config_ports())
             .into_iter()
-            .find(|usb| self.port.is_none_or(|p| usb.port_path() == p)))
+            .find(|usb| self.port.is_none_or(|p| usb.port_path() == p))
     }
 }
 
@@ -81,6 +78,8 @@ pub(super) struct Session {
     pub(super) write_via: Option<Mode>,
     /// The firmware version from the `START_CONFIG` reply, such as `1.04`.
     pub(super) firmware_version: String,
+    /// The model the `START_CONFIG` reply named. [`Self::open`] always sets it.
+    model: Option<&'static dyn Model>,
     /// The last frame written, as sent on the wire. For the failure log.
     last_sent: [u8; PACKET_LEN],
     /// The last report read, as it came off the wire. For the failure log.
@@ -101,12 +100,12 @@ impl Session {
     ///
     /// # Errors
     /// Returns [`Error::NoDevice`] when no supported controller is attached.
-    /// Returns [`Error::UnsupportedModel`] when the pad answers with a model id
-    /// the target's model does not list. Returns [`Error::PermissionDenied`] when the node may
+    /// Returns [`Error::UnsupportedModel`] when the pad answers with a model id no
+    /// supported model lists, or with one whose model does not use this config port. Returns [`Error::PermissionDenied`] when the node may
     /// not be opened, [`Error::Usb`] when it is missing or fails to open otherwise,
     /// and the errors of [`Self::send_recv`].
     pub(super) fn open(to: Target<'_>, timeout: Duration) -> Result<Self> {
-        let found = to.find()?.ok_or(Error::NoDevice)?;
+        let found = to.find().ok_or(Error::NoDevice)?;
         let node =
             config_hidraw(Path::new(&found.sysfs_path), found.port.interface).ok_or_else(|| {
                 Error::Usb(format!(
@@ -127,6 +126,7 @@ impl Session {
             current_mode: found.port.mode,
             write_via: found.port.write_via,
             firmware_version: String::new(),
+            model: None,
             last_sent: [0; PACKET_LEN],
             last_received: None,
         };
@@ -139,8 +139,11 @@ impl Session {
                 return Err(e);
             }
         };
-        let model = identify(&reply, &to.spec.description()?.model_ids)
-            .inspect_err(|e| warn!("cannot identify the controller: {e}"))?;
+        session.model = Some(
+            identify(&reply, models(), &found)
+                .inspect_err(|e| warn!("cannot identify the controller: {e}"))?,
+        );
+        let model = read_u16_le(&reply, MODEL_ID_OFFSET)?;
         session.firmware_version = firmware_version(&reply)
             .inspect_err(|e| warn!("cannot read the firmware version: {e}"))?;
         info!(
@@ -148,6 +151,15 @@ impl Session {
             session.current_mode, session.firmware_version
         );
         Ok(session)
+    }
+
+    /// The model the controller named when the session opened.
+    ///
+    /// # Errors
+    /// Never in practice: [`Self::open`] fails rather than return an unidentified
+    /// session. Returns [`Error::Decode`] if that ever changes.
+    pub(super) fn model(&self) -> Result<&'static dyn Model> {
+        self.model.ok_or_else(|| Error::Decode("the session has not identified the model".into()))
     }
 
     /// Pauses input, waits for the stream to stop, then drops what is queued.
@@ -276,7 +288,7 @@ pub(super) fn wait_for_mode(to: Target<'_>, mode: Mode, budget: Duration) -> Res
     let mut last = Error::Timeout;
     while Instant::now() < deadline {
         let node = to
-            .find()?
+            .find()
             .filter(|found| found.port.mode == mode)
             .and_then(|found| config_hidraw(Path::new(&found.sysfs_path), found.port.interface));
         if let Some(node) = node {
@@ -324,13 +336,19 @@ pub(super) fn open_error(node: &Path, e: &std::io::Error) -> Error {
     }
 }
 
-/// Checks the model id in a `START_CONFIG` reply against `supported` and returns it.
-fn identify(reply: &[u8], supported: &[u16]) -> Result<u16> {
-    let model = read_u16_le(reply, MODEL_ID_OFFSET)?;
-    if supported.contains(&model) {
+/// The model among `models` that a `START_CONFIG` reply names, checked against the
+/// config port the controller was found on.
+fn identify(
+    reply: &[u8],
+    models: &[&'static dyn Model],
+    found: &DetectedUsb,
+) -> Result<&'static dyn Model> {
+    let id = read_u16_le(reply, MODEL_ID_OFFSET)?;
+    let model = find_model(models, id).ok_or(Error::UnsupportedModel(id))?;
+    if model.description()?.config_ports.contains(&found.port) {
         Ok(model)
     } else {
-        Err(Error::UnsupportedModel(model))
+        Err(Error::UnsupportedModel(id))
     }
 }
 
@@ -363,6 +381,8 @@ mod tests {
     use std::sync::Mutex;
 
     use super::*;
+    use crate::device::{ConfigPort, ControllerSpec as _};
+    use crate::devices::pro3::Pro3;
     use crate::protocol::wire_write::build_write_packet;
 
     /// Keeps every record, so a test can read back what the session logged.
@@ -393,13 +413,14 @@ mod tests {
             current_mode: Mode::DInput,
             write_via: None,
             firmware_version: String::new(),
+            model: None,
             last_sent: [0; PACKET_LEN],
             last_received: None,
         };
         // A gamepad input report: read, not the reply, so the exchange goes on to time out.
         peer.write_all(&[0x30, 0x01, 0x02]).unwrap();
         // A profile chunk: bytes 18 and up are the payload, which holds the name.
-        let request = build_write_packet(0, &[0xA7; 45]);
+        let request = build_write_packet(0, &[0xA7; 45], 0x092C);
         assert!(matches!(session.send_recv(&request), Err(Error::Timeout)));
 
         let lines = CAPTURE.0.lock().unwrap();
@@ -445,15 +466,27 @@ mod tests {
 
     #[test]
     fn identify_accepts_only_listed_models() -> Result<()> {
-        let pro3 = &Pro3.description()?.model_ids;
-        assert!(identify(&reply_with(0x6009), pro3).is_ok());
-        assert!(identify(&reply_with(0x600A), pro3).is_ok());
+        let port = Pro3.description()?.config_ports[0];
+        let found = DetectedUsb {
+            vendor_id: String::new(),
+            product_id: String::new(),
+            sysfs_path: String::new(),
+            port,
+        };
+        assert_eq!(identify(&reply_with(0x6009), models(), &found)?.blob_size(), 0x092C);
+        assert!(identify(&reply_with(0x600A), models(), &found).is_ok());
         // Ultimate 2: same USB id 2dc8:310b in XInput, different model id.
         assert!(matches!(
-            identify(&reply_with(0x6012), pro3),
+            identify(&reply_with(0x6012), models(), &found),
             Err(Error::UnsupportedModel(0x6012))
         ));
-        assert!(matches!(identify(&[0u8; 10], pro3), Err(Error::Decode(_))));
+        assert!(matches!(identify(&[0u8; 10], models(), &found), Err(Error::Decode(_))));
+        // A listed id on a port its model does not use.
+        let other = DetectedUsb { port: ConfigPort { interface: 9, ..port }, ..found };
+        assert!(matches!(
+            identify(&reply_with(0x6009), models(), &other),
+            Err(Error::UnsupportedModel(0x6009))
+        ));
         Ok(())
     }
 }

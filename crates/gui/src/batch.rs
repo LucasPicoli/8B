@@ -87,7 +87,7 @@ impl AppState {
     /// Every slot of controller `c` with unsaved edits, in the sidebar's order.
     #[must_use]
     pub fn edited_of(&self, c: &Controller) -> Vec<Key> {
-        let d = self.description;
+        let d = self.description();
         d.modes
             .iter()
             .flat_map(|m| (1..=d.slot_count).map(move |n| (m.id, n)))

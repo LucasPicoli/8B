@@ -169,7 +169,7 @@ impl AppState {
     /// Sets the number at `pointer` in the selected slot, rounded and kept inside
     /// the description's limits. A pointer the tabs do not edit changes nothing.
     pub fn set_number(&mut self, pointer: &str, value: f32) {
-        let Some(range) = limit(&self.description.limits, pointer) else { return };
+        let Some(range) = limit(&self.description().limits, pointer) else { return };
         let value = f64::from(value).round().clamp(f64::from(range.min), f64::from(range.max));
         // In range after the clamp.
         #[allow(clippy::cast_possible_truncation)]
@@ -280,7 +280,7 @@ pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> [SettingsPage; 
         Triggers::Analog(_) => &ANALOG_TRIGGERS,
         Triggers::Switch(_) => &THRESHOLD_TRIGGERS,
     };
-    let limits = &state.description.limits;
+    let limits = &state.description().limits;
     [&STICKS, triggers, &VIBRATION].map(|spec| page(limits, spec, &json, pad.as_ref()))
 }
 
@@ -359,7 +359,7 @@ mod tests {
     fn a_threshold_is_kept_in_its_own_limit() {
         let mut s = connected(Mode::XInput);
         s.select(1, 0);
-        let default = s.defaults[&Mode::Switch].clone();
+        let default = s.defaults()[&Mode::Switch].clone();
         let slot = s.active_mut().unwrap().slots.get_mut(&(Mode::Switch, 1)).unwrap();
         slot.pad = Some(default);
         s.set_number("/triggers/left_threshold_pct", 100.0);

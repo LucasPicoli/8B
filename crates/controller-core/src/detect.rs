@@ -10,23 +10,16 @@ use crate::protocol::bytes::take;
 /// The 4-byte marker written by the 8BitDo app to flag an active profile slot.
 pub const ACTIVE_SLOT_MARKER: [u8; 4] = [0x11, 0x09, 0x20, 0x20];
 
-const PROFILE_SIZE: usize = 0x092C;
 const FLAG_STRIDE: usize = 4;
 
-/// Returns `true` if `blob` contains the active-slot marker at the position for `slot`.
+/// Returns `true` if `blob` holds the active-slot marker at the position for `slot`.
 ///
 /// Ports `PreWriteReadbackService::isSlotActive`: `flag_offset = (slot-1) * 4`;
-/// compares 4 bytes against [`ACTIVE_SLOT_MARKER`].
-///
-/// Returns `Ok(false)` — not an error — if `blob.len() != 0x092C`.
+/// compares 4 bytes against [`ACTIVE_SLOT_MARKER`]. The caller checks the blob size.
 ///
 /// # Errors
-/// Returns [`crate::Error::Decode`] if the byte-range accessor fails (unreachable
-/// when the length check passes, but required by the return type).
+/// Returns [`crate::Error::Decode`] if `blob` is too short to hold the marker.
 pub fn is_slot_active(blob: &[u8], slot: Slot) -> Result<bool> {
-    if blob.len() != PROFILE_SIZE {
-        return Ok(false);
-    }
     let flag_offset = (usize::from(slot.get()) - 1) * FLAG_STRIDE;
     Ok(take(blob, flag_offset, 4)? == ACTIVE_SLOT_MARKER)
 }
@@ -139,7 +132,7 @@ mod tests {
 
     #[test]
     fn slot1_marker_detected() {
-        let mut blob = vec![0u8; PROFILE_SIZE];
+        let mut blob = vec![0u8; 0x092C];
         blob[0..4].copy_from_slice(&ACTIVE_SLOT_MARKER);
         assert!(is_slot_active(&blob, Slot::new(1).unwrap()).unwrap());
         assert!(!is_slot_active(&blob, Slot::new(2).unwrap()).unwrap());

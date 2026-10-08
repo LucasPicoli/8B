@@ -148,7 +148,8 @@ impl ProfileWriteOrchestrator<'_> {
                 WriteOp::Clear => None,
             };
             if !banks.iter().any(|b| b.mode == job.mode) {
-                let backup = bank_of(&read, job.mode).map_err(|e| fail(job, &e))?.clone();
+                let backup =
+                    bank_of(self.model, &read, job.mode).map_err(|e| fail(job, &e))?.clone();
                 banks.push(Bank {
                     mode: job.mode,
                     blob: backup.clone(),
@@ -163,7 +164,7 @@ impl ProfileWriteOrchestrator<'_> {
                 .iter_mut()
                 .find(|b| b.mode == job.mode)
                 .ok_or_else(|| fail(job, &Error::Usb("the bank went missing".to_owned())))?;
-            let rb = confirm_slot(&bank.backup, job.mode, job.slot, policy)
+            let rb = confirm_slot(self.model, &bank.backup, job.mode, job.slot, policy)
                 .map_err(|e| fail(job, &e))?;
             if !rb.proceed {
                 return Err(WriteResult::failure(
@@ -195,7 +196,7 @@ impl ProfileWriteOrchestrator<'_> {
                 },
                 _ => {
                     bank.blob = self
-                        .codec
+                        .model
                         .deactivate_profile(&bank.blob, job.slot)
                         .map_err(|e| fail(job, &e))?;
                     bank.dirty = true;

@@ -3,7 +3,6 @@
 //! Ports `ProfileOrchestrator::detectAndReadAll` and the read step of
 //! `runDump` from `src/core/profile_orchestrator.cpp`.
 
-use crate::devices::pro3::Pro3;
 use crate::error::{Error, ErrorCategory, Result};
 use crate::model::{CanonicalProfileSummary, DeviceReadiness, Mode};
 use crate::service::read;
@@ -81,7 +80,7 @@ fn failure_with_readiness(
 /// 3. Require a known mode.
 /// 4. Read all profiles via [`read::read_profiles`].
 #[must_use]
-pub fn detect_and_read_all(dev: &dyn DeviceIo, _codec: &Pro3) -> DetectAndReadResult {
+pub fn detect_and_read_all(dev: &dyn DeviceIo) -> DetectAndReadResult {
     // 1. Probe readiness.
     let readiness = match dev.detect_readiness() {
         Ok(r) => r,
@@ -132,8 +131,8 @@ pub fn detect_and_read_all(dev: &dyn DeviceIo, _codec: &Pro3) -> DetectAndReadRe
 /// - [`Error::Usb`] for connection or general failures.
 /// - [`Error::Timeout`] if the device timed out.
 /// - [`Error::Validation`] if validation failed.
-pub fn dump_blobs(dev: &dyn DeviceIo, codec: &Pro3) -> Result<Vec<Vec<u8>>> {
-    let result = detect_and_read_all(dev, codec);
+pub fn dump_blobs(dev: &dyn DeviceIo) -> Result<Vec<Vec<u8>>> {
+    let result = detect_and_read_all(dev);
     if !result.success {
         let msg = result.message;
         return Err(match result.error_category {
@@ -201,7 +200,7 @@ mod tests {
     #[test]
     fn detect_and_read_reports_no_device() {
         let dev = MockDevice::new();
-        let out = detect_and_read_all(&dev, &Pro3);
+        let out = detect_and_read_all(&dev);
         assert!(!out.success, "expected failure without device");
         assert_eq!(out.error_category, ErrorCategory::ConnectionFailure);
     }
@@ -222,7 +221,7 @@ mod tests {
         };
         let dev = MockDevice::new().with_readiness(readiness).with_profiles(profiles_result);
 
-        let out = detect_and_read_all(&dev, &Pro3);
+        let out = detect_and_read_all(&dev);
         assert!(out.success, "expected success with mock device");
         assert_eq!(out.mode, Some(Mode::XInput));
         assert_eq!(out.product_id, "310b");
@@ -246,14 +245,14 @@ mod tests {
         };
         let dev = MockDevice::new().with_readiness(readiness).with_profiles(profiles_result);
 
-        let blobs = dump_blobs(&dev, &Pro3).expect("dump_blobs should succeed");
+        let blobs = dump_blobs(&dev).expect("dump_blobs should succeed");
         assert_eq!(blobs.len(), 2);
     }
 
     #[test]
     fn dump_blobs_errors_without_device() {
         let dev = MockDevice::new();
-        let result = dump_blobs(&dev, &Pro3);
+        let result = dump_blobs(&dev);
         assert!(result.is_err(), "expected Err without device");
     }
 }

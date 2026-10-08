@@ -4,7 +4,9 @@
 
 use std::collections::BTreeMap;
 
-use controller_core::model::{Mode, ProfileReadResult};
+use controller_core::description::ControllerDescription;
+use controller_core::device::Model;
+use controller_core::model::{CanonicalProfile, Mode, ProfileReadResult};
 
 use crate::state::{AppState, Install, SlotState};
 
@@ -31,6 +33,10 @@ pub struct Controller {
     pub changed: BTreeMap<(Mode, u8), bool>,
     /// The empty slots that still hold macros, with how many, at the last read.
     pub leftover: BTreeMap<(Mode, u8), usize>,
+    /// The model's description, from the last good read. `None` before one.
+    pub description: Option<&'static ControllerDescription>,
+    /// The profile a new slot of each of the model's modes starts from.
+    pub defaults: BTreeMap<Mode, CanonicalProfile>,
 }
 
 impl Controller {
@@ -220,7 +226,7 @@ impl AppState {
         self.rechecked = false;
         if first_listed {
             self.active_port = Some(port.to_owned());
-            if let Some(i) = self.description.modes.iter().position(|m| Some(m.id) == mode) {
+            if let Some(i) = self.description().modes.iter().position(|m| Some(m.id) == mode) {
                 self.selected = (i, 0);
             }
         }
@@ -262,7 +268,7 @@ impl AppState {
             .listed()
             .map(|c| {
                 let state = c.mode.map_or("Disconnected", Mode::label);
-                format!("{} · {state}", self.description.short_name)
+                format!("{} · {state}", self.description().short_name)
             })
             .collect();
         base.iter()
@@ -370,6 +376,16 @@ impl AppState {
             c.leftover = leftover;
         }
     }
+
+    /// Records the model a read of `port` identified: its description and the profile
+    /// a new slot of each mode starts from.
+    pub fn set_model(&mut self, port: &str, model: &'static dyn Model) {
+        let Some(c) = self.controller_mut(port) else { return };
+        let Ok(description) = model.description() else { return };
+        c.description = Some(description);
+        c.defaults =
+            description.modes.iter().map(|m| (m.id, model.default_profile(m.id))).collect();
+    }
 }
 
 #[cfg(test)]
@@ -380,7 +396,7 @@ mod tests {
 
     /// Renames slot 1 of `mode` on the shown controller.
     fn edit(s: &mut AppState, mode: Mode, name: &str) {
-        let i = s.description.modes.iter().position(|m| m.id == mode).unwrap();
+        let i = s.description().modes.iter().position(|m| m.id == mode).unwrap();
         s.select(i, 0);
         s.set_name(name);
     }

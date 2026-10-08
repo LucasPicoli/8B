@@ -49,8 +49,7 @@ use std::sync::mpsc::{self, Sender};
 use std::thread;
 use std::time::Duration;
 
-use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices;
 use controller_core::model::Mode;
 use controller_core::service::read::leftover_macros;
 use controller_core::transport::{DeviceIo, HidrawDevice};
@@ -92,8 +91,9 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         Event::Presence { port, mode } => {
             info!("controller on {port} {}", mode.map_or("gone", Mode::label));
         }
-        Event::Read { port, result: Ok(read) } => {
-            info!("read {} slots from {port}", read.profiles.len());
+        Event::Read { port, result: Ok((model, read)) } => {
+            let name = model.description().map_or("unknown model", |d| d.short_name.as_str());
+            info!("read {} slots from the {name} on {port}", read.profiles.len());
         }
         Event::Read { port, result: Err(f) } => {
             warn!("read from {port} failed: {}; held by {:?}", f.error, f.holders);
@@ -128,8 +128,9 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             state.read_foreign(&port);
             state.review_read(&port, false);
         }
-        Event::Read { port, result: Ok(read) } => {
-            let leftover = leftover_macros(&Pro3, &read);
+        Event::Read { port, result: Ok((model, read)) } => {
+            let leftover = leftover_macros(model, &read);
+            state.set_model(&port, model);
             state.read_finished(&port, Ok(read));
             state.set_leftover(&port, leftover);
             state.review_read(&port, true);
@@ -507,18 +508,18 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sandboxed = udev::sandboxed();
     logging::init(sandboxed);
-    let description = Pro3.description()?;
+    let model = *devices::models().first().ok_or("no controller model is built in")?;
+    let description = model.description()?;
     let ui = AppWindow::new()?;
     // Wayland matches the window to its `.desktop` file by this ID, for the task bar icon.
     // Slint has no platform until the first window exists, and the ID must precede `show`.
     slint::set_xdg_app_id("io.github.LucasPicoli._8B")?;
-    let defaults = description.modes.iter().map(|m| (m.id, Pro3.default_profile(m.id))).collect();
+    let defaults = description.modes.iter().map(|m| (m.id, model.default_profile(m.id))).collect();
     let mut first = AppState::new(description, defaults);
     first.sandboxed = sandboxed;
     // The sandbox cannot see the host's rule files: ask only when a read is denied.
     first.rule = if sandboxed { Rule::Current } else { udev::rule_state() };
     let state = Rc::new(RefCell::new(first));
-    render_views(description, &ui);
     render(&state.borrow(), &ui);
     portal::follow_accent(ui.as_weak());
 
@@ -537,7 +538,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let commands = worker::spawn(
         Box::new(|port: &str| Box::new(HidrawDevice::at(port)) as Box<dyn DeviceIo + Send>),
         PathBuf::from(worker::SYSFS_USB),
-        description.config_ports.clone(),
+        devices::config_ports(),
         udev::install_rule,
         backups.clone(),
         sandboxed,
@@ -566,6 +567,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // The close check reads the state outside a change.
     let close_state = Rc::clone(&state);
+    // So do the hit test and the theme change, for the shown controller's views.
+    let hit_state = Rc::clone(&state);
     // Every change from the window: apply it to the state, then render.
     let weak = ui.as_weak();
     let change = move |apply: &dyn Fn(&mut AppState)| {
@@ -602,8 +605,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     wire_edits(&ui, &change);
     wire_fix(&ui, &change, jobs);
 
+    let s = Rc::clone(&hit_state);
     ui.on_hit(move |view, x, y| {
-        hit(description, usize::try_from(view).unwrap_or(usize::MAX), x, y)
+        hit(s.borrow().description(), usize::try_from(view).unwrap_or(usize::MAX), x, y)
     });
 
     ui.global::<Diagnostics<'_>>().on_text(|| logging::diagnostics().into());
@@ -611,7 +615,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let weak = ui.as_weak();
     ui.on_theme_changed(move || {
         if let Some(ui) = weak.upgrade() {
-            render_views(description, &ui);
+            render_views(hit_state.borrow().description(), &ui);
         }
     });
 

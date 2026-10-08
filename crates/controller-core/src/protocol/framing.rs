@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn wrapped_request_shifts_normal_bytes_by_two() {
-        let normal = build_upload_packet(0, &[0xCC; 45]);
+        let normal = build_upload_packet(0, &[0xCC; 45], 0x092C);
         let wire = Framing::Wrapped.request(&normal);
         assert_eq!(&wire[..6], &[0x01, 0x66, 0xAA, 0x04, 0x02, 0x00]);
         // CRC at normal 8..10 lands at 10..12; payload at 18 lands at 20, cut to 44.

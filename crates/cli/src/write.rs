@@ -9,12 +9,11 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use controller_core::devices::pro3::Pro3;
 use controller_core::error::ErrorCategory;
 use controller_core::model::{Mode, Slot, WriteResult};
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::service::ConfirmPolicy;
-use controller_core::transport::HidrawDevice;
+use controller_core::transport::{DeviceIo as _, HidrawDevice};
 
 use crate::commands::{emit_json, error_category_label};
 
@@ -95,7 +94,14 @@ pub fn run_write(
         eprintln!("failed to open device");
         return ErrorCategory::ConnectionFailure.exit_code();
     };
-    let orchestrator = ProfileWriteOrchestrator::new(&dev, &Pro3, Path::new("."));
+    let model = match dev.model() {
+        Ok(model) => model,
+        Err(e) => {
+            eprintln!("{e}");
+            return e.category().exit_code();
+        }
+    };
+    let orchestrator = ProfileWriteOrchestrator::new(&dev, model, Path::new("."));
     let result = op(&orchestrator, &confirm_policy(force));
     let (payload, code) = build_write_payload(&result, extra);
     emit_json(&payload);

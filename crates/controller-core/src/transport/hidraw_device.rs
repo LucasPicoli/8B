@@ -1,10 +1,11 @@
 //! Real transport over the hidraw node of the config interface.
 
 use std::path::Path;
+use std::sync::{Mutex, PoisonError};
 
-use crate::detect::{is_slot_active, scan_sysfs};
-use crate::device::{ControllerSpec as _, ProtocolCodec as _};
-use crate::devices::pro3::Pro3;
+use crate::detect::scan_sysfs;
+use crate::device::Model;
+use crate::devices::config_ports;
 use crate::error::{Error, Result};
 use crate::model::{
     ButtonMapping, CanonicalProfile, CanonicalProfileSummary, DeviceReadiness, MacroRef, MacroSlot,
@@ -17,40 +18,51 @@ use crate::protocol::wire::{
 use crate::protocol::wire_write::MACRO_PAGE_LEN;
 use crate::transport::hidraw_write;
 use crate::transport::session::{Session, Target, READ_TIMEOUT};
-use crate::transport::write_input::{PROFILE_CHUNK as UPLOAD_CHUNK, PROFILE_SIZE};
+use crate::transport::write_input::PROFILE_CHUNK as UPLOAD_CHUNK;
 
 const MACRO_CHUNK: u16 = 32;
 const MACRO_ERASE_LEN: u16 = MACRO_PAGE_LEN;
 
-/// Real transport over hidraw. Works in every current mode; the USB id of the
-/// attached controller picks the node and the framing.
+/// Real transport over hidraw, in every current mode.
+///
+/// The USB id of the attached controller picks the node and the framing. The model id
+/// in its `START_CONFIG` reply picks the model, on every session.
 pub struct HidrawDevice {
-    spec: Pro3,
     /// The USB port path to talk to, or `None` for the first controller found.
     port: Option<String>,
+    /// The model the last read session identified, for [`DeviceIo::model`]. Each read
+    /// refreshes it, so another pad plugged into the same port is seen.
+    model: Mutex<Option<&'static dyn Model>>,
 }
 
 impl HidrawDevice {
-    /// Opens a handle to the first attached 8BitDo Pro 3.
+    /// Opens a handle to the first attached supported controller.
     ///
     /// The node is not opened until an operation is performed. This constructor
-    /// is infallible and just stores the spec.
+    /// is infallible.
     ///
     /// # Errors
     /// Never returns an error; signature matches trait expectations.
     pub const fn open() -> Result<Self> {
-        Ok(Self { spec: Pro3, port: None })
+        Ok(Self { port: None, model: Mutex::new(None) })
     }
 
-    /// A handle to the 8BitDo Pro 3 on USB port path `port`, such as `8-5`. Nothing
+    /// A handle to the controller on USB port path `port`, such as `8-5`. Nothing
     /// is opened until an operation is performed.
     #[must_use]
     pub fn at(port: &str) -> Self {
-        Self { spec: Pro3, port: Some(port.to_owned()) }
+        Self { port: Some(port.to_owned()), model: Mutex::new(None) }
     }
 
     fn target(&self) -> Target<'_> {
-        Target { spec: self.spec, port: self.port.as_deref() }
+        Target { port: self.port.as_deref() }
+    }
+
+    /// Opens a read session and remembers the model it identified.
+    fn read_session(&self) -> Result<Session> {
+        let session = Session::open(self.target(), READ_TIMEOUT)?;
+        *self.model.lock().unwrap_or_else(PoisonError::into_inner) = Some(session.model()?);
+        Ok(session)
     }
 }
 
@@ -58,8 +70,7 @@ impl HidrawDevice {
 // Profile upload helpers (`START_CONFIG` only, never `QUERY_STATUS`)
 // ---------------------------------------------------------------------------
 
-/// Sends `SLOT_SELECT`, then the 53-chunk upload loop. The session already sent
-/// `START_CONFIG`.
+/// Sends `SLOT_SELECT`, then the upload loop. The session already sent `START_CONFIG`.
 ///
 /// **Never sends `QUERY_STATUS`** — doing so kills joydev until reconnect.
 fn read_blob(session: &mut Session, slot_select: u8) -> Result<Vec<u8>> {
@@ -67,18 +78,22 @@ fn read_blob(session: &mut Session, slot_select: u8) -> Result<Vec<u8>> {
     read_blob_chunks(session)
 }
 
-/// Runs the 53-chunk `PROFILE_UPLOAD` loop and returns the assembled blob.
+/// Runs the `PROFILE_UPLOAD` loop over the model's blob size and returns the assembled
+/// blob. A Pro 3 blob takes 53 chunks.
 fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
-    let mut blob = Vec::with_capacity(PROFILE_SIZE);
+    let blob_size = session.model()?.blob_size();
+    let size_u16 = u16::try_from(blob_size)
+        .map_err(|_| Error::Decode(format!("blob size {blob_size} overflows 16 bits")))?;
+    let mut blob = Vec::with_capacity(blob_size);
     let mut offset = 0usize;
-    while offset < PROFILE_SIZE {
-        let chunk_size = (PROFILE_SIZE - offset).min(UPLOAD_CHUNK);
+    while offset < blob_size {
+        let chunk_size = (blob_size - offset).min(UPLOAD_CHUNK);
         let filler = vec![0xCCu8; chunk_size];
         #[allow(clippy::cast_possible_truncation)]
         let offset_u16 = offset as u16;
         #[allow(clippy::cast_possible_truncation)]
         let chunk_size_u16 = chunk_size as u16;
-        let pkt = build_upload_packet(offset_u16, &filler);
+        let pkt = build_upload_packet(offset_u16, &filler, size_u16);
         let resp = session.send_recv(&pkt)?;
         // Validate the echoed offset/size against what we requested (matches C++).
         let payload = decode_upload_response(&resp, offset_u16, chunk_size_u16)
@@ -86,9 +101,9 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
         blob.extend_from_slice(&payload);
         offset += chunk_size;
     }
-    if blob.len() != PROFILE_SIZE {
+    if blob.len() != blob_size {
         return Err(Error::Decode(format!(
-            "assembled profile blob is {} bytes, expected {PROFILE_SIZE}",
+            "assembled profile blob is {} bytes, expected {blob_size}",
             blob.len()
         )));
     }
@@ -100,8 +115,9 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
 /// A slot select moves the pad to that bank and to the slot its `cur_slot` names, and
 /// the pad stays there until the next select or replug. The profile button then cycles
 /// that bank's slots, so a pad left on another bank runs that bank's profiles.
-fn select_current_bank(session: &mut Session, spec: Pro3) -> Result<()> {
-    let _ = session.send_recv(&build_slot_select(spec.slot_select_value(session.current_mode)))?;
+fn select_current_bank(session: &mut Session) -> Result<()> {
+    let value = session.model()?.slot_select_value(session.current_mode);
+    let _ = session.send_recv(&build_slot_select(value))?;
     Ok(())
 }
 
@@ -109,7 +125,8 @@ fn select_current_bank(session: &mut Session, spec: Pro3) -> Result<()> {
 // Empty-slot placeholder (mirrors C++ default-constructed `CanonicalProfileSummary`)
 // ---------------------------------------------------------------------------
 
-fn empty_summary(mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
+fn empty_summary(model: &dyn Model, mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
+    let default = model.default_profile(mode);
     CanonicalProfileSummary {
         id: String::new(),
         name: String::new(),
@@ -120,8 +137,8 @@ fn empty_summary(mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
             id: String::new(),
             name: String::new(),
             version: 1,
-            kind: "8bitdo.pro3.profile".to_owned(),
-            device: "8bitdo-pro3".to_owned(),
+            kind: default.kind,
+            device: default.device,
             mode,
             preferred_slot: None,
             sticks: Sticks {
@@ -155,7 +172,15 @@ fn empty_summary(mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
 // ---------------------------------------------------------------------------
 
 impl crate::transport::DeviceIo for HidrawDevice {
-    /// Reads every bank in [`Mode::ALL`] order in one session, from any current mode.
+    fn model(&self) -> Result<&'static dyn Model> {
+        let known = *self.model.lock().unwrap_or_else(PoisonError::into_inner);
+        match known {
+            Some(model) => Ok(model),
+            None => self.read_session()?.model(),
+        }
+    }
+
+    /// Reads every bank in the model's mode order in one session, from any current mode.
     ///
     /// The session ends with the current mode's bank selected, which leaves the pad
     /// on that bank's stored slot.
@@ -167,20 +192,22 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// [`Error::Disconnected`] or [`Error::Decode`] on failure.
     fn read_all_profiles(&self) -> Result<ProfileReadResult> {
         // The session sends `START_CONFIG` once, to identify the model.
-        let mut session = Session::open(self.target(), READ_TIMEOUT)?;
+        let mut session = self.read_session()?;
+        let model = session.model()?;
+        let description = model.description()?;
 
         let mut profiles = Vec::new();
         let mut raw_blobs = Vec::new();
 
-        for target_mode in Mode::ALL {
-            let slot_select = self.spec.slot_select_value(target_mode);
+        for target_mode in description.modes.iter().map(|m| m.id) {
+            let slot_select = model.slot_select_value(target_mode);
             let _ = session.send_recv(&build_slot_select(slot_select))?;
             let blob = read_blob_chunks(&mut session)?;
 
-            for source_slot in 1u8..=3 {
+            for source_slot in 1..=description.slot_count {
                 let slot = Slot::new(source_slot)?;
-                if !is_slot_active(&blob, slot)? {
-                    profiles.push(empty_summary(target_mode, source_slot));
+                if !model.slot_active(&blob, slot)? {
+                    profiles.push(empty_summary(model, target_mode, source_slot));
                     continue;
                 }
                 let raw = RawProfilePayload {
@@ -189,13 +216,13 @@ impl crate::transport::DeviceIo for HidrawDevice {
                     source_profile_index: source_slot - 1,
                     mode_hint: target_mode,
                 };
-                profiles.push(self.spec.map_profile(&raw)?);
+                profiles.push(model.map_profile(&raw)?);
             }
 
             raw_blobs.push(blob);
         }
 
-        select_current_bank(&mut session, self.spec)?;
+        select_current_bank(&mut session)?;
         Ok(ProfileReadResult { profiles, raw_blobs })
     }
 
@@ -224,9 +251,6 @@ impl crate::transport::DeviceIo for HidrawDevice {
             return Ok(Vec::new());
         }
 
-        let macro_gamepad_mode = self.spec.macro_gamepad_mode(mode);
-        let slot_select = self.spec.slot_select_value(mode);
-
         // Wire protocol uses 0-based profile slot.
         let ps = profile_slot.get() - 1;
         let macro_slot_idx = macro_slot.get();
@@ -239,7 +263,9 @@ impl crate::transport::DeviceIo for HidrawDevice {
 
         // Prime: `START_CONFIG` (sent by the session) → `QUERY_STATUS` → `SLOT_SELECT`
         // → upload×53 → `QUERY_STATUS`
-        let mut session = Session::open(self.target(), READ_TIMEOUT)?;
+        let mut session = self.read_session()?;
+        let macro_gamepad_mode = session.model()?.macro_gamepad_mode(mode);
+        let slot_select = session.model()?.slot_select_value(mode);
         let _ = session.send_recv(&build_query_status())?;
         let _ = session.send_recv(&build_slot_select(slot_select))?;
         let _ = read_blob_chunks(&mut session)?;
@@ -264,7 +290,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
             result.extend_from_slice(&chunk);
         }
 
-        select_current_bank(&mut session, self.spec)?;
+        select_current_bank(&mut session)?;
         result.truncate(data_bytes);
         Ok(result)
     }
@@ -272,7 +298,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// Probes device readiness: sysfs scan followed by a live active-slot check.
     ///
     /// Reads the full profile blob using `START_CONFIG` only (never `QUERY_STATUS`)
-    /// and calls [`is_slot_active`] for slots 1–3. `active_slot_marker` is set to
+    /// and checks each of the model's slots for a profile. `active_slot_marker` is set to
     /// a comma-joined list of active slot numbers (e.g. `"1,3"`), or `"unknown"`
     /// if no slot is active or the probe fails.
     ///
@@ -280,10 +306,9 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// Never returns an error; a missing device or probe failure is reflected in
     /// the returned [`DeviceReadiness`] struct.
     fn detect_readiness(&self) -> Result<DeviceReadiness> {
-        let ports = self.spec.description().map(|d| d.config_ports.as_slice()).unwrap_or_default();
-        let Some(found) = scan_sysfs(Path::new("/sys/bus/usb/devices"), ports) else {
+        let Some(found) = scan_sysfs(Path::new("/sys/bus/usb/devices"), &config_ports()) else {
             return Ok(DeviceReadiness {
-                message: "No supported 8BitDo Pro 3 detected. Connect it via USB, \
+                message: "No supported controller detected. Connect it via USB, \
                           then re-run detect."
                     .to_owned(),
                 ..DeviceReadiness::default()
@@ -297,57 +322,51 @@ impl crate::transport::DeviceIo for HidrawDevice {
             vendor_id: found.vendor_id,
             product_id: found.product_id.clone(),
             sysfs_path: found.sysfs_path,
-            message: "Supported 8BitDo Pro 3 detected.".to_owned(),
+            message: "Supported controller detected.".to_owned(),
             ..DeviceReadiness::default()
         };
 
-        let slot_select = self.spec.slot_select_value(found.port.mode);
-
-        match Session::open(self.target(), READ_TIMEOUT) {
+        let mut session = match self.read_session() {
             Err(e @ Error::UnsupportedModel(_)) => {
                 readiness.supported_device_connected = false;
-                readiness.message = format!("8BitDo controller found, but not a Pro 3: {e}.");
+                readiness.message = format!("Controller found, but not a supported model: {e}.");
+                return Ok(readiness);
             }
             Err(e) => {
                 readiness.message =
-                    format!("Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}");
+                    format!("Supported controller detected. Active slot marker unavailable: {e}");
+                return Ok(readiness);
             }
-            Ok(mut session) => {
-                readiness.firmware_version.clone_from(&session.firmware_version);
-                match read_blob(&mut session, slot_select) {
-                    Err(e) => {
-                        readiness.message = format!(
-                            "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: {e}"
-                        );
-                    }
-                    Ok(blob) => {
-                        // C++ `decodeSlotMarkerFromUploadResponse` reports the LOWEST active
-                        // slot as a single digit ("1"/"2"/"3"), and the probe is "verified"
-                        // only when such a marker is found. Match that exactly.
-                        let mut found: Option<u8> = None;
-                        for s in 1u8..=3 {
-                            if let Ok(slot) = Slot::new(s) {
-                                if is_slot_active(&blob, slot).unwrap_or(false) {
-                                    found = Some(s);
-                                    break;
-                                }
-                            }
-                        }
-                        if let Some(s) = found {
-                            readiness.active_slot_marker = s.to_string();
-                            readiness.active_slot_marker_verified = true;
-                            "Supported 8BitDo Pro 3 detected and active slot marker verified."
-                                .clone_into(&mut readiness.message);
-                        } else {
-                            "Supported 8BitDo Pro 3 detected. Active slot marker unavailable: \
-                         no recognizable slot marker."
-                                .clone_into(&mut readiness.message);
-                        }
-                    }
-                }
+            Ok(session) => session,
+        };
+        let model = session.model()?;
+        let description = model.description()?;
+        let name = &description.display_name;
+        readiness.firmware_version.clone_from(&session.firmware_version);
+        let blob = match read_blob(&mut session, model.slot_select_value(found.port.mode)) {
+            Ok(blob) => blob,
+            Err(e) => {
+                readiness.message =
+                    format!("Supported {name} detected. Active slot marker unavailable: {e}");
+                return Ok(readiness);
             }
+        };
+        // C++ `decodeSlotMarkerFromUploadResponse` reports the LOWEST active slot as a
+        // single digit, and the probe is "verified" only when such a marker is found.
+        let lowest = (1..=description.slot_count).find(|&s| {
+            Slot::new(s).is_ok_and(|slot| model.slot_active(&blob, slot).unwrap_or(false))
+        });
+        if let Some(s) = lowest {
+            readiness.active_slot_marker = s.to_string();
+            readiness.active_slot_marker_verified = true;
+            readiness.message =
+                format!("Supported {name} detected and active slot marker verified.");
+        } else {
+            readiness.message = format!(
+                "Supported {name} detected. Active slot marker unavailable: \
+                 no recognizable slot marker."
+            );
         }
-
         Ok(readiness)
     }
 
