@@ -1,8 +1,10 @@
 # Adding a controller
 
 The 8BitDo Pro 3 is the only supported model, so every path below uses it as the
-example. Nothing here has been tested against a second model. Where the code still
-assumes the Pro 3, this guide says so (see "What is tied to the Pro 3 today").
+example. No second real model has been ported yet. The tests run a made-up one,
+`devices/test_pad.rs`, that differs on purpose: one mode, two slots, no macros and a
+64-byte blob. Where the code still assumes the Pro 3, this guide says so (see "What is
+tied to the Pro 3 today").
 
 To learn your controller's protocol first, see
 [Reverse engineering a controller](reverse-engineering.md).
@@ -39,8 +41,14 @@ The Pro 3 lives in
 | `macros.rs` | Macro metadata and step encode and decode |
 | `edit.rs` | Keep, drop and deactivate operations on a blob |
 
-A new model gets its own folder next to `pro3/`, and one line in
-[`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs).
+A new model gets its own folder next to `pro3/`, and one entry in `MODELS` in
+[`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs). Detection, the udev
+rules and `dev list` read that registry, so nothing else needs the new model's name.
+
+For the smallest complete model, read
+[`devices/test_pad.rs`](../crates/controller-core/src/devices/test_pad.rs). It is
+about 200 lines of code and 100 of tests, and its description sits in
+`crates/controller-core/controllers/test-pad/`.
 
 ## How a controller is detected
 
@@ -53,9 +61,11 @@ Detection has two stages. Both read the description.
    number, and the framing.
 2. The model check. After the scan, the session sends `START_CONFIG` and reads the
    model id from reply bytes 22 and 23 (`identify` in
-   [`transport/session.rs`](../crates/controller-core/src/transport/session.rs)).
-   If the id is not in the description's `model_ids`, the read fails with
-   `UnsupportedModel` and nothing else is sent.
+   [`transport/session.rs`](../crates/controller-core/src/transport/session.rs)). It
+   looks the id up in the registry. If no model lists the id, or the model that
+   lists it does not use the config port the pad was found on, the read fails with
+   `UnsupportedModel` and nothing else is sent. Every later step of the session uses
+   the model it found: blob size, modes, slot count and command bytes.
 
 The second stage matters because one USB id can belong to several models. In XInput
 mode the Pro 3 enumerates as `2dc8:310b`, and so does the Ultimate 2 (model id
@@ -104,8 +114,8 @@ while that node is open. That fix is a separate install from the access rule:
 
 `keepalive_rule()` writes one line per config port with `needs_keepalive: true`,
 matching the `xpad` event node by vendor and product id. A new model that resets the
-same way sets the field on its port and needs no change in `udev.rs`, once its
-description is listed in `descriptions()` there.
+same way sets the field on its port and needs no change in `udev.rs`, once the model
+is in the registry.
 
 ## The protocol layer a model can reuse
 
@@ -145,29 +155,26 @@ bad file fails with the field and the fault.
 
 ## What is tied to the Pro 3 today
 
-The description and the codec are per model. The code around them is not yet. A
-second model has to change these places, or remove the assumption first:
+The transport, the read and write services and the app pick the model from the
+registry, and the test pad runs through all of them. These places still assume the
+Pro 3:
 
-1. The transport names `Pro3` directly. `Target.spec` in `transport/session.rs`,
-   `HidrawDevice.spec` in `transport/hidraw_device.rs` and the erase path in
-   `transport/hidraw_write.rs` hold a `Pro3`, not a `ControllerSpec`. There is no
-   registry that maps a detected model id to a spec.
-2. The blob size is a constant in four more places: `PROFILE_SIZE` in
-   `transport/write_input.rs`, `PROFILE_SIZE` in `detect.rs`, `PROFILE_SIG` in
-   `protocol/wire.rs` and `protocol/wire_write.rs`. A model with another blob size
-   needs them to come from `ControllerSpec::blob_size`.
-3. `Slot` accepts 1 to 3 and `MacroSlot` 0 to 3 (`model/ids.rs`), whatever the
-   description says. `Mode` is a fixed enum of `XInput`, `Switch` and `DInput`.
-4. `service/validation/macros.rs` and `orchestrator/patch.rs` read
-   `devices::pro3::tables` directly, and the profile model in
+1. `Slot` accepts 1 to 3 and `MacroSlot` 0 to 3 (`model/ids.rs`), whatever the
+   description says. `Mode` is a fixed enum of `XInput`, `Switch` and `DInput`, so a
+   model with another mode needs a new variant.
+2. The profile model in
    [`model/profile.rs`](../crates/controller-core/src/model/profile.rs) has fixed
-   stick, trigger and vibration fields. `kind` and `device` carry Pro 3 strings.
-5. The command-line tool and the app call `Pro3` where they need a spec
-   (`crates/cli`, and `crates/gui/src/main.rs`, `writes.rs`, `review.rs` and
-   `buttons.rs`).
-
-A first port therefore starts with items 1 to 4, in a change of their own, before
-the model folder. The Pro 3 golden tests must stay green through it.
+   stick, trigger and vibration fields. The profile and macro schemas fix `kind` and
+   `device` to the Pro 3's strings, so an upload or an import of another model's
+   profile fails validation.
+3. `service/validation/macros.rs` checks macro triggers against the Pro 3 tables, and
+   the command-line `read-macro` writes its JSON with `devices::pro3::macros`.
+4. The app's settings pages and the command-line patch flags name the Pro 3's
+   sticks, triggers and vibration. Their ranges come from the description, but a
+   model with other settings needs new pages and flags.
+5. Two models that share a USB id must also share its interface and framing.
+   Detection opens the node of the first model that lists the id before the model id
+   says which pad it is.
 
 ## Prove the port is correct
 
@@ -205,7 +212,7 @@ A port is correct when the bytes match, not when the code looks right.
 
 ## What the app needs
 
-The editor reads the model's name, modes, buttons, labels, limits, slot count and
-views from the controller description, so those need no app change. The places in
-"What is tied to the Pro 3 today" that touch `crates/gui` and `crates/cli` still
-name the Pro 3. Until they are fixed, a second model needs a change there too.
+Each controller in the app keeps the model a read identified. The editor reads that
+model's name, modes, buttons, labels, limits, slot count and views from its
+description, so a Pro 3 and another model can be plugged in at once. Item 4 of "What
+is tied to the Pro 3 today" is the part that still needs app changes.

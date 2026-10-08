@@ -394,6 +394,48 @@ mod tests {
     use super::*;
     use crate::state::tests::{connected, full_read, new_state, PORT};
 
+    /// A read of the test pad: slot 1 named `name`, slot 2 empty.
+    fn test_pad_read(name: &str) -> ProfileReadResult {
+        use controller_core::device::ProtocolCodec as _;
+        use controller_core::devices::test_pad::TestPad;
+        let summary = |number: u8, name: &str| {
+            let mut canonical = TestPad.default_profile(Mode::DInput);
+            canonical.name = name.to_owned();
+            let id = if name.is_empty() { String::new() } else { format!("dinput-slot-{number}") };
+            controller_core::model::CanonicalProfileSummary {
+                id,
+                name: name.to_owned(),
+                mode: Mode::DInput,
+                source_slot: number,
+                source_profile_index: number - 1,
+                canonical,
+            }
+        };
+        ProfileReadResult { profiles: vec![summary(1, name), summary(2, "")], raw_blobs: vec![] }
+    }
+
+    #[test]
+    fn each_controller_shows_its_own_model() {
+        use controller_core::devices::test_pad::TestPad;
+        let mut s = connected(Mode::XInput);
+        s.presence("3-1", Some(Mode::DInput));
+        s.set_model("3-1", &TestPad);
+        s.read_finished("3-1", Ok(test_pad_read("Pad")));
+
+        assert_eq!(s.description().short_name, "Pro 3", "the first controller stays shown");
+        s.active_port = Some("3-1".to_owned());
+        assert_eq!(s.description().short_name, "Test Pad");
+        assert_eq!(s.defaults().keys().copied().collect::<Vec<_>>(), [Mode::DInput]);
+        let groups = crate::render::groups(&s);
+        assert_eq!(groups.len(), 1, "the test pad has one mode");
+        let slots = groups.first().map(|g| slint::Model::row_count(&g.slots));
+        assert_eq!(slots, Some(2), "and two slots");
+        assert_eq!(s.slot(Mode::DInput, 1).pad.as_ref().map(|p| p.name.as_str()), Some("Pad"));
+
+        s.active_port = Some(PORT.to_owned());
+        assert_eq!(s.description().modes.len(), 3, "back to the Pro 3");
+    }
+
     /// Renames slot 1 of `mode` on the shown controller.
     fn edit(s: &mut AppState, mode: Mode, name: &str) {
         let i = s.description().modes.iter().position(|m| m.id == mode).unwrap();

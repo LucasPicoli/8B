@@ -3,6 +3,8 @@
 //! A new model gets its own folder next to `pro3/` and one entry in [`MODELS`].
 
 pub mod pro3;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_pad;
 
 use crate::description::ControllerDescription;
 use crate::device::{ConfigPort, Model};

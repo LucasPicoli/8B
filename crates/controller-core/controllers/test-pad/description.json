@@ -1,0 +1,36 @@
+{
+  "display_name": "Test Pad",
+  "short_name": "Test Pad",
+  "model_ids": ["0x7e57"],
+  "config_ports": [
+    {
+      "usb": { "vendor": "0x2dc8", "product": "0x7e57" },
+      "mode": "dinput",
+      "interface": 0,
+      "framing": "plain"
+    }
+  ],
+  "modes": [
+    { "id": "dinput", "trigger_kind": "analog", "extra_outputs": [] }
+  ],
+  "slot_count": 2,
+  "macro_slot_count": 0,
+  "limits": {
+    "profile_name_length": { "min": 1, "max": 16 },
+    "macro_name_length": { "min": 1, "max": 1 },
+    "macro_steps": { "min": 1, "max": 1 },
+    "stick_min_pct": { "min": 0, "max": 50 },
+    "stick_max_pct": { "min": 50, "max": 100 },
+    "trigger_pct": { "min": 0, "max": 100 },
+    "trigger_threshold_pct": { "min": 0, "max": 100 },
+    "vibration_level": { "min": 0, "max": 3 }
+  },
+  "buttons": [
+    { "id": "a", "labels": { "dinput": "A" }, "can_be_remapped": true, "can_be_output": true },
+    { "id": "b", "labels": { "dinput": "B" }, "can_be_remapped": true, "can_be_output": true },
+    { "id": "start", "labels": { "dinput": "Start" }, "can_be_remapped": false, "can_be_output": true }
+  ],
+  "views": [
+    { "id": "front", "svg": "front.svg" }
+  ]
+}

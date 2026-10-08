@@ -25,6 +25,8 @@ zbus = { version = "5", default-features = false, features = ["async-io", "block
 slint-build = "1.18"
 
 [dev-dependencies]
+# The made-up second controller, `devices::test_pad`.
+controller-core = { path = "../controller-core", features = ["test-utils"] }
 # Snapshot tests draw into memory, with no display.
 slint = { version = "1.18", default-features = false, features = ["renderer-software", "software-renderer-systemfonts"] }
 tempfile = "3"

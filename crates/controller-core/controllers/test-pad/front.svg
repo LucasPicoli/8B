@@ -1,0 +1,5 @@
+<svg viewBox="0 0 120 60">
+  <circle data-button="a" cx="90" cy="30" r="8"/>
+  <circle data-button="b" cx="105" cy="20" r="8"/>
+  <circle data-button="start" cx="60" cy="30" r="5"/>
+</svg>
