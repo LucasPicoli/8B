@@ -46,9 +46,8 @@ export component AppWindow inherits Window {
     in property <[PadView]> views;
     in property <[Spot]> spots;
     in property <[MapRow]> rows;
-    in property <SettingsPage> sticks;
-    in property <SettingsPage> triggers;
-    in property <SettingsPage> vibration;
+    // The settings tabs after Buttons, in the controller description's order.
+    in property <[SettingsPage]> pages;
     in-out property <int> tab;
     in-out property <int> selected-row: -1;
     // Why the last read failed, empty when it did not.
@@ -420,7 +419,7 @@ export component AppWindow inherits Window {
                         }
                     }
                     if root.tab > 0: SettingsTab {
-                        page: root.tab == 1 ? root.sticks : root.tab == 2 ? root.triggers : root.vibration;
+                        page: root.pages[root.tab - 1];
                         number-changed(field, v) => { root.number-changed(field, v); }
                         flag-changed(field, on) => { root.flag-changed(field, on); }
                     }

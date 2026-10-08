@@ -46,8 +46,102 @@ pub struct ControllerDescription {
     pub limits: Limits,
     /// Physical buttons, in display order.
     pub buttons: Vec<Button>,
+    /// The settings tabs, in display order. Each names its values by JSON pointer into
+    /// the profile.
+    pub settings: Vec<SettingsPage>,
     /// Drawings of the controller, in display order.
     pub views: Vec<View>,
+}
+
+/// One settings tab, such as Sticks.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SettingsPage {
+    /// Tab id, unique per mode. Two pages may share an id when their modes differ, as
+    /// the analog and the threshold Triggers tabs do.
+    pub id: String,
+    /// Tab name shown to the user.
+    pub label: String,
+    /// The modes that show this tab. Empty means every mode.
+    #[serde(default)]
+    pub modes: Vec<Mode>,
+    /// The sentence above the frames.
+    pub lead: String,
+    /// The frames of the tab, in display order.
+    pub frames: Vec<SettingsFrame>,
+}
+
+impl SettingsPage {
+    /// The JSON pointer of every value on this tab: the slider ends, then the flags.
+    pub fn fields(&self) -> impl Iterator<Item = &str> {
+        let sliders = self.frames.iter().flat_map(|f| &f.sliders);
+        let numbers = sliders.flat_map(|s| std::iter::once(&s.low).chain(&s.high));
+        let flags = self.frames.iter().flat_map(|f| &f.flags).map(|f| f.field.as_str());
+        numbers.map(|n| n.field.as_str()).chain(flags)
+    }
+}
+
+/// A titled group of settings on a tab.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SettingsFrame {
+    /// Frame title.
+    pub title: String,
+    /// Sliders, in display order.
+    #[serde(default)]
+    pub sliders: Vec<Slider>,
+    /// Check boxes, in display order.
+    #[serde(default)]
+    pub flags: Vec<Flag>,
+}
+
+/// A slider: one number, or the two ends of a range.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Slider {
+    /// Name shown to the user.
+    pub label: String,
+    /// Unit after the value, such as `%`. Empty shows `<value> of <max>`.
+    #[serde(default)]
+    pub unit: String,
+    /// The number, or the low end of the range.
+    pub low: NumberField,
+    /// The high end of the range. `None` for a single number.
+    #[serde(default)]
+    pub high: Option<NumberField>,
+}
+
+/// One integer setting and its allowed range.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct NumberField {
+    /// JSON pointer into the profile, such as `/sticks/left_min_pct`.
+    pub field: String,
+    /// Smallest allowed value.
+    pub min: i32,
+    /// Largest allowed value.
+    pub max: i32,
+}
+
+impl NumberField {
+    /// The allowed range.
+    #[must_use]
+    pub const fn range(&self) -> LimitRange {
+        LimitRange { min: self.min, max: self.max }
+    }
+}
+
+/// One on-or-off setting.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Flag {
+    /// Name shown to the user.
+    pub label: String,
+    /// JSON pointer into the profile, such as `/sticks/invert_left_x`.
+    pub field: String,
+    /// Flags of the same mode that may not be on together with this one.
+    #[serde(default)]
+    pub excludes: Vec<String>,
 }
 
 /// One mode of the controller.
@@ -92,7 +186,8 @@ pub struct LimitRange {
     pub max: i32,
 }
 
-/// Value ranges the editor offers. A unit test pins them to the profile and macro schemas.
+/// Length ranges of names and macros. A unit test pins them to the profile and macro
+/// schemas. The ranges of settings sit on their [`NumberField`]s.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limits {
@@ -102,30 +197,15 @@ pub struct Limits {
     pub macro_name_length: LimitRange,
     /// Number of steps in one macro.
     pub macro_steps: LimitRange,
-    /// Stick dead zone (`*_min_pct`).
-    pub stick_min_pct: LimitRange,
-    /// Stick outer range (`*_max_pct`).
-    pub stick_max_pct: LimitRange,
-    /// Analog trigger min and max.
-    pub trigger_pct: LimitRange,
-    /// Threshold trigger press point.
-    pub trigger_threshold_pct: LimitRange,
-    /// Vibration strength level.
-    pub vibration_level: LimitRange,
 }
 
 impl Limits {
     /// Every range with its field name.
-    const fn named(&self) -> [(&'static str, LimitRange); 8] {
+    const fn named(&self) -> [(&'static str, LimitRange); 3] {
         [
             ("profile_name_length", self.profile_name_length),
             ("macro_name_length", self.macro_name_length),
             ("macro_steps", self.macro_steps),
-            ("stick_min_pct", self.stick_min_pct),
-            ("stick_max_pct", self.stick_max_pct),
-            ("trigger_pct", self.trigger_pct),
-            ("trigger_threshold_pct", self.trigger_threshold_pct),
-            ("vibration_level", self.vibration_level),
         ]
     }
 }
@@ -168,6 +248,41 @@ impl ControllerDescription {
     #[must_use]
     pub fn mode(&self, mode: Mode) -> Option<&ModeDescription> {
         self.modes.iter().find(|m| m.id == mode)
+    }
+
+    /// The settings tabs `mode` shows, in display order.
+    pub fn pages(&self, mode: Mode) -> impl Iterator<Item = &SettingsPage> {
+        self.settings.iter().filter(move |p| p.modes.is_empty() || p.modes.contains(&mode))
+    }
+
+    /// The number setting at JSON pointer `field` in `mode`, if one of its tabs has it.
+    #[must_use]
+    pub fn number(&self, mode: Mode, field: &str) -> Option<&NumberField> {
+        self.pages(mode)
+            .flat_map(|p| &p.frames)
+            .flat_map(|f| &f.sliders)
+            .flat_map(|s| std::iter::once(&s.low).chain(&s.high))
+            .find(|n| n.field == field)
+    }
+
+    /// The flag at JSON pointer `field` in `mode`, if one of its tabs has it.
+    #[must_use]
+    pub fn flag(&self, mode: Mode, field: &str) -> Option<&Flag> {
+        self.flags(mode).find(|f| f.field == field)
+    }
+
+    /// Every flag `mode` shows.
+    pub fn flags(&self, mode: Mode) -> impl Iterator<Item = &Flag> {
+        self.pages(mode).flat_map(|p| &p.frames).flat_map(|f| &f.flags)
+    }
+
+    /// The flags of `mode` that may not be on together with the flag at `field`, both
+    /// the ones it lists and the ones that list it.
+    #[must_use]
+    pub fn excluded_by(&self, mode: Mode, field: &str) -> Vec<&str> {
+        let listed = self.flag(mode, field).into_iter().flat_map(|f| &f.excludes);
+        let listing = self.flags(mode).filter(|f| f.excludes.iter().any(|e| e == field));
+        listed.map(String::as_str).chain(listing.map(|f| f.field.as_str())).collect()
     }
 
     /// The button with canonical name `id`.
@@ -258,6 +373,7 @@ impl ControllerDescription {
         if let Some((name, _)) = self.limits.named().into_iter().find(|(_, r)| r.min > r.max) {
             return Err(format!("limit '{name}' has min above max"));
         }
+        self.check_settings(&modes)?;
         let mut ids = BTreeSet::new();
         for button in &self.buttons {
             if !ids.insert(button.id.as_str()) {
@@ -287,6 +403,50 @@ impl ControllerDescription {
 
     /// Every hotspot names a button, at most once per view, and every button has a
     /// hotspot in at least one view.
+    fn check_settings(&self, modes: &BTreeSet<Mode>) -> std::result::Result<(), String> {
+        for page in &self.settings {
+            if let Some(mode) = page.modes.iter().find(|m| !modes.contains(m)) {
+                return Err(format!("settings tab '{}' names unlisted mode '{mode}'", page.id));
+            }
+        }
+        for &mode in modes {
+            let mut tabs = BTreeSet::new();
+            if let Some(page) = self.pages(mode).find(|p| !tabs.insert(p.id.as_str())) {
+                return Err(format!("settings tab '{}' shows twice in {mode} mode", page.id));
+            }
+            let mut fields = BTreeSet::new();
+            let numbers = self.pages(mode).flat_map(|p| &p.frames).flat_map(|f| &f.sliders);
+            for number in numbers.flat_map(|s| std::iter::once(&s.low).chain(&s.high)) {
+                if number.min > number.max {
+                    return Err(format!("setting '{}' has min above max", number.field));
+                }
+                if !number.field.starts_with('/') || !fields.insert(number.field.as_str()) {
+                    return Err(format!(
+                        "setting '{}' in {mode} mode is not a new JSON pointer",
+                        number.field
+                    ));
+                }
+            }
+            for flag in self.flags(mode) {
+                if !flag.field.starts_with('/') || !fields.insert(flag.field.as_str()) {
+                    return Err(format!(
+                        "setting '{}' in {mode} mode is not a new JSON pointer",
+                        flag.field
+                    ));
+                }
+            }
+            for flag in self.flags(mode) {
+                if let Some(e) = flag.excludes.iter().find(|e| self.flag(mode, e).is_none()) {
+                    return Err(format!(
+                        "flag '{}' excludes '{e}', no flag in {mode} mode",
+                        flag.field
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn check_views(&self, button_ids: &BTreeSet<&str>) -> std::result::Result<(), String> {
         let mut view_ids = BTreeSet::new();
         let mut placed = BTreeSet::new();
@@ -360,10 +520,22 @@ mod tests {
             "slot_count": 3,
             "macro_slot_count": 4,
             "limits": {
-                "profile_name_length": range, "macro_name_length": range,
-                "macro_steps": range, "stick_min_pct": range, "stick_max_pct": range,
-                "trigger_pct": range, "trigger_threshold_pct": range, "vibration_level": range
+                "profile_name_length": range, "macro_name_length": range, "macro_steps": range
             },
+            "settings": [
+                { "id": "sticks", "label": "Sticks", "lead": "L",
+                  "frames": [{ "title": "Left",
+                    "sliders": [{ "label": "Dead zone", "unit": "%",
+                      "low": { "field": "/sticks/min", "min": 0, "max": 90 },
+                      "high": { "field": "/sticks/max", "min": 10, "max": 100 } }],
+                    "flags": [
+                      { "label": "Invert", "field": "/sticks/invert" },
+                      { "label": "Swap", "field": "/sticks/swap", "excludes": ["/sticks/invert"] }
+                    ] }] },
+                { "id": "triggers", "label": "Triggers", "modes": ["switch"], "lead": "T",
+                  "frames": [{ "title": "Left",
+                    "sliders": [{ "label": "Press", "low": { "field": "/t", "min": 0, "max": 9 } }] }] }
+            ],
             "buttons": [
                 { "id": "a", "labels": { "xinput": "A", "switch": "B" },
                   "can_be_remapped": true, "can_be_output": true },
@@ -422,8 +594,29 @@ mod tests {
     }
 
     #[test]
+    fn settings_follow_the_mode_and_exclusions_go_both_ways() {
+        let d = parse(&minimal()).unwrap();
+        let tabs = |m| d.pages(m).map(|p| p.id.as_str()).collect::<Vec<_>>();
+        assert_eq!(tabs(Mode::XInput), ["sticks"]);
+        assert_eq!(tabs(Mode::Switch), ["sticks", "triggers"]);
+        assert_eq!(
+            d.number(Mode::Switch, "/t").map(NumberField::range),
+            Some(LimitRange { min: 0, max: 9 })
+        );
+        assert!(d.number(Mode::XInput, "/t").is_none(), "the press point is Switch only");
+        assert!(d.flag(Mode::XInput, "/sticks/min").is_none(), "a number is no flag");
+        assert_eq!(d.excluded_by(Mode::XInput, "/sticks/swap"), ["/sticks/invert"]);
+        assert_eq!(d.excluded_by(Mode::XInput, "/sticks/invert"), ["/sticks/swap"]);
+    }
+
+    #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 10] = [
+        let cases: [fn(&mut Value); 15] = [
+            |v| v["settings"][1]["modes"] = json!(["dinput"]),
+            |v| v["settings"][1]["id"] = json!("sticks"),
+            |v| v["settings"][0]["frames"][0]["sliders"][0]["low"]["min"] = json!(95),
+            |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/sticks/min"),
+            |v| v["settings"][0]["frames"][0]["flags"][1]["excludes"] = json!(["/t"]),
             |v| v["config_ports"][0]["write_via"] = json!("xinput"),
             |v| v["config_ports"][0]["write_via"] = json!("switch"),
             |v| v["buttons"][1]["id"] = json!("a"),

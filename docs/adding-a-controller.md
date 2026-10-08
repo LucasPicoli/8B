@@ -14,8 +14,8 @@ To learn your controller's protocol first, see
 A model has four parts:
 
 1. A controller description: `crates/controller-core/controllers/<model>/description.json`.
-   It holds the model's facts: names, USB ids, modes, slot counts, value limits and
-   buttons. The format is
+   It holds the model's facts: names, USB ids, modes, slot counts, name limits,
+   buttons and settings tabs. The format is
    [`schemas/controller-description-v1.schema.json`](../schemas/controller-description-v1.schema.json).
    The loader is
    [`crates/controller-core/src/description.rs`](../crates/controller-core/src/description.rs).
@@ -49,6 +49,35 @@ For the smallest complete model, read
 [`devices/test_pad.rs`](../crates/controller-core/src/devices/test_pad.rs). It is
 about 200 lines of code and 100 of tests, and its description sits in
 `crates/controller-core/controllers/test-pad/`.
+
+## Settings tabs
+
+The `settings` list of the description makes the tabs after Buttons, in the app and
+in the patch checks. Each value is named by a JSON pointer into the profile, so a
+Sticks tab of the Pro 3 holds `/sticks/left_min_pct`. A tab looks like this:
+
+```json
+{
+  "id": "vibration",
+  "label": "Vibration",
+  "lead": "How strongly each motor rumbles. Level 0 turns it off.",
+  "frames": [
+    {
+      "title": "Motors",
+      "sliders": [
+        { "label": "Left motor", "low": { "field": "/vibration/left_level", "min": 0, "max": 5 } }
+      ]
+    }
+  ]
+}
+```
+
+A slider with a `high` end edits a range, such as a dead zone. `unit` follows the
+value, such as `%`. Without one, the value shows as `3 of 5`. A frame's `flags` are
+check boxes, and a flag's `excludes` names the flags that may not be on with it: the
+app turns them off, and a patch is refused. A tab with `modes` shows in those modes
+only, which is how the Pro 3 has one Triggers tab for analog modes and another for
+Switch.
 
 ## How a controller is detected
 
@@ -169,9 +198,9 @@ Pro 3:
    profile fails validation.
 3. `service/validation/macros.rs` checks macro triggers against the Pro 3 tables, and
    the command-line `read-macro` writes its JSON with `devices::pro3::macros`.
-4. The app's settings pages and the command-line patch flags name the Pro 3's
-   sticks, triggers and vibration. Their ranges come from the description, but a
-   model with other settings needs new pages and flags.
+4. The command-line `patch-sticks`, `patch-triggers` and `patch-vibration` name the
+   Pro 3's settings. They refuse a setting the model does not declare, but a model
+   with other settings has no command-line flags for them yet.
 5. Two models that share a USB id must also share its interface and framing.
    Detection opens the node of the first model that lists the id before the model id
    says which pad it is.

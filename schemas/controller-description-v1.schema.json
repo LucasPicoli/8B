@@ -14,6 +14,7 @@
     "slot_count",
     "macro_slot_count",
     "limits",
+    "settings",
     "buttons",
     "views"
   ],
@@ -45,29 +46,20 @@
     "slot_count": { "type": "integer", "minimum": 1, "maximum": 255 },
     "macro_slot_count": { "type": "integer", "minimum": 0, "maximum": 255 },
     "limits": {
-      "description": "Value ranges the editor offers. They must equal the profile and macro schemas.",
+      "description": "Name and macro length ranges. They must equal the profile and macro schemas. The ranges of settings sit on each setting.",
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "profile_name_length",
-        "macro_name_length",
-        "macro_steps",
-        "stick_min_pct",
-        "stick_max_pct",
-        "trigger_pct",
-        "trigger_threshold_pct",
-        "vibration_level"
-      ],
+      "required": ["profile_name_length", "macro_name_length", "macro_steps"],
       "properties": {
         "profile_name_length": { "$ref": "#/$defs/Range" },
         "macro_name_length": { "$ref": "#/$defs/Range" },
-        "macro_steps": { "$ref": "#/$defs/Range" },
-        "stick_min_pct": { "$ref": "#/$defs/Range" },
-        "stick_max_pct": { "$ref": "#/$defs/Range" },
-        "trigger_pct": { "$ref": "#/$defs/Range" },
-        "trigger_threshold_pct": { "$ref": "#/$defs/Range" },
-        "vibration_level": { "$ref": "#/$defs/Range" }
+        "macro_steps": { "$ref": "#/$defs/Range" }
       }
+    },
+    "settings": {
+      "description": "The settings tabs, in display order, after the Buttons tab.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/SettingsPage" }
     },
     "buttons": {
       "description": "Physical buttons, in display order.",
@@ -145,6 +137,68 @@
             }
           }
         }
+      }
+    },
+    "SettingsPage": {
+      "description": "One settings tab. Each value is named by a JSON pointer into the profile, such as /sticks/left_min_pct. Two tabs may share an id when their modes differ.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "lead", "frames"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "label": { "type": "string", "minLength": 1 },
+        "modes": {
+          "description": "The modes that show this tab. Omit it for every mode.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/ModeId" }
+        },
+        "lead": { "type": "string" },
+        "frames": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["title"],
+            "properties": {
+              "title": { "type": "string" },
+              "sliders": { "type": "array", "items": { "$ref": "#/$defs/Slider" } },
+              "flags": { "type": "array", "items": { "$ref": "#/$defs/Flag" } }
+            }
+          }
+        }
+      }
+    },
+    "Slider": {
+      "description": "One number, or the two ends of a range when high is set. unit follows the value, such as %; without one the value shows as <value> of <max>.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "low"],
+      "properties": {
+        "label": { "type": "string" },
+        "unit": { "type": "string" },
+        "low": { "$ref": "#/$defs/NumberField" },
+        "high": { "$ref": "#/$defs/NumberField" }
+      }
+    },
+    "NumberField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "min", "max"],
+      "properties": {
+        "field": { "type": "string", "pattern": "^/" },
+        "min": { "type": "integer" },
+        "max": { "type": "integer" }
+      }
+    },
+    "Flag": {
+      "description": "One on-or-off setting. excludes lists the flags of the same mode that may not be on together with it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "field"],
+      "properties": {
+        "label": { "type": "string" },
+        "field": { "type": "string", "pattern": "^/" },
+        "excludes": { "type": "array", "items": { "type": "string", "pattern": "^/" } }
       }
     },
     "Range": {

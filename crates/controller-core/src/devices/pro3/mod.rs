@@ -274,24 +274,33 @@ mod tests {
             pair(l.macro_steps),
             range(&macro_, &format!("{props}/steps"), "minItems", "maxItems")
         );
+        let d = Pro3.description().unwrap();
+        let field = |mode, pointer: &str| pair(d.number(mode, pointer).unwrap().range());
         for side in ["left", "right"] {
             let sticks = format!("{defs}/Sticks/properties/{side}");
-            assert_eq!(
-                pair(l.stick_min_pct),
-                range(&profile, &format!("{sticks}_min_pct"), "minimum", "maximum")
-            );
-            assert_eq!(
-                pair(l.stick_max_pct),
-                range(&profile, &format!("{sticks}_max_pct"), "minimum", "maximum")
-            );
+            for mode in Mode::ALL {
+                let min = field(mode, &format!("/sticks/{side}_min_pct"));
+                assert_eq!(
+                    min,
+                    range(&profile, &format!("{sticks}_min_pct"), "minimum", "maximum")
+                );
+                let max = field(mode, &format!("/sticks/{side}_max_pct"));
+                assert_eq!(
+                    max,
+                    range(&profile, &format!("{sticks}_max_pct"), "minimum", "maximum")
+                );
+                let at = format!("{defs}/Vibration/properties/{side}_level");
+                let level = field(mode, &format!("/vibration/{side}_level"));
+                assert_eq!(level, range(&profile, &at, "minimum", "maximum"));
+            }
             for end in ["min", "max"] {
                 let at = format!("{defs}/TriggersAnalog/properties/{side}_{end}_pct");
-                assert_eq!(pair(l.trigger_pct), range(&profile, &at, "minimum", "maximum"));
+                let pct = field(Mode::XInput, &format!("/triggers/{side}_{end}_pct"));
+                assert_eq!(pct, range(&profile, &at, "minimum", "maximum"));
             }
             let at = format!("{defs}/TriggersSwitch/properties/{side}_threshold_pct");
-            assert_eq!(pair(l.trigger_threshold_pct), range(&profile, &at, "minimum", "maximum"));
-            let at = format!("{defs}/Vibration/properties/{side}_level");
-            assert_eq!(pair(l.vibration_level), range(&profile, &at, "minimum", "maximum"));
+            let point = field(Mode::Switch, &format!("/triggers/{side}_threshold_pct"));
+            assert_eq!(point, range(&profile, &at, "minimum", "maximum"));
         }
     }
 

@@ -431,6 +431,12 @@ mod tests {
         let slots = groups.first().map(|g| slint::Model::row_count(&g.slots));
         assert_eq!(slots, Some(2), "and two slots");
         assert_eq!(s.slot(Mode::DInput, 1).pad.as_ref().map(|p| p.name.as_str()), Some("Pad"));
+        s.select(0, 0);
+        let tabs: Vec<_> = crate::buttons::sections(&s).into_iter().map(|t| t.name).collect();
+        assert_eq!(tabs, ["Buttons", "Vibration"], "the test pad declares one settings tab");
+        s.set_number("/vibration/left_level", 9.0);
+        let edited = s.slot(Mode::DInput, 1).edited.as_ref().map(|p| p.vibration.left_level);
+        assert_eq!(edited, Some(3), "kept in the test pad's own range");
 
         s.active_port = Some(PORT.to_owned());
         assert_eq!(s.description().modes.len(), 3, "back to the Pro 3");

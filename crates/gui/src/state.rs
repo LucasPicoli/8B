@@ -26,18 +26,20 @@ pub struct SlotState {
 }
 
 /// Which tabs of a slot hold unsaved edits.
-// One independent flag per tab, not a state.
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Dirty {
     /// Button mappings.
     pub buttons: bool,
-    /// Stick ranges, inversion and swaps.
-    pub sticks: bool,
-    /// Trigger ranges or thresholds.
-    pub triggers: bool,
-    /// Motor levels.
-    pub vibration: bool,
+    /// The ids of the settings tabs with an edit.
+    pub tabs: BTreeSet<String>,
+}
+
+impl Dirty {
+    /// Whether the settings tab `id` holds an edit.
+    #[must_use]
+    pub fn tab(&self, id: &str) -> bool {
+        self.tabs.contains(id)
+    }
 }
 
 impl SlotState {
@@ -53,21 +55,29 @@ impl SlotState {
         self.edited.as_ref().or(self.pad.as_ref())
     }
 
-    /// Which tabs differ between the working copy and what the controller holds. A
-    /// working copy of an empty slot differs everywhere.
+    /// Which tabs of `mode` on `description` differ between the working copy and what
+    /// the controller holds. A working copy of an empty slot differs everywhere.
     #[must_use]
-    pub fn dirty(&self) -> Dirty {
-        match (&self.pad, &self.edited) {
-            (_, None) => Dirty::default(),
+    pub fn dirty(&self, description: &ControllerDescription, mode: Mode) -> Dirty {
+        let json = |p: &CanonicalProfile| serde_json::to_value(p).unwrap_or_default();
+        let (pad, edited) = match (&self.pad, &self.edited) {
+            (_, None) => return Dirty::default(),
             (None, Some(_)) => {
-                Dirty { buttons: true, sticks: true, triggers: true, vibration: true }
+                let tabs = description.pages(mode).map(|p| p.id.clone()).collect();
+                return Dirty { buttons: true, tabs };
             }
-            (Some(p), Some(e)) => Dirty {
-                buttons: p.button_mappings != e.button_mappings || p.macro_refs != e.macro_refs,
-                sticks: p.sticks != e.sticks,
-                triggers: p.triggers != e.triggers,
-                vibration: p.vibration != e.vibration,
-            },
+            (Some(p), Some(e)) => (p, e),
+        };
+        let (old, new) = (json(pad), json(edited));
+        let changed = |field: &str| old.pointer(field) != new.pointer(field);
+        Dirty {
+            buttons: pad.button_mappings != edited.button_mappings
+                || pad.macro_refs != edited.macro_refs,
+            tabs: description
+                .pages(mode)
+                .filter(|p| p.fields().any(changed))
+                .map(|p| p.id.clone())
+                .collect(),
         }
     }
 }
@@ -183,6 +193,12 @@ impl AppState {
     #[must_use]
     pub fn description(&self) -> &'static ControllerDescription {
         self.active().and_then(|c| c.description).unwrap_or(self.fallback_description)
+    }
+
+    /// Which tabs of slot `number` of `mode` hold unsaved edits, on the shown controller.
+    #[must_use]
+    pub fn slot_dirty(&self, mode: Mode, number: u8) -> Dirty {
+        self.slot(mode, number).dirty(self.description(), mode)
     }
 
     /// The profile a new slot of each mode starts from, for the controller the window
@@ -635,15 +651,15 @@ pub mod tests {
     #[test]
     fn first_change_copies_the_pad_and_marks_its_tab() {
         let mut s = connected(Mode::XInput);
-        assert_eq!(s.slot(Mode::XInput, 1).dirty(), Dirty::default());
+        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default());
         s.set_output("r1", "disabled");
         let slot = s.slot(Mode::XInput, 1);
         assert!(slot.unsaved());
-        assert_eq!(slot.dirty(), Dirty { buttons: true, ..Dirty::default() });
+        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty { buttons: true, ..Dirty::default() });
         // Changing it back leaves a working copy equal to the pad: nothing unsaved.
         s.set_output("r1", "r1");
         assert!(!s.slot(Mode::XInput, 1).unsaved());
-        assert_eq!(s.slot(Mode::XInput, 1).dirty(), Dirty::default());
+        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default());
     }
 
     #[test]
@@ -653,7 +669,7 @@ pub mod tests {
         let slot = s.slot(Mode::XInput, 1);
         assert_eq!(slot.shown().unwrap().name, "A name far longe");
         assert!(slot.unsaved());
-        assert_eq!(slot.dirty(), Dirty::default());
+        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default());
     }
 
     #[test]
@@ -678,10 +694,8 @@ pub mod tests {
         let p = slot.shown().unwrap();
         assert_eq!((p.name.as_str(), p.mode), (NEW_PROFILE_NAME, Mode::Switch));
         assert!(slot.unsaved());
-        assert_eq!(
-            slot.dirty(),
-            Dirty { buttons: true, sticks: true, triggers: true, vibration: true }
-        );
+        let tabs = ["sticks", "triggers", "vibration"].map(str::to_owned).into();
+        assert_eq!(s.slot_dirty(Mode::Switch, 3), Dirty { buttons: true, tabs });
         // A second press keeps the edits made since.
         s.set_output("l1", "disabled");
         s.start_from_default();

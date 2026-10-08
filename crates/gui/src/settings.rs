@@ -1,155 +1,16 @@
-//! The Sticks, Triggers and Vibration tabs. Each value is named by its JSON pointer
-//! into the profile, as in `schemas/profile-v1.schema.json`, and kept inside the
-//! controller description's limits.
+//! The settings tabs after Buttons. The controller description declares each tab, and
+//! names each value by its JSON pointer into the profile, such as `/sticks/left_min_pct`,
+//! with its range.
 
 use std::rc::Rc;
 
-use controller_core::description::{LimitRange, Limits};
-use controller_core::model::{CanonicalProfile, Mode, Triggers};
+use controller_core::description as described;
+use controller_core::model::{CanonicalProfile, Mode};
 use serde_json::Value;
 use slint::{Model as _, ModelRc, VecModel};
 
 use crate::state::AppState;
 use crate::ui::{AppWindow, Setting, SettingFrame, SettingsPage, Toggle};
-
-/// A slider: one value, or the low and high ends of one range.
-struct SliderSpec {
-    label: &'static str,
-    low: &'static str,
-    high: Option<&'static str>,
-}
-
-/// One frame on a tab: its sliders, then its check boxes as (label, pointer).
-struct FrameSpec {
-    title: &'static str,
-    sliders: &'static [SliderSpec],
-    flags: &'static [(&'static str, &'static str)],
-}
-
-/// One tab: the line above the frames, and the frames.
-struct PageSpec {
-    lead: &'static str,
-    frames: &'static [FrameSpec],
-}
-
-const fn range(label: &'static str, low: &'static str, high: &'static str) -> SliderSpec {
-    SliderSpec { label, low, high: Some(high) }
-}
-
-const fn single(label: &'static str, value: &'static str) -> SliderSpec {
-    SliderSpec { label, low: value, high: None }
-}
-
-const STICKS: PageSpec = PageSpec {
-    lead: "Inside the low end of the dead zone the stick reads as centred. Past the high end it reads as pushed all the way.",
-    frames: &[
-        FrameSpec {
-            title: "Left stick",
-            sliders: &[range("Dead zone", "/sticks/left_min_pct", "/sticks/left_max_pct")],
-            flags: &[("Invert X", "/sticks/invert_left_x"), ("Invert Y", "/sticks/invert_left_y")],
-        },
-        FrameSpec {
-            title: "Right stick",
-            sliders: &[range("Dead zone", "/sticks/right_min_pct", "/sticks/right_max_pct")],
-            flags: &[("Invert X", "/sticks/invert_right_x"), ("Invert Y", "/sticks/invert_right_y")],
-        },
-        FrameSpec {
-            title: "Swaps",
-            sliders: &[],
-            flags: &[
-                ("Swap the left and right sticks", "/sticks/swap_sticks"),
-                ("Swap the D-pad and the left stick", "/sticks/swap_dpad_with_left_stick"),
-            ],
-        },
-    ],
-};
-
-/// The swap shared by both trigger forms.
-const TRIGGER_SWAP: FrameSpec = FrameSpec {
-    title: "Swaps",
-    sliders: &[],
-    flags: &[("Swap the left and right triggers", "/triggers/swap_triggers")],
-};
-
-const ANALOG_TRIGGERS: PageSpec = PageSpec {
-    lead: "Below the low end of the range the trigger reads as released. Past the high end it reads as pulled all the way.",
-    frames: &[
-        FrameSpec {
-            title: "Left trigger",
-            sliders: &[range("Range", "/triggers/left_min_pct", "/triggers/left_max_pct")],
-            flags: &[],
-        },
-        FrameSpec {
-            title: "Right trigger",
-            sliders: &[range("Range", "/triggers/right_min_pct", "/triggers/right_max_pct")],
-            flags: &[],
-        },
-        TRIGGER_SWAP,
-    ],
-};
-
-const THRESHOLD_TRIGGERS: PageSpec = PageSpec {
-    lead: "In this mode each trigger is a button. It presses once pulled past the press point.",
-    frames: &[
-        FrameSpec {
-            title: "Left trigger",
-            sliders: &[single("Press point", "/triggers/left_threshold_pct")],
-            flags: &[],
-        },
-        FrameSpec {
-            title: "Right trigger",
-            sliders: &[single("Press point", "/triggers/right_threshold_pct")],
-            flags: &[],
-        },
-        TRIGGER_SWAP,
-    ],
-};
-
-const VIBRATION: PageSpec = PageSpec {
-    lead: "How strongly each motor rumbles. Level 0 turns it off.",
-    frames: &[FrameSpec {
-        title: "Motors",
-        sliders: &[
-            single("Left motor", "/vibration/left_level"),
-            single("Right motor", "/vibration/right_level"),
-        ],
-        flags: &[],
-    }],
-};
-
-/// The limits of the number at `pointer`. `None` for anything the tabs do not edit.
-fn limit(limits: &Limits, pointer: &str) -> Option<LimitRange> {
-    Some(match pointer {
-        "/sticks/left_min_pct" | "/sticks/right_min_pct" => limits.stick_min_pct,
-        "/sticks/left_max_pct" | "/sticks/right_max_pct" => limits.stick_max_pct,
-        "/triggers/left_min_pct"
-        | "/triggers/left_max_pct"
-        | "/triggers/right_min_pct"
-        | "/triggers/right_max_pct" => limits.trigger_pct,
-        "/triggers/left_threshold_pct" | "/triggers/right_threshold_pct" => {
-            limits.trigger_threshold_pct
-        }
-        "/vibration/left_level" | "/vibration/right_level" => limits.vibration_level,
-        _ => return None,
-    })
-}
-
-/// The D-pad swap flag, which the flags in [`DPAD_SWAP_EXCLUDES`] cannot be on with.
-const DPAD_SWAP: &str = "/sticks/swap_dpad_with_left_stick";
-/// The flags that exclude the D-pad swap (the vendor app's `SticksView` rule).
-const DPAD_SWAP_EXCLUDES: [&str; 3] =
-    ["/sticks/swap_sticks", "/sticks/invert_left_x", "/sticks/invert_left_y"];
-
-/// The flags that must be off while the flag at `pointer` is on.
-fn excluded_by(pointer: &str) -> &'static [&'static str] {
-    if pointer == DPAD_SWAP {
-        &DPAD_SWAP_EXCLUDES
-    } else if DPAD_SWAP_EXCLUDES.contains(&pointer) {
-        &[DPAD_SWAP]
-    } else {
-        &[]
-    }
-}
 
 /// Replaces the value at `pointer` in `profile` with `new`, when the old value is of
 /// the same JSON type.
@@ -166,10 +27,16 @@ fn patch(profile: &mut CanonicalProfile, pointer: &str, new: Value) {
 }
 
 impl AppState {
-    /// Sets the number at `pointer` in the selected slot, rounded and kept inside
-    /// the description's limits. A pointer the tabs do not edit changes nothing.
+    /// Sets the number at `pointer` in the selected slot, rounded and kept inside the
+    /// range the description gives it. A pointer the slot's tabs do not show changes
+    /// nothing.
     pub fn set_number(&mut self, pointer: &str, value: f32) {
-        let Some(range) = limit(&self.description().limits, pointer) else { return };
+        let Some((mode, _)) = self.selected_slot() else { return };
+        let Some(range) =
+            self.description().number(mode, pointer).map(described::NumberField::range)
+        else {
+            return;
+        };
         let value = f64::from(value).round().clamp(f64::from(range.min), f64::from(range.max));
         // In range after the clamp.
         #[allow(clippy::cast_possible_truncation)]
@@ -178,13 +45,19 @@ impl AppState {
     }
 
     /// Sets the flag at `pointer` in the selected slot. A pointer that names no flag
-    /// changes nothing. Turning a flag on turns off the flags the vendor app never
-    /// allows with it: the D-pad swap excludes swap sticks and the left inverts.
+    /// changes nothing. Turning a flag on turns off the flags the description says may
+    /// not be on with it, such as the D-pad swap and swap sticks on a Pro 3.
     pub fn set_flag(&mut self, pointer: &str, on: bool) {
+        let Some((mode, _)) = self.selected_slot() else { return };
+        let description = self.description();
+        if description.flag(mode, pointer).is_none() {
+            return;
+        }
+        let excluded = description.excluded_by(mode, pointer);
         self.edit(|p| {
             patch(p, pointer, on.into());
             if on {
-                for other in excluded_by(pointer) {
+                for other in &excluded {
                     patch(p, other, false.into());
                 }
             }
@@ -197,12 +70,14 @@ fn number(json: &Value, pointer: &str) -> Option<i64> {
     json.pointer(pointer).and_then(Value::as_i64)
 }
 
-/// `low`, or `low` to `high`, with its unit.
-fn shown_value(pointer: &str, low: i64, high: Option<i64>, range: LimitRange) -> String {
+/// `low`, or `low` to `high`, with the slider's unit. A single value with no unit shows
+/// as `<low> of <max>`.
+fn shown_value(slider: &described::Slider, low: i64, high: Option<i64>) -> String {
+    let unit = &slider.unit;
     match high {
-        Some(high) => format!("{low} to {high}%"),
-        None if pointer.ends_with("_pct") => format!("{low}%"),
-        None => format!("{low} of {}", range.max),
+        Some(high) => format!("{low} to {high}{unit}"),
+        None if unit.is_empty() => format!("{low} of {}", slider.low.max),
+        None => format!("{low}{unit}"),
     }
 }
 
@@ -210,15 +85,13 @@ fn shown_value(pointer: &str, low: i64, high: Option<i64>, range: LimitRange) ->
 /// what the controller holds.
 // The values are profile percentages and levels, far inside f32's exact range.
 #[allow(clippy::cast_precision_loss)]
-fn page(limits: &Limits, spec: &PageSpec, shown: &Value, pad: Option<&Value>) -> SettingsPage {
+fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> SettingsPage {
     let frames = spec.frames.iter().map(|frame| {
         let settings = frame.sliders.iter().filter_map(|s| {
-            let low_range = limit(limits, s.low)?;
-            let high_range = s.high.map_or(Some(low_range), |h| limit(limits, h))?;
             let values = |json: &Value| -> Option<(i64, Option<i64>)> {
-                let low = number(json, s.low)?;
-                let high = match s.high {
-                    Some(h) => Some(number(json, h)?),
+                let low = number(json, &s.low.field)?;
+                let high = match &s.high {
+                    Some(h) => Some(number(json, &h.field)?),
                     None => None,
                 };
                 Some((low, high))
@@ -227,61 +100,57 @@ fn page(limits: &Limits, spec: &PageSpec, shown: &Value, pad: Option<&Value>) ->
             let was = pad
                 .and_then(values)
                 .filter(|&old| old != (low, high))
-                .map(|(l, h)| format!("was {}", shown_value(s.low, l, h, low_range)))
+                .map(|(l, h)| format!("was {}", shown_value(s, l, h)))
                 .unwrap_or_default();
             Some(Setting {
-                label: s.label.into(),
-                low_field: s.low.into(),
-                high_field: s.high.unwrap_or_default().into(),
+                label: s.label.as_str().into(),
+                low_field: s.low.field.as_str().into(),
+                high_field: s.high.as_ref().map_or("", |h| h.field.as_str()).into(),
                 low: low as f32,
                 high: high.unwrap_or(low) as f32,
-                minimum: low_range.min as f32,
-                maximum: high_range.max as f32,
-                text: shown_value(s.low, low, high, low_range).into(),
+                minimum: s.low.min as f32,
+                maximum: s.high.as_ref().unwrap_or(&s.low).max as f32,
+                text: shown_value(s, low, high).into(),
                 was: was.into(),
             })
         });
-        let toggles = frame.flags.iter().filter_map(|&(label, pointer)| {
+        let toggles = frame.flags.iter().filter_map(|flag| {
+            let pointer = flag.field.as_str();
             let on = shown.pointer(pointer)?.as_bool()?;
             Some(Toggle {
-                label: label.into(),
+                label: flag.label.as_str().into(),
                 field: pointer.into(),
                 on,
                 changed: pad.and_then(|p| p.pointer(pointer)?.as_bool()).is_some_and(|o| o != on),
             })
         });
         SettingFrame {
-            title: frame.title.into(),
+            title: frame.title.as_str().into(),
             settings: ModelRc::from(Rc::new(settings.collect::<VecModel<_>>())),
             toggles: ModelRc::from(Rc::new(toggles.collect::<VecModel<_>>())),
         }
     });
     SettingsPage {
-        lead: spec.lead.into(),
+        lead: spec.lead.as_str().into(),
         frames: ModelRc::from(Rc::new(frames.collect::<VecModel<_>>())),
     }
 }
 
-/// The Sticks, Triggers and Vibration tabs of the selected slot. Empty for an
+/// The settings tabs of the selected slot, in the description's order. Empty for an
 /// empty slot.
 #[must_use]
-pub fn pages(state: &AppState) -> [SettingsPage; 3] {
+pub fn pages(state: &AppState) -> Vec<SettingsPage> {
     state.selected_slot().map(|slot| pages_of(state, slot)).unwrap_or_default()
 }
 
-/// The three settings tabs of slot `(mode, number)`. Empty for an empty slot.
+/// The settings tabs of slot `(mode, number)`. Empty for an empty slot.
 #[must_use]
-pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> [SettingsPage; 3] {
+pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> Vec<SettingsPage> {
     let slot = state.slot(mode, number);
-    let Some(shown) = slot.shown() else { return Default::default() };
-    let Ok(json) = serde_json::to_value(shown) else { return Default::default() };
+    let Some(shown) = slot.shown() else { return Vec::new() };
+    let Ok(json) = serde_json::to_value(shown) else { return Vec::new() };
     let pad = slot.pad.as_ref().and_then(|p| serde_json::to_value(p).ok());
-    let triggers = match shown.triggers {
-        Triggers::Analog(_) => &ANALOG_TRIGGERS,
-        Triggers::Switch(_) => &THRESHOLD_TRIGGERS,
-    };
-    let limits = &state.description().limits;
-    [&STICKS, triggers, &VIBRATION].map(|spec| page(limits, spec, &json, pad.as_ref()))
+    state.description().pages(mode).map(|spec| page(spec, &json, pad.as_ref())).collect()
 }
 
 /// Copies `new` into the models `old` already shows, when both have the same frames
@@ -313,24 +182,24 @@ fn copy_rows<T: Clone + PartialEq + 'static>(old: &ModelRc<T>, new: &ModelRc<T>)
     }
 }
 
-/// Pushes the three settings tabs, in place where their shape holds.
+/// Pushes the settings tabs, in place where their shape holds.
 pub fn render_settings(state: &AppState, ui: &AppWindow) {
-    let [sticks, triggers, vibration] = pages(state);
-    if !update(&ui.get_sticks(), &sticks) {
-        ui.set_sticks(sticks);
+    let new = pages(state);
+    // Another model can have fewer tabs: fall back to Buttons.
+    if usize::try_from(ui.get_tab()).is_ok_and(|tab| tab > new.len()) {
+        ui.set_tab(0);
     }
-    if !update(&ui.get_triggers(), &triggers) {
-        ui.set_triggers(triggers);
-    }
-    if !update(&ui.get_vibration(), &vibration) {
-        ui.set_vibration(vibration);
+    let old = ui.get_pages();
+    let same = old.row_count() == new.len() && old.iter().zip(&new).all(|(o, n)| update(&o, n));
+    if !same {
+        ui.set_pages(ModelRc::from(Rc::new(VecModel::from(new))));
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use controller_core::model::Mode;
+    use controller_core::model::{Mode, Triggers};
 
     use super::*;
     use crate::state::tests::connected;
@@ -402,27 +271,29 @@ mod tests {
 
     #[test]
     fn each_tab_sets_only_its_own_dirty_flag() {
-        let cases: [(&str, Dirty); 3] = [
-            ("/sticks/left_min_pct", Dirty { sticks: true, ..Dirty::default() }),
-            ("/triggers/right_max_pct", Dirty { triggers: true, ..Dirty::default() }),
-            ("/vibration/left_level", Dirty { vibration: true, ..Dirty::default() }),
+        let tab = |id: &str| Dirty { tabs: [id.to_owned()].into(), ..Dirty::default() };
+        let cases = [
+            ("/sticks/left_min_pct", "sticks"),
+            ("/triggers/right_max_pct", "triggers"),
+            ("/vibration/left_level", "vibration"),
         ];
-        for (pointer, dirty) in cases {
+        for (pointer, id) in cases {
             let mut s = connected(Mode::XInput);
             s.set_number(pointer, 1.0);
-            assert_eq!(s.slot(Mode::XInput, 1).dirty(), dirty, "{pointer}");
+            assert_eq!(s.slot_dirty(Mode::XInput, 1), tab(id), "{pointer}");
         }
         let mut s = connected(Mode::XInput);
         s.set_flag("/triggers/swap_triggers", true);
-        assert_eq!(s.slot(Mode::XInput, 1).dirty(), Dirty { triggers: true, ..Dirty::default() });
+        assert_eq!(s.slot_dirty(Mode::XInput, 1), tab("triggers"));
         s.set_flag("/triggers/swap_triggers", false);
-        assert_eq!(s.slot(Mode::XInput, 1).dirty(), Dirty::default(), "back to the pad");
+        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default(), "back to the pad");
     }
 
     #[test]
     fn pages_follow_the_trigger_form_and_show_what_changed() {
         let mut s = connected(Mode::XInput);
-        let [st, tr, vi] = pages(&s);
+        let tabs = pages(&s);
+        let (st, tr, vi) = (&tabs[0], &tabs[1], &tabs[2]);
         assert_eq!(st.frames.row_count(), 3);
         let left = st.frames.row_data(0).unwrap().settings.row_data(0).unwrap();
         assert_eq!((left.minimum, left.maximum), (0.0, 100.0));
@@ -435,8 +306,7 @@ mod tests {
         let old = left.text;
         s.set_number("/sticks/left_min_pct", 40.0);
         s.set_flag("/sticks/invert_left_y", true);
-        let [st, ..] = pages(&s);
-        let frame = st.frames.row_data(0).unwrap();
+        let frame = pages(&s)[0].frames.row_data(0).unwrap();
         let left = frame.settings.row_data(0).unwrap();
         assert_eq!(left.was, format!("was {old}"));
         assert!(left.text.starts_with("40 to "));
@@ -445,8 +315,7 @@ mod tests {
 
         s.select(1, 2);
         s.start_from_default();
-        let [_, tr, _] = pages(&s);
-        let point = tr.frames.row_data(0).unwrap().settings.row_data(0).unwrap();
+        let point = pages(&s)[1].frames.row_data(0).unwrap().settings.row_data(0).unwrap();
         assert_eq!((point.high_field.as_str(), point.maximum), ("", 90.0));
         assert_eq!(point.was, "", "an empty slot has nothing to compare with");
     }
@@ -454,16 +323,16 @@ mod tests {
     #[test]
     fn an_update_keeps_the_models_when_the_shape_holds() {
         let mut s = connected(Mode::XInput);
-        let [old, ..] = pages(&s);
+        let old = pages(&s).remove(0);
         s.set_number("/sticks/left_min_pct", 40.0);
-        let [new, ..] = pages(&s);
+        let new = pages(&s).remove(0);
         assert!(update(&old, &new));
         let left = old.frames.row_data(0).unwrap().settings.row_data(0).unwrap();
         assert!((left.low - 40.0).abs() < f32::EPSILON);
-        let [_, analog, _] = pages(&s);
+        let analog = pages(&s).remove(1);
         s.select(1, 2);
         s.start_from_default();
-        let [_, threshold, _] = pages(&s);
+        let threshold = pages(&s).remove(1);
         assert!(!update(&analog, &threshold), "another lead");
     }
 }

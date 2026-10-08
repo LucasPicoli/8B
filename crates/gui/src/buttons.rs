@@ -94,16 +94,18 @@ pub fn picked_output(state: &AppState, row: usize, choice: usize) -> Option<(Str
 /// The tab strip, with a dot on each tab that holds unsaved edits.
 #[must_use]
 pub fn sections(state: &AppState) -> Vec<Section> {
-    let dirty = state.selected_slot().map(|(m, n)| state.slot(m, n).dirty()).unwrap_or_default();
-    [
-        ("Buttons", dirty.buttons),
-        ("Sticks", dirty.sticks),
-        ("Triggers", dirty.triggers),
-        ("Vibration", dirty.vibration),
-    ]
-    .into_iter()
-    .map(|(name, unsaved)| Section { name: name.into(), unsaved, count: 0 })
-    .collect()
+    let description = state.description();
+    let selected = state.selected_slot();
+    let dirty = selected.map(|(m, n)| state.slot_dirty(m, n)).unwrap_or_default();
+    let Some(mode) = selected.map(|(m, _)| m).or_else(|| description.modes.first().map(|m| m.id))
+    else {
+        return Vec::new();
+    };
+    let tabs = description.pages(mode).map(|p| (p.label.as_str(), dirty.tab(&p.id)));
+    std::iter::once(("Buttons", dirty.buttons))
+        .chain(tabs)
+        .map(|(name, unsaved)| Section { name: name.into(), unsaved, count: 0 })
+        .collect()
 }
 
 /// Whether `button`, a remappable button, outputs something other than it does in
@@ -382,7 +384,7 @@ mod tests {
         assert_eq!(row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap(), "B");
         assert!(row.changed);
         assert_eq!(s.slot(Mode::XInput, 1).edited.unwrap().macro_refs, []);
-        assert!(s.slot(Mode::XInput, 1).dirty().buttons);
+        assert!(s.slot_dirty(Mode::XInput, 1).buttons);
         s.discard();
         assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
     }

@@ -4,13 +4,12 @@
 //! Ports `remapButton`, `patchSticks`, `patchTriggers` and `patchVibration`. Unlike the
 //! C++ code, every patched field is range checked here, and the slot's macros are kept.
 
+use serde_json::Value;
+
 use super::write::{failure_from, text, Plan, ProfileWriteOrchestrator};
-use crate::description::{Limits, TriggerKind};
+use crate::description::ControllerDescription;
 use crate::error::{Error, Result};
-use crate::model::{
-    ButtonMapping, CanonicalProfile, Mode, RawProfilePayload, Slot, Triggers, WriteResult,
-};
-use crate::service::validation::dpad_swap_clash;
+use crate::model::{ButtonMapping, CanonicalProfile, Mode, RawProfilePayload, Slot, WriteResult};
 use crate::service::{ConfirmPolicy, ReadbackResult};
 
 /// Stick fields to change. A `None` field keeps the value on the controller.
@@ -59,20 +58,81 @@ pub struct TriggerPatch {
     pub swap_triggers: Option<bool>,
 }
 
-/// Overwrites `target` when `value` is set.
-fn set<T>(target: &mut T, value: Option<T>) {
-    if let Some(v) = value {
-        *target = v;
-    }
+/// The last segment of a JSON pointer, the name a message shows: `left_min_pct` for
+/// `/sticks/left_min_pct`.
+fn name(field: &str) -> &str {
+    field.rsplit('/').next().unwrap_or(field)
 }
 
-/// Checks each set `(name, value, low, high)`.
-fn check_ranges(fields: &[(&str, Option<i32>, i32, i32)]) -> Result<()> {
-    for &(name, value, lo, hi) in fields {
-        if let Some(v) = value.filter(|v| !(lo..=hi).contains(v)) {
-            return Err(Error::Validation(format!("{name} must be {lo} to {hi}, got {v}.")));
+/// The set fields of `pairs` as setting changes.
+fn changes<T: Into<Value> + Copy>(
+    pairs: &[(&'static str, Option<T>)],
+) -> Vec<(&'static str, Value)> {
+    pairs.iter().filter_map(|&(field, value)| Some((field, value?.into()))).collect()
+}
+
+/// Checks each change against the settings `description` declares for `mode`: a number
+/// in its range, or a flag. No device access.
+fn check_changes(
+    description: &ControllerDescription,
+    mode: Mode,
+    changes: &[(&str, Value)],
+) -> Result<()> {
+    for (field, value) in changes {
+        let n = name(field);
+        if let Some(number) = description.number(mode, field) {
+            let (lo, hi) = (number.min, number.max);
+            match value.as_i64() {
+                Some(v) if (i64::from(lo)..=i64::from(hi)).contains(&v) => {}
+                Some(v) => {
+                    return Err(Error::Validation(format!("{n} must be {lo} to {hi}, got {v}.")));
+                }
+                None => return Err(Error::Validation(format!("{n} must be a whole number."))),
+            }
+        } else if description.flag(mode, field).is_some() {
+            if !value.is_boolean() {
+                return Err(Error::Validation(format!("{n} must be true or false.")));
+            }
+        } else {
+            return Err(Error::Validation(format!("{n} does not apply in {mode} mode.")));
         }
     }
+    Ok(())
+}
+
+/// Writes each change into `profile`, then refuses a flag turned on together with one
+/// it excludes.
+fn apply_changes(
+    description: &ControllerDescription,
+    mode: Mode,
+    profile: &mut CanonicalProfile,
+    changes: &[(&str, Value)],
+) -> Result<()> {
+    let mut json = serde_json::to_value(&*profile)
+        .map_err(|e| Error::Validation(format!("the profile cannot be edited: {e}")))?;
+    for (field, value) in changes {
+        let slot = json
+            .pointer_mut(field)
+            .ok_or_else(|| Error::Validation(format!("the profile has no {}.", name(field))))?;
+        value.clone_into(slot);
+    }
+    let on = |field: &str| json.pointer(field).and_then(Value::as_bool) == Some(true);
+    for (field, _) in changes.iter().filter(|(f, _)| on(f)) {
+        let clashes: Vec<&str> =
+            description.excluded_by(mode, field).into_iter().filter(|f| on(f)).map(name).collect();
+        let Some((last, rest)) = clashes.split_last() else { continue };
+        let joined = if rest.is_empty() {
+            (*last).to_owned()
+        } else {
+            format!("{} and {last}", rest.join(", "))
+        };
+        return Err(Error::Validation(format!(
+            "{} cannot be on together with {joined}.",
+            name(field)
+        )));
+    }
+    *profile = serde_json::from_value(json)
+        .map_err(|e| Error::Validation(format!("the edited profile is not valid: {e}")))?;
     Ok(())
 }
 
@@ -102,6 +162,20 @@ impl ProfileWriteOrchestrator<'_> {
         })
     }
 
+    /// Sets the settings at the JSON pointers of `changes` in an occupied slot, such as
+    /// `("/vibration/left_level", 3)`. Each pointer must be a setting the model declares
+    /// for `mode`, and each value must fit it.
+    #[must_use]
+    pub fn patch_settings(
+        &self,
+        mode: Mode,
+        slot: Slot,
+        changes: &[(&str, Value)],
+        policy: &ConfirmPolicy,
+    ) -> WriteResult {
+        self.patch_named(mode, slot, changes, policy, "Settings patched.")
+    }
+
     /// Changes the set fields of the stick settings in an occupied slot.
     #[must_use]
     pub fn patch_sticks(
@@ -111,38 +185,25 @@ impl ProfileWriteOrchestrator<'_> {
         patch: &StickPatch,
         policy: &ConfirmPolicy,
     ) -> WriteResult {
-        let ranges = self.limits().and_then(|l| {
-            let (min, max) = (l.stick_min_pct, l.stick_max_pct);
-            check_ranges(&[
-                ("left_min_pct", patch.left_min_pct, min.min, min.max),
-                ("left_max_pct", patch.left_max_pct, max.min, max.max),
-                ("right_min_pct", patch.right_min_pct, min.min, min.max),
-                ("right_max_pct", patch.right_max_pct, max.min, max.max),
-            ])
-        });
-        if let Err(e) = ranges {
-            return failure_from(mode, slot, &e);
-        }
-        self.patch(mode, slot, policy, "patch sticks", "Stick settings patched.", |profile| {
-            let s = &mut profile.sticks;
-            set(&mut s.left_min_pct, patch.left_min_pct);
-            set(&mut s.left_max_pct, patch.left_max_pct);
-            set(&mut s.right_min_pct, patch.right_min_pct);
-            set(&mut s.right_max_pct, patch.right_max_pct);
-            set(&mut s.invert_left_x, patch.invert_left_x);
-            set(&mut s.invert_left_y, patch.invert_left_y);
-            set(&mut s.invert_right_x, patch.invert_right_x);
-            set(&mut s.invert_right_y, patch.invert_right_y);
-            set(&mut s.swap_sticks, patch.swap_sticks);
-            set(&mut s.swap_dpad_with_left_stick, patch.swap_dpad_with_left_stick);
-            if let Some(reason) = dpad_swap_clash(s) {
-                return Err(Error::Validation(reason));
-            }
-            Ok(())
-        })
+        let mut set = changes(&[
+            ("/sticks/left_min_pct", patch.left_min_pct),
+            ("/sticks/left_max_pct", patch.left_max_pct),
+            ("/sticks/right_min_pct", patch.right_min_pct),
+            ("/sticks/right_max_pct", patch.right_max_pct),
+        ]);
+        set.extend(changes(&[
+            ("/sticks/invert_left_x", patch.invert_left_x),
+            ("/sticks/invert_left_y", patch.invert_left_y),
+            ("/sticks/invert_right_x", patch.invert_right_x),
+            ("/sticks/invert_right_y", patch.invert_right_y),
+            ("/sticks/swap_sticks", patch.swap_sticks),
+            ("/sticks/swap_dpad_with_left_stick", patch.swap_dpad_with_left_stick),
+        ]));
+        self.patch_named(mode, slot, &set, policy, "Stick settings patched.")
     }
 
-    /// Changes the set fields of the trigger settings in an occupied slot.
+    /// Changes the set fields of the trigger settings in an occupied slot. A field of the
+    /// other trigger form is refused.
     #[must_use]
     pub fn patch_triggers(
         &self,
@@ -151,60 +212,16 @@ impl ProfileWriteOrchestrator<'_> {
         patch: &TriggerPatch,
         policy: &ConfirmPolicy,
     ) -> WriteResult {
-        let analog =
-            [patch.left_min_pct, patch.left_max_pct, patch.right_min_pct, patch.right_max_pct];
-        let thresholds = [patch.left_threshold_pct, patch.right_threshold_pct];
-        let (limits, kind) = match self.limits().and_then(|l| Ok((l, self.trigger_kind(mode)?))) {
-            Ok(found) => found,
-            Err(e) => return failure_from(mode, slot, &e),
-        };
-        let checked = if kind == TriggerKind::Threshold {
-            if analog.iter().any(Option::is_some) {
-                Err(Error::Validation(
-                    "left_min_pct, left_max_pct, right_min_pct and right_max_pct do not apply in switch mode. Use left_threshold_pct and right_threshold_pct."
-                        .to_owned(),
-                ))
-            } else {
-                let range = limits.trigger_threshold_pct;
-                check_ranges(&[
-                    ("left_threshold_pct", patch.left_threshold_pct, range.min, range.max),
-                    ("right_threshold_pct", patch.right_threshold_pct, range.min, range.max),
-                ])
-            }
-        } else if thresholds.iter().any(Option::is_some) {
-            Err(Error::Validation(
-                "left_threshold_pct and right_threshold_pct only apply in switch mode. Use left_min_pct, left_max_pct, right_min_pct and right_max_pct."
-                    .to_owned(),
-            ))
-        } else {
-            let range = limits.trigger_pct;
-            check_ranges(&[
-                ("left_min_pct", patch.left_min_pct, range.min, range.max),
-                ("left_max_pct", patch.left_max_pct, range.min, range.max),
-                ("right_min_pct", patch.right_min_pct, range.min, range.max),
-                ("right_max_pct", patch.right_max_pct, range.min, range.max),
-            ])
-        };
-        if let Err(e) = checked {
-            return failure_from(mode, slot, &e);
-        }
-        self.patch(mode, slot, policy, "patch triggers", "Trigger settings patched.", |profile| {
-            match &mut profile.triggers {
-                Triggers::Switch(t) => {
-                    set(&mut t.left_threshold_pct, patch.left_threshold_pct);
-                    set(&mut t.right_threshold_pct, patch.right_threshold_pct);
-                    set(&mut t.swap_triggers, patch.swap_triggers);
-                }
-                Triggers::Analog(t) => {
-                    set(&mut t.left_min_pct, patch.left_min_pct);
-                    set(&mut t.left_max_pct, patch.left_max_pct);
-                    set(&mut t.right_min_pct, patch.right_min_pct);
-                    set(&mut t.right_max_pct, patch.right_max_pct);
-                    set(&mut t.swap_triggers, patch.swap_triggers);
-                }
-            }
-            Ok(())
-        })
+        let mut set = changes(&[
+            ("/triggers/left_min_pct", patch.left_min_pct),
+            ("/triggers/left_max_pct", patch.left_max_pct),
+            ("/triggers/right_min_pct", patch.right_min_pct),
+            ("/triggers/right_max_pct", patch.right_max_pct),
+            ("/triggers/left_threshold_pct", patch.left_threshold_pct),
+            ("/triggers/right_threshold_pct", patch.right_threshold_pct),
+        ]);
+        set.extend(changes(&[("/triggers/swap_triggers", patch.swap_triggers)]));
+        self.patch_named(mode, slot, &set, policy, "Trigger settings patched.")
     }
 
     /// Sets both vibration levels in an occupied slot, in the model's range (0 to 5 on a
@@ -218,43 +235,33 @@ impl ProfileWriteOrchestrator<'_> {
         right: u8,
         policy: &ConfirmPolicy,
     ) -> WriteResult {
-        let (left, right) = (i32::from(left), i32::from(right));
-        let levels = self.limits().and_then(|l| {
-            let range = l.vibration_level;
-            check_ranges(&[
-                ("left vibration level", Some(left), range.min, range.max),
-                ("right vibration level", Some(right), range.min, range.max),
-            ])
-        });
-        if let Err(e) = levels {
+        let set = changes(&[
+            ("/vibration/left_level", Some(left)),
+            ("/vibration/right_level", Some(right)),
+        ]);
+        self.patch_named(mode, slot, &set, policy, "Vibration settings patched.")
+    }
+
+    /// Checks `changes` before any device access, then patches them in with `done` as
+    /// the success message.
+    fn patch_named(
+        &self,
+        mode: Mode,
+        slot: Slot,
+        changes: &[(&str, Value)],
+        policy: &ConfirmPolicy,
+        done: &str,
+    ) -> WriteResult {
+        let description = match self.model.description() {
+            Ok(d) => d,
+            Err(e) => return failure_from(mode, slot, &e),
+        };
+        if let Err(e) = check_changes(description, mode, changes) {
             return failure_from(mode, slot, &e);
         }
-        self.patch(
-            mode,
-            slot,
-            policy,
-            "patch vibration",
-            "Vibration settings patched.",
-            |profile| {
-                profile.vibration.left_level = left;
-                profile.vibration.right_level = right;
-                Ok(())
-            },
-        )
-    }
-
-    /// The value ranges of the model's description.
-    fn limits(&self) -> Result<Limits> {
-        Ok(self.model.description()?.limits)
-    }
-
-    /// How the model tunes the triggers in `mode`.
-    fn trigger_kind(&self, mode: Mode) -> Result<TriggerKind> {
-        let description = self.model.description()?;
-        description
-            .mode(mode)
-            .map(|m| m.trigger_kind)
-            .ok_or_else(|| Error::Validation(format!("This controller has no {mode} mode.")))
+        self.patch(mode, slot, policy, "patch settings", done, |profile| {
+            apply_changes(description, mode, profile, changes)
+        })
     }
 
     /// Shared patch flow: the slot must be occupied, its profile is decoded, `edit` changes

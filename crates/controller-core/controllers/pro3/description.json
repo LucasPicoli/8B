@@ -89,26 +89,6 @@
     "macro_steps": {
       "min": 1,
       "max": 255
-    },
-    "stick_min_pct": {
-      "min": 0,
-      "max": 90
-    },
-    "stick_max_pct": {
-      "min": 10,
-      "max": 100
-    },
-    "trigger_pct": {
-      "min": 0,
-      "max": 100
-    },
-    "trigger_threshold_pct": {
-      "min": 0,
-      "max": 90
-    },
-    "vibration_level": {
-      "min": 0,
-      "max": 5
     }
   },
   "buttons": [
@@ -331,6 +311,224 @@
       },
       "can_be_remapped": true,
       "can_be_output": false
+    }
+  ],
+  "settings": [
+    {
+      "id": "sticks",
+      "label": "Sticks",
+      "lead": "Inside the low end of the dead zone the stick reads as centred. Past the high end it reads as pushed all the way.",
+      "frames": [
+        {
+          "title": "Left stick",
+          "sliders": [
+            {
+              "label": "Dead zone",
+              "unit": "%",
+              "low": {
+                "field": "/sticks/left_min_pct",
+                "min": 0,
+                "max": 90
+              },
+              "high": {
+                "field": "/sticks/left_max_pct",
+                "min": 10,
+                "max": 100
+              }
+            }
+          ],
+          "flags": [
+            {
+              "label": "Invert X",
+              "field": "/sticks/invert_left_x"
+            },
+            {
+              "label": "Invert Y",
+              "field": "/sticks/invert_left_y"
+            }
+          ]
+        },
+        {
+          "title": "Right stick",
+          "sliders": [
+            {
+              "label": "Dead zone",
+              "unit": "%",
+              "low": {
+                "field": "/sticks/right_min_pct",
+                "min": 0,
+                "max": 90
+              },
+              "high": {
+                "field": "/sticks/right_max_pct",
+                "min": 10,
+                "max": 100
+              }
+            }
+          ],
+          "flags": [
+            {
+              "label": "Invert X",
+              "field": "/sticks/invert_right_x"
+            },
+            {
+              "label": "Invert Y",
+              "field": "/sticks/invert_right_y"
+            }
+          ]
+        },
+        {
+          "title": "Swaps",
+          "flags": [
+            {
+              "label": "Swap the left and right sticks",
+              "field": "/sticks/swap_sticks"
+            },
+            {
+              "label": "Swap the D-pad and the left stick",
+              "field": "/sticks/swap_dpad_with_left_stick",
+              "excludes": [
+                "/sticks/swap_sticks",
+                "/sticks/invert_left_x",
+                "/sticks/invert_left_y"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "modes": [
+        "xinput",
+        "dinput"
+      ],
+      "lead": "Below the low end of the range the trigger reads as released. Past the high end it reads as pulled all the way.",
+      "frames": [
+        {
+          "title": "Left trigger",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/triggers/left_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/triggers/left_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        },
+        {
+          "title": "Right trigger",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/triggers/right_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/triggers/right_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        },
+        {
+          "title": "Swaps",
+          "flags": [
+            {
+              "label": "Swap the left and right triggers",
+              "field": "/triggers/swap_triggers"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "modes": [
+        "switch"
+      ],
+      "lead": "In this mode each trigger is a button. It presses once pulled past the press point.",
+      "frames": [
+        {
+          "title": "Left trigger",
+          "sliders": [
+            {
+              "label": "Press point",
+              "unit": "%",
+              "low": {
+                "field": "/triggers/left_threshold_pct",
+                "min": 0,
+                "max": 90
+              }
+            }
+          ]
+        },
+        {
+          "title": "Right trigger",
+          "sliders": [
+            {
+              "label": "Press point",
+              "unit": "%",
+              "low": {
+                "field": "/triggers/right_threshold_pct",
+                "min": 0,
+                "max": 90
+              }
+            }
+          ]
+        },
+        {
+          "title": "Swaps",
+          "flags": [
+            {
+              "label": "Swap the left and right triggers",
+              "field": "/triggers/swap_triggers"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vibration",
+      "label": "Vibration",
+      "lead": "How strongly each motor rumbles. Level 0 turns it off.",
+      "frames": [
+        {
+          "title": "Motors",
+          "sliders": [
+            {
+              "label": "Left motor",
+              "low": {
+                "field": "/vibration/left_level",
+                "min": 0,
+                "max": 5
+              }
+            },
+            {
+              "label": "Right motor",
+              "low": {
+                "field": "/vibration/right_level",
+                "min": 0,
+                "max": 5
+              }
+            }
+          ]
+        }
+      ]
     }
   ],
   "views": [
