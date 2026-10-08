@@ -21,6 +21,9 @@ case $arch in
 esac
 MAX_GLIBC=2.35
 APP_ID=io.github.LucasPicoli._8B
+# winit loads these at runtime and panics without them; a minimal X11 host lacks libxkbcommon-x11.
+# None is on the AppImage excludelist, so the AppImage ships them.
+BUNDLED_LIBS=(libxkbcommon.so.0 libxkbcommon-x11.so.0 libxcb-xkb.so.1)
 
 here=$(cd "$(dirname "$0")" && pwd)
 root=$(cd "$here/../.." && pwd)
@@ -61,10 +64,21 @@ install -Dm644 "$here/$APP_ID-16.png" "$appdir/usr/share/icons/hicolor/16x16/app
 install -Dm644 "$here/$APP_ID-32.png" "$appdir/usr/share/icons/hicolor/32x32/apps/$APP_ID.png"
 install -Dm644 "$here/$APP_ID.png" "$appdir/usr/share/icons/hicolor/256x256/apps/$APP_ID.png"
 install -Dm644 "$here/$APP_ID.svg" "$appdir/usr/share/icons/hicolor/scalable/apps/$APP_ID.svg"
+# The catalog lint looks for *appdata.xml only.
+install -Dm644 "$here/$APP_ID.metainfo.xml" "$appdir/usr/share/metainfo/$APP_ID.appdata.xml"
 ln -s usr/bin/8b "$appdir/AppRun"
 
-# Gate: the host supplies the display and GL libraries; bundling them breaks EGL on new Mesa.
-if find "$appdir" \( -name 'libwayland-*' -o -name 'libxkbcommon*' -o -name 'libxcb-*' \) | grep -q .; then
+# RUNPATH on 8b lets its dlopen find the bundled libraries; $ORIGIN on each lets them find each other.
+for lib in "${BUNDLED_LIBS[@]}"; do
+    install -Dm644 "$(readlink -f "/usr/lib/$arch-linux-gnu/$lib")" "$appdir/usr/lib/$lib"
+    patchelf --set-rpath '$ORIGIN' "$appdir/usr/lib/$lib"
+done
+patchelf --set-rpath '$ORIGIN/../lib' "$appdir/usr/bin/8b"
+
+# Gate: the host supplies the display server and GL libraries (the AppImage excludelist);
+# bundling them breaks EGL on new Mesa.
+if find "$appdir" \( -name 'libwayland-*' -o -name 'libxcb.so*' -o -name 'libxcb-dri*' \
+    -o -name 'libX11*' -o -name 'libGL*' -o -name 'libEGL*' \) | grep -q .; then
     echo "AppDir bundles a display library" >&2
     exit 1
 fi

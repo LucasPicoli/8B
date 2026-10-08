@@ -6,6 +6,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends \
-    build-essential ca-certificates curl desktop-file-utils file jq libfontconfig-dev pkg-config
+    build-essential ca-certificates curl desktop-file-utils file jq libfontconfig-dev \
+    libxkbcommon-x11-0 patchelf pkg-config
 # rust-toolchain.toml in the repo picks the toolchain and components.
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain none
