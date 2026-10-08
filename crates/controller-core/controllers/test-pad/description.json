@@ -66,28 +66,29 @@
   ],
   "settings": [
     {
-      "id": "vibration",
-      "label": "Vibration",
-      "lead": "How strongly each motor rumbles.",
+      "id": "feel",
+      "label": "Feel",
+      "lead": "How the pad rumbles and lights up.",
       "frames": [
         {
-          "title": "Motors",
+          "title": "Rumble",
           "sliders": [
             {
-              "label": "Left motor",
+              "label": "Strength",
               "low": {
-                "field": "/vibration/left_level",
+                "field": "/rumble/level",
                 "min": 0,
                 "max": 3
               }
-            },
+            }
+          ]
+        },
+        {
+          "title": "Lights",
+          "flags": [
             {
-              "label": "Right motor",
-              "low": {
-                "field": "/vibration/right_level",
-                "min": 0,
-                "max": 3
-              }
+              "label": "Light on",
+              "field": "/lights/on"
             }
           ]
         }

@@ -87,7 +87,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         drop_macros: &[String],
         policy: &ConfirmPolicy,
     ) -> WriteResult {
-        let parsed = match check_upload(profile, mode) {
+        let parsed = match check_upload(self.model, profile, mode) {
             Ok(parsed) => parsed,
             Err(e) => return failure_from(mode, slot, &e),
         };
@@ -239,9 +239,13 @@ pub(super) fn with_ignored(message: String, ignored: usize) -> String {
 /// Success message of an upload.
 pub(super) const UPLOADED: &str = "Profile uploaded successfully.";
 
-/// Validates an upload and parses it. No device access.
-pub(super) fn check_upload(profile: &Value, mode: Mode) -> Result<CanonicalProfile> {
-    let validation = validate_profile(profile)?;
+/// Validates an upload for `model` and parses it. No device access.
+pub(super) fn check_upload(
+    model: &dyn Model,
+    profile: &Value,
+    mode: Mode,
+) -> Result<CanonicalProfile> {
+    let validation = validate_profile(model, profile)?;
     if !validation.valid {
         let details: Vec<String> =
             validation.errors.iter().map(|e| format!("{}: {}", e.path, e.reason)).collect();

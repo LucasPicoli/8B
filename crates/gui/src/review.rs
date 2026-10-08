@@ -5,10 +5,12 @@
 
 use std::rc::Rc;
 
+use controller_core::description::ControllerDescription;
 use controller_core::error::ErrorCategory;
 use controller_core::model::macros::parse_macro_file_name;
 use controller_core::model::profile::canonical_id;
 use controller_core::model::{CanonicalProfile, Mode, Slot as ProfileSlot, WriteResult};
+use serde_json::Value;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
 use crate::batch::{render_batch, Batch};
@@ -130,7 +132,7 @@ impl AppState {
         let leftover = self.active().and_then(|c| c.leftover.get(&slot)).copied().unwrap_or(0);
         state.pad.is_none()
             && leftover == 0
-            && state.edited.as_ref().is_some_and(|e| clash_text(e).is_empty())
+            && state.edited.as_ref().is_some_and(|e| clash_text(self.description(), e).is_empty())
     }
 
     /// A review or a batch review is about to open on slots that hold nothing: skip
@@ -372,7 +374,12 @@ impl AppState {
             macros_stay: count(kept),
             removed: ModelRc::from(Rc::new(VecModel::from(removed))),
             leftover: count(leftover),
-            problem: state.edited.as_ref().map(clash_text).unwrap_or_default().into(),
+            problem: state
+                .edited
+                .as_ref()
+                .map(|e| clash_text(self.description(), e))
+                .unwrap_or_default()
+                .into(),
         }
     }
 
@@ -389,29 +396,37 @@ impl AppState {
     }
 }
 
-/// The sentence that names the stick flags clashing with the D-pad swap in `profile`,
-/// empty when none does. A slot read from the pad can hold such a pair, and the write
+/// The sentence that names a flag of `profile` that is on together with a flag it
+/// excludes, such as the Pro 3's D-pad swap with "Invert X" of the left stick. Empty
+/// when no flag clashes. A slot read from the pad can hold such a pair, and the write
 /// refuses it.
-fn clash_text(profile: &CanonicalProfile) -> String {
-    let labels: Vec<&str> = profile
-        .sticks
-        .dpad_swap_clashes()
-        .into_iter()
-        .map(|flag| match flag {
-            "swap_sticks" => "“Swap the left and right sticks”",
-            "invert_left_x" => "“Invert X” of the left stick",
-            _ => "“Invert Y” of the left stick",
+fn clash_text(description: &ControllerDescription, profile: &CanonicalProfile) -> String {
+    let mode = profile.mode;
+    let on = |field: &str| profile.setting(field).and_then(Value::as_bool) == Some(true);
+    let flags = || {
+        description.pages(mode).flat_map(|page| {
+            page.frames
+                .iter()
+                .flat_map(move |frame| frame.flags.iter().map(move |f| (page, frame, f)))
         })
-        .collect();
-    let Some((last, rest)) = labels.split_last() else { return String::new() };
-    let joined = if rest.is_empty() {
-        (*last).to_owned()
-    } else {
-        format!("{} and {last}", rest.join(", "))
     };
-    format!(
-        "“Swap the D-pad and the left stick” cannot be on together with {joined}. Cancel and turn one of them off on the Sticks tab."
-    )
+    for (page, _, flag) in flags().filter(|(_, _, f)| on(&f.field)) {
+        let named: Vec<String> = flag
+            .excludes
+            .iter()
+            .filter(|e| on(e))
+            .filter_map(|e| flags().find(|(_, _, f)| &f.field == e))
+            .map(|(_, frame, f)| format!("“{}” in {}", f.label, frame.title))
+            .collect();
+        let Some((last, rest)) = named.split_last() else { continue };
+        let joined =
+            if rest.is_empty() { last.clone() } else { format!("{} and {last}", rest.join(", ")) };
+        return format!(
+            "“{}” cannot be on together with {joined}. Cancel and turn one of them off on the {} tab.",
+            flag.label, page.label
+        );
+    }
+    String::new()
 }
 
 /// A profile name in quotes, for the change list.
@@ -694,12 +709,12 @@ mod tests {
     fn a_clashing_pair_read_from_the_pad_loads_and_the_review_names_it() {
         let mut s = connected(Mode::XInput);
         let pad = s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap();
-        let sticks = &mut pad.pad.as_mut().unwrap().sticks;
-        sticks.invert_left_x = true;
-        sticks.swap_dpad_with_left_stick = true;
+        let held = pad.pad.as_mut().unwrap();
+        held.set_setting("/sticks/invert_left_x", true.into());
+        held.set_setting("/sticks/swap_dpad_with_left_stick", true.into());
         s.set_name("Mine");
         let problem = s.review_info((Mode::XInput, 1)).problem;
-        assert!(problem.contains("“Invert X” of the left stick"), "{problem}");
+        assert!(problem.contains("“Invert X” in Left stick"), "{problem}");
         // Turning the swap off in the window clears it.
         s.set_flag("/sticks/swap_dpad_with_left_stick", false);
         assert_eq!(s.review_info((Mode::XInput, 1)).problem, "");

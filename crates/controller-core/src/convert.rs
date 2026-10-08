@@ -3,15 +3,17 @@
 //! Buttons map by position, so a mapping keeps its canonical names and only the
 //! printed labels differ. A button still at its default takes the target mode's
 //! default (Switch turbo takes a screenshot, `XInput` turbo is turbo). Two things can
-//! be lost: an output the target mode lacks becomes [`DISABLED_OUTPUT`], and triggers
-//! of another form start from the target mode's defaults. Each loss is listed for the
-//! import warning.
+//! be lost: an output the target mode lacks becomes [`DISABLED_OUTPUT`], and a settings
+//! group whose declared fields differ in the target mode, such as the Pro 3's triggers
+//! between `XInput` and Switch, starts from the target mode's defaults. Each loss is
+//! listed for the import warning.
 
-use std::mem::discriminant;
+use std::collections::{BTreeMap, BTreeSet};
 
-use crate::description::{ControllerDescription, DISABLED_OUTPUT};
+use crate::description::{ControllerDescription, SettingsPage, DISABLED_OUTPUT};
 use crate::error::{Error, Result};
 use crate::model::CanonicalProfile;
+use crate::model::Mode;
 
 /// One change a conversion made that the user may not want.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -23,8 +25,22 @@ pub enum ConversionLoss {
         /// The output it had.
         target: String,
     },
-    /// The target mode tunes triggers in another form, so they start from its defaults.
-    TriggersReset,
+    /// The target mode declares other fields for this settings group, such as
+    /// `triggers`, so the group starts from the target mode's defaults.
+    SettingsReset {
+        /// The group's name in the profile.
+        group: String,
+    },
+}
+
+/// The fields `description` declares for `mode`, by settings group.
+fn groups(description: &ControllerDescription, mode: Mode) -> BTreeMap<&str, BTreeSet<&str>> {
+    let mut groups: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+    for field in description.pages(mode).flat_map(SettingsPage::fields) {
+        let group = field.trim_start_matches('/').split('/').next().unwrap_or_default();
+        groups.entry(group).or_default().insert(field);
+    }
+    groups
 }
 
 /// Converts `profile` into the mode of `target_default`.
@@ -69,9 +85,15 @@ pub fn convert_profile(
             });
         }
     }
-    if discriminant(&profile.triggers) != discriminant(&target_default.triggers) {
-        converted.triggers = target_default.triggers.clone();
-        losses.push(ConversionLoss::TriggersReset);
+    let from = groups(description, profile.mode);
+    for (group, fields) in groups(description, to) {
+        if from.get(group) == Some(&fields) {
+            continue;
+        }
+        if let Some(default) = target_default.settings.get(group) {
+            converted.settings.insert(group.to_owned(), default.clone());
+            losses.push(ConversionLoss::SettingsReset { group: group.to_owned() });
+        }
     }
     Ok((converted, losses))
 }
@@ -88,6 +110,10 @@ mod tests {
     use crate::description::UNRECOGNISED_OUTPUT;
     use crate::device::{ControllerSpec, ProtocolCodec};
     use crate::devices::pro3::Pro3;
+
+    fn triggers_reset() -> ConversionLoss {
+        ConversionLoss::SettingsReset { group: "triggers".to_owned() }
+    }
     use crate::model::{ButtonMapping, Mode};
 
     fn convert(profile: &CanonicalProfile, to: Mode) -> (CanonicalProfile, Vec<ConversionLoss>) {
@@ -117,19 +143,19 @@ mod tests {
                     && d.mode(from).unwrap().trigger_kind != d.mode(to).unwrap().trigger_kind;
                 assert_eq!(
                     losses,
-                    if reset { vec![ConversionLoss::TriggersReset] } else { vec![] },
+                    if reset { vec![triggers_reset()] } else { vec![] },
                     "{from} to {to}"
                 );
-                let expected =
-                    if reset { &Pro3.default_profile(to).triggers } else { &source.triggers };
-                assert_eq!(&p.triggers, expected, "{from} to {to}");
+                let default = Pro3.default_profile(to);
+                let expected = if reset { &default } else { &source }.settings.get("triggers");
+                assert_eq!(p.settings.get("triggers"), expected, "{from} to {to}");
                 // Every other button stays at its default, so it takes the new mode's.
                 let want = with_mapping(to, "r4", "bottom face").button_mappings;
                 assert_eq!(p.button_mappings, want, "{from} to {to}");
-                assert_eq!(
-                    (p.name.as_str(), &p.sticks, &p.vibration),
-                    ("Mine", &source.sticks, &source.vibration)
-                );
+                let kept = |q: &CanonicalProfile| {
+                    (q.settings.get("sticks").cloned(), q.settings.get("vibration").cloned())
+                };
+                assert_eq!((p.name.as_str(), kept(&p)), ("Mine", kept(&source)));
             }
         }
     }
@@ -154,7 +180,7 @@ mod tests {
                     source: "r4".to_owned(),
                     target: "screenshot".to_owned()
                 },
-                ConversionLoss::TriggersReset,
+                triggers_reset(),
             ]
         );
         assert!(p.button_mappings.iter().any(|m| m.source == "r4" && m.target == DISABLED_OUTPUT));
@@ -171,7 +197,7 @@ mod tests {
                     source: "d-pad left".to_owned(),
                     target: UNRECOGNISED_OUTPUT.to_owned()
                 },
-                ConversionLoss::TriggersReset,
+                triggers_reset(),
             ]
         );
         let (same, losses) = convert(&source, Mode::DInput);

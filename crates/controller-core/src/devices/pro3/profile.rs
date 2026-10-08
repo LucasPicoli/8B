@@ -13,6 +13,9 @@
 
 use crate::description::UNRECOGNISED_OUTPUT;
 use crate::devices::pro3::macros::{decode_macro_metadata, encode_macro_metadata};
+use crate::devices::pro3::settings::{
+    Settings, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
+};
 use crate::devices::pro3::tables;
 use crate::devices::pro3::tables::ButtonEncodingEntry;
 use crate::devices::pro3::Pro3;
@@ -21,7 +24,7 @@ use crate::model::macros::macro_file_name;
 use crate::model::profile::canonical_id;
 use crate::model::{
     ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroRef, MacroSlot,
-    Mode, RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
+    Mode, RawProfilePayload, Slot,
 };
 use crate::protocol::bytes::{put_slice, put_u16_le, put_u32_le, read_u32_le, read_u8, take};
 use crate::protocol::crc16::crc16_modbus;
@@ -428,9 +431,12 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
         device: "8bitdo-pro3".to_owned(),
         mode,
         preferred_slot: None,
-        sticks: decode_sticks(payload, source_slot, layout),
-        triggers: decode_triggers(payload, mode, source_slot, layout),
-        vibration: decode_vibration(payload, source_slot, layout),
+        settings: Settings {
+            sticks: decode_sticks(payload, source_slot, layout),
+            triggers: decode_triggers(payload, mode, source_slot, layout),
+            vibration: decode_vibration(payload, source_slot, layout),
+        }
+        .into_map(),
         button_mappings: decode_button_mappings(payload, mode, source_slot),
         macro_refs: decode_macro_refs(payload, mode, source_slot)?,
     };
@@ -496,23 +502,26 @@ pub fn default_profile(mode: Mode) -> CanonicalProfile {
         mode,
         preferred_slot: None,
         // Slot 0 is out of range, so the decoders return their neutral values.
-        sticks: Sticks {
-            left_min_pct: tables::DEFAULT_STICK_MIN_PCT,
-            right_min_pct: tables::DEFAULT_STICK_MIN_PCT,
-            ..decode_sticks(&[], 0, neutral)
-        },
-        triggers: match decode_triggers(&[], mode, 0, neutral) {
-            Triggers::Switch(sw) => Triggers::Switch(TriggersSwitch {
-                left_threshold_pct: tables::DEFAULT_SWITCH_THRESHOLD_PCT,
-                right_threshold_pct: tables::DEFAULT_SWITCH_THRESHOLD_PCT,
-                ..sw
-            }),
-            analog @ Triggers::Analog(_) => analog,
-        },
-        vibration: Vibration {
-            left_level: tables::VIBRATION_LEVEL_MAX,
-            right_level: tables::VIBRATION_LEVEL_MAX,
-        },
+        settings: Settings {
+            sticks: Sticks {
+                left_min_pct: tables::DEFAULT_STICK_MIN_PCT,
+                right_min_pct: tables::DEFAULT_STICK_MIN_PCT,
+                ..decode_sticks(&[], 0, neutral)
+            },
+            triggers: match decode_triggers(&[], mode, 0, neutral) {
+                Triggers::Switch(sw) => Triggers::Switch(TriggersSwitch {
+                    left_threshold_pct: tables::DEFAULT_SWITCH_THRESHOLD_PCT,
+                    right_threshold_pct: tables::DEFAULT_SWITCH_THRESHOLD_PCT,
+                    ..sw
+                }),
+                analog @ Triggers::Analog(_) => analog,
+            },
+            vibration: Vibration {
+                left_level: tables::VIBRATION_LEVEL_MAX,
+                right_level: tables::VIBRATION_LEVEL_MAX,
+            },
+        }
+        .into_map(),
         button_mappings,
         macro_refs: Vec::new(),
     }
@@ -686,6 +695,7 @@ pub fn compile_profile(
 
     let s = target_slot.get();
     let idx = usize::from(s - 1);
+    let settings = Settings::of(profile)?;
 
     // --- Section 0: flags, mode, name ---
 
@@ -714,10 +724,10 @@ pub fn compile_profile(
     // Vibration float = clamp(level, 0, 5) / 5.0 written as IEEE 754 LE.
     // The i32 value is clamped to 0..=5 before the cast, so cast is exact.
     #[allow(clippy::cast_precision_loss)]
-    let left_float = (profile.vibration.left_level.clamp(0, tables::VIBRATION_LEVEL_MAX) as f32)
+    let left_float = (settings.vibration.left_level.clamp(0, tables::VIBRATION_LEVEL_MAX) as f32)
         / tables::VIBRATION_LEVEL_SCALE;
     #[allow(clippy::cast_precision_loss)]
-    let right_float = (profile.vibration.right_level.clamp(0, tables::VIBRATION_LEVEL_MAX) as f32)
+    let right_float = (settings.vibration.right_level.clamp(0, tables::VIBRATION_LEVEL_MAX) as f32)
         / tables::VIBRATION_LEVEL_SCALE;
     put_u32_le(&mut buf, vib_off + 4, left_float.to_bits())?;
     put_u32_le(&mut buf, vib_off + 8, right_float.to_bits())?;
@@ -728,7 +738,7 @@ pub fn compile_profile(
     put_slice(&mut buf, stick_flag_off, &tables::SLOT_MARKER)?;
 
     let stick_data_off = DEV_STICK_DATA_BASE + idx * tables::SLOT_DATA_STRIDE;
-    let sticks = &profile.sticks;
+    let sticks = &settings.sticks;
     let stick = |i: usize, pct: i32| {
         keep_or_encode(
             byte_at(&buf, stick_data_off + i),
@@ -759,7 +769,7 @@ pub fn compile_profile(
             percent_to_trigger_byte,
         )
     };
-    let trig_bytes: [u8; 4] = match &profile.triggers {
+    let trig_bytes: [u8; 4] = match &settings.triggers {
         Triggers::Analog(a) => [
             trig(0, a.left_min_pct),
             trig(1, a.left_max_pct),
@@ -779,7 +789,7 @@ pub fn compile_profile(
     let sect3_marker_off = DEV_SECT3_MARKER_BASE + idx * tables::SLOT_DATA_STRIDE;
     put_slice(&mut buf, sect3_marker_off, &tables::SLOT_MARKER)?;
     let slot_flags_off = DEV_FLAGS_BASE + idx * tables::SLOT_DATA_STRIDE;
-    let sticks = &profile.sticks;
+    let sticks = &settings.sticks;
     let mut flags0: u8 = 0;
     let mut flags1: u8 = 0;
     if sticks.invert_left_x {
@@ -797,7 +807,7 @@ pub fn compile_profile(
     if sticks.swap_sticks {
         flags0 |= 0x10;
     }
-    let swap_triggers = match &profile.triggers {
+    let swap_triggers = match &settings.triggers {
         Triggers::Analog(a) => a.swap_triggers,
         Triggers::Switch(sw) => sw.swap_triggers,
     };
@@ -967,6 +977,11 @@ pub(super) fn seal_crc(buf: &mut [u8]) -> Result<()> {
 mod tests {
     use super::*;
 
+    /// The typed view of `p`'s settings.
+    fn s(p: &CanonicalProfile) -> Settings {
+        Settings::of(p).unwrap()
+    }
+
     #[test]
     fn to_percent_rounds_half_up_and_clamps() {
         assert_eq!(to_percent(0, 128), 0);
@@ -1014,9 +1029,9 @@ mod tests {
             };
             let back = map_profile(&Pro3, &raw).unwrap().canonical;
             assert_eq!(back.button_mappings, profile.button_mappings, "{mode}");
-            assert_eq!(back.sticks, profile.sticks, "{mode}");
-            assert_eq!(back.triggers, profile.triggers, "{mode}");
-            assert_eq!(back.vibration, profile.vibration, "{mode}");
+            assert_eq!(s(&back).sticks, s(&profile).sticks, "{mode}");
+            assert_eq!(s(&back).triggers, s(&profile).triggers, "{mode}");
+            assert_eq!(s(&back).vibration, s(&profile).vibration, "{mode}");
         }
     }
 
@@ -1024,14 +1039,17 @@ mod tests {
     fn default_profile_matches_the_vendor_defaults_and_compiles_to_their_bytes() {
         for mode in Mode::ALL {
             let profile = default_profile(mode);
-            assert_eq!(profile.sticks.left_min_pct, 13, "{mode}");
-            assert_eq!(profile.sticks.right_min_pct, 13, "{mode}");
-            assert_eq!((profile.sticks.left_max_pct, profile.sticks.right_max_pct), (100, 100));
+            assert_eq!(s(&profile).sticks.left_min_pct, 13, "{mode}");
+            assert_eq!(s(&profile).sticks.right_min_pct, 13, "{mode}");
+            assert_eq!(
+                (s(&profile).sticks.left_max_pct, s(&profile).sticks.right_max_pct),
+                (100, 100)
+            );
             let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
             assert_eq!(&blob[DEV_STICK_DATA_BASE..][..4], &[0x11, 0x80, 0x11, 0x80], "{mode}");
             let want = if mode == Mode::Switch {
                 assert!(matches!(
-                    profile.triggers,
+                    s(&profile).triggers,
                     Triggers::Switch(t) if (t.left_threshold_pct, t.right_threshold_pct) == (30, 30)
                 ));
                 [0x4D, 0xFF, 0x4D, 0xFF]
@@ -1102,9 +1120,9 @@ mod tests {
     fn a_slot_holding_the_dpad_swap_with_swap_sticks_and_an_invert_still_decodes() {
         // The vendor app never writes this pair, but a pad can hold it: flags `11 01`.
         let mut profile = default_profile(Mode::XInput);
-        profile.sticks.invert_left_x = true;
-        profile.sticks.swap_sticks = true;
-        profile.sticks.swap_dpad_with_left_stick = true;
+        profile.set_setting("/sticks/invert_left_x", (true).into());
+        profile.set_setting("/sticks/swap_sticks", (true).into());
+        profile.set_setting("/sticks/swap_dpad_with_left_stick", (true).into());
         let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
         let raw = RawProfilePayload {
             payload: blob,
@@ -1113,8 +1131,7 @@ mod tests {
             mode_hint: Mode::XInput,
         };
         let back = map_profile(&Pro3, &raw).unwrap().canonical;
-        assert_eq!(back.sticks, profile.sticks);
-        assert_eq!(back.sticks.dpad_swap_clashes(), ["swap_sticks", "invert_left_x"]);
+        assert_eq!(s(&back).sticks, s(&profile).sticks);
     }
 
     #[test]

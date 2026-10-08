@@ -153,10 +153,9 @@ mod tests {
 
     /// A minimal [`CanonicalProfileSummary`] for test use.
     fn dummy_summary() -> crate::model::CanonicalProfileSummary {
-        use crate::model::{
-            ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroRef, Sticks, Triggers,
-            TriggersAnalog, Vibration,
-        };
+        use crate::device::ProtocolCodec as _;
+        use crate::devices::pro3::Pro3;
+        use crate::model::{CanonicalProfile, CanonicalProfileSummary};
         CanonicalProfileSummary {
             id: "test-id".into(),
             name: "Test Profile".into(),
@@ -166,33 +165,8 @@ mod tests {
             canonical: CanonicalProfile {
                 id: "test-id".into(),
                 name: "Test Profile".into(),
-                version: 1,
-                kind: "8bitdo.pro3.profile".into(),
-                device: "8bitdo-pro3".into(),
-                mode: Mode::XInput,
-                preferred_slot: None,
-                sticks: Sticks {
-                    left_min_pct: 0,
-                    left_max_pct: 100,
-                    right_min_pct: 0,
-                    right_max_pct: 100,
-                    invert_left_x: false,
-                    invert_left_y: false,
-                    invert_right_x: false,
-                    invert_right_y: false,
-                    swap_sticks: false,
-                    swap_dpad_with_left_stick: false,
-                },
-                triggers: Triggers::Analog(TriggersAnalog {
-                    left_min_pct: 0,
-                    left_max_pct: 100,
-                    right_min_pct: 0,
-                    right_max_pct: 100,
-                    swap_triggers: false,
-                }),
-                vibration: Vibration { left_level: 3, right_level: 3 },
-                button_mappings: Vec::<ButtonMapping>::new(),
-                macro_refs: Vec::<MacroRef>::new(),
+                button_mappings: Vec::new(),
+                ..Pro3.default_profile(Mode::XInput)
             },
         }
     }

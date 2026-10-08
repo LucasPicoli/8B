@@ -8,6 +8,7 @@ use crate::model::{
 };
 use crate::protocol::framing::Framing;
 use crate::protocol::wire_write::PACKET_LEN;
+use crate::service::validation::ValidationError;
 
 /// A supported USB (vendor, product) pair. JSON writes each as `"0x2dc8"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
@@ -91,8 +92,21 @@ pub trait ProtocolCodec {
     /// Returns [`crate::Error::Decode`] on malformed input.
     fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary>;
 
-    /// The profile a new slot of `mode` starts from, with an empty name.
+    /// The profile a new slot of `mode` starts from, with an empty name. Its `device`
+    /// and `kind` are the ones a profile of this model must carry.
     fn default_profile(&self, mode: Mode) -> CanonicalProfile;
+
+    /// Checks a profile JSON against the model's own schema, before the checks every
+    /// model gets from its description. The default has no schema of its own.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Decode`] if an embedded schema fails to compile.
+    fn profile_schema_errors(
+        &self,
+        _profile_json: &serde_json::Value,
+    ) -> Result<Vec<ValidationError>> {
+        Ok(Vec::new())
+    }
 
     /// Decodes Section-4 macro metadata for `profile_slot` (steps left empty).
     ///

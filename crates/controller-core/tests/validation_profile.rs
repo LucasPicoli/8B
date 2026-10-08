@@ -3,10 +3,9 @@
 //! schemas are embedded (`include_str!`) and can never be unloaded.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use controller_core::model::{
-    ButtonMapping, CanonicalProfile, CanonicalProfileSummary, Mode, Sticks, Triggers,
-    TriggersAnalog, Vibration,
-};
+use controller_core::device::ProtocolCodec as _;
+use controller_core::devices::pro3::Pro3;
+use controller_core::model::{CanonicalProfile, CanonicalProfileSummary, Mode};
 use controller_core::service::validation::{validate_all_profiles, validate_profile};
 use serde_json::{json, Value};
 
@@ -42,7 +41,7 @@ fn make_valid_switch_profile() -> Value {
 
 #[test]
 fn valid_xinput_profile_passes() {
-    let r = validate_profile(&make_valid_xinput_profile()).unwrap();
+    let r = validate_profile(&Pro3, &make_valid_xinput_profile()).unwrap();
     assert!(r.valid, "errors: {:?}", r.errors);
     assert_eq!(r.errors, []);
     assert_eq!(r.profile_id, "xinput-slot-1-index-0");
@@ -50,7 +49,7 @@ fn valid_xinput_profile_passes() {
 
 #[test]
 fn valid_switch_profile_passes() {
-    let r = validate_profile(&make_valid_switch_profile()).unwrap();
+    let r = validate_profile(&Pro3, &make_valid_switch_profile()).unwrap();
     assert!(r.valid, "errors: {:?}", r.errors);
 }
 
@@ -58,7 +57,7 @@ fn valid_switch_profile_passes() {
 fn missing_required_field_fails_schema() {
     let mut p = make_valid_xinput_profile();
     p.as_object_mut().unwrap().remove("name");
-    let r = validate_profile(&p).unwrap();
+    let r = validate_profile(&Pro3, &p).unwrap();
     assert!(!r.valid);
     assert!(r.errors.iter().any(|e| e.reason.to_lowercase().contains("name")));
 }
@@ -67,14 +66,14 @@ fn missing_required_field_fails_schema() {
 fn invalid_mode_fails_schema() {
     let mut p = make_valid_xinput_profile();
     p["mode"] = json!("gameboy");
-    assert!(!validate_profile(&p).unwrap().valid);
+    assert!(!validate_profile(&Pro3, &p).unwrap().valid);
 }
 
 #[test]
 fn invalid_button_target_fails_schema() {
     let mut p = make_valid_xinput_profile();
     p["button_mappings"] = json!([{ "source": "right face", "target": "nonexistent_button" }]);
-    assert!(!validate_profile(&p).unwrap().valid);
+    assert!(!validate_profile(&Pro3, &p).unwrap().valid);
 }
 
 #[test]
@@ -84,7 +83,7 @@ fn duplicate_macro_triggers_fails_semantic() {
         { "trigger": "l1", "path": "macros/macro1.json" },
         { "trigger": "l1", "path": "macros/macro2.json" }
     ]);
-    let r = validate_profile(&p).unwrap();
+    let r = validate_profile(&Pro3, &p).unwrap();
     assert!(!r.valid);
     // Exact ported message + path (this rule passes schema and reaches semantics).
     assert!(r.errors.iter().any(|e| e.path == "/macro_refs/1/trigger"
@@ -98,7 +97,7 @@ fn analog_trigger_min_max_order_passes() {
         "left_min_pct": 80, "left_max_pct": 50, "right_min_pct": 0, "right_max_pct": 100,
         "swap_triggers": false
     });
-    assert!(validate_profile(&p).unwrap().valid);
+    assert!(validate_profile(&Pro3, &p).unwrap().valid);
 }
 
 #[test]
@@ -108,7 +107,7 @@ fn analog_trigger_gap_small_passes() {
         "left_min_pct": 45, "left_max_pct": 50, "right_min_pct": 0, "right_max_pct": 100,
         "swap_triggers": false
     });
-    assert!(validate_profile(&p).unwrap().valid);
+    assert!(validate_profile(&Pro3, &p).unwrap().valid);
 }
 
 #[test]
@@ -119,7 +118,7 @@ fn swap_dpad_with_left_stick_excludes_swap_sticks_and_the_left_inverts() {
         for f in flags {
             p["sticks"][f] = json!(true);
         }
-        validate_profile(&p).unwrap()
+        validate_profile(&Pro3, &p).unwrap()
     };
     assert!(with(&[]).valid, "swap_dpad alone passes");
     assert!(with(&["invert_right_x", "invert_right_y"]).valid, "the right inverts have no rule");
@@ -141,9 +140,10 @@ fn validate_all_produces_correct_summary() {
     // member uses an out-of-range vibration level (schema max is 5).
     let valid = canonical_xinput("xinput-slot-1-index-0");
     let mut bad = canonical_xinput("xinput-slot-2-index-1");
-    bad.vibration.left_level = 99;
+    bad.set_setting("/vibration/left_level", (99).into());
 
-    let summary = validate_all_profiles(&[summary_of(valid, 1, 0), summary_of(bad, 2, 1)]).unwrap();
+    let summary =
+        validate_all_profiles(&Pro3, &[summary_of(valid, 1, 0), summary_of(bad, 2, 1)]).unwrap();
 
     assert!(!summary.all_valid);
     assert_eq!(summary.results.len(), 2);
@@ -157,33 +157,8 @@ fn canonical_xinput(id: &str) -> CanonicalProfile {
     CanonicalProfile {
         id: id.to_owned(),
         name: "TestProfile".to_owned(),
-        version: 1,
-        kind: "8bitdo.pro3.profile".to_owned(),
-        device: "8bitdo-pro3".to_owned(),
-        mode: Mode::XInput,
-        preferred_slot: None,
-        sticks: Sticks {
-            left_min_pct: 0,
-            left_max_pct: 100,
-            right_min_pct: 0,
-            right_max_pct: 100,
-            invert_left_x: false,
-            invert_left_y: false,
-            invert_right_x: false,
-            invert_right_y: false,
-            swap_sticks: false,
-            swap_dpad_with_left_stick: false,
-        },
-        triggers: Triggers::Analog(TriggersAnalog {
-            left_min_pct: 0,
-            left_max_pct: 100,
-            right_min_pct: 0,
-            right_max_pct: 100,
-            swap_triggers: false,
-        }),
-        vibration: Vibration { left_level: 5, right_level: 5 },
-        button_mappings: Vec::<ButtonMapping>::new(),
-        macro_refs: Vec::new(),
+        button_mappings: Vec::new(),
+        ..Pro3.default_profile(Mode::XInput)
     }
 }
 
@@ -192,7 +167,7 @@ fn macro_ref_with_nonexistent_path_is_still_valid() {
     // Validation is pure (no file I/O): a macro_ref to a non-existent file stays valid.
     let mut p = make_valid_xinput_profile();
     p["macro_refs"] = json!([{ "trigger": "l1", "path": "macros/does-not-exist.json" }]);
-    assert!(validate_profile(&p).unwrap().valid);
+    assert!(validate_profile(&Pro3, &p).unwrap().valid);
 }
 
 fn summary_of(canonical: CanonicalProfile, slot: u8, index: u8) -> CanonicalProfileSummary {
@@ -210,7 +185,7 @@ fn summary_of(canonical: CanonicalProfile, slot: u8, index: u8) -> CanonicalProf
 fn unrecognised_target_passes_schema_in_every_mode() {
     for mut p in [make_valid_xinput_profile(), make_valid_switch_profile()] {
         p["button_mappings"] = json!([{ "source": "d-pad left", "target": "unrecognised" }]);
-        let r = validate_profile(&p).unwrap();
+        let r = validate_profile(&Pro3, &p).unwrap();
         assert!(r.valid, "errors: {:?}", r.errors);
     }
 }
@@ -223,7 +198,7 @@ fn paddle_outputs_pass_schema_in_dinput_only() {
         [(dinput, true), (make_valid_xinput_profile(), false), (make_valid_switch_profile(), false)]
     {
         p["button_mappings"] = json!([{ "source": "l1", "target": "rp output" }]);
-        let r = validate_profile(&p).unwrap();
+        let r = validate_profile(&Pro3, &p).unwrap();
         assert_eq!(r.valid, valid, "{}: {:?}", p["mode"], r.errors);
     }
 }

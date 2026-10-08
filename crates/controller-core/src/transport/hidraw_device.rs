@@ -8,8 +8,8 @@ use crate::device::Model;
 use crate::devices::config_ports;
 use crate::error::{Error, Result};
 use crate::model::{
-    ButtonMapping, CanonicalProfile, CanonicalProfileSummary, DeviceReadiness, MacroRef, MacroSlot,
-    Mode, ProfileReadResult, RawProfilePayload, Slot, Sticks, Triggers, TriggersAnalog, Vibration,
+    CanonicalProfile, CanonicalProfileSummary, DeviceReadiness, MacroSlot, Mode, ProfileReadResult,
+    RawProfilePayload, Slot,
 };
 use crate::protocol::wire::{
     build_query_status, build_read_macro_packet, build_slot_select, build_upload_packet,
@@ -126,44 +126,13 @@ fn select_current_bank(session: &mut Session) -> Result<()> {
 // ---------------------------------------------------------------------------
 
 fn empty_summary(model: &dyn Model, mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
-    let default = model.default_profile(mode);
     CanonicalProfileSummary {
         id: String::new(),
         name: String::new(),
         mode,
         source_slot,
         source_profile_index: source_slot.saturating_sub(1),
-        canonical: CanonicalProfile {
-            id: String::new(),
-            name: String::new(),
-            version: 1,
-            kind: default.kind,
-            device: default.device,
-            mode,
-            preferred_slot: None,
-            sticks: Sticks {
-                left_min_pct: 0,
-                left_max_pct: 100,
-                right_min_pct: 0,
-                right_max_pct: 100,
-                invert_left_x: false,
-                invert_left_y: false,
-                invert_right_x: false,
-                invert_right_y: false,
-                swap_sticks: false,
-                swap_dpad_with_left_stick: false,
-            },
-            triggers: Triggers::Analog(TriggersAnalog {
-                left_min_pct: 0,
-                left_max_pct: 100,
-                right_min_pct: 0,
-                right_max_pct: 100,
-                swap_triggers: false,
-            }),
-            vibration: Vibration { left_level: 0, right_level: 0 },
-            button_mappings: Vec::<ButtonMapping>::new(),
-            macro_refs: Vec::<MacroRef>::new(),
-        },
+        canonical: CanonicalProfile { id: String::new(), ..model.default_profile(mode) },
     }
 }
 

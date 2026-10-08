@@ -143,7 +143,7 @@ impl ProfileWriteOrchestrator<'_> {
             }
             let parsed = match &job.op {
                 WriteOp::Upload { profile, .. } => {
-                    Some(check_upload(profile, job.mode).map_err(|e| fail(job, &e))?)
+                    Some(check_upload(self.model, profile, job.mode).map_err(|e| fail(job, &e))?)
                 }
                 WriteOp::Clear => None,
             };

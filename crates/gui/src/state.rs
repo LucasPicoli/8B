@@ -6,6 +6,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc::Sender;
 
 use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
+use controller_core::device::Model;
+use controller_core::devices;
 use controller_core::model::{ButtonMapping, CanonicalProfile, Mode};
 
 use crate::controllers::Controller;
@@ -199,6 +201,17 @@ impl AppState {
     #[must_use]
     pub fn slot_dirty(&self, mode: Mode, number: u8) -> Dirty {
         self.slot(mode, number).dirty(self.description(), mode)
+    }
+
+    /// The model of the controller the window shows, or of the fallback model while that
+    /// controller has not been read. `None` for a model not in the registry.
+    #[must_use]
+    pub fn model(&self) -> Option<&'static dyn Model> {
+        let shown = self.description();
+        devices::models()
+            .iter()
+            .copied()
+            .find(|m| m.description().is_ok_and(|d| std::ptr::eq(d, shown)))
     }
 
     /// The profile a new slot of each mode starts from, for the controller the window

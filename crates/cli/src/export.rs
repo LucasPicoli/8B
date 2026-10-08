@@ -7,11 +7,12 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{json, Value};
 
+use controller_core::device::Model;
 use controller_core::error::ErrorCategory;
 use controller_core::model::CanonicalProfileSummary;
 use controller_core::orchestrator::profile::detect_and_read_all;
 use controller_core::service::validation::validate_profile;
-use controller_core::transport::HidrawDevice;
+use controller_core::transport::{DeviceIo as _, HidrawDevice};
 
 use crate::commands::{emit_json, error_category_label, mode_label};
 
@@ -56,8 +57,8 @@ fn write_files(
 }
 
 /// One `files` entry: the path plus the validator's verdict on the exported JSON.
-fn file_entry(profile_id: &str, path: &Path, value: &Value) -> (Value, bool) {
-    let (passed, errors) = match validate_profile(value) {
+fn file_entry(model: &dyn Model, profile_id: &str, path: &Path, value: &Value) -> (Value, bool) {
+    let (passed, errors) = match validate_profile(model, value) {
         Ok(v) => (v.valid, v.errors),
         Err(e) => {
             eprintln!("validation could not run: {e}");
@@ -85,7 +86,7 @@ fn file_entry(profile_id: &str, path: &Path, value: &Value) -> (Value, bool) {
 /// # Returns
 /// Process exit code.
 pub fn run_export(output_dir: &Path, overwrite: bool) -> i32 {
-    let out = HidrawDevice::open().ok().map(|dev| detect_and_read_all(&dev));
+    let out = HidrawDevice::open().ok().map(|dev| (detect_and_read_all(&dev), dev.model()));
     let abs = std::path::absolute(output_dir).unwrap_or_else(|_| output_dir.to_path_buf());
     let mut payload = json!({
         "output_directory": abs.display().to_string(),
@@ -96,15 +97,16 @@ pub fn run_export(output_dir: &Path, overwrite: bool) -> i32 {
         None => {
             (ErrorCategory::ConnectionFailure, "failed to open device".to_owned(), None, vec![])
         }
-        Some(r) if !r.success => (r.error_category, r.message, r.mode, vec![]),
-        Some(r) => match write_files(&r.profiles, output_dir, overwrite) {
+        Some((r, _)) if !r.success => (r.error_category, r.message, r.mode, vec![]),
+        Some((r, Err(e))) => (e.category(), e.to_string(), r.mode, vec![]),
+        Some((r, Ok(model))) => match write_files(&r.profiles, output_dir, overwrite) {
             Err(message) => (ErrorCategory::ExportFailure, message, r.mode, vec![]),
             Ok(written) => {
                 let files: Vec<(Value, bool)> = r
                     .profiles
                     .iter()
                     .zip(&written)
-                    .map(|(p, (path, value))| file_entry(&p.id, path, value))
+                    .map(|(p, (path, value))| file_entry(model, &p.id, path, value))
                     .collect();
                 let failed = files.iter().filter(|(_, ok)| !ok).count();
                 let (category, message) = if failed == 0 {

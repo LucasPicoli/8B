@@ -79,6 +79,15 @@ app turns them off, and a patch is refused. A tab with `modes` shows in those mo
 only, which is how the Pro 3 has one Triggers tab for analog modes and another for
 Switch.
 
+A profile holds each settings group as a JSON object beside its other fields, such as
+`"vibration": { "left_level": 5, "right_level": 5 }`. The codec reads and writes those
+objects. Validation checks every profile against its model's description: the
+`device` and `kind` of the model's default profile, each declared setting present with
+a value in range, no undeclared group, the `excludes` rules, and button names. A model
+with a stricter JSON schema of its own, as the Pro 3 has in
+[`schemas/profile-v1.schema.json`](../schemas/profile-v1.schema.json), returns its
+errors from `ProtocolCodec::profile_schema_errors`.
+
 ## How a controller is detected
 
 Detection has two stages. Both read the description.
@@ -191,20 +200,15 @@ Pro 3:
 1. `Slot` accepts 1 to 3 and `MacroSlot` 0 to 3 (`model/ids.rs`), whatever the
    description says. `Mode` is a fixed enum of `XInput`, `Switch` and `DInput`, so a
    model with another mode needs a new variant.
-2. The profile model in
-   [`model/profile.rs`](../crates/controller-core/src/model/profile.rs) has fixed
-   stick, trigger and vibration fields. The profile and macro schemas fix `kind` and
-   `device` to the Pro 3's strings, so an upload or an import of another model's
-   profile fails validation.
-3. `service/validation/macros.rs` checks macro triggers against the Pro 3 tables, and
+2. `service/validation/macros.rs` checks macro triggers against the Pro 3 tables, and
    the command-line `read-macro` writes its JSON with `devices::pro3::macros`.
-4. The command-line `patch-sticks`, `patch-triggers` and `patch-vibration` name the
+3. The command-line `patch-sticks`, `patch-triggers` and `patch-vibration` name the
    Pro 3's settings. They refuse a setting the model does not declare, but a model
    with other settings has no command-line flags for them yet.
-5. Two models that share a USB id must also share its interface and framing.
+4. Two models that share a USB id must also share its interface and framing.
    Detection opens the node of the first model that lists the id before the model id
    says which pad it is.
-6. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
+5. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
    `0x0123`. TheJayMann's Pro 2 scripts send a zero CRC and the parameter `0x15`, so
    a Pro 2 port needs both to come from the model.
 
@@ -246,5 +250,5 @@ A port is correct when the bytes match, not when the code looks right.
 
 Each controller in the app keeps the model a read identified. The editor reads that
 model's name, modes, buttons, labels, limits, slot count and views from its
-description, so a Pro 3 and another model can be plugged in at once. Item 4 of "What
-is tied to the Pro 3 today" is the part that still needs app changes.
+description, so a Pro 3 and another model can be plugged in at once. Item 3 of "What
+is tied to the Pro 3 today" is the part that still needs command-line changes.

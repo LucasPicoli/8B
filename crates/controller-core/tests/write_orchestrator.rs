@@ -8,17 +8,24 @@ use std::sync::Arc;
 
 use controller_core::detect::is_slot_active;
 use controller_core::device::ProtocolCodec;
+use controller_core::devices::pro3::settings::Settings;
+use controller_core::devices::pro3::settings::Triggers;
 use controller_core::devices::pro3::Pro3;
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, MacroStep, Mode, ProfileReadResult,
-    RawProfilePayload, Slot, Triggers, WriteResult,
+    RawProfilePayload, Slot, WriteResult,
 };
 use controller_core::orchestrator::{ProfileWriteOrchestrator, StickPatch, TriggerPatch};
 use controller_core::protocol::crc16::crc16_modbus;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
 use serde_json::{json, Value};
+
+/// The Pro 3's typed view of `p`'s settings.
+fn s(p: &controller_core::model::CanonicalProfile) -> Settings {
+    Settings::of(p).unwrap()
+}
 
 const FIXTURES: &str = "../../fixtures/pro3/remap";
 const BLOB_SIZE: usize = 0x092C;
@@ -201,9 +208,9 @@ fn upload_into_an_empty_slot_runs_the_full_pipeline() {
     let decoded = decode(&written, Mode::XInput, 3);
     let uploaded: CanonicalProfile = serde_json::from_value(json).unwrap();
     assert_eq!(decoded.name, uploaded.name);
-    assert_eq!(decoded.sticks, uploaded.sticks);
-    assert_eq!(decoded.triggers, uploaded.triggers);
-    assert_eq!(decoded.vibration, uploaded.vibration);
+    assert_eq!(s(&decoded).sticks, s(&uploaded).sticks);
+    assert_eq!(s(&decoded).triggers, s(&uploaded).triggers);
+    assert_eq!(s(&decoded).vibration, s(&uploaded).vibration);
     assert_eq!(decoded.button_mappings, uploaded.button_mappings);
     // The other slots are untouched, and the empty slot does not inherit its stale macro.
     assert_eq!(section4(&written, 0), section4(&base, 0));
@@ -491,13 +498,15 @@ fn patch_sticks_changes_only_the_set_fields() {
     assert!(r.success, "{}", r.message);
     let before = decode(&base, Mode::XInput, 1);
     let after = decode(&writes(&dev).remove(0), Mode::XInput, 1);
-    let mut expected = before.sticks.clone();
+    let mut expected = s(&before).sticks;
     expected.left_min_pct = 20;
     expected.left_max_pct = 80;
     expected.invert_right_y = true;
     expected.swap_sticks = true;
-    assert_eq!(after.sticks, expected);
-    assert_eq!(CanonicalProfile { sticks: before.sticks.clone(), ..after }, before);
+    assert_eq!(s(&after).sticks, expected);
+    let mut rest = after;
+    rest.settings.insert("sticks".to_owned(), before.settings["sticks"].clone());
+    assert_eq!(rest, before, "nothing but the sticks changed");
 }
 
 #[test]
@@ -549,10 +558,11 @@ fn patch_triggers_is_mode_aware() {
         TriggerPatch { left_min_pct: Some(10), right_max_pct: Some(90), ..TriggerPatch::default() };
     let r = orch(&dev, dir.path()).patch_triggers(Mode::XInput, slot(1), &patch, &f);
     assert!(r.success, "{}", r.message);
-    let Triggers::Analog(before) = decode(&base, Mode::XInput, 1).triggers else {
+    let Triggers::Analog(before) = s(&decode(&base, Mode::XInput, 1)).triggers else {
         panic!("analog")
     };
-    let Triggers::Analog(after) = decode(&writes(&dev).remove(0), Mode::XInput, 1).triggers else {
+    let Triggers::Analog(after) = s(&decode(&writes(&dev).remove(0), Mode::XInput, 1)).triggers
+    else {
         panic!("analog")
     };
     assert_eq!((after.left_min_pct, after.right_max_pct), (10, 90));
@@ -571,7 +581,8 @@ fn patch_triggers_is_mode_aware() {
     };
     let r = orch(&dev, dir.path()).patch_triggers(Mode::Switch, slot(1), &patch, &f);
     assert!(r.success, "{}", r.message);
-    let Triggers::Switch(after) = decode(&writes(&dev).remove(0), Mode::Switch, 1).triggers else {
+    let Triggers::Switch(after) = s(&decode(&writes(&dev).remove(0), Mode::Switch, 1)).triggers
+    else {
         panic!("switch")
     };
     assert_eq!((after.left_threshold_pct, after.swap_triggers), (30, false));
@@ -617,7 +628,7 @@ fn patch_vibration_sets_both_levels_and_checks_the_range() {
     let r = o.patch_vibration(Mode::XInput, slot(1), 1, 4, &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let after = decode(&writes(&dev).remove(0), Mode::XInput, 1);
-    assert_eq!((after.vibration.left_level, after.vibration.right_level), (1, 4));
+    assert_eq!((s(&after).vibration.left_level, s(&after).vibration.right_level), (1, 4));
 }
 
 // ---------------------------------------------------------------------------

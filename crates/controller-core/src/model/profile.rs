@@ -1,6 +1,11 @@
-//! Canonical profile model matching `schemas/profile-v1.schema.json`.
+//! Canonical profile model.
+//!
+//! The fields every model shares are typed. The settings are one JSON object per group,
+//! such as `sticks`, whose fields the model's description declares.
+//! `schemas/profile-v1.schema.json` is the Pro 3's full shape.
 
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 
 use super::ids::Mode;
 
@@ -15,116 +20,52 @@ pub struct CanonicalProfile {
     pub version: u8,
     /// Schema kind discriminator.
     pub kind: String,
-    /// Device discriminator (`"8bitdo-pro3"`).
+    /// Device discriminator, such as `"8bitdo-pro3"`.
     pub device: String,
     /// Operating mode.
     pub mode: Mode,
     /// Preferred slot, if recorded.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub preferred_slot: Option<u8>,
-    /// Stick configuration.
-    pub sticks: Sticks,
-    /// Trigger configuration (analog or switch shape).
-    pub triggers: Triggers,
-    /// Vibration levels.
-    pub vibration: Vibration,
+    /// The settings groups, such as `sticks` and `vibration` on a Pro 3, by name. The
+    /// JSON holds them beside the other fields. The description names each value by a
+    /// JSON pointer, such as `/sticks/left_min_pct`.
+    #[serde(flatten)]
+    pub settings: Map<String, Value>,
     /// Button remaps.
     pub button_mappings: Vec<ButtonMapping>,
     /// Macro references (always empty for device readback).
     pub macro_refs: Vec<MacroRef>,
 }
 
-/// Stick configuration block.
-// canonical wire/JSON shape — field set fixed by schema
-#[allow(clippy::struct_excessive_bools)]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Sticks {
-    /// Left stick min deadzone percent.
-    pub left_min_pct: i32,
-    /// Left stick max range percent.
-    pub left_max_pct: i32,
-    /// Right stick min deadzone percent.
-    pub right_min_pct: i32,
-    /// Right stick max range percent.
-    pub right_max_pct: i32,
-    /// Invert left X.
-    pub invert_left_x: bool,
-    /// Invert left Y.
-    pub invert_left_y: bool,
-    /// Invert right X.
-    pub invert_right_x: bool,
-    /// Invert right Y.
-    pub invert_right_y: bool,
-    /// Swap left and right sticks.
-    pub swap_sticks: bool,
-    /// Swap D-pad with left stick.
-    pub swap_dpad_with_left_stick: bool,
-}
-
-impl Sticks {
-    /// The flags, by their JSON names, that are on together with
-    /// `swap_dpad_with_left_stick`. The vendor app never allows that pair: swap sticks,
-    /// invert left X and invert left Y exclude the D-pad swap. Empty when the swap is
-    /// off or nothing clashes.
+impl CanonicalProfile {
+    /// The settings value at JSON pointer `pointer`, such as `/vibration/left_level`.
     #[must_use]
-    pub fn dpad_swap_clashes(&self) -> Vec<&'static str> {
-        if !self.swap_dpad_with_left_stick {
-            return Vec::new();
+    pub fn setting(&self, pointer: &str) -> Option<&Value> {
+        let (group, rest) = split(pointer)?;
+        let value = self.settings.get(group)?;
+        if rest.is_empty() {
+            Some(value)
+        } else {
+            value.pointer(rest)
         }
-        [
-            ("swap_sticks", self.swap_sticks),
-            ("invert_left_x", self.invert_left_x),
-            ("invert_left_y", self.invert_left_y),
-        ]
-        .into_iter()
-        .filter_map(|(name, on)| on.then_some(name))
-        .collect()
+    }
+
+    /// Replaces the settings value at `pointer` with `value`. Returns `false`, and
+    /// changes nothing, when the profile has no value there.
+    pub fn set_setting(&mut self, pointer: &str, value: Value) -> bool {
+        let Some((group, rest)) = split(pointer) else { return false };
+        let Some(old) = self.settings.get_mut(group) else { return false };
+        let slot = if rest.is_empty() { Some(old) } else { old.pointer_mut(rest) };
+        slot.map(|slot| *slot = value).is_some()
     }
 }
 
-/// Trigger configuration; shape depends on mode.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum Triggers {
-    /// XInput/DInput analog ranges.
-    Analog(TriggersAnalog),
-    /// Switch threshold form.
-    Switch(TriggersSwitch),
-}
-
-/// Analog trigger ranges (xinput/dinput).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TriggersAnalog {
-    /// Left trigger min percent.
-    pub left_min_pct: i32,
-    /// Left trigger max percent.
-    pub left_max_pct: i32,
-    /// Right trigger min percent.
-    pub right_min_pct: i32,
-    /// Right trigger max percent.
-    pub right_max_pct: i32,
-    /// Swap triggers.
-    pub swap_triggers: bool,
-}
-
-/// Switch trigger thresholds.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TriggersSwitch {
-    /// Left trigger threshold percent.
-    pub left_threshold_pct: i32,
-    /// Right trigger threshold percent.
-    pub right_threshold_pct: i32,
-    /// Swap triggers.
-    pub swap_triggers: bool,
-}
-
-/// Vibration levels.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Vibration {
-    /// Left motor level (0–5).
-    pub left_level: i32,
-    /// Right motor level (0–5).
-    pub right_level: i32,
+/// Splits `/group/rest` into the group name and `/rest`, which is empty for `/group`.
+fn split(pointer: &str) -> Option<(&str, &str)> {
+    let path = pointer.strip_prefix('/')?;
+    let group = path.split('/').next()?;
+    Some((group, path.get(group.len()..)?))
 }
 
 /// A single button remap.
@@ -215,8 +156,22 @@ mod tests {
             "vibration":{"left_level":3,"right_level":3},
             "button_mappings":[], "macro_refs":[]
         });
-        let p: CanonicalProfile = serde_json::from_value(json.clone()).unwrap();
+        let mut p: CanonicalProfile = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(p.mode, Mode::XInput);
         assert_eq!(serde_json::to_value(&p).unwrap(), json);
+        // The settings groups sit where the typed fields were, so exported files keep
+        // their field order.
+        let text = serde_json::to_string(&p).unwrap();
+        let at = |key: &str| text.find(&format!("\"{key}\":")).unwrap();
+        let order = ["mode", "sticks", "triggers", "vibration", "button_mappings", "macro_refs"];
+        let positions: Vec<usize> = order.iter().map(|key| at(key)).collect();
+        assert!(positions.is_sorted(), "{text}");
+
+        assert_eq!(p.setting("/vibration/left_level"), Some(&3.into()));
+        assert!(p.set_setting("/vibration/left_level", 5.into()));
+        assert_eq!(p.setting("/vibration/left_level"), Some(&5.into()));
+        assert!(!p.set_setting("/vibration/missing", 1.into()));
+        assert!(!p.set_setting("/lights/level", 1.into()), "no such group");
+        assert_eq!(p.setting("vibration"), None, "a pointer starts with a slash");
     }
 }

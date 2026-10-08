@@ -3,6 +3,7 @@
 pub mod edit;
 pub mod macros;
 pub mod profile;
+pub mod settings;
 pub mod tables;
 
 use std::sync::LazyLock;
@@ -15,6 +16,7 @@ use crate::model::{
     RawProfilePayload, Slot,
 };
 use crate::protocol::wire_write::PACKET_LEN;
+use crate::service::validation::{profile_validator, schema_errors, ValidationError};
 
 /// Command bytes of the mode flip (`81 00 51 <target>`). Seen in the vendor app.
 const MODE_FLIP: [u8; 3] = [0x81, 0x00, 0x51];
@@ -105,6 +107,13 @@ impl ProtocolCodec for Pro3 {
 
     fn default_profile(&self, mode: Mode) -> CanonicalProfile {
         profile::default_profile(mode)
+    }
+
+    fn profile_schema_errors(
+        &self,
+        profile_json: &serde_json::Value,
+    ) -> Result<Vec<ValidationError>> {
+        Ok(schema_errors(profile_validator()?, profile_json))
     }
 
     fn decode_macro_metadata(

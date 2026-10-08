@@ -458,7 +458,11 @@ fn a_slider_drag_survives_the_render_after_each_move() {
         s.borrow_mut().set_number(&field, value);
         render(&s.borrow(), &weak.upgrade().unwrap());
     });
-    let low = || state.borrow().slot(Mode::XInput, 1).shown().unwrap().sticks.left_min_pct;
+    let low = || {
+        let s = state.borrow();
+        let pct = s.slot(Mode::XInput, 1).shown().unwrap().setting("/sticks/left_min_pct").cloned();
+        pct.and_then(|v| v.as_i64()).unwrap()
+    };
     let start = low();
     // The low knob of the left stick's dead zone at 1280×800, then two moves right.
     let at = |x: f32| slint::LogicalPosition::new(x, 203.0);

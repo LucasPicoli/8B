@@ -8,6 +8,7 @@ use std::rc::Rc;
 
 use controller_core::convert::{convert_profile, ConversionLoss};
 use controller_core::description::{ControllerDescription, DISABLED_OUTPUT};
+use controller_core::device::Model;
 use controller_core::model::{CanonicalProfile, Mode};
 use controller_core::service::validation::validate_profile;
 use serde_json::Value;
@@ -60,11 +61,12 @@ pub fn display_name(path: &Path) -> String {
         .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
 }
 
-/// The profile in `text`, checked against the profile schema.
-fn parse(text: &str) -> Result<CanonicalProfile, String> {
+/// The profile in `text`, checked as a profile of `model`.
+fn parse(model: Option<&dyn Model>, text: &str) -> Result<CanonicalProfile, String> {
     let value: Value =
         serde_json::from_str(text).map_err(|e| sentence(&format!("it is not JSON: {e}")))?;
-    let check = validate_profile(&value).map_err(|e| sentence(&e.to_string()))?;
+    let model = model.ok_or_else(|| sentence("this controller model cannot check files"))?;
+    let check = validate_profile(model, &value).map_err(|e| sentence(&e.to_string()))?;
     if let Some(first) = check.errors.first() {
         let more = match check.errors.len() - 1 {
             0 => String::new(),
@@ -100,7 +102,7 @@ impl AppState {
     /// Loads file `file_name`, read as `text` (or not), into slot `slot`'s edits. A
     /// file for another mode waits in `pending_import` for the user's yes.
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
-        let parsed = text.and_then(|t| parse(&t));
+        let parsed = text.and_then(|t| parse(self.model(), &t));
         let converted = parsed.and_then(|p| {
             let default = |m| self.defaults().get(&m).ok_or("This controller has no such mode.");
             let (profile, losses) =
@@ -211,7 +213,7 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
                 from: output_label(d, from, target).into(),
                 to: output_label(d, to, DISABLED_OUTPUT).into(),
             }),
-            ConversionLoss::TriggersReset => None,
+            ConversionLoss::SettingsReset { .. } => None,
         })
         .collect();
     ImportWarning {
@@ -221,10 +223,22 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
         from_mode: from.label().into(),
         to_mode: to.label().into(),
         lost: ModelRc::from(Rc::new(VecModel::from(lost))),
-        triggers_reset: p.losses.contains(&ConversionLoss::TriggersReset),
+        reset: reset_groups(&p.losses).into(),
         letters: swapped_letters(d, from, to).into(),
         skipped_macros: i32::try_from(p.skipped_macros).unwrap_or(i32::MAX),
     }
+}
+
+/// The settings groups a conversion reset, such as `triggers`, joined for a sentence.
+fn reset_groups(losses: &[ConversionLoss]) -> String {
+    let groups: Vec<&str> = losses
+        .iter()
+        .filter_map(|l| match l {
+            ConversionLoss::SettingsReset { group } => Some(group.as_str()),
+            ConversionLoss::OutputDisabled { .. } => None,
+        })
+        .collect();
+    groups.join(" and ")
 }
 
 /// Pushes the import warning and the message bar.
@@ -280,7 +294,7 @@ mod tests {
         let text = file(&s, Mode::XInput, 1, |_| {});
         assert!(text.ends_with("}\n"));
         let back: Value = serde_json::from_str(&text).unwrap();
-        assert!(validate_profile(&back).unwrap().valid);
+        assert!(validate_profile(s.model().unwrap(), &back).unwrap().valid);
     }
 
     #[test]
@@ -312,8 +326,8 @@ mod tests {
     fn a_file_with_the_dpad_swap_and_an_inverted_left_stick_is_refused() {
         let mut s = connected(Mode::XInput);
         let text = file(&s, Mode::XInput, 1, |p| {
-            p.sticks.invert_left_x = true;
-            p.sticks.swap_dpad_with_left_stick = true;
+            p.set_setting("/sticks/invert_left_x", true.into());
+            p.set_setting("/sticks/swap_dpad_with_left_stick", true.into());
         });
         s.import((Mode::XInput, 2), "clash.json", Ok(text));
         let notice = s.notice.clone().unwrap();
@@ -345,7 +359,8 @@ mod tests {
         assert_eq!(s.slot(Mode::XInput, 2).edited, None, "nothing loads before the yes");
         let p = s.pending_import.clone().unwrap();
         assert_eq!((p.from, p.slot), (Mode::Switch, (Mode::XInput, 2)));
-        assert!(p.losses.contains(&ConversionLoss::TriggersReset));
+        let reset = ConversionLoss::SettingsReset { group: "triggers".to_owned() };
+        assert!(p.losses.contains(&reset));
 
         s.cancel_import();
         assert_eq!((s.pending_import.as_ref(), s.slot(Mode::XInput, 2).edited), (None, None));
@@ -396,7 +411,7 @@ mod tests {
         });
         s.import((Mode::XInput, 3), "s.json", Ok(text));
         let w = import_warning(&s);
-        assert!(w.shown && w.triggers_reset);
+        assert!(w.shown && w.reset == "triggers");
         assert_eq!((w.from_mode.as_str(), w.to_mode.as_str()), ("Switch", "XInput"));
         let lost: Vec<Change> = w.lost.iter().collect();
         assert_eq!(lost.len(), 1);

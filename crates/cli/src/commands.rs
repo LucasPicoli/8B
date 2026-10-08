@@ -408,10 +408,9 @@ mod tests {
         mode: Mode,
         slot: u8,
     ) -> controller_core::model::CanonicalProfileSummary {
-        use controller_core::model::{
-            ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroRef, Sticks, Triggers,
-            TriggersAnalog, Vibration,
-        };
+        use controller_core::device::ProtocolCodec as _;
+        use controller_core::devices::pro3::Pro3;
+        use controller_core::model::{CanonicalProfile, CanonicalProfileSummary};
         CanonicalProfileSummary {
             id: id.to_owned(),
             name: name.to_owned(),
@@ -421,33 +420,8 @@ mod tests {
             canonical: CanonicalProfile {
                 id: id.to_owned(),
                 name: name.to_owned(),
-                version: 1,
-                kind: "8bitdo.pro3.profile".to_owned(),
-                device: "8bitdo-pro3".to_owned(),
-                mode,
-                preferred_slot: None,
-                sticks: Sticks {
-                    left_min_pct: 0,
-                    left_max_pct: 100,
-                    right_min_pct: 0,
-                    right_max_pct: 100,
-                    invert_left_x: false,
-                    invert_left_y: false,
-                    invert_right_x: false,
-                    invert_right_y: false,
-                    swap_sticks: false,
-                    swap_dpad_with_left_stick: false,
-                },
-                triggers: Triggers::Analog(TriggersAnalog {
-                    left_min_pct: 0,
-                    left_max_pct: 100,
-                    right_min_pct: 0,
-                    right_max_pct: 100,
-                    swap_triggers: false,
-                }),
-                vibration: Vibration { left_level: 3, right_level: 3 },
-                button_mappings: Vec::<ButtonMapping>::new(),
-                macro_refs: Vec::<MacroRef>::new(),
+                button_mappings: Vec::new(),
+                ..Pro3.default_profile(mode)
             },
         }
     }

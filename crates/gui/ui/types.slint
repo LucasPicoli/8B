@@ -123,8 +123,9 @@ export struct ImportWarning {
     to-mode: string,
     // Buttons whose output the target mode lacks: they become Disabled.
     lost: [Change],
-    // The target mode sets triggers another way, so they start from its defaults.
-    triggers-reset: bool,
+    // The settings groups the target mode sets another way, such as "triggers", so
+    // they start from its defaults. "" when none.
+    reset: string,
     // Letters that name another button in the target mode, or empty.
     letters: string,
     skipped-macros: int,

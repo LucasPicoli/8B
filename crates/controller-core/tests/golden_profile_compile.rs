@@ -2,8 +2,14 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec;
+use controller_core::devices::pro3::settings::Settings;
 use controller_core::devices::pro3::Pro3;
 use controller_core::model::{CanonicalProfile, Mode, RawProfilePayload, Slot};
+
+/// The Pro 3's typed view of `p`'s settings.
+fn s(p: &controller_core::model::CanonicalProfile) -> Settings {
+    Settings::of(p).unwrap()
+}
 
 fn load(path: &str) -> CanonicalProfile {
     serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap()
@@ -151,8 +157,8 @@ fn dinput_official_write_decodes_with_swapped_faces_and_recompiles_unchanged() {
         let profile = Pro3.map_profile(&raw).unwrap().canonical;
         assert_eq!(profile.mode, Mode::DInput);
         let default = Pro3.default_profile(Mode::DInput);
-        assert_eq!(profile.sticks, default.sticks, "slot {slot}");
-        assert_eq!(profile.triggers, default.triggers, "slot {slot}");
+        assert_eq!(s(&profile).sticks, s(&default).sticks, "slot {slot}");
+        assert_eq!(s(&profile).triggers, s(&default).triggers, "slot {slot}");
         // The faces swap in pairs, every other button maps to itself, and the four
         // paddles are unassigned.
         for m in &profile.button_mappings {
@@ -307,15 +313,13 @@ fn dinput_macros_decode_as_refs_and_survive_or_leave_with_an_edit() {
 #[test]
 fn xinput_swap_sticks_writes_the_bytes_of_the_official_capture() {
     let mut p = load("../../fixtures/pro3/xinput-slot1.profile.json");
-    p.sticks.swap_sticks = true;
-    p.sticks.invert_left_x = false;
-    p.sticks.invert_left_y = false;
-    p.sticks.invert_right_x = false;
-    p.sticks.invert_right_y = false;
-    p.sticks.swap_dpad_with_left_stick = false;
-    if let controller_core::model::Triggers::Analog(a) = &mut p.triggers {
-        a.swap_triggers = false;
-    }
+    p.set_setting("/sticks/swap_sticks", (true).into());
+    p.set_setting("/sticks/invert_left_x", (false).into());
+    p.set_setting("/sticks/invert_left_y", (false).into());
+    p.set_setting("/sticks/invert_right_x", (false).into());
+    p.set_setting("/sticks/invert_right_y", (false).into());
+    p.set_setting("/sticks/swap_dpad_with_left_stick", (false).into());
+    p.set_setting("/triggers/swap_triggers", false.into());
     let b = Pro3.compile_profile(&p, Slot::new(1).unwrap(), &[], &[]).unwrap();
     assert_eq!(&b[0x00C8..0x00D0], &[0x11, 0x09, 0x20, 0x20, 0x10, 0x00, 0x00, 0x00]);
 }
@@ -336,9 +340,9 @@ fn vendor_default_banks_decode_to_the_default_profile() {
         for slot in 1..=3u8 {
             let profile = decode_slot(&base, slot, mode);
             assert_eq!(profile.button_mappings, default.button_mappings, "{mode} slot {slot}");
-            assert_eq!(profile.sticks, default.sticks, "{mode} slot {slot}");
-            assert_eq!(profile.triggers, default.triggers, "{mode} slot {slot}");
-            assert_eq!(profile.vibration, default.vibration, "{mode} slot {slot}");
+            assert_eq!(s(&profile).sticks, s(&default).sticks, "{mode} slot {slot}");
+            assert_eq!(s(&profile).triggers, s(&default).triggers, "{mode} slot {slot}");
+            assert_eq!(s(&profile).vibration, s(&default).vibration, "{mode} slot {slot}");
             let out = Pro3
                 .compile_profile_keep_macros(&profile, Slot::new(slot).unwrap(), &base)
                 .unwrap();

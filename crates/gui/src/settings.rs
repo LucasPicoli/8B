@@ -199,14 +199,15 @@ pub fn render_settings(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use controller_core::model::{Mode, Triggers};
+    use controller_core::devices::pro3::settings::{Settings, Sticks, Triggers};
+    use controller_core::model::Mode;
 
     use super::*;
     use crate::state::tests::connected;
     use crate::state::Dirty;
 
-    fn sticks(s: &AppState) -> controller_core::model::Sticks {
-        s.slot(Mode::XInput, 1).shown().unwrap().sticks.clone()
+    fn sticks(s: &AppState) -> Sticks {
+        Settings::of(s.slot(Mode::XInput, 1).shown().unwrap()).unwrap().sticks
     }
 
     #[test]
@@ -219,9 +220,16 @@ mod tests {
         s.set_number("/sticks/right_min_pct", 12.6);
         assert_eq!(sticks(&s).right_min_pct, 13);
         s.set_number("/vibration/left_level", 9.0);
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().vibration.left_level, 5);
+        let level = |s: &AppState, side: &str| {
+            s.slot(Mode::XInput, 1)
+                .shown()
+                .unwrap()
+                .setting(&format!("/vibration/{side}_level"))
+                .cloned()
+        };
+        assert_eq!(level(&s, "left"), Some(5.into()));
         s.set_number("/vibration/right_level", -3.0);
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().vibration.right_level, 0);
+        assert_eq!(level(&s, "right"), Some(0.into()));
     }
 
     #[test]
@@ -232,7 +240,7 @@ mod tests {
         let slot = s.active_mut().unwrap().slots.get_mut(&(Mode::Switch, 1)).unwrap();
         slot.pad = Some(default);
         s.set_number("/triggers/left_threshold_pct", 100.0);
-        let triggers = s.slot(Mode::Switch, 1).edited.unwrap().triggers;
+        let triggers = Settings::of(&s.slot(Mode::Switch, 1).edited.unwrap()).unwrap().triggers;
         assert!(matches!(triggers, Triggers::Switch(t) if t.left_threshold_pct == 90));
     }
 

@@ -121,8 +121,8 @@ export component ImportDialog inherits DialogShell {
     if root.warning.lost.length > 0: ChangeTable {
         model: root.warning.lost;
     }
-    if root.warning.triggers-reset: Bullet {
-        text: root.warning.to-mode + " sets the triggers another way, so they start from the " + root.warning.to-mode + " defaults.";
+    if root.warning.reset != "": Bullet {
+        text: root.warning.to-mode + " sets the " + root.warning.reset + " another way, so they start from the " + root.warning.to-mode + " defaults.";
     }
     if root.warning.letters != "": Bullet {
         text: "Some printed letters name another button: " + root.warning.letters + ".";

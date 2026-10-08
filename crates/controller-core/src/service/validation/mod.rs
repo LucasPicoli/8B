@@ -16,7 +16,7 @@ use serde_json::Value;
 use crate::error::{Error, Result};
 
 pub use macros::validate_macro;
-pub use profile::{dpad_swap_clash, validate_all_profiles, validate_profile};
+pub use profile::{validate_all_profiles, validate_profile};
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.
 /// Mirrors the C++ `core::ValidationError`.
