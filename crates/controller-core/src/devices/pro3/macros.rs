@@ -10,10 +10,11 @@
 //! [`crate::protocol::bytes`] accessors so the decoder is panic-free even on
 //! truncated or corrupted input.
 
-use serde_json::{json, Map, Value};
+use serde_json::Value;
 
 use crate::devices::pro3::tables;
 use crate::error::{Error, Result};
+use crate::model::macros::macro_to_json;
 use crate::model::{MacroDefinition, MacroSlot, MacroStep, Mode, Slot};
 use crate::protocol::bytes::{
     put_slice, put_u16_le, put_u32_le, read_u16_le, read_u32_le, read_u8, take,
@@ -54,7 +55,7 @@ fn key_map_to_trigger_name(key_map: u32) -> String {
 pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<MacroDefinition>> {
     let mut result = Vec::new();
 
-    let slot_index = usize::from(profile_slot.get() - 1);
+    let slot_index = super::slot_index(profile_slot)?;
     let slot_base = tables::SECTION4_BASE_OFFSET
         + (slot_index * tables::SECTION4_SLOT_STRIDE)
         + tables::SECTION4_RECORD_HEADER_SIZE;
@@ -318,70 +319,12 @@ pub fn encode_macro_metadata(def: &MacroDefinition, macro_slot: MacroSlot) -> Re
     Ok(out)
 }
 
-/// Serializes a [`MacroDefinition`] to canonical macro JSON matching
-/// `schemas/macro-v1.schema.json`.
-///
-/// Top-level: `version:1, device:"8bitdo-pro3", mode, name, trigger,
-/// repeat:{count,interval_ms}, steps:[...]`. Per step, `actions.buttons` is
-/// ALWAYS emitted (with `press`+`release` arrays; the wire format only tracks
-/// the currently-pressed set, so `release` is always empty); `left_stick`,
-/// `right_stick` and `triggers` are OMITTED when at their defaults (stick
-/// `127/127`, triggers `0/0`). Faithful port of `MacroDecoder::toJson`.
+/// Serializes a [`MacroDefinition`] to canonical Pro 3 macro JSON, matching
+/// `schemas/macro-v1.schema.json`: [`crate::model::macros::macro_to_json`] with the
+/// device `8bitdo-pro3`.
 #[must_use]
 pub fn macro_to_canonical_json(def: &MacroDefinition) -> Value {
-    let steps: Vec<Value> = def.steps.iter().map(step_to_json).collect();
-
-    json!({
-        "version": 1,
-        "device": "8bitdo-pro3",
-        "mode": def.mode.as_str(),
-        "name": def.name,
-        "trigger": def.trigger,
-        "repeat": {
-            "count": def.repeat_count,
-            "interval_ms": def.interval_ms,
-        },
-        "steps": steps,
-    })
-}
-
-/// Serializes a single [`MacroStep`] to its canonical JSON object.
-fn step_to_json(step: &MacroStep) -> Value {
-    let mut actions = Map::new();
-
-    // Buttons — always emitted; `release` mirrors the C++ (always empty).
-    let press: Vec<Value> =
-        step.pressed_buttons.iter().map(|name| Value::String(name.clone())).collect();
-    actions.insert("buttons".to_owned(), json!({ "press": press, "release": Vec::<Value>::new() }));
-
-    // Left stick — omitted when centered.
-    if step.left_stick_x != tables::STICK_CENTER || step.left_stick_y != tables::STICK_CENTER {
-        actions.insert(
-            "left_stick".to_owned(),
-            json!({ "x": step.left_stick_x, "y": step.left_stick_y }),
-        );
-    }
-
-    // Right stick — omitted when centered.
-    if step.right_stick_x != tables::STICK_CENTER || step.right_stick_y != tables::STICK_CENTER {
-        actions.insert(
-            "right_stick".to_owned(),
-            json!({ "x": step.right_stick_x, "y": step.right_stick_y }),
-        );
-    }
-
-    // Triggers — omitted when both released.
-    if step.trigger_left != 0 || step.trigger_right != 0 {
-        actions.insert(
-            "triggers".to_owned(),
-            json!({ "left": step.trigger_left, "right": step.trigger_right }),
-        );
-    }
-
-    json!({
-        "duration_ms": step.duration_ms,
-        "actions": Value::Object(actions),
-    })
+    macro_to_json(def, "8bitdo-pro3")
 }
 
 #[cfg(test)]

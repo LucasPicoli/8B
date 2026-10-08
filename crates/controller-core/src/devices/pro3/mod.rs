@@ -1,6 +1,7 @@
 //! 8BitDo Pro 3 controller backend.
 
 pub mod edit;
+pub mod macro_check;
 pub mod macros;
 pub mod profile;
 pub mod settings;
@@ -34,6 +35,21 @@ fn packet(head: &[u8]) -> [u8; PACKET_LEN] {
         *dst = *b;
     }
     p
+}
+
+/// The 0-based index of `slot`.
+///
+/// # Errors
+/// Returns [`crate::Error::Validation`] for a slot past the Pro 3's three. The blob has
+/// no room for a fourth: its offsets would land in another section.
+pub(crate) fn slot_index(slot: Slot) -> Result<usize> {
+    match slot.get() {
+        n @ 1..=tables::PROFILE_SLOT_COUNT => Ok(usize::from(n - 1)),
+        n => Err(crate::Error::Validation(format!(
+            "slot {n} out of range (1-{})",
+            tables::PROFILE_SLOT_COUNT
+        ))),
+    }
 }
 
 /// The 8BitDo Pro 3 controller backend.

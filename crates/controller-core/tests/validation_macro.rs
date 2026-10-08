@@ -1,7 +1,7 @@
 //! Ports `macro_validation_service_test.cpp` (+ key `macro_schema_test.cpp` cases).
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use controller_core::service::validation::validate_macro;
+use controller_core::devices::pro3::macro_check::validate_macro;
 use serde_json::{json, Value};
 
 /// Minimal valid macro JSON — mirrors C++ `makeValidMacro()`.

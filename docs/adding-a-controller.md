@@ -197,18 +197,14 @@ The transport, the read and write services and the app pick the model from the
 registry, and the test pad runs through all of them. These places still assume the
 Pro 3:
 
-1. `Slot` accepts 1 to 3 and `MacroSlot` 0 to 3 (`model/ids.rs`), whatever the
-   description says. `Mode` is a fixed enum of `XInput`, `Switch` and `DInput`, so a
-   model with another mode needs a new variant.
-2. `service/validation/macros.rs` checks macro triggers against the Pro 3 tables, and
-   the command-line `read-macro` writes its JSON with `devices::pro3::macros`.
-3. The command-line `patch-sticks`, `patch-triggers` and `patch-vibration` name the
-   Pro 3's settings. They refuse a setting the model does not declare, but a model
-   with other settings has no command-line flags for them yet.
-4. Two models that share a USB id must also share its interface and framing.
+1. `Mode` is a fixed enum of `XInput`, `Switch` and `DInput` in
+   [`model/ids.rs`](../crates/controller-core/src/model/ids.rs). A model with another
+   mode adds a variant there, with its label and its lowercase name. `MacroSlot`
+   accepts 0 to 3, the Pro 3's four macro slots.
+2. Two models that share a USB id must also share its interface and framing.
    Detection opens the node of the first model that lists the id before the model id
    says which pad it is.
-5. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
+3. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
    `0x0123`. TheJayMann's Pro 2 scripts send a zero CRC and the parameter `0x15`, so
    a Pro 2 port needs both to come from the model.
 
@@ -250,5 +246,9 @@ A port is correct when the bytes match, not when the code looks right.
 
 Each controller in the app keeps the model a read identified. The editor reads that
 model's name, modes, buttons, labels, limits, slot count and views from its
-description, so a Pro 3 and another model can be plugged in at once. Item 3 of "What
-is tied to the Pro 3 today" is the part that still needs command-line changes.
+description, so a Pro 3 and another model can be plugged in at once.
+
+The command line needs no change either. `set` writes any declared setting by its
+pointer, such as `set -m xinput -s 1 /vibration/left_level=3`, and `read-macro` lists
+the model's macro slots. `patch-sticks`, `patch-triggers` and `patch-vibration` are
+shortcuts for the Pro 3's settings, and refuse a model that does not declare them.

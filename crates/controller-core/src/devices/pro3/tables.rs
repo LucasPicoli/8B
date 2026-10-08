@@ -53,6 +53,8 @@ pub const BUTTON_ENTRY_BYTES: usize = 4;
 
 /// The 4-byte active-slot marker (`11 09 20 20`).
 pub const SLOT_MARKER: [u8; 4] = [0x11, 0x09, 0x20, 0x20];
+/// Profile slots per mode.
+pub const PROFILE_SLOT_COUNT: u8 = 3;
 /// The 4-byte "disabled / unmapped" encoding (`00 00 00 00`).
 pub const NULL_ENCODING: [u8; 4] = [0x00, 0x00, 0x00, 0x00];
 
@@ -479,9 +481,6 @@ pub const STEP_BUTTON_BITS_MASK: u16 = 0x3FFF;
 pub const STEP_SWITCH_L2_MASK: u16 = 0x4000;
 /// `keys` bit flagging R2 pressed in Switch mode (bit 15).
 pub const STEP_SWITCH_R2_MASK: u16 = 0x8000;
-
-/// Default centered stick axis value (matches [`crate::model::MacroStep`]).
-pub const STICK_CENTER: u8 = 127;
 
 /// A canonical step-button name paired with its 16-bit bitmask, ordered by bit
 /// position for deterministic decode output. Ported from

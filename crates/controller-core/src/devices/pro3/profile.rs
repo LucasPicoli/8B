@@ -694,7 +694,7 @@ pub fn compile_profile(
     };
 
     let s = target_slot.get();
-    let idx = usize::from(s - 1);
+    let idx = super::slot_index(target_slot)?;
     let settings = Settings::of(profile)?;
 
     // --- Section 0: flags, mode, name ---

@@ -1,5 +1,7 @@
 //! Canonical macro model matching `schemas/macro-v1.schema.json`.
 
+use serde_json::{json, Map, Value};
+
 use super::ids::Mode;
 
 /// A single macro step — in-memory representation mirroring the C++ model.
@@ -90,6 +92,75 @@ pub fn parse_macro_file_name(path: &str) -> Option<(u8, &str)> {
     let (_mode, _slot) = (parts.next()?, parts.next()?);
     let macro_slot = parts.next()?.strip_prefix("macro")?.parse().ok()?;
     Some((macro_slot, parts.next()?))
+}
+
+/// A stick axis at rest, the value a step omits.
+pub const STICK_CENTER: u8 = 127;
+
+/// Serializes a [`MacroDefinition`] to canonical macro JSON for `device`, the device
+/// string of the model's profiles.
+///
+/// Top-level: `version:1, device, mode, name, trigger,
+/// repeat:{count,interval_ms}, steps:[...]`. Per step, `actions.buttons` is
+/// ALWAYS emitted (with `press`+`release` arrays; the wire format only tracks
+/// the currently-pressed set, so `release` is always empty); `left_stick`,
+/// `right_stick` and `triggers` are OMITTED when at their defaults (stick
+/// `127/127`, triggers `0/0`). Faithful port of `MacroDecoder::toJson`.
+#[must_use]
+pub fn macro_to_json(def: &MacroDefinition, device: &str) -> Value {
+    let steps: Vec<Value> = def.steps.iter().map(step_to_json).collect();
+
+    json!({
+        "version": 1,
+        "device": device,
+        "mode": def.mode.as_str(),
+        "name": def.name,
+        "trigger": def.trigger,
+        "repeat": {
+            "count": def.repeat_count,
+            "interval_ms": def.interval_ms,
+        },
+        "steps": steps,
+    })
+}
+
+/// Serializes a single [`MacroStep`] to its canonical JSON object.
+fn step_to_json(step: &MacroStep) -> Value {
+    let mut actions = Map::new();
+
+    // Buttons — always emitted; `release` mirrors the C++ (always empty).
+    let press: Vec<Value> =
+        step.pressed_buttons.iter().map(|name| Value::String(name.clone())).collect();
+    actions.insert("buttons".to_owned(), json!({ "press": press, "release": Vec::<Value>::new() }));
+
+    // Left stick — omitted when centered.
+    if step.left_stick_x != STICK_CENTER || step.left_stick_y != STICK_CENTER {
+        actions.insert(
+            "left_stick".to_owned(),
+            json!({ "x": step.left_stick_x, "y": step.left_stick_y }),
+        );
+    }
+
+    // Right stick — omitted when centered.
+    if step.right_stick_x != STICK_CENTER || step.right_stick_y != STICK_CENTER {
+        actions.insert(
+            "right_stick".to_owned(),
+            json!({ "x": step.right_stick_x, "y": step.right_stick_y }),
+        );
+    }
+
+    // Triggers — omitted when both released.
+    if step.trigger_left != 0 || step.trigger_right != 0 {
+        actions.insert(
+            "triggers".to_owned(),
+            json!({ "left": step.trigger_left, "right": step.trigger_right }),
+        );
+    }
+
+    json!({
+        "duration_ms": step.duration_ms,
+        "actions": Value::Object(actions),
+    })
 }
 
 #[cfg(test)]

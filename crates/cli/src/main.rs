@@ -93,12 +93,24 @@ struct Target {
     /// Target mode: xinput, switch or dinput.
     #[arg(short, long)]
     mode: Mode,
-    /// Target slot (1-3).
+    /// Target slot, from 1.
     #[arg(short, long, value_parser = parse_slot)]
     slot: Slot,
     /// Overwrite an occupied slot without asking.
     #[arg(long)]
     force: bool,
+}
+
+/// Parses `<pointer>=<value>` for `set`, the value as JSON.
+fn parse_change(s: &str) -> Result<(String, serde_json::Value), String> {
+    let (pointer, value) =
+        s.split_once('=').ok_or_else(|| format!("'{s}' is not <pointer>=<value>"))?;
+    if !pointer.starts_with('/') {
+        return Err(format!("'{pointer}' is not a JSON pointer, such as /vibration/left_level"));
+    }
+    let value = serde_json::from_str(value)
+        .map_err(|_| format!("'{value}' is not a number or true/false"))?;
+    Ok((pointer.to_owned(), value))
 }
 
 /// Parses a 1-based slot for clap.
@@ -137,7 +149,7 @@ enum Commands {
     ReadMacro {
         /// Mode: xinput, switch or dinput.
         mode: Mode,
-        /// Profile slot (1–3).
+        /// Profile slot, from 1.
         slot: u8,
         /// Optional directory to write per-macro JSON files.
         #[arg(long = "output-dir")]
@@ -171,6 +183,18 @@ enum Commands {
         output: String,
     },
 
+    /// Set settings of an occupied slot by their JSON pointer, as the controller's
+    /// description names them. Unnamed settings keep their value.
+    ///
+    /// Example: `set -m xinput -s 1 /vibration/left_level=3 /sticks/swap_sticks=true`.
+    Set {
+        #[command(flatten)]
+        target: Target,
+        /// One or more `<pointer>=<value>`. The value is a number or true/false.
+        #[arg(required = true, num_args = 1.., value_parser = parse_change)]
+        changes: Vec<(String, serde_json::Value)>,
+    },
+
     /// Tools for reverse engineering a new controller. Plain-text output.
     #[command(subcommand)]
     Dev(DevCommand),
@@ -198,11 +222,11 @@ enum Commands {
     PatchVibration {
         #[command(flatten)]
         target: Target,
-        /// Left motor level (0-5).
-        #[arg(long, value_parser = clap::value_parser!(u8).range(0..=5))]
+        /// Left motor level, 0 to 5 on a Pro 3.
+        #[arg(long)]
         left: u8,
-        /// Right motor level (0-5).
-        #[arg(long, value_parser = clap::value_parser!(u8).range(0..=5))]
+        /// Right motor level, 0 to 5 on a Pro 3.
+        #[arg(long)]
         right: u8,
     },
 }
@@ -211,16 +235,16 @@ enum Commands {
 #[derive(Debug, Args)]
 struct StickArgs {
     /// Left stick min (dead zone) percent.
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     left_min: Option<i32>,
     /// Left stick max (range) percent.
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     left_max: Option<i32>,
     /// Right stick min (dead zone) percent.
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     right_min: Option<i32>,
     /// Right stick max (range) percent.
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     right_max: Option<i32>,
     /// Invert left stick X (true/false).
     #[arg(long, value_parser = BoolishValueParser::new())]
@@ -263,22 +287,22 @@ impl From<StickArgs> for StickPatch {
 #[derive(Debug, Args)]
 struct TriggerArgs {
     /// Left trigger min percent (xinput, dinput).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     left_min: Option<i32>,
     /// Left trigger max percent (xinput, dinput).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     left_max: Option<i32>,
     /// Right trigger min percent (xinput, dinput).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     right_min: Option<i32>,
     /// Right trigger max percent (xinput, dinput).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     right_max: Option<i32>,
     /// Left trigger threshold percent (switch).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     left_threshold: Option<i32>,
     /// Right trigger threshold percent (switch).
-    #[arg(long, value_parser = clap::value_parser!(i32).range(0..=100))]
+    #[arg(long)]
     right_threshold: Option<i32>,
     /// Swap the two triggers (true/false).
     #[arg(long, value_parser = BoolishValueParser::new())]
@@ -364,6 +388,11 @@ fn main() {
                 run_write(t.force, &[], |o, p| o.patch_triggers(t.mode, t.slot, &patch, p))
             }
         }
+        Commands::Set { target: t, changes } => {
+            let changes: Vec<(&str, serde_json::Value)> =
+                changes.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+            run_write(t.force, &[], |o, p| o.patch_settings(t.mode, t.slot, &changes, p))
+        }
         Commands::PatchVibration { target: t, left, right } => {
             run_write(t.force, &[], |o, p| o.patch_vibration(t.mode, t.slot, left, right, p))
         }
@@ -375,6 +404,20 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn set_takes_pointers_with_number_or_flag_values() {
+        assert_eq!(
+            parse_change("/vibration/left_level=3"),
+            Ok(("/vibration/left_level".to_owned(), 3.into()))
+        );
+        assert_eq!(parse_change("/lights/on=true"), Ok(("/lights/on".to_owned(), true.into())));
+        assert!(parse_change("vibration=3").is_err(), "a pointer starts with a slash");
+        assert!(parse_change("/a").is_err());
+        assert!(parse_change("/a=loud").is_err());
+        let cli = Cli::parse_from(["8b", "set", "-m", "xinput", "-s", "1", "/a=1", "/b=false"]);
+        assert!(matches!(cli.command, Commands::Set { changes, .. } if changes.len() == 2));
+    }
 
     #[test]
     fn verbose_flags_raise_the_level() {

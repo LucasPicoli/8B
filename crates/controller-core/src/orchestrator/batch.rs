@@ -133,6 +133,9 @@ impl ProfileWriteOrchestrator<'_> {
             f
         };
         let Some(head) = jobs.first() else { return Ok((Vec::new(), Vec::new())) };
+        for job in jobs {
+            self.check_slot(job.slot).map_err(|e| fail(job, &e))?;
+        }
         let read = self.dev.read_all_profiles().map_err(|e| fail(head, &e))?;
         let mut banks: Vec<Bank> = Vec::new();
         let mut outcomes = Vec::new();

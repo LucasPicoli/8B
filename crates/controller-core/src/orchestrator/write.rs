@@ -155,6 +155,9 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     ) -> WriteResult {
         let fail = |category, message: String| WriteResult::failure(mode, slot, category, message);
 
+        if let Err(e) = self.check_slot(slot) {
+            return failure_from(mode, slot, &e);
+        }
         let rb = match readback_and_confirm(self.dev, self.model, mode, slot, policy) {
             Ok(rb) => rb,
             Err(e) => return failure_from(mode, slot, &e),
@@ -183,6 +186,11 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             }
         }
         result
+    }
+
+    /// Refuses a slot past the model's slot count, before any device access.
+    pub(super) fn check_slot(&self, slot: Slot) -> Result<()> {
+        slot.check(self.model.description()?.slot_count).map(|_| ())
     }
 
     /// Slot select, write, apply, with rollback if the write fails.

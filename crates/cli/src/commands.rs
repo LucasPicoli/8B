@@ -11,9 +11,8 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
-use controller_core::devices::pro3::macros::macro_to_canonical_json;
 use controller_core::error::{Error, ErrorCategory};
-use controller_core::model::macros::macro_file_name;
+use controller_core::model::macros::{macro_file_name, macro_to_json};
 use controller_core::model::{DeviceReadiness, Mode, Slot};
 use controller_core::orchestrator::profile::{detect_and_read_all, DetectAndReadResult};
 use controller_core::service::read::{read_macros, MacroReadResult};
@@ -119,12 +118,17 @@ pub fn build_read_payload(out: &DetectAndReadResult) -> (Value, i32) {
 /// Builds the read-macro success JSON payload and exit code.
 ///
 /// Mirrors the success branch of `runReadMacro` in `src/main.cpp`.
-/// Emits a 4-entry `macros` array (slots 0–3); each active entry carries
-/// `trigger`/`name`/`step_count`/`repeat_count`/`interval_ms`; inactive entries carry
-/// only `macro_slot` and `active: false`.
+/// Emits one `macros` entry per macro slot of the model, `macro_slots` of them (4 on a
+/// Pro 3); each active entry carries `trigger`/`name`/`step_count`/`repeat_count`/
+/// `interval_ms`; inactive entries carry only `macro_slot` and `active: false`.
 #[must_use]
-pub fn build_read_macro_ok_payload(mode: Mode, slot: u8, res: &MacroReadResult) -> (Value, i32) {
-    let macros: Vec<Value> = (0u8..=3)
+pub fn build_read_macro_ok_payload(
+    mode: Mode,
+    slot: u8,
+    res: &MacroReadResult,
+    macro_slots: u8,
+) -> (Value, i32) {
+    let macros: Vec<Value> = (0..macro_slots)
         .map(|macro_slot| {
             let active_def = res.macros.iter().find(|d| d.macro_slot == Some(macro_slot));
             active_def.map_or_else(
@@ -311,14 +315,22 @@ pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
             code
         }
         Ok(res) => {
-            let (payload, code) = build_read_macro_ok_payload(mode, slot, &res);
+            let model = match dev.model() {
+                Ok(model) => model,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return e.category().exit_code();
+                }
+            };
+            let macro_slots = model.description().map_or(0, |d| d.macro_slot_count);
+            let (payload, code) = build_read_macro_ok_payload(mode, slot, &res, macro_slots);
             emit_json(&payload);
 
             if let Some(dir) = output_dir {
                 if let Err(e) = fs::create_dir_all(dir) {
                     eprintln!("Failed to create output directory '{dir}': {e}");
                 } else {
-                    export_macros(&res, mode, slot, dir);
+                    export_macros(&res, mode, slot, dir, &model.default_profile(mode).device);
                 }
             }
 
@@ -327,13 +339,14 @@ pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
     }
 }
 
-/// Exports each active macro in `res` to `<dir>/<mode>-slot<slot>-macro<m>-<name>.json`.
-fn export_macros(res: &MacroReadResult, mode: Mode, slot: u8, dir: &str) {
+/// Exports each active macro in `res` to `<dir>/<mode>-slot<slot>-macro<m>-<name>.json`,
+/// marked as a macro of `device`.
+fn export_macros(res: &MacroReadResult, mode: Mode, slot: u8, dir: &str, device: &str) {
     for def in &res.macros {
         let filename = macro_file_name(mode, slot, def);
         let file_path = Path::new(dir).join(&filename);
 
-        let json_val = macro_to_canonical_json(def);
+        let json_val = macro_to_json(def, device);
         match serde_json::to_string_pretty(&json_val) {
             Ok(content) => {
                 match fs::File::create(&file_path).and_then(|mut f| f.write_all(content.as_bytes()))
@@ -494,7 +507,7 @@ mod tests {
     #[test]
     fn read_macro_ok_four_entry_array() {
         let res = MacroReadResult { macros: vec![make_macro_def(0)] };
-        let (payload, code) = build_read_macro_ok_payload(Mode::XInput, 1, &res);
+        let (payload, code) = build_read_macro_ok_payload(Mode::XInput, 1, &res, 4);
         assert_eq!(code, 0);
         let macros = payload["macros"].as_array().unwrap();
         assert_eq!(macros.len(), 4, "must always emit 4 macro entries");

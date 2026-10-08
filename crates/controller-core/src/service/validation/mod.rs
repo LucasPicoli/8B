@@ -5,7 +5,6 @@
 //! perform no I/O. Macro-ref file-existence resolution is deferred to the
 //! orchestrator layer, exactly as the C++ services defer it.
 
-pub mod macros;
 pub mod profile;
 
 use std::sync::OnceLock;
@@ -15,7 +14,6 @@ use serde_json::Value;
 
 use crate::error::{Error, Result};
 
-pub use macros::validate_macro;
 pub use profile::{validate_all_profiles, validate_profile};
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.

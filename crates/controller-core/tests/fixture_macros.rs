@@ -252,7 +252,7 @@ fn every_macro_fixture_passes_validation() {
         let json: serde_json::Value =
             serde_json::from_slice(&std::fs::read(format!("{DIR}/{}.json", f.stem)).unwrap())
                 .unwrap();
-        let errors = controller_core::service::validation::validate_macro(&json).unwrap();
+        let errors = controller_core::devices::pro3::macro_check::validate_macro(&json).unwrap();
         assert!(errors.is_empty(), "{}: {:?}", f.stem, errors);
     }
 }

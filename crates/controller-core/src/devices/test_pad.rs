@@ -325,6 +325,18 @@ mod tests {
     }
 
     #[test]
+    fn a_slot_past_the_models_count_is_refused_before_any_device_access() {
+        let dev = device();
+        let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, Path::new("."));
+        let r = orchestrator.deactivate_slot(Mode::DInput, slot(3), &ConfirmPolicy::Force);
+        assert!(!r.success && r.message.contains("1-2"), "{}", r.message);
+        assert_eq!(dev.calls(), []);
+        assert!(read_macros(&dev, Mode::DInput, slot(3)).is_err());
+        let pro3 = Pro3.default_profile(Mode::XInput);
+        assert!(Pro3.compile_profile(&pro3, slot(4), &[], &[]).is_err(), "the Pro 3 has 3 slots");
+    }
+
+    #[test]
     fn a_blob_of_another_size_is_refused_before_it_is_written() {
         let dev = MockDevice::new().with_model(&TestPad).with_profiles(ProfileReadResult {
             raw_blobs: vec![vec![0; 0x092C]],

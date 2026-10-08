@@ -48,6 +48,7 @@ pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result
     // 1. Read profile blobs.
     let read = dev.read_all_profiles()?;
     let codec = dev.model()?;
+    profile_slot.check(codec.description()?.slot_count)?;
 
     // 2-3. Pick the mode's blob, then size-check it.
     let blob = blob_for_mode(codec, &read, mode)

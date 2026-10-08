@@ -1,13 +1,14 @@
-//! Macro validation (schema + semantic). Faithful port of
-//! `macro_validation_service.cpp`.
+//! Pro 3 macro validation (schema + semantic). Faithful port of
+//! `macro_validation_service.cpp`. The app reads macros but never imports one, so
+//! only the tests run it.
 
 use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use super::{macro_validator, schema_errors, ValidationError};
-use crate::devices::pro3::tables;
+use super::tables;
 use crate::error::Result;
+use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
 /// Button names valid as macro triggers but NOT as step actions.
 /// Port of `macro_validation_service.cpp::invalidStepButtons()`.

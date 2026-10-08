@@ -62,20 +62,33 @@ impl FromStr for Mode {
     }
 }
 
-/// A 1-based profile slot (1, 2, or 3).
+/// A 1-based profile slot. The model's `slot_count` is the upper bound: the write
+/// orchestrator refuses a slot past it, and so does each codec.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Slot(u8);
 
 impl Slot {
-    /// Creates a slot, validating the 1..=3 range.
+    /// Creates a slot, refusing 0.
     ///
     /// # Errors
-    /// Returns [`Error::Validation`] if `value` is not 1, 2, or 3.
+    /// Returns [`Error::Validation`] if `value` is 0.
     pub fn new(value: u8) -> Result<Self> {
-        if (1..=3).contains(&value) {
-            Ok(Self(value))
+        if value == 0 {
+            Err(Error::Validation("slot 0 out of range (slots start at 1)".to_owned()))
         } else {
-            Err(Error::Validation(format!("slot {value} out of range (1-3)")))
+            Ok(Self(value))
+        }
+    }
+
+    /// Refuses a slot past `count`, the model's slot count.
+    ///
+    /// # Errors
+    /// Returns [`Error::Validation`] naming the model's range.
+    pub fn check(self, count: u8) -> Result<Self> {
+        if self.0 <= count {
+            Ok(self)
+        } else {
+            Err(Error::Validation(format!("slot {} out of range (1-{count})", self.0)))
         }
     }
 
@@ -127,6 +140,8 @@ mod tests {
     fn slot_range_is_validated() {
         assert!(Slot::new(0).is_err());
         assert_eq!(Slot::new(3).unwrap().get(), 3);
+        assert!(Slot::new(3).unwrap().check(3).is_ok());
+        assert!(Slot::new(4).unwrap().check(3).is_err());
         assert!(MacroSlot::new(4).is_err());
         assert_eq!(MacroSlot::new(0).unwrap().get(), 0);
     }

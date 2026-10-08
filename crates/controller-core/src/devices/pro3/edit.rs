@@ -21,10 +21,10 @@ const DESCRIPTOR_REGION_SIZE: usize =
 const FLAG_SIZE: usize = 4;
 
 /// Offset of the first macro descriptor of `slot`.
-fn descriptor_region_offset(slot: Slot) -> usize {
-    tables::SECTION4_BASE_OFFSET
-        + usize::from(slot.get() - 1) * tables::SECTION4_SLOT_STRIDE
-        + tables::SECTION4_RECORD_HEADER_SIZE
+fn descriptor_region_offset(slot: Slot) -> Result<usize> {
+    Ok(tables::SECTION4_BASE_OFFSET
+        + super::slot_index(slot)? * tables::SECTION4_SLOT_STRIDE
+        + tables::SECTION4_RECORD_HEADER_SIZE)
 }
 
 /// Compiles `profile` into `target_slot` of `base_blob` and keeps the macro descriptors
@@ -41,7 +41,7 @@ pub fn compile_profile_keep_macros(
 ) -> Result<Vec<u8>> {
     let mut blob = compile_profile(profile, target_slot, base_blob, &[])?;
     if base_blob.len() == tables::EXPECTED_PROFILE_SIZE {
-        let at = descriptor_region_offset(target_slot);
+        let at = descriptor_region_offset(target_slot)?;
         put_slice(&mut blob, at, take(base_blob, at, DESCRIPTOR_REGION_SIZE)?)?;
         seal_crc(&mut blob)?;
     }
@@ -70,7 +70,7 @@ pub fn drop_macros(blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u
             continue;
         }
         let index = usize::from(def.macro_slot.unwrap_or(0));
-        let at = descriptor_region_offset(slot) + index * tables::MACRO_DESCRIPTOR_SIZE;
+        let at = descriptor_region_offset(slot)? + index * tables::MACRO_DESCRIPTOR_SIZE;
         put_slice(&mut out, at, &[0; tables::MACRO_DESCRIPTOR_SIZE])?;
     }
     seal_crc(&mut out)?;
@@ -92,7 +92,7 @@ pub fn deactivate_profile(base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
         )));
     }
     let mut blob = base_blob.to_vec();
-    put_slice(&mut blob, usize::from(slot.get() - 1) * tables::FLAG_STRIDE, &[0; FLAG_SIZE])?;
+    put_slice(&mut blob, super::slot_index(slot)? * tables::FLAG_STRIDE, &[0; FLAG_SIZE])?;
     seal_crc(&mut blob)?;
     Ok(blob)
 }
