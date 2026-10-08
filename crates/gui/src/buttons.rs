@@ -282,7 +282,7 @@ mod tests {
             &ids(&list)[17..],
             ["rp output", "lp output", "l4 output", "r4 output", "disabled"]
         );
-        assert_eq!(list[17].1, "Back paddle right");
+        assert_eq!(list[17].1, "PR");
         for mode in [Mode::XInput, Mode::Switch] {
             assert!(!ids(&choices(&s, mode, "l1", "l1")).contains(&"rp output"), "{mode}");
         }

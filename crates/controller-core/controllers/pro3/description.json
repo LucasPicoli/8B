@@ -58,19 +58,19 @@
       "extra_outputs": [
         {
           "id": "rp output",
-          "label": "Back paddle right"
+          "label": "PR"
         },
         {
           "id": "lp output",
-          "label": "Back paddle left"
+          "label": "PL"
         },
         {
           "id": "l4 output",
-          "label": "Back button L4"
+          "label": "L4"
         },
         {
           "id": "r4 output",
-          "label": "Back button R4"
+          "label": "R4"
         }
       ]
     }
