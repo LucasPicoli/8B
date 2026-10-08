@@ -144,6 +144,9 @@ pub struct AppState {
     pub rule: Rule,
     /// The user skipped the install for this run.
     pub rule_skipped: bool,
+    /// "Check again" was chosen and no read has succeeded or been replugged since:
+    /// a denied read then means the screen shows "Still blocked".
+    pub rechecked: bool,
     /// The window runs in the Flatpak sandbox: no `pkexec`, no view of the host's
     /// rule files and no names for the programs that hold the controller. Read once
     /// at start.
@@ -180,6 +183,7 @@ impl AppState {
             install: Install::Idle,
             rule: Rule::Current,
             rule_skipped: false,
+            rechecked: false,
             sandboxed: false,
             notice: None,
             pending_import: None,
@@ -221,6 +225,28 @@ impl AppState {
     /// The udev rule install was sent to the worker.
     pub fn install_started(&mut self) {
         self.install = Install::Running;
+        self.rechecked = false;
+    }
+
+    /// "Check again" was chosen: the reads are about to start. It replaces an old
+    /// install failure, so the screen shows one bar, the latest.
+    pub fn check_started(&mut self) {
+        self.rechecked = true;
+        if matches!(self.install, Install::Failed(_)) {
+            self.install = Install::Idle;
+        }
+    }
+
+    /// Whether the permission screen shows "Still blocked": a check came back denied.
+    #[must_use]
+    pub fn still_blocked(&self) -> bool {
+        self.rechecked && self.access.is_some() && !self.reading_any()
+    }
+
+    /// Whether a read of any controller is running.
+    #[must_use]
+    pub fn reading_any(&self) -> bool {
+        self.controllers.iter().any(|c| c.reading)
     }
 
     /// The udev rule install came back.
@@ -492,6 +518,26 @@ pub mod tests {
         assert!(s.asks_for_rule());
         s.read_finished(PORT, Ok(full_read()));
         assert!(!s.asks_for_rule(), "a good read ends the question");
+    }
+
+    #[test]
+    fn still_blocked_shows_once_a_check_comes_back_denied() {
+        let mut s = new_state();
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_denied(PORT, Rule::Current);
+        assert!(!s.still_blocked(), "no check yet");
+        s.check_started();
+        s.read_started(PORT);
+        assert!(!s.still_blocked(), "the read is running");
+        s.read_denied(PORT, Rule::Current);
+        assert!(s.still_blocked());
+        s.install_started();
+        assert!(!s.still_blocked(), "an install replaces the warning");
+        s.install_finished(Err("closed".to_owned()));
+        s.check_started();
+        assert_eq!(s.install, Install::Idle, "a check replaces the install error");
+        s.read_finished(PORT, Ok(full_read()));
+        assert!(!s.still_blocked() && !s.rechecked);
     }
 
     #[test]

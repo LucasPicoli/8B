@@ -150,6 +150,7 @@ impl AppState {
     /// unplugged controller with edits stays listed; one without goes.
     pub fn presence(&mut self, port: &str, mode: Option<Mode>) {
         self.access = None;
+        self.rechecked = false;
         self.install = Install::Idle;
         let Some(i) = self.controllers.iter().position(|c| c.port == port) else {
             if mode.is_some() {
@@ -213,6 +214,7 @@ impl AppState {
         let newly_known = !std::mem::replace(&mut c.known, true);
         let mode = c.mode;
         self.access = None;
+        self.rechecked = false;
         if first_listed {
             self.active_port = Some(port.to_owned());
             if let Some(i) = self.description.modes.iter().position(|m| Some(m.id) == mode) {

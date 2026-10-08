@@ -1,6 +1,6 @@
 // Whole-window states before the editor: no controller, no permission.
 import { Theme, Button, LineEdit, Spinner } from "look/breeze/widgets.slint";
-import { Icons, Placeholder, Frame, MessageBar } from "parts.slint";
+import { Icons, Placeholder, Frame, MessageBar, CopyButton } from "parts.slint";
 
 // Waits on its own, with no button: the app finds the controller by itself.
 export component NoControllerScreen inherits Rectangle {
@@ -48,6 +48,8 @@ export component NoControllerScreen inherits Rectangle {
 export component PermissionScreen inherits Rectangle {
     in property <string> command;
     in property <string> rule-path;
+    // Opening the controller is denied: "Check again" can help.
+    in property <bool> denied;
     // The rule is in place and access is still denied: ask for a replug instead.
     in property <bool> rule-installed;
     // An older rule is installed and access works: ask for an update.
@@ -59,6 +61,10 @@ export component PermissionScreen inherits Rectangle {
     // In the Flatpak sandbox there is no password prompt: only the command installs
     // the rule, and "Check again" reads the controller once it has run.
     in property <bool> sandboxed;
+    // A read started by "Check again" is running.
+    in property <bool> checking;
+    // The last "Check again" came back denied.
+    in property <bool> still-blocked;
     // Why the last install failed, empty when it did not.
     in property <string> error;
     callback install;
@@ -95,7 +101,7 @@ export component PermissionScreen inherits Rectangle {
                     text: root.rule-installed
                         ? "The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in."
                         : root.outdated
-                        ? "The installed rule is from an older version of 8B. The new rule also stops 8BitDo controllers in XInput mode from reconnecting every second while Steam is closed. Updating asks for your password once."
+                        ? "The installed rule is from an older version of 8B. Updating it asks for your password once."
                         : root.sandboxed
                         ? "Linux blocks apps from changing a controller’s settings until a device rule allows it. Run the command below in a terminal on this computer, then choose Check again."
                         : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing the rule asks for your password once.";
@@ -103,29 +109,29 @@ export component PermissionScreen inherits Rectangle {
                     horizontal-alignment: center;
                     wrap: word-wrap;
                 }
-                if root.error != "": HorizontalLayout {
-                    padding-top: 12px;
-                    MessageBar {
-                        error: true;
-                        title: "Could not install the rule.";
-                        body: root.error + " Run the command below instead.";
-                    }
+                Text {
+                    text: "8B writes one file, " + root.rule-path + ". It lets the person signed in at this computer open 8BitDo and Switch Pro controllers. Nothing else on the system changes.";
+                    font-size: Theme.text-caption;
+                    color: Theme.fg-muted;
+                    horizontal-alignment: center;
+                    wrap: word-wrap;
                 }
-                if !root.rule-installed || root.sandboxed: HorizontalLayout {
+                HorizontalLayout {
                     alignment: center;
                     padding-top: 12px;
-                    padding-bottom: 20px;
                     spacing: 8px;
                     if !root.sandboxed: Button {
                         text: root.installing ? "Waiting for your password…"
-                            : root.outdated ? "Update rule…" : "Install rule…";
-                        primary: true;
-                        enabled: !root.installing;
+                            : root.outdated ? "Update rule…"
+                            : root.rule-installed ? "Install again…" : "Install rule…";
+                        primary: !root.rule-installed;
+                        enabled: !root.installing && !root.checking;
                         clicked => { root.install(); }
                     }
-                    if root.sandboxed: Button {
-                        text: "Check again";
-                        primary: true;
+                    if root.denied: Button {
+                        text: root.checking ? "Checking…" : "Check again";
+                        primary: root.sandboxed || root.rule-installed;
+                        enabled: !root.installing && !root.checking;
                         clicked => { root.check(); }
                     }
                     if root.skippable: Button {
@@ -135,7 +141,18 @@ export component PermissionScreen inherits Rectangle {
                         clicked => { root.skip(); }
                     }
                 }
-                if root.rule-installed && !root.sandboxed: Rectangle { height: 20px; }
+                if root.error != "": MessageBar {
+                    error: true;
+                    title: "Could not install the rule.";
+                    body: root.error + " Run the command below instead.";
+                }
+                if root.error == "" && root.still-blocked: MessageBar {
+                    title: root.rule-installed ? "Still blocked."
+                        : root.sandboxed ? "Still blocked. Run the command, then check again."
+                        : "Still blocked. Install the rule or run the command, then check again.";
+                    body: root.rule-installed ? "Unplug the controller and plug it in again, then check again." : "";
+                }
+                Rectangle { height: 14px; }
                 Frame {
                     VerticalLayout {
                         padding: 14px;
@@ -147,24 +164,14 @@ export component PermissionScreen inherits Rectangle {
                         }
                         HorizontalLayout {
                             spacing: 6px;
-                            cmd := LineEdit {
+                            LineEdit {
                                 text: root.command;
                                 read-only: true;
                                 mono: true;
                                 wrap: true;
                                 accessible-name: "Command that installs the rule";
                             }
-                            Button {
-                                text: "Copy";
-                                icon: Icons.copy;
-                                clicked => { cmd.copy-all(); }
-                            }
-                        }
-                        Text {
-                            text: "It installs " + root.rule-path + ". It gives the person signed in at this computer access to 8BitDo controllers and Switch Pro controllers.";
-                            font-size: Theme.text-caption;
-                            color: Theme.fg-muted;
-                            wrap: word-wrap;
+                            CopyButton { source => { root.command } }
                         }
                     }
                 }

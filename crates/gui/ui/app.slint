@@ -66,6 +66,12 @@ export component AppWindow inherits Window {
     // The whole window asks for the udev rule: opening was denied, or the rule is
     // missing or outdated and not skipped.
     in property <bool> asks-for-rule;
+    // Opening the controller is denied.
+    in property <bool> rule-denied;
+    // A read started by "Check again" is running.
+    in property <bool> rule-checking;
+    // The last "Check again" came back denied.
+    in property <bool> rule-still-blocked;
     // The udev rule is in place and opening is still denied.
     in property <bool> rule-installed;
     // An older rule is installed and opening works: ask for an update.
@@ -179,6 +185,9 @@ export component AppWindow inherits Window {
     if root.asks-for-rule: PermissionScreen {
         command: root.udev-command;
         rule-path: root.udev-rule-path;
+        denied: root.rule-denied;
+        checking: root.rule-checking;
+        still-blocked: root.rule-still-blocked;
         rule-installed: root.rule-installed;
         outdated: root.rule-outdated;
         skippable: root.rule-skippable;

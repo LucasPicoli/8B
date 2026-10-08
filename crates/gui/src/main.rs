@@ -551,7 +551,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     });
     let c = change.clone();
-    ui.on_check_again(move || c(&|s| read_present(&check_tx, s)));
+    ui.on_check_again(move || {
+        c(&|s| {
+            s.check_started();
+            read_present(&check_tx, s);
+        });
+    });
     wire_controllers(&ui, &change, retry_tx);
     wire_writes(&ui, &change, &write_tx, backups);
     wire_close(&ui, &close_state, &change, close_tx);

@@ -256,6 +256,23 @@ fn permission_still_denied() {
 }
 
 #[test]
+fn permission_checked_and_still_denied() {
+    let mut s = denied(Rule::Missing);
+    s.check_started();
+    shoot("permission-checked-denied", &s);
+    s.sandboxed = true;
+    shoot("permission-checked-denied-sandbox", &s);
+}
+
+#[test]
+fn permission_checking() {
+    let mut s = denied(Rule::Missing);
+    s.check_started();
+    s.read_started(PORT);
+    shoot("permission-checking", &s);
+}
+
+#[test]
 fn clean_slot() {
     shoot("buttons-clean", &connected(Mode::XInput));
 }

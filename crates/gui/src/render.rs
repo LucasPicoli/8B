@@ -171,6 +171,9 @@ pub fn render(state: &AppState, ui: &AppWindow) {
         retry.is_some_and(|p| state.controllers.iter().any(|c| c.port == p && !c.reading)),
     );
     ui.set_asks_for_rule(state.asks_for_rule());
+    ui.set_rule_denied(state.access.is_some());
+    ui.set_rule_checking(state.access.is_some() && state.reading_any());
+    ui.set_rule_still_blocked(state.still_blocked());
     ui.set_rule_installed(state.access == Some(Access::StillDenied));
     // Not denied: the controller works without the rule, so offer an update and a skip.
     ui.set_rule_outdated(state.access.is_none() && state.rule == Rule::Outdated);

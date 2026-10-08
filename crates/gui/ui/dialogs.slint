@@ -1,6 +1,6 @@
 // Review, clear, cross-mode import, failed write, close with edits.
 import { Theme, Button, ComboBox, LineEdit, Spinner } from "look/breeze/widgets.slint";
-import { Icons, DialogShell, ChangeTable, Frame } from "parts.slint";
+import { Icons, DialogShell, ChangeTable, Frame, CopyButton } from "parts.slint";
 import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, CloseInfo, CloseSlot } from "types.slint";
 
 export component Bullet {
@@ -32,18 +32,14 @@ export component BackupFile {
         }
         HorizontalLayout {
             spacing: 6px;
-            field := LineEdit {
+            LineEdit {
                 text: root.path;
                 read-only: true;
                 mono: true;
                 wrap: true;
                 accessible-name: "Backup file";
             }
-            Button {
-                text: "Copy";
-                icon: Icons.copy;
-                clicked => { field.copy-all(); }
-            }
+            CopyButton { source => { root.path } }
         }
     }
 }
