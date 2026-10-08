@@ -3,6 +3,7 @@ pub mod device_io;
 pub mod hidraw_device;
 mod hidraw_write;
 pub mod mock;
+pub mod raw;
 mod session;
 pub mod udev;
 pub mod write_input;

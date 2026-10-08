@@ -2,13 +2,15 @@
 //!
 //! Mirrors the C++ `src/main.cpp` subcommands: `detect` (alias `readiness`), `read`,
 //! `export`, `dump`, `read-macro`, and the write verbs `upload`, `deactivate`, `remap`,
-//! `patch-sticks`, `patch-triggers` and `patch-vibration`.
+//! `patch-sticks`, `patch-triggers` and `patch-vibration`. The `dev` group adds tools for
+//! reverse engineering a controller the app does not support yet.
 //!
 //! Binary crates cannot expose a public API; suppress the lint that fires for
 //! any `pub` item in a binary crate.
 #![allow(unreachable_pub)]
 
 pub(crate) mod commands;
+pub(crate) mod dev;
 pub(crate) mod export;
 pub(crate) mod write;
 
@@ -44,6 +46,45 @@ struct Cli {
     verbose: u8,
     #[command(subcommand)]
     command: Commands,
+}
+
+/// The `dev` subcommands.
+#[derive(Debug, Subcommand)]
+enum DevCommand {
+    /// List every hidraw node: bus, USB id, interface, report descriptor size and name.
+    List {
+        /// Also print each report descriptor in hex.
+        #[arg(long)]
+        descriptors: bool,
+    },
+    /// Write raw bytes to a hidraw node and print every report read back.
+    ///
+    /// Sends exactly the bytes given. Unknown commands can change or erase a
+    /// controller's flash: read before you write, and keep a dump.
+    Send {
+        /// The node, such as /dev/hidraw4.
+        node: PathBuf,
+        /// Hex bytes: `81 04 00 01`, `81040001` or `0x81,0x04`.
+        #[arg(required = true, num_args = 1..)]
+        bytes: Vec<String>,
+        /// Zero-pad the packet to this many bytes, such as 64.
+        #[arg(long)]
+        pad: Option<usize>,
+        /// How long to collect reports after the send, in milliseconds.
+        #[arg(long, default_value_t = 500)]
+        wait: u64,
+        /// Print only reports that start with these hex bytes, such as `02 04`. Hides
+        /// the gamepad's input reports.
+        #[arg(long = "match", value_name = "HEX")]
+        matching: Option<String>,
+    },
+    /// Print each run of bytes that differs between two dump files.
+    Diff {
+        /// The first dump.
+        a: PathBuf,
+        /// The second dump.
+        b: PathBuf,
+    },
 }
 
 /// Where a write goes, shared by every write verb.
@@ -129,6 +170,10 @@ enum Commands {
         #[arg(long = "target")]
         output: String,
     },
+
+    /// Tools for reverse engineering a new controller. Plain-text output.
+    #[command(subcommand)]
+    Dev(DevCommand),
 
     /// Change stick settings in an occupied slot. Unset options keep their value.
     #[command(name = "patch-sticks")]
@@ -283,6 +328,17 @@ fn main() {
         Commands::ReadMacro { mode, slot, output_dir } => {
             run_read_macro(mode, slot, output_dir.as_deref())
         }
+        Commands::Dev(DevCommand::List { descriptors }) => dev::run_list(descriptors),
+        Commands::Dev(DevCommand::Send { node, bytes, pad, wait, matching }) => {
+            dev::run_send(&dev::Send {
+                node: &node,
+                bytes: &bytes,
+                pad,
+                wait_ms: wait,
+                matching: matching.as_deref(),
+            })
+        }
+        Commands::Dev(DevCommand::Diff { a, b }) => dev::run_diff(&a, &b),
         Commands::Upload { target: t, file } => run_upload(&file, t.mode, t.slot, t.force),
         Commands::Deactivate { target: t } => {
             run_write(t.force, &[], |o, p| o.deactivate_slot(t.mode, t.slot, p))

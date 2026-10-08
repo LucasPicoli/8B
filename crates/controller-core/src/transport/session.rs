@@ -4,7 +4,6 @@
 //! dropped, error paths included. While paused, config replies do not race the input
 //! reports on the shared IN endpoint (`DInput` and Switch).
 
-use std::fmt::Write as _;
 use std::fs::{File, OpenOptions};
 use std::io::{Read as _, Write as _};
 use std::path::Path;
@@ -19,7 +18,7 @@ use crate::device::ControllerSpec as _;
 use crate::devices::pro3::Pro3;
 use crate::error::{Error, Result};
 use crate::model::Mode;
-use crate::protocol::bytes::{read_u16_le, read_u8};
+use crate::protocol::bytes::{hex, read_u16_le, read_u8};
 use crate::protocol::framing::Framing;
 use crate::protocol::wire::{build_input_stream, build_start_config};
 use crate::protocol::wire_write::PACKET_LEN;
@@ -304,7 +303,7 @@ impl Drop for Session {
 }
 
 /// `EIO` then `ENODEV` is what a hidraw fd returns once the device is gone.
-fn errno_error(e: Errno) -> Error {
+pub(super) fn errno_error(e: Errno) -> Error {
     if e == Errno::IO || e == Errno::NODEV {
         Error::Disconnected
     } else {
@@ -312,12 +311,12 @@ fn errno_error(e: Errno) -> Error {
     }
 }
 
-fn io_error(e: &std::io::Error) -> Error {
+pub(super) fn io_error(e: &std::io::Error) -> Error {
     Errno::from_io_error(e).map_or_else(|| Error::Usb(e.to_string()), errno_error)
 }
 
 /// Splits a denied open of the hidraw node from other open failures.
-fn open_error(node: &Path, e: &std::io::Error) -> Error {
+pub(super) fn open_error(node: &Path, e: &std::io::Error) -> Error {
     if e.kind() == std::io::ErrorKind::PermissionDenied {
         Error::PermissionDenied(node.display().to_string())
     } else {
@@ -344,17 +343,6 @@ fn header_hex(frame: &[u8]) -> String {
     } else {
         format!("{} (+{} payload bytes withheld)", hex(head), payload.len())
     }
-}
-
-/// Formats `bytes` as space-separated lowercase hex, for the log.
-fn hex(bytes: &[u8]) -> String {
-    bytes.iter().fold(String::with_capacity(bytes.len() * 3), |mut out, b| {
-        if !out.is_empty() {
-            out.push(' ');
-        }
-        let _ = write!(out, "{b:02x}");
-        out
-    })
 }
 
 /// Reads the firmware version from a `START_CONFIG` reply: `1.04`, or

@@ -13,8 +13,8 @@
 use std::fmt::Write;
 
 use crate::description::ControllerDescription;
-use crate::device::{ControllerSpec, UsbId};
-use crate::devices::pro3::Pro3;
+use crate::device::UsbId;
+use crate::devices::descriptions;
 
 /// Where the access rule goes. Numbered below 73 so systemd's `73-seat-late.rules`
 /// applies the `uaccess` tag.
@@ -63,12 +63,6 @@ After=dev-input-%i.device
 ExecStart=/bin/cat /dev/input/%I
 StandardOutput=null
 ";
-
-/// The descriptions of every supported controller model. A new model goes in here.
-fn descriptions() -> impl Iterator<Item = &'static ControllerDescription> {
-    // A unit test loads every embedded description, so `ok()` drops nothing in a shipped build.
-    Pro3.description().ok().into_iter()
-}
 
 /// The USB ids that need the keepalive in `descriptions`, each once, in the order the
 /// descriptions list them.
@@ -164,6 +158,8 @@ fn keepalive_command_for(rule: &str) -> String {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::device::ControllerSpec as _;
+    use crate::devices::pro3::Pro3;
 
     /// A single quote would end the shell argument early.
     fn assert_quotable(text: &str) {

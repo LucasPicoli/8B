@@ -85,6 +85,19 @@ pub fn put_u32_le(buf: &mut [u8], off: usize, value: u32) -> Result<()> {
     put_slice(buf, off, &value.to_le_bytes())
 }
 
+/// Formats `bytes` as space-separated lowercase hex, such as `81 04 00 01`.
+#[must_use]
+pub fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+    bytes.iter().fold(String::with_capacity(bytes.len() * 3), |mut out, b| {
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        let _ = write!(out, "{b:02x}");
+        out
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
