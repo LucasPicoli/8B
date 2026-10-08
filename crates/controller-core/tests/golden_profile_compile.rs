@@ -379,3 +379,29 @@ fn dinput_paddle_outputs_write_the_paddle_codes_and_read_back() {
     let decoded = Pro3.map_profile(&raw(blob)).unwrap().canonical;
     assert_eq!(decoded.button_mappings, profile.button_mappings);
 }
+
+/// A pad test proved `00 00 00 00` is the real "disabled" for a `DInput` paddle: its
+/// own code still sends its button. Disabling the four paddles of a vendor-default
+/// slot writes the zeros the official app writes, and they read back as disabled.
+#[test]
+fn dinput_disabled_paddles_write_the_zeros_of_the_official_blob() {
+    /// Button entries of the paddles `rp`, `lp`, `l4` and `r4`.
+    const PADDLES: std::ops::Range<usize> = 18..22;
+    let official = std::fs::read(DINPUT_OFFICIAL).unwrap();
+    let base = std::fs::read("../../fixtures/pro3/vendor-default-dinput.blob").unwrap();
+    for slot in 1..=3u8 {
+        let mut profile = decode_slot(&base, slot, Mode::DInput);
+        for m in &mut profile.button_mappings[PADDLES] {
+            assert_eq!(m.target, format!("{} output", m.source), "slot {slot}");
+            "disabled".clone_into(&mut m.target);
+        }
+        let blob =
+            Pro3.compile_profile_keep_macros(&profile, Slot::new(slot).unwrap(), &base).unwrap();
+        let start = 0x00E4 + usize::from(slot - 1) * 0x5C;
+        let paddles = start + PADDLES.start * 4..start + PADDLES.end * 4;
+        assert_eq!(&blob[paddles.clone()], &[0u8; 16], "slot {slot}");
+        assert_eq!(&blob[paddles.clone()], &official[paddles], "slot {slot}");
+        let back = decode_slot(&blob, slot, Mode::DInput);
+        assert_eq!(back.button_mappings, profile.button_mappings, "slot {slot}");
+    }
+}

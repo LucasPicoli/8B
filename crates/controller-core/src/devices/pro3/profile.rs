@@ -139,18 +139,24 @@ fn decode_target_control(
         }
     }
 
-    // Step 1: null/disabled. A back paddle holding its own code is unassigned too:
-    // the vendor app writes that code as the paddle's default.
+    // Step 1: null/disabled. A back paddle holding its own code is unassigned too
+    // when the mode has no output for that code: the vendor app writes that code as
+    // the paddle's default. In `DInput` the code sends the paddle's button, so it
+    // decodes as that output in step 4.
     let is_paddle =
         (tables::NULL_DEFAULT_FIRST_INDEX..tables::SOURCE_BUTTON_COUNT).contains(&source_index);
+    let is_output = entries.iter().skip(tables::SOURCE_BUTTON_COUNT).any(|e| e.encoding == value);
     if value == tables::NULL_ENCODING
-        || (is_paddle && entries.get(source_index).is_some_and(|e| e.encoding == value))
+        || (is_paddle
+            && !is_output
+            && entries.get(source_index).is_some_and(|e| e.encoding == value))
     {
         return "disabled".to_owned();
     }
 
-    // Step 2: identity — value matches the source's primary encoding.
-    if let Some(entry) = entries.get(source_index) {
+    // Step 2: identity — value matches the source's primary encoding. A paddle is
+    // never a target, so it has no identity.
+    if let Some(entry) = entries.get(source_index).filter(|_| !is_paddle) {
         if value == entry.encoding {
             return entry.source.to_owned();
         }
@@ -453,7 +459,8 @@ fn decode_macro_refs(payload: &[u8], mode: Mode, source_slot: u8) -> Result<Vec<
 /// The profile a new slot of `mode` starts from, with an empty name.
 ///
 /// Each button holds its own table encoding, decoded the way a read decodes it, so a
-/// back paddle reads `disabled` and Switch turbo reads `screenshot`. The values match a slot the vendor app makes with every
+/// back paddle reads `disabled` (in `DInput`, its own output, such as `rp output`) and
+/// Switch turbo reads `screenshot`. The values match a slot the vendor app makes with every
 /// setting at default: a 13% stick dead zone, full ranges, a 30% Switch trigger press
 /// point, no inversion or swap, and both motors at full strength.
 #[must_use]
@@ -831,8 +838,9 @@ pub fn compile_profile(
                 mapping.source
             )));
         } else if mapping.target == "disabled" {
-            // A paddle's own code is its vendor default; other buttons go null.
-            if source_idx >= tables::NULL_DEFAULT_FIRST_INDEX {
+            // A paddle's own code is its vendor default; other buttons go null. In
+            // `DInput` that code sends the paddle's button, so a paddle goes null too.
+            if source_idx >= tables::NULL_DEFAULT_FIRST_INDEX && mode != Mode::DInput {
                 write_encoding(&mapping.source, mode)?
             } else {
                 tables::NULL_ENCODING
@@ -992,7 +1000,8 @@ mod tests {
             let target = |s: &str| {
                 profile.button_mappings.iter().find(|m| m.source == s).map(|m| m.target.clone())
             };
-            assert_eq!(target("rp").as_deref(), Some("disabled"), "{mode}");
+            let rp = if mode == Mode::DInput { "rp output" } else { "disabled" };
+            assert_eq!(target("rp").as_deref(), Some(rp), "{mode}");
             assert_eq!(target("l1").as_deref(), Some("l1"), "{mode}");
             profile.name = "New".to_owned();
             let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
@@ -1045,12 +1054,6 @@ mod tests {
             for target in targets {
                 for paddle in paddles {
                     if super::super::edit::validate_remap(mode, paddle, target).is_err() {
-                        continue;
-                    }
-                    // ponytail: a DInput paddle's own code still reads back as its
-                    // default, `disabled`, so its own output cannot round-trip. Drop
-                    // this skip once that code reads back as the paddle's output.
-                    if target.strip_suffix(" output") == Some(paddle) {
                         continue;
                     }
                     let mut profile = default_profile(mode);
