@@ -1,7 +1,7 @@
 //! App state on the UI thread: what each controller holds, the edits, and what the
 //! window shows. Pure: no Slint, no I/O.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::mpsc::Sender;
 
 use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
@@ -151,6 +151,13 @@ pub struct AppState {
     /// rule files and no names for the programs that hold the controller. Read once
     /// at start.
     pub sandboxed: bool,
+    /// The USB port paths of the attached controllers for which the keepalive fix is
+    /// offered, until it is installed, or put off for this connection.
+    pub fix_offered: BTreeSet<String>,
+    /// The dialog that explains the keepalive fix is open.
+    pub fix_open: bool,
+    /// Where the fix install stands.
+    pub fix_install: Install,
     /// The message above the slot. Cleared when another slot is picked.
     pub notice: Option<Notice>,
     /// A file for another mode, waiting for the user's yes.
@@ -185,6 +192,9 @@ impl AppState {
             rule_skipped: false,
             rechecked: false,
             sandboxed: false,
+            fix_offered: BTreeSet::new(),
+            fix_open: false,
+            fix_install: Install::Idle,
             notice: None,
             pending_import: None,
             write: WriteState::default(),

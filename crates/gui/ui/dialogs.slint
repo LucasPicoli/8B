@@ -1,6 +1,6 @@
 // Review, clear, cross-mode import, failed write, close with edits.
 import { Theme, Button, ComboBox, LineEdit, Spinner } from "look/breeze/widgets.slint";
-import { Icons, DialogShell, ChangeTable, Frame, CopyButton } from "parts.slint";
+import { Icons, DialogShell, ChangeTable, Frame, CopyButton, MessageBar } from "parts.slint";
 import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, CloseInfo, CloseSlot } from "types.slint";
 
 export component Bullet {
@@ -183,6 +183,76 @@ export component WritingDialog inherits DialogShell {
         Spinner {
             width: 24px;
             height: 24px;
+        }
+    }
+}
+
+// Explains the keepalive fix before it is installed: what the reconnecting looks like,
+// the two files, and the command. Outside the sandbox the accept button installs it.
+export component FixDialog inherits DialogShell {
+    in property <bool> sandboxed;
+    in property <bool> installing;
+    // Why the last install failed, empty when it did not.
+    in property <string> error;
+    in property <string> command;
+    in property <string> rule-path;
+    in property <string> unit-path;
+    icon: Icons.info;
+    card-width: 560px;
+    title: "Keep the controller connected";
+    subtitle: "When no app is using it, this controller disconnects and reconnects every second or two. An app that starts then may not see it.";
+    cancel-text: "Close";
+    // The password prompt is open: leaving would hide how it ends.
+    cancel-enabled: !root.installing;
+    accept-text: root.sandboxed ? "" : "Add files…";
+    accept-enabled: !root.installing;
+    Text {
+        text: "While 8B is open, the controller stays connected. These two files keep it connected whenever it is plugged in. They change nothing else, and deleting them undoes it."
+            + (root.sandboxed ? "" : " Adding them asks for your password once.");
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    VerticalLayout {
+        spacing: 2px;
+        Text {
+            text: root.rule-path;
+            font-family: Theme.mono-family;
+            color: Theme.fg;
+            wrap: word-wrap;
+        }
+        Text {
+            text: root.unit-path;
+            font-family: Theme.mono-family;
+            color: Theme.fg;
+            wrap: word-wrap;
+        }
+    }
+    // A slot as tall as a two-line bar, so the bar appearing moves nothing.
+    VerticalLayout {
+        min-height: 50px;
+        if root.error != "": MessageBar {
+            error: true;
+            title: "Could not add the files.";
+            body: root.error + " Run the command instead.";
+        }
+    }
+    VerticalLayout {
+        spacing: 10px;
+        Text {
+            text: root.sandboxed ? "Run this in a terminal on this computer:" : "Or run this in a terminal:";
+            color: Theme.fg;
+            wrap: word-wrap;
+        }
+        HorizontalLayout {
+            spacing: 6px;
+            LineEdit {
+                text: root.command;
+                read-only: true;
+                mono: true;
+                wrap: true;
+                accessible-name: "Command that adds the files";
+            }
+            CopyButton { source => { root.command } }
         }
     }
 }

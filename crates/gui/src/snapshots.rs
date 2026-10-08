@@ -272,6 +272,34 @@ fn permission_checking() {
     shoot("permission-checking", &s);
 }
 
+/// A connected controller the fix is offered for.
+fn offered() -> AppState {
+    let mut s = connected(Mode::XInput);
+    s.fix_verdict(PORT, true);
+    s
+}
+
+#[test]
+fn fix_offer_bar() {
+    let ui = window(&offered());
+    assert!(ui.get_fix_offered() && !ui.get_fix_open());
+    save("fix-bar", &ui);
+}
+
+#[test]
+fn fix_offer_dialog_in_both_builds() {
+    let mut s = offered();
+    s.fix_open = true;
+    shoot("fix-dialog", &s);
+    s.sandboxed = true;
+    shoot("fix-dialog-sandbox", &s);
+    s.sandboxed = false;
+    s.fix_install_started();
+    shoot("fix-dialog-installing", &s);
+    s.fix_install_finished(Err("The password prompt was closed.".to_owned()));
+    shoot("fix-dialog-failed", &s);
+}
+
 #[test]
 fn clean_slot() {
     shoot("buttons-clean", &connected(Mode::XInput));

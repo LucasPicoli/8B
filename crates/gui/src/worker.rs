@@ -7,7 +7,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use controller_core::detect::{config_hidraw, scan_sysfs_all};
 use controller_core::device::ConfigPort;
@@ -25,6 +25,10 @@ pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
 
 /// How often the worker looks for controllers while idle.
 const POLL: Duration = Duration::from_millis(500);
+
+/// How often the worker tries again to hold the event node of a pad whose first try
+/// failed, between polls. See [`Keepalive::pending`].
+const HOLD_RETRY: Duration = Duration::from_millis(50);
 
 /// Polls in a row that must agree before a presence change is reported, about 2 s.
 /// A slide-switch move re-enumerates the controller several times in about a
@@ -94,6 +98,14 @@ pub enum Event {
     },
     /// The result of [`Command::InstallUdevRule`]: why it failed, as a sentence.
     Installed(Result<(), String>),
+    /// A controller whose description needs the keepalive fix is connected, and 8B has
+    /// watched it. Sent once per connection.
+    Fix {
+        /// The USB port path.
+        port: String,
+        /// The controller reconnected while 8B watched it (sandbox only).
+        looping: bool,
+    },
 }
 
 /// Installs the udev rule; [`crate::udev::install_rule`] outside tests.
@@ -162,9 +174,11 @@ fn run(
     let (sysfs, ports) = (site.sysfs, site.ports);
     let mut devices: BTreeMap<String, Box<dyn DeviceIo + Send>> = BTreeMap::new();
     let mut presence: BTreeMap<String, Debounce> = BTreeMap::new();
-    let mut keepalive = Keepalive::default();
+    let mut keepalive = Keepalive::new(site.sandboxed);
+    let mut next_poll = Instant::now() + POLL;
     loop {
-        match rx.recv_timeout(POLL) {
+        let wait = if keepalive.pending() { HOLD_RETRY } else { POLL };
+        match rx.recv_timeout(wait.min(next_poll.saturating_duration_since(Instant::now()))) {
             Ok(Command::ReadAll(port)) => {
                 let dev = devices.entry(port.clone()).or_insert_with(|| open(&port));
                 match read_with_retry(dev.as_ref()) {
@@ -200,7 +214,14 @@ fn run(
             Ok(Command::InstallUdevRule) => emit(Event::Installed(install())),
             Err(RecvTimeoutError::Timeout) => {
                 let found = scan_sysfs_all(sysfs, ports);
-                keepalive.sync(&found, |usb| devnum(&usb.sysfs_path));
+                if Instant::now() < next_poll {
+                    keepalive.hold(&found, |usb| devnum(&usb.sysfs_path));
+                    continue;
+                }
+                next_poll = Instant::now() + POLL;
+                for v in keepalive.sync(&found, |usb| devnum(&usb.sysfs_path)) {
+                    emit(Event::Fix { port: v.port, looping: v.looping });
+                }
                 let seen: BTreeMap<String, Sighting> = found
                     .iter()
                     .map(|usb| {
@@ -366,8 +387,43 @@ mod tests {
         Ok(())
     }
 
+    /// The next event, leaving out the keepalive verdicts: [`a_pad_that_needs_the_fix_is_reported`]
+    /// covers them.
     fn next(events: &Receiver<Event>) -> Event {
-        events.recv_timeout(Duration::from_secs(5)).expect("an event")
+        loop {
+            match events.recv_timeout(Duration::from_secs(5)).expect("an event") {
+                Event::Fix { .. } => {}
+                event => return event,
+            }
+        }
+    }
+
+    #[test]
+    fn a_pad_that_needs_the_fix_is_reported_and_one_that_does_not_is_not() {
+        let sysfs = tempfile::tempdir().unwrap();
+        plug_at(sysfs.path(), "3-1", "2dc8", "310b");
+        plug_at(sysfs.path(), "3-2", "2dc8", "6009");
+        let ports = Pro3.description().unwrap().config_ports.clone();
+        let (etx, events) = mpsc::channel();
+        let _tx = spawn(
+            given(MockDevice::new()),
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            PathBuf::new(),
+            false,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        let fixes: Vec<_> = std::iter::from_fn(|| events.recv_timeout(Duration::from_secs(3)).ok())
+            .filter_map(|e| match e {
+                Event::Fix { port, looping } => Some((port, looping)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(fixes, [("3-1".to_owned(), false)]);
     }
 
     #[test]

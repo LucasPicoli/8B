@@ -134,6 +134,8 @@ export component MessageBar inherits Rectangle {
     // Information, not a warning: the accent colour and the info icon.
     in property <bool> info;
     in property <bool> closable;
+    // Words on the close button instead of the icon, such as "Not now".
+    in property <string> close-text;
     in property <image> icon: error ? Icons.error : info ? Icons.info : Icons.warning;
     in property <string> title;
     in property <string> body;
@@ -181,10 +183,15 @@ export component MessageBar inherits Rectangle {
             enabled: root.action-enabled;
             clicked => { root.acted(); }
         }
-        if root.closable: Button {
+        if root.closable && root.close-text == "": Button {
             text: "Close";
             icon: Icons.close;
             icon-only: true;
+            flat: true;
+            clicked => { root.closed(); }
+        }
+        if root.closable && root.close-text != "": Button {
+            text: root.close-text;
             flat: true;
             clicked => { root.closed(); }
         }
@@ -381,6 +388,9 @@ export component DialogShell inherits Rectangle {
     in property <string> accept-text;
     in property <bool> accept-enabled: true;
     in property <string> cancel-text: "Cancel";
+    // False while the dialog cannot be left, such as during a password prompt: the
+    // cancel button and Esc do nothing.
+    in property <bool> cancel-enabled: true;
     in property <bool> destructive;
     // Icon in the error colour.
     in property <bool> alarm: destructive;
@@ -408,7 +418,9 @@ export component DialogShell inherits Rectangle {
     fs := FocusScope {
         key-pressed(e) => {
             if (e.text == Key.Escape) {
-                root.cancelled();
+                if (root.cancel-enabled) {
+                    root.cancelled();
+                }
                 return accept;
             }
             reject
@@ -496,6 +508,7 @@ export component DialogShell inherits Rectangle {
                     Rectangle { horizontal-stretch: 1; }
                     if root.cancel-text != "": Button {
                         text: root.cancel-text;
+                        enabled: root.cancel-enabled;
                         clicked => { root.cancelled(); }
                     }
                     if root.accept-text != "": Button {

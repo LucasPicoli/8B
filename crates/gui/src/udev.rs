@@ -67,6 +67,25 @@ fn classify(installed: Option<&str>) -> Rule {
     }
 }
 
+/// Whether the keepalive fix is in place: the unit, and a rule that starts it. The rule
+/// is the current [`keepalive_rule`] in its own file, or the line 0.1.0 put in
+/// `70-8b.rules`. Only meaningful outside the sandbox, which cannot see these files.
+#[must_use]
+pub fn keepalive_installed() -> bool {
+    fix_in_place(
+        fs::read_to_string(KEEPALIVE_RULE_PATH).ok().as_deref(),
+        fs::read_to_string(UDEV_RULE_PATH).ok().as_deref(),
+        Path::new(KEEPALIVE_UNIT_PATH).exists(),
+    )
+}
+
+/// [`keepalive_installed`] for the text of the two rule files, if any, and whether the
+/// unit exists.
+fn fix_in_place(fix_rule: Option<&str>, access_rule: Option<&str>, unit: bool) -> bool {
+    unit && (fix_rule == Some(keepalive_rule().as_str())
+        || access_rule.is_some_and(|r| r.contains("8b-keepalive@")))
+}
+
 /// Installs the access rule through `pkexec`. Blocks while the password prompt is open.
 ///
 /// # Errors
@@ -80,7 +99,6 @@ pub fn install_rule() -> Result<(), String> {
 ///
 /// # Errors
 /// Returns why the install failed, as a sentence for the window.
-#[expect(dead_code, reason = "the keepalive offer in the editor calls it")]
 pub fn install_keepalive() -> Result<(), String> {
     pkexec(
         KEEPALIVE_SCRIPT,
@@ -118,6 +136,21 @@ mod tests {
     fn the_0_1_0_combined_rule_reads_as_current() {
         assert_eq!(classify(Some(UDEV_RULE_0_1_0)), Rule::Current);
         assert_eq!(classify(Some(UDEV_RULE)), Rule::Current);
+    }
+
+    #[test]
+    fn the_fix_needs_its_unit_and_a_current_rule() {
+        let rule = keepalive_rule();
+        assert!(fix_in_place(Some(&rule), None, true));
+        assert!(!fix_in_place(Some(&rule), None, false), "no unit");
+        assert!(!fix_in_place(Some("KERNEL==\"event*\"\n"), Some(UDEV_RULE), true), "stale");
+        assert!(!fix_in_place(None, None, true));
+    }
+
+    #[test]
+    fn the_0_1_0_line_in_the_access_rule_counts_as_the_fix() {
+        assert!(fix_in_place(None, Some(UDEV_RULE_0_1_0), true));
+        assert!(!fix_in_place(None, Some(UDEV_RULE), true));
     }
 
     #[test]

@@ -3,7 +3,9 @@
 
 use std::rc::Rc;
 
-use controller_core::transport::udev::{manual_command, UDEV_RULE_PATH};
+use controller_core::transport::udev::{
+    keepalive_command, manual_command, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT_PATH, UDEV_RULE_PATH,
+};
 use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::render_buttons;
@@ -186,6 +188,22 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     });
     ui.set_udev_command(manual_command().into());
     ui.set_udev_rule_path(UDEV_RULE_PATH.into());
+    render_fix(state, ui);
+}
+
+/// Pushes the keepalive fix offer: the bar above the tabs and its dialog.
+fn render_fix(state: &AppState, ui: &AppWindow) {
+    let shown = state.fix_shown();
+    ui.set_fix_offered(shown);
+    ui.set_fix_open(shown && state.fix_open);
+    ui.set_fix_installing(state.fix_install == Install::Running);
+    ui.set_fix_error(match &state.fix_install {
+        Install::Failed(e) => e.as_str().into(),
+        Install::Idle | Install::Running => SharedString::new(),
+    });
+    ui.set_fix_command(keepalive_command().into());
+    ui.set_fix_rule_path(KEEPALIVE_RULE_PATH.into());
+    ui.set_fix_unit_path(KEEPALIVE_UNIT_PATH.into());
 }
 
 /// Narrower than this, in logical pixels, toolbar buttons show only their icon.

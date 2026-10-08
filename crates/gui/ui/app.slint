@@ -5,7 +5,7 @@ import { MessageBar, Placeholder, Icons, TabBar, Diagnostics } from "parts.slint
 import { ButtonsTab } from "buttons.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
+import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot } from "types.slint";
@@ -117,6 +117,19 @@ export component AppWindow inherits Window {
     in property <CloseInfo> closing;
     // The worker thread has ended.
     in property <bool> worker-stopped;
+    // The keepalive fix is offered for the shown controller, its dialog is open, the
+    // `pkexec` install runs, and why the last one failed (empty when it did not).
+    in property <bool> fix-offered;
+    in property <bool> fix-open;
+    in property <bool> fix-installing;
+    in property <string> fix-error;
+    in property <string> fix-command;
+    in property <string> fix-rule-path;
+    in property <string> fix-unit-path;
+    callback fix-opened;
+    callback fix-closed;
+    callback fix-put-off;
+    callback fix-install;
     // The footer button's text, and the sidebar bar's caption and button text.
     out property <string> write-label: "Write " + slot-title + "…";
     out property <string> edited-caption: edited-count == 1 ? "1 slot has unsaved edits" : edited-count + " slots have unsaved edits";
@@ -343,6 +356,18 @@ export component AppWindow inherits Window {
                 }
             }
 
+            if root.fix-offered: HorizontalLayout {
+                MessageBar {
+                    closable: true;
+                    close-text: "Not now";
+                    title: "This controller disconnects and reconnects by itself when no app is using it.";
+                    body: "8B is using it now, so it stays connected. Two small files keep it connected after you close 8B.";
+                    action: "Set up…";
+                    acted => { root.fix-opened(); }
+                    closed => { root.fix-put-off(); }
+                }
+            }
+
             if !root.empty-slot: TabBar {
                 model: root.sections;
                 current <=> root.tab;
@@ -517,6 +542,17 @@ export component AppWindow inherits Window {
 
     if root.writing-title != "": WritingDialog {
         text: root.writing-title;
+    }
+
+    if root.fix-open: FixDialog {
+        sandboxed: root.sandboxed;
+        installing: root.fix-installing;
+        error: root.fix-error;
+        command: root.fix-command;
+        rule-path: root.fix-rule-path;
+        unit-path: root.fix-unit-path;
+        accepted => { root.fix-install(); }
+        cancelled => { root.fix-closed(); }
     }
 
     if root.worker-stopped: StoppedDialog {

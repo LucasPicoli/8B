@@ -55,7 +55,7 @@ pub const KEEPALIVE_UNIT_PATH: &str = "/etc/systemd/system/8b-keepalive@.service
 /// It reads without a grab, so games still see every event.
 pub const KEEPALIVE_UNIT: &str = "\
 [Unit]
-Description=Keep xpad polling the 8BitDo controller on /dev/input/%I
+Description=Keep xpad polling the controller on /dev/input/%I
 BindsTo=dev-input-%i.device
 After=dev-input-%i.device
 
@@ -70,13 +70,22 @@ fn descriptions() -> impl Iterator<Item = &'static ControllerDescription> {
     Pro3.description().ok().into_iter()
 }
 
-/// The USB ids that need the keepalive, from every controller description.
-fn keepalive_ids() -> impl Iterator<Item = UsbId> {
-    descriptions().flat_map(|d| d.config_ports.iter()).filter(|p| p.needs_keepalive).map(|p| p.usb)
+/// The USB ids that need the keepalive in `descriptions`, each once, in the order the
+/// descriptions list them.
+fn keepalive_ids<'a>(
+    descriptions: impl IntoIterator<Item = &'a ControllerDescription>,
+) -> Vec<UsbId> {
+    let mut ids = Vec::new();
+    for port in descriptions.into_iter().flat_map(|d| d.config_ports.iter()) {
+        if port.needs_keepalive && !ids.contains(&port.usb) {
+            ids.push(port.usb);
+        }
+    }
+    ids
 }
 
-/// The keepalive rule text: one line per USB id that needs it, or an empty string when
-/// no supported controller does.
+/// The keepalive rule text for `descriptions`: one line per USB id that needs it, or an
+/// empty string when none does. [`keepalive_rule`] is this over every supported model.
 ///
 /// Each line starts [`KEEPALIVE_UNIT`] for the `xpad` event node of that id. `xpad` polls
 /// a wired pad only while its event node is open, and the Pro 3 in `XInput` mode resets
@@ -85,8 +94,10 @@ fn keepalive_ids() -> impl Iterator<Item = UsbId> {
 /// and `ATTRS{idVendor}` sit on different parents, and udev needs every parent key of
 /// a rule to match the same parent.
 #[must_use]
-pub fn keepalive_rule() -> String {
-    keepalive_ids().fold(String::new(), |mut rule, id| {
+pub fn keepalive_rule_for<'a>(
+    descriptions: impl IntoIterator<Item = &'a ControllerDescription>,
+) -> String {
+    keepalive_ids(descriptions).into_iter().fold(String::new(), |mut rule, id| {
         let _ = writeln!(
             rule,
             "KERNEL==\"event*\", ENV{{ID_USB_DRIVER}}==\"xpad\", ENV{{ID_VENDOR_ID}}==\"{:04x}\", \
@@ -98,10 +109,16 @@ pub fn keepalive_rule() -> String {
     })
 }
 
+/// The keepalive rule text for every supported controller model.
+#[must_use]
+pub fn keepalive_rule() -> String {
+    keepalive_rule_for(descriptions())
+}
+
 /// Whether any supported controller needs the keepalive.
 #[must_use]
 pub fn keepalive_needed() -> bool {
-    keepalive_ids().next().is_some()
+    !keepalive_rule().is_empty()
 }
 
 /// `text` as one single-quoted shell argument per line, each with a leading space.
@@ -130,15 +147,21 @@ pub fn manual_command() -> String {
 /// replug is needed.
 #[must_use]
 pub fn keepalive_command() -> String {
+    keepalive_command_for(&keepalive_rule())
+}
+
+/// [`keepalive_command`] for the rule text `rule`.
+fn keepalive_command_for(rule: &str) -> String {
     format!(
         "{} && {} && sudo systemctl daemon-reload && sudo udevadm control --reload-rules \
          && sudo udevadm trigger --subsystem-match=input --action=change",
-        tee(&keepalive_rule(), KEEPALIVE_RULE_PATH),
+        tee(rule, KEEPALIVE_RULE_PATH),
         tee(KEEPALIVE_UNIT, KEEPALIVE_UNIT_PATH),
     )
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -181,6 +204,44 @@ mod tests {
              ENV{ID_MODEL_ID}==\"310b\", TAG+=\"systemd\", \
              ENV{SYSTEMD_WANTS}+=\"8b-keepalive@%k.service\"\n"
         );
+    }
+
+    /// The Pro 3 description with its `XInput` port moved to `product` and, if
+    /// `needs_keepalive`, flagged: stands in for a second controller model.
+    fn another_model(product: u16, needs_keepalive: bool) -> ControllerDescription {
+        let mut d = Pro3.description().unwrap().clone();
+        for port in &mut d.config_ports {
+            port.usb.vendor = 0x1234;
+            port.usb.product = product;
+            port.needs_keepalive = needs_keepalive;
+        }
+        d.config_ports.truncate(1);
+        d
+    }
+
+    #[test]
+    fn a_second_model_adds_its_own_line() {
+        let pro3 = Pro3.description().unwrap();
+        let other = another_model(0x00a1, true);
+        let rule = keepalive_rule_for([pro3, &other]);
+        assert_eq!(rule.lines().count(), 2);
+        assert!(rule.contains("ID_MODEL_ID}==\"310b\""));
+        assert!(rule.contains("ENV{ID_VENDOR_ID}==\"1234\", ENV{ID_MODEL_ID}==\"00a1\""));
+        assert_quotable(&rule);
+        // The command carries every line.
+        let cmd = keepalive_command_for(&rule);
+        for line in rule.lines() {
+            assert!(cmd.contains(&format!("'{line}'")), "missing: {line}");
+        }
+    }
+
+    #[test]
+    fn a_model_without_the_flag_adds_nothing_and_a_repeat_adds_one_line() {
+        let pro3 = Pro3.description().unwrap();
+        let quiet = another_model(0x00a1, false);
+        assert_eq!(keepalive_rule_for([pro3, &quiet]), keepalive_rule_for([pro3]));
+        assert_eq!(keepalive_rule_for([pro3, pro3]).lines().count(), 1);
+        assert_eq!(keepalive_rule_for([&quiet]), "");
     }
 
     #[test]

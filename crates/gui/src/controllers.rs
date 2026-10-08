@@ -152,6 +152,9 @@ impl AppState {
         self.access = None;
         self.rechecked = false;
         self.install = Install::Idle;
+        if mode.is_none() {
+            self.fix_gone(port);
+        }
         let Some(i) = self.controllers.iter().position(|c| c.port == port) else {
             if mode.is_some() {
                 self.controllers.push(Controller {

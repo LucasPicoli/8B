@@ -9,6 +9,7 @@ mod chooser;
 mod closing;
 mod controllers;
 mod files;
+mod fix;
 mod holders;
 mod keepalive;
 mod logging;
@@ -108,6 +109,9 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         }
         Event::Installed(Ok(())) => info!("udev rule installed"),
         Event::Installed(Err(e)) => warn!("udev rule install failed: {e}"),
+        Event::Fix { port, looping } => {
+            info!("controller on {port} needs the keepalive fix; it reconnected while watched: {looping}");
+        }
     }
     match event {
         Event::Presence { port, mode } => {
@@ -147,6 +151,11 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             state.write_finished(&port, &results, hint.as_deref());
             state.batch_after_write();
             read(commands, state, &port);
+        }
+        // The sandbox cannot see the fix files, so it goes by the pad reconnecting.
+        Event::Fix { port, looping } => {
+            let offer = if state.sandboxed { looping } else { !udev::keepalive_installed() };
+            state.fix_verdict(&port, offer);
         }
         Event::Installed(result) => {
             let ok = result.is_ok();
@@ -223,8 +232,9 @@ fn export(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState) {
 }
 
 /// Wires Import and Export: each dialog runs on a short thread, and its answer
-/// comes back through `file-done`.
-fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) {
+/// comes back through `file-done`. Returns the sender other slow jobs use to do the
+/// same.
+fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) -> Sender<Job> {
     let (jobs_tx, jobs) = mpsc::channel::<Job>();
     let weak = ui.as_weak();
     let s = Rc::clone(state);
@@ -243,7 +253,34 @@ fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) {
         }
     });
     let (weak, s) = (ui.as_weak(), Rc::clone(state));
-    ui.on_export_file(move || export(weak.clone(), jobs_tx.clone(), &s.borrow()));
+    let tx = jobs_tx.clone();
+    ui.on_export_file(move || export(weak.clone(), tx.clone(), &s.borrow()));
+    jobs_tx
+}
+
+/// Wires the keepalive fix offer: the dialog, "Not now" and the `pkexec` install, which
+/// runs on a short thread like a file dialog.
+fn wire_fix(
+    ui: &AppWindow,
+    change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
+    jobs: Sender<Job>,
+) {
+    let c = change.clone();
+    ui.on_fix_opened(move || c(&|s| s.fix_open = true));
+    let c = change.clone();
+    // Outside the sandbox the files can be read, so a command run in a terminal clears
+    // the offer. The sandbox cannot see them: the bar stays until "Not now" or a replug.
+    ui.on_fix_closed(move || c(&|s| s.fix_closed(!s.sandboxed && udev::keepalive_installed())));
+    let c = change.clone();
+    ui.on_fix_put_off(move || c(&AppState::fix_put_off));
+    let (c, weak) = (change.clone(), ui.as_weak());
+    ui.on_fix_install(move || {
+        c(&AppState::fix_install_started);
+        on_thread(weak.clone(), jobs.clone(), || {
+            let result = udev::install_keepalive();
+            Box::new(move |state: &mut AppState| state.fix_install_finished(result))
+        });
+    });
 }
 
 /// Wires "Try again", the controller picker and the answers to the move and
@@ -525,7 +562,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         render(&state, &ui);
     });
 
-    wire_files(&ui, &state);
+    let jobs = wire_files(&ui, &state);
 
     // The close check reads the state outside a change.
     let close_state = Rc::clone(&state);
@@ -563,6 +600,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     wire_edits(&ui, &change);
+    wire_fix(&ui, &change, jobs);
 
     ui.on_hit(move |view, x, y| {
         hit(description, usize::try_from(view).unwrap_or(usize::MAX), x, y)
