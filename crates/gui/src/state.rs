@@ -139,8 +139,9 @@ pub struct AppState {
     pub access: Option<Access>,
     /// Where the udev rule install stands.
     pub install: Install,
-    /// The installed rule. Anything but current shows the permission screen until
-    /// installed or skipped.
+    /// The installed rule. An outdated one shows the permission screen until installed
+    /// or skipped. A missing one asks only once a read is denied: another rule, such as
+    /// Steam's, may already grant access.
     pub rule: Rule,
     /// The user skipped the install for this run.
     pub rule_skipped: bool,
@@ -229,7 +230,7 @@ impl AppState {
     /// Whether the permission screen fills the window.
     #[must_use]
     pub fn asks_for_rule(&self) -> bool {
-        self.access.is_some() || (self.rule != Rule::Current && !self.rule_skipped)
+        self.access.is_some() || (self.rule == Rule::Outdated && !self.rule_skipped)
     }
 
     /// The udev rule install was sent to the worker.
@@ -557,6 +558,18 @@ pub mod tests {
         s.read_denied(PORT, Rule::Current);
         s.presence(PORT, None);
         assert_eq!(s.access, None);
+    }
+
+    #[test]
+    fn missing_rule_asks_only_when_denied() {
+        let mut s = new_state();
+        s.rule = Rule::Missing;
+        assert!(!s.asks_for_rule(), "no read has been denied yet");
+        s.presence(PORT, Some(Mode::XInput));
+        s.read_finished(PORT, Ok(full_read()));
+        assert!(!s.asks_for_rule(), "another rule grants access");
+        s.read_denied(PORT, Rule::Missing);
+        assert!(s.asks_for_rule());
     }
 
     #[test]
