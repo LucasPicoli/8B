@@ -55,7 +55,24 @@
     {
       "id": "dinput",
       "trigger_kind": "analog",
-      "extra_outputs": []
+      "extra_outputs": [
+        {
+          "id": "rp output",
+          "label": "Back paddle right"
+        },
+        {
+          "id": "lp output",
+          "label": "Back paddle left"
+        },
+        {
+          "id": "l4 output",
+          "label": "Back button L4"
+        },
+        {
+          "id": "r4 output",
+          "label": "Back button R4"
+        }
+      ]
     }
   ],
   "slot_count": 3,

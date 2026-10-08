@@ -121,6 +121,9 @@ mod tests {
         assert!(validate_remap(Mode::XInput, "l1", "disabled").is_ok());
         assert!(validate_remap(Mode::Switch, "turbo", "screenshot").is_ok());
         assert!(validate_remap(Mode::XInput, "turbo", "screenshot").is_err());
+        assert!(validate_remap(Mode::DInput, "l1", "rp output").is_ok());
+        assert!(validate_remap(Mode::XInput, "l1", "rp output").is_err());
+        assert!(validate_remap(Mode::Switch, "l1", "r4 output").is_err());
         // A button mapped to turbo fires nothing on the real pad; Turbo itself still works.
         assert!(validate_remap(Mode::DInput, "l4", "turbo").is_err());
         assert!(validate_remap(Mode::DInput, "turbo", "turbo").is_ok());

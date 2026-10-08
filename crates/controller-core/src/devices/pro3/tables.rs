@@ -13,6 +13,8 @@
 //! button-map section is the exception — it always lives at the canonical base
 //! [`BUTTON_MAP_BASE_OFFSET`] regardless of shift.
 
+use std::sync::LazyLock;
+
 /// Minimum decodable blob size (`0x092C` = 2348 bytes).
 pub const EXPECTED_PROFILE_SIZE: usize = 0x092C;
 
@@ -370,17 +372,47 @@ pub const SWITCH_ENCODINGS: [ButtonEncodingEntry; SOURCE_BUTTON_COUNT + 1] = [
     },
 ];
 
+/// Target-only `DInput` outputs: the four back-paddle codes.
+///
+/// In `DInput` a source holding one of them sends `BTN_C`, `BTN_Z`, `BTN_TRIGGER_HAPPY`
+/// or `BTN_TRIGGER_HAPPY2` (proved on the pad). `XInput` and Switch have no output for them.
+pub const DINPUT_PADDLE_OUTPUTS: [ButtonEncodingEntry; 4] = [
+    ButtonEncodingEntry {
+        source: "rp output",
+        encoding: [0x00, 0x00, 0x00, 0x02],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "lp output",
+        encoding: [0x00, 0x00, 0x00, 0x04],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "l4 output",
+        encoding: [0x00, 0x00, 0x20, 0x00],
+        variant_identity_encodings: &[],
+    },
+    ButtonEncodingEntry {
+        source: "r4 output",
+        encoding: [0x00, 0x00, 0x00, 0x40],
+        variant_identity_encodings: &[],
+    },
+];
+
 /// Encoding table for **`DInput`** mode: the Switch table without its target-only
-/// `screenshot` entry.
+/// `screenshot` entry, then the target-only [`DINPUT_PADDLE_OUTPUTS`].
 ///
 /// A slot the vendor app writes with every setting at default in `DInput` holds the
 /// Switch face encodings (right face `00 20 00 00`), and a pad test confirmed that
-/// layout presses each face as itself. Every other entry matches the Switch table.
-pub const DINPUT_ENCODINGS: &[ButtonEncodingEntry] =
-    match SWITCH_ENCODINGS.first_chunk::<SOURCE_BUTTON_COUNT>() {
-        Some(entries) => entries,
-        None => &[],
-    };
+/// layout presses each face as itself. Every other source entry matches the Switch table.
+pub static DINPUT_ENCODINGS: LazyLock<Vec<ButtonEncodingEntry>> = LazyLock::new(|| {
+    SWITCH_ENCODINGS
+        .iter()
+        .take(SOURCE_BUTTON_COUNT)
+        .chain(&DINPUT_PADDLE_OUTPUTS)
+        .copied()
+        .collect()
+});
 
 // ---------------------------------------------------------------------------
 // Macro Section-4 metadata layout (`record_macro_content_t`, 52B each).

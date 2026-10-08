@@ -80,8 +80,8 @@ fn check_ranges(fields: &[(&str, Option<i32>, i32, i32)]) -> Result<()> {
 }
 
 impl ProfileWriteOrchestrator<'_> {
-    /// Points `source` at `target` in an occupied slot. `target` may be `disabled`, or
-    /// `screenshot` in Switch mode.
+    /// Points `source` at `target` in an occupied slot. `target` may be `disabled`,
+    /// `screenshot` in Switch mode, or a back-paddle output in `DInput` mode.
     #[must_use]
     pub fn remap_button(
         &self,

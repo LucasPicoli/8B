@@ -52,7 +52,7 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
 }
 
 /// The outputs the picker offers `button` in `mode`, as (id, label): every button
-/// that can be an output, then Disabled, then the mode's extra outputs. The
+/// that can be an output, then the mode's extra outputs, then Disabled. The
 /// button's default output and its `current` one come first when missing, so
 /// Turbo can go back to Turbo and an unrecognised entry shows as Unknown.
 #[must_use]
@@ -64,8 +64,8 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
         .iter()
         .filter(|b| b.can_be_output)
         .map(|b| b.id.clone())
-        .chain([DISABLED_OUTPUT.to_owned()])
         .chain(extras.iter().map(|o| o.id.clone()))
+        .chain([DISABLED_OUTPUT.to_owned()])
         .collect();
     let default = state.defaults.get(&mode).map(|p| target(p, button));
     for id in [default, Some(current)].into_iter().flatten() {
@@ -262,16 +262,30 @@ mod tests {
     }
 
     #[test]
-    fn picker_lists_outputs_then_disabled_then_mode_extras() {
+    fn picker_lists_outputs_then_mode_extras_then_disabled() {
         let s = read(Mode::Switch);
         let list = choices(&s, Mode::Switch, "l1", "l1");
         let names = ids(&list);
-        assert_eq!(names.len(), 19, "17 output buttons, Disabled, Screenshot");
+        assert_eq!(names.len(), 19, "17 output buttons, Screenshot, Disabled");
         assert_eq!(names.first(), Some(&"right face"));
-        assert_eq!(&names[17..], ["disabled", "screenshot"]);
+        assert_eq!(&names[17..], ["screenshot", "disabled"]);
         assert!(!names.contains(&"turbo") && !names.contains(&"rp"));
         assert_eq!(list[0].1, "A", "labels follow the mode");
         assert!(!ids(&choices(&s, Mode::XInput, "l1", "l1")).contains(&"screenshot"));
+    }
+
+    #[test]
+    fn picker_offers_the_paddle_outputs_in_dinput_only() {
+        let s = read(Mode::DInput);
+        let list = choices(&s, Mode::DInput, "l1", "l1");
+        assert_eq!(
+            &ids(&list)[17..],
+            ["rp output", "lp output", "l4 output", "r4 output", "disabled"]
+        );
+        assert_eq!(list[17].1, "Back paddle right");
+        for mode in [Mode::XInput, Mode::Switch] {
+            assert!(!ids(&choices(&s, mode, "l1", "l1")).contains(&"rp output"), "{mode}");
+        }
     }
 
     #[test]

@@ -214,3 +214,16 @@ fn unrecognised_target_passes_schema_in_every_mode() {
         assert!(r.valid, "errors: {:?}", r.errors);
     }
 }
+
+#[test]
+fn paddle_outputs_pass_schema_in_dinput_only() {
+    let mut dinput = make_valid_xinput_profile();
+    dinput["mode"] = json!("dinput");
+    for (mut p, valid) in
+        [(dinput, true), (make_valid_xinput_profile(), false), (make_valid_switch_profile(), false)]
+    {
+        p["button_mappings"] = json!([{ "source": "l1", "target": "rp output" }]);
+        let r = validate_profile(&p).unwrap();
+        assert_eq!(r.valid, valid, "{}: {:?}", p["mode"], r.errors);
+    }
+}

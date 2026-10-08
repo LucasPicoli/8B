@@ -348,3 +348,34 @@ fn vendor_default_banks_decode_to_the_default_profile() {
         }
     }
 }
+
+/// A pad test proved that in `DInput` a source holding a back-paddle code sends that
+/// paddle's button. Each output writes the paddle's own code and reads back as itself.
+#[test]
+fn dinput_paddle_outputs_write_the_paddle_codes_and_read_back() {
+    let official = std::fs::read(DINPUT_OFFICIAL).unwrap();
+    let raw = |payload: Vec<u8>| RawProfilePayload {
+        payload,
+        source_slot: 1,
+        source_profile_index: 0,
+        mode_hint: Mode::DInput,
+    };
+    let mut profile = Pro3.map_profile(&raw(official.clone())).unwrap().canonical;
+    // (source, entry index, output, code)
+    let cases = [
+        ("l1", 4, "rp output", [0x00, 0x00, 0x00, 0x02]),
+        ("r1", 5, "lp output", [0x00, 0x00, 0x00, 0x04]),
+        ("l3", 8, "l4 output", [0x00, 0x00, 0x20, 0x00]),
+        ("r3", 9, "r4 output", [0x00, 0x00, 0x00, 0x40]),
+    ];
+    for (source, _, output, _) in cases {
+        let m = profile.button_mappings.iter_mut().find(|m| m.source == source).unwrap();
+        output.clone_into(&mut m.target);
+    }
+    let blob = Pro3.compile_profile(&profile, Slot::new(1).unwrap(), &official, &[]).unwrap();
+    for (source, index, _, code) in cases {
+        assert_eq!(&blob[0x00E4 + index * 4..0x00E4 + index * 4 + 4], &code, "{source}");
+    }
+    let decoded = Pro3.map_profile(&raw(blob)).unwrap().canonical;
+    assert_eq!(decoded.button_mappings, profile.button_mappings);
+}

@@ -172,6 +172,14 @@
         { "type": "string", "const": "screenshot" }
       ]
     },
+    "ButtonTargetDInput": {
+      "oneOf": [
+        { "$ref": "#/$defs/TargetControlName" },
+        { "type": "string", "const": "disabled" },
+        { "type": "string", "const": "unrecognised", "description": "Read-only: the entry matches no known output. A write keeps its bytes as read." },
+        { "type": "string", "enum": ["rp output", "lp output", "l4 output", "r4 output"], "description": "The code of a back paddle. Only DInput has an output for it." }
+      ]
+    },
     "ButtonMapping": {
       "type": "object",
       "additionalProperties": false,
@@ -201,6 +209,22 @@
         },
         "target": {
           "$ref": "#/$defs/ButtonTargetSwitch"
+        }
+      }
+    },
+    "ButtonMappingDInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "target"
+      ],
+      "properties": {
+        "source": {
+          "$ref": "#/$defs/ControlName"
+        },
+        "target": {
+          "$ref": "#/$defs/ButtonTargetDInput"
         }
       }
     },
@@ -387,14 +411,36 @@
           },
           "button_mappings": {
             "type": "array",
-            "maxItems": 22,
-            "items": {
-              "$ref": "#/$defs/ButtonMapping"
+            "maxItems": 22
+          }
+        },
+        "if": {
+          "properties": {
+            "mode": {
+              "const": "dinput"
+            }
+          }
+        },
+        "then": {
+          "properties": {
+            "button_mappings": {
+              "items": {
+                "$ref": "#/$defs/ButtonMappingDInput"
+              }
+            }
+          }
+        },
+        "else": {
+          "properties": {
+            "button_mappings": {
+              "items": {
+                "$ref": "#/$defs/ButtonMapping"
+              }
             }
           }
         }
       }
     }
   ],
-  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode. Semantic validator requirements not expressible in core JSON Schema: unique macro trigger values in macro_refs, and profile/macro file existence checks. The semantic validator also refuses swap_dpad_with_left_stick together with swap_sticks, invert_left_x or invert_left_y, so its message can name the flags. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
+  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode, and 'rp output', 'lp output', 'l4 output' and 'r4 output' only for dinput mode. Semantic validator requirements not expressible in core JSON Schema: unique macro trigger values in macro_refs, and profile/macro file existence checks. The semantic validator also refuses swap_dpad_with_left_stick together with swap_sticks, invert_left_x or invert_left_y, so its message can name the flags. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
 }
