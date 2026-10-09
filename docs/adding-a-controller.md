@@ -45,9 +45,8 @@ The Pro 3 lives in
 
 A new model gets its own folder next to `pro3/`, and one entry in `MODELS` in
 [`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs). Detection, the
-transport choice, the keepalive rule and `dev list` read that registry. The udev
-access rule does not: a new vendor id needs a line in `UDEV_RULE` (see
-[The udev rule](#the-udev-rule)).
+transport choice, the access rule, the keepalive rule and `dev list` read that
+registry (see [The udev rule](#the-udev-rule)).
 
 For the smallest complete model, read
 [`devices/test_pad.rs`](../crates/controller-core/src/devices/test_pad.rs). It is
@@ -153,6 +152,7 @@ one mode, so the loader refuses a description that lists an id twice.
 | `interface` | USB interface number whose hidraw node carries the config reports |
 | `framing` | `plain`, `wrapped` for a Nintendo-style id, or `length` for a pad such as the Pro 2 that puts a length byte after the `81` (see `protocol/framing.rs`) |
 | `write_via` | Optional. A mode to flip to before a write, when this mode takes no writes in place |
+| `match_vendor` | Optional, `false` when omitted. `true` if the vendor makes nothing but game controllers, so the access rule may match every hidraw node of the vendor (see the udev rule below) |
 | `needs_keepalive` | Optional, `false` when omitted. `true` if the controller resets in this mode while no program holds its event node open (see the keepalive rule below) |
 
 The Pro 3 lists three ports: `2dc8:310b` for XInput (interface 2, plain),
@@ -163,18 +163,26 @@ for DInput (interface 0, plain). Only the XInput port sets `needs_keepalive`.
 
 The app opens the hidraw node of the config interface. The udev rule in
 [`transport/udev.rs`](../crates/controller-core/src/transport/udev.rs) gives the
-logged-in user access to it:
+logged-in user access to it.
 
-1. `KERNEL=="hidraw*", ATTRS{idVendor}=="2dc8"` matches every hidraw node of vendor
-   `2dc8` (8BitDo). A new 8BitDo model needs no change.
-2. `057e:2009` has its own line, because it is also a genuine Nintendo Pro Controller
-   id and the rule must not open every Nintendo device.
-3. A model with a new vendor id needs a new line in `UDEV_RULE`. Match the vendor
-   and, if the vendor makes other devices, the product id.
+`access_rule()` writes the rule from the config ports of every description, one line
+per vendor or per USB id, each once, in the order the ports are listed:
 
-An installed access rule is compared to `UDEV_RULE` byte for byte, so after a change
-the app asks users to update it. The rule of 0.1.0 (`UDEV_RULE_0_1_0`) also counts as
-current.
+1. A port with `match_vendor: true` gives a vendor line,
+   `KERNEL=="hidraw*", ATTRS{idVendor}=="2dc8"`, which matches every hidraw node of
+   the vendor. A new model of that vendor needs no rule change. The Pro 3 sets it on
+   its two `2dc8` ports.
+2. Any other port gives a line for its USB id. `057e:2009` is one: it is also a
+   genuine Nintendo Pro Controller id, and the rule must not open every Nintendo
+   device. A per-id port whose vendor another port matches whole adds no line.
+
+The match covers every hidraw node of the device, so a pad that also exposes a
+keyboard or mouse interface gets the tag on those nodes too.
+
+An installed access rule is compared to `access_rule()` byte for byte, so when a new
+model adds a line, the app asks users to update it. The rule of 0.1.0
+(`UDEV_RULE_0_1_0`) counts as current only while `access_rule()` is still the two
+access lines it holds.
 
 ### The keepalive rule
 

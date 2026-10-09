@@ -11,8 +11,8 @@ use std::path::Path;
 use std::process::Command;
 
 use controller_core::transport::udev::{
-    keepalive_rule, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT, KEEPALIVE_UNIT_PATH, UDEV_RULE,
-    UDEV_RULE_0_1_0, UDEV_RULE_PATH,
+    access_rule, keepalive_rule, rule_0_1_0_is_current, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT,
+    KEEPALIVE_UNIT_PATH, UDEV_RULE_0_1_0, UDEV_RULE_PATH,
 };
 
 use crate::state::Rule;
@@ -51,8 +51,8 @@ pub fn sandboxed() -> bool {
 }
 
 /// The installed access rule against the one this build installs. A file that
-/// cannot be read counts as missing. The combined rule of 0.1.0 still grants the same
-/// access, so it counts as current.
+/// cannot be read counts as missing. The combined rule of 0.1.0 counts as current while
+/// it still grants the same access.
 #[must_use]
 pub fn rule_state() -> Rule {
     classify(fs::read_to_string(UDEV_RULE_PATH).ok().as_deref())
@@ -62,7 +62,8 @@ pub fn rule_state() -> Rule {
 fn classify(installed: Option<&str>) -> Rule {
     match installed {
         None => Rule::Missing,
-        Some(UDEV_RULE | UDEV_RULE_0_1_0) => Rule::Current,
+        Some(text) if text == access_rule() => Rule::Current,
+        Some(text) if text == UDEV_RULE_0_1_0 && rule_0_1_0_is_current() => Rule::Current,
         Some(_) => Rule::Outdated,
     }
 }
@@ -91,7 +92,7 @@ fn fix_in_place(fix_rule: Option<&str>, access_rule: Option<&str>, unit: bool) -
 /// # Errors
 /// Returns why the install failed, as a sentence for the window.
 pub fn install_rule() -> Result<(), String> {
-    pkexec(ACCESS_SCRIPT, &[UDEV_RULE, UDEV_RULE_PATH])
+    pkexec(ACCESS_SCRIPT, &[&access_rule(), UDEV_RULE_PATH])
 }
 
 /// Installs the keepalive rule and unit through `pkexec`. Blocks while the password
@@ -135,7 +136,7 @@ mod tests {
     #[test]
     fn the_0_1_0_combined_rule_reads_as_current() {
         assert_eq!(classify(Some(UDEV_RULE_0_1_0)), Rule::Current);
-        assert_eq!(classify(Some(UDEV_RULE)), Rule::Current);
+        assert_eq!(classify(Some(&access_rule())), Rule::Current);
     }
 
     #[test]
@@ -143,14 +144,14 @@ mod tests {
         let rule = keepalive_rule();
         assert!(fix_in_place(Some(&rule), None, true));
         assert!(!fix_in_place(Some(&rule), None, false), "no unit");
-        assert!(!fix_in_place(Some("KERNEL==\"event*\"\n"), Some(UDEV_RULE), true), "stale");
+        assert!(!fix_in_place(Some("KERNEL==\"event*\"\n"), Some(&access_rule()), true), "stale");
         assert!(!fix_in_place(None, None, true));
     }
 
     #[test]
     fn the_0_1_0_line_in_the_access_rule_counts_as_the_fix() {
         assert!(fix_in_place(None, Some(UDEV_RULE_0_1_0), true));
-        assert!(!fix_in_place(None, Some(UDEV_RULE), true));
+        assert!(!fix_in_place(None, Some(&access_rule()), true));
     }
 
     #[test]

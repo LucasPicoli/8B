@@ -2,7 +2,7 @@
 //!
 //! Two installs, each with its own command:
 //!
-//! - The access rule, [`UDEV_RULE`] at [`UDEV_RULE_PATH`], gives the user at the seat
+//! - The access rule, [`access_rule`] at [`UDEV_RULE_PATH`], gives the user at the seat
 //!   access to the hidraw node. [`manual_command`] installs it. The CLI prints that
 //!   command when opening the node is denied, and the GUI installs the same file.
 //! - The keepalive fix, [`keepalive_rule`] at [`KEEPALIVE_RULE_PATH`] plus
@@ -13,21 +13,53 @@
 use std::fmt::Write;
 
 use crate::description::ControllerDescription;
-use crate::device::UsbId;
+use crate::device::{ConfigPort, UsbId};
 use crate::devices::descriptions;
 
 /// Where the access rule goes. Numbered below 73 so systemd's `73-seat-late.rules`
 /// applies the `uaccess` tag.
 pub const UDEV_RULE_PATH: &str = "/etc/udev/rules.d/70-8b.rules";
 
-/// The access rule text: every hidraw node of vendor `2dc8`, plus `057e:2009` (the
-/// Pro 3 in the Switch position, which also matches a genuine Nintendo Pro Controller).
-pub const UDEV_RULE: &str = concat!(
-    r#"KERNEL=="hidraw*", ATTRS{idVendor}=="2dc8", TAG+="uaccess""#,
-    "\n",
-    r#"KERNEL=="hidraw*", ATTRS{idVendor}=="057e", ATTRS{idProduct}=="2009", TAG+="uaccess""#,
-    "\n",
-);
+/// The access rule text for `descriptions`, one line per vendor or USB id.
+///
+/// A vendor with a `match_vendor` port gets one vendor line, any other port a line for
+/// its USB id. Each line appears once, in the order the descriptions list their ports.
+/// [`access_rule`] is this over every supported model.
+///
+/// A vendor line matches every hidraw node of the vendor, so a new model of that vendor
+/// needs no change. An id line keeps the rule off the other devices of a vendor that
+/// also makes them, such as `057e`, which is Nintendo. A per-id port of a vendor that
+/// another port matches whole adds no line.
+#[must_use]
+pub fn access_rule_for<'a>(
+    descriptions: impl IntoIterator<Item = &'a ControllerDescription>,
+) -> String {
+    let ports: Vec<&ConfigPort> =
+        descriptions.into_iter().flat_map(|d| d.config_ports.iter()).collect();
+    let mut lines: Vec<String> = Vec::new();
+    for port in &ports {
+        let UsbId { vendor, product } = port.usb;
+        let whole = ports.iter().any(|p| p.match_vendor && p.usb.vendor == vendor);
+        let line = if whole {
+            format!("KERNEL==\"hidraw*\", ATTRS{{idVendor}}==\"{vendor:04x}\", TAG+=\"uaccess\"\n")
+        } else {
+            format!(
+                "KERNEL==\"hidraw*\", ATTRS{{idVendor}}==\"{vendor:04x}\", \
+                 ATTRS{{idProduct}}==\"{product:04x}\", TAG+=\"uaccess\"\n"
+            )
+        };
+        if !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    lines.concat()
+}
+
+/// The access rule text for every supported controller model.
+#[must_use]
+pub fn access_rule() -> String {
+    access_rule_for(descriptions())
+}
 
 /// The rule file of 0.1.0, which an installed copy may still be.
 ///
@@ -43,6 +75,15 @@ pub const UDEV_RULE_0_1_0: &str = concat!(
     r#"KERNEL=="event*", ENV{ID_USB_DRIVER}=="xpad", ENV{ID_VENDOR_ID}=="2dc8", TAG+="systemd", ENV{SYSTEMD_WANTS}+="8b-keepalive@%k.service""#,
     "\n",
 );
+
+/// Whether an installed [`UDEV_RULE_0_1_0`] still counts as current.
+///
+/// It grants the access [`access_rule`] asks for while the generated rule is the access
+/// lines of 0.1.0. Once a controller adds a line, the old file would not cover that pad.
+#[must_use]
+pub fn rule_0_1_0_is_current() -> bool {
+    UDEV_RULE_0_1_0.starts_with(&access_rule())
+}
 
 /// Where the keepalive rule goes. Numbered below 73 like the access rule, and above
 /// 60 so `ID_USB_DRIVER` and `ID_VENDOR_ID` are already set.
@@ -125,14 +166,14 @@ fn tee(text: &str, path: &str) -> String {
     format!("printf '%s\\n'{} | sudo tee {path} >/dev/null", quoted_lines(text))
 }
 
-/// One shell line that installs [`UDEV_RULE`] with `sudo`, reloads the rules, and
+/// One shell line that installs [`access_rule`] with `sudo`, reloads the rules, and
 /// re-applies them to present hidraw nodes, so no replug is needed.
 #[must_use]
 pub fn manual_command() -> String {
     format!(
         "{} && sudo udevadm control --reload-rules \
          && sudo udevadm trigger --subsystem-match=hidraw --action=change",
-        tee(UDEV_RULE, UDEV_RULE_PATH),
+        tee(&access_rule(), UDEV_RULE_PATH),
     )
 }
 
@@ -168,9 +209,9 @@ mod tests {
 
     #[test]
     fn access_command_carries_only_the_access_lines() {
-        assert_quotable(UDEV_RULE);
+        assert_quotable(&access_rule());
         let cmd = manual_command();
-        for line in UDEV_RULE.lines() {
+        for line in access_rule().lines() {
             assert!(cmd.contains(&format!("'{line}'")), "missing: {line}");
         }
         assert!(cmd.contains(&format!("sudo tee {UDEV_RULE_PATH} ")));
@@ -241,11 +282,77 @@ mod tests {
     }
 
     #[test]
+    fn the_access_rule_comes_from_the_description() {
+        assert_eq!(
+            access_rule(),
+            "KERNEL==\"hidraw*\", ATTRS{idVendor}==\"2dc8\", TAG+=\"uaccess\"\n\
+             KERNEL==\"hidraw*\", ATTRS{idVendor}==\"057e\", ATTRS{idProduct}==\"2009\", \
+             TAG+=\"uaccess\"\n"
+        );
+    }
+
+    #[test]
     fn the_0_1_0_rule_is_the_access_rule_plus_one_keepalive_line() {
-        assert!(UDEV_RULE_0_1_0.starts_with(UDEV_RULE));
-        let rest = &UDEV_RULE_0_1_0[UDEV_RULE.len()..];
+        assert!(UDEV_RULE_0_1_0.starts_with(&access_rule()));
+        let rest = &UDEV_RULE_0_1_0[access_rule().len()..];
         assert_eq!(rest.lines().count(), 1);
         assert!(rest.starts_with("KERNEL==\"event*\""));
+        assert!(rule_0_1_0_is_current());
+    }
+
+    /// The Pro 3 description with every port moved to `vendor`, `match_vendor` set to
+    /// `whole`, and the first port kept: stands in for a second controller model.
+    fn another_pad(vendor: u16, product: u16, whole: bool) -> ControllerDescription {
+        let mut d = Pro3.description().unwrap().clone();
+        d.config_ports.truncate(1);
+        let port = d.config_ports.first_mut().unwrap();
+        port.usb = UsbId { vendor, product };
+        port.match_vendor = whole;
+        d
+    }
+
+    #[test]
+    fn the_pro_3_has_a_line_for_each_of_its_ports() {
+        let pro3 = Pro3.description().unwrap();
+        let rule = access_rule_for([pro3]);
+        for port in &pro3.config_ports {
+            let vendor = format!("ATTRS{{idVendor}}==\"{:04x}\"", port.usb.vendor);
+            let id = format!("ATTRS{{idProduct}}==\"{:04x}\"", port.usb.product);
+            let line = rule.lines().find(|l| l.contains(&vendor)).unwrap();
+            assert!(port.match_vendor || line.contains(&id), "{line}");
+        }
+        assert_eq!(rule.lines().count(), 2, "the two 2dc8 ports share one vendor line");
+    }
+
+    #[test]
+    fn a_second_model_adds_its_own_lines() {
+        let pro3 = Pro3.description().unwrap();
+        let whole = another_pad(0x1234, 0x00a1, true);
+        let per_id = another_pad(0x5678, 0x00b2, false);
+        let rule = access_rule_for([pro3, &whole, &per_id]);
+        assert_eq!(rule.lines().count(), 4);
+        assert!(rule.contains("ATTRS{idVendor}==\"1234\", TAG"), "whole vendor, no product");
+        assert!(rule.contains("ATTRS{idVendor}==\"5678\", ATTRS{idProduct}==\"00b2\""));
+        assert_quotable(&rule);
+        assert!(rule.starts_with(&access_rule()), "the Pro 3 lines keep their place");
+    }
+
+    #[test]
+    fn a_repeat_adds_nothing_and_a_whole_vendor_swallows_its_id_lines() {
+        let pro3 = Pro3.description().unwrap();
+        assert_eq!(access_rule_for([pro3, pro3]), access_rule_for([pro3]));
+        // A per-id port of vendor 2dc8 adds no line: the vendor line already covers it.
+        let same_vendor = another_pad(0x2dc8, 0x0001, false);
+        assert_eq!(access_rule_for([pro3, &same_vendor]), access_rule_for([pro3]));
+        // Even when it comes first.
+        assert_eq!(access_rule_for([&same_vendor, pro3]).lines().count(), 2);
+    }
+
+    #[test]
+    fn the_0_1_0_rule_stops_counting_once_a_pad_adds_a_line() {
+        let pro3 = Pro3.description().unwrap();
+        let grown = access_rule_for([pro3, &another_pad(0x1234, 0x00a1, true)]);
+        assert!(!UDEV_RULE_0_1_0.starts_with(&grown));
     }
 
     #[test]

@@ -44,6 +44,11 @@ pub struct ConfigPort {
     /// USB id. `false` when omitted.
     #[serde(default)]
     pub needs_keepalive: bool,
+    /// Whether the udev access rule matches every hidraw node of this USB vendor, not
+    /// only this product. Set it for a vendor that makes nothing but game controllers.
+    /// `false` when omitted, which matches this vendor and product only.
+    #[serde(default)]
+    pub match_vendor: bool,
 }
 
 /// A controller model's description, its blob size and its transport.

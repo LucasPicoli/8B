@@ -114,6 +114,10 @@
         "needs_keepalive": {
           "description": "Optional, false when omitted. True when the controller resets and reconnects in this mode while no program holds its event node open. 8B then offers a udev rule that matches this USB id and starts a unit to hold the node.",
           "type": "boolean"
+        },
+        "match_vendor": {
+          "description": "Optional, false when omitted. True when the udev access rule may match every hidraw node of this USB vendor, because the vendor makes nothing but game controllers. Otherwise the rule matches this vendor and product only.",
+          "type": "boolean"
         }
       }
     },

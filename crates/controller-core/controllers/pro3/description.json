@@ -14,7 +14,8 @@
       "mode": "xinput",
       "interface": 2,
       "framing": "plain",
-      "needs_keepalive": true
+      "needs_keepalive": true,
+      "match_vendor": true
     },
     {
       "usb": {
@@ -33,7 +34,8 @@
       },
       "mode": "dinput",
       "interface": 0,
-      "framing": "plain"
+      "framing": "plain",
+      "match_vendor": true
     }
   ],
   "modes": [
