@@ -1,9 +1,8 @@
-//! Two-phase validation (JSON Schema + ported semantic rules).
+//! Two-phase validation (JSON Schema + semantic rules).
 //!
-//! Faithful port of `profile_validation_service.*` and `macro_validation_service.*`.
 //! Validators are pure: they consume canonical JSON (`serde_json::Value`) and
 //! perform no I/O. Macro-ref file-existence resolution is deferred to the
-//! orchestrator layer, exactly as the C++ services defer it.
+//! orchestrator layer.
 
 pub mod profile;
 
@@ -17,7 +16,6 @@ use crate::error::{Error, Result};
 pub use profile::{validate_all_profiles, validate_profile};
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.
-/// Mirrors the C++ `core::ValidationError`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ValidationError {
     /// JSON Pointer to the offending location (e.g. `/steps/0/actions/buttons`).
@@ -26,7 +24,7 @@ pub struct ValidationError {
     pub reason: String,
 }
 
-/// Per-profile validation outcome. Mirrors the C++ `ProfileValidationResult`.
+/// Per-profile validation outcome.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ProfileValidationResult {
     /// The profile's `id` (empty string if absent).
@@ -37,7 +35,7 @@ pub struct ProfileValidationResult {
     pub errors: Vec<ValidationError>,
 }
 
-/// Batch validation outcome. Mirrors the C++ `ValidationSummary`.
+/// Batch validation outcome.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ValidationSummary {
     /// One result per input profile, in order.

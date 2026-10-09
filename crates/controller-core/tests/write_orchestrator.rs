@@ -221,6 +221,19 @@ fn upload_into_an_empty_slot_runs_the_full_pipeline() {
 }
 
 #[test]
+fn a_read_that_finds_another_model_stops_the_write() {
+    use controller_core::devices::test_pad::TestPad;
+    let dev = device(Mode::XInput, &base_blob(Mode::XInput)).with_model(&TestPad);
+    let dir = tempfile::tempdir().unwrap();
+    let json = fixture("xinput-slot2");
+    let r =
+        orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(3), &ConfirmPolicy::Force);
+    assert_failed(&r, ErrorCategory::ValidationFailure);
+    assert!(r.message.contains("now a Test Pad"), "{}", r.message);
+    assert_eq!(ops(&dev), [], "nothing went out after the read");
+}
+
+#[test]
 fn upload_rejects_bad_input_before_touching_the_device() {
     let dev = MockDevice::new(); // a readback would fail with ConnectionFailure
     let dir = tempfile::tempdir().unwrap();

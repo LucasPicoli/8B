@@ -6,9 +6,8 @@ These fixtures are produced by `controller-core`'s encoders
 (`compile_profile` for remap profiles, `encode_macro_steps` and
 `encode_macro_metadata` for macros). Each `.blob` and `.steps.bin` is
 the device-native byte representation; the corresponding `.json` is the
-canonical decoded (human-readable) form. Both are byte-exact against the
-C++ oracle and are verified by round-trip tests in `fixture_profiles.rs`
-and `fixture_macros.rs`.
+canonical decoded (human-readable) form. Both are verified by round-trip
+tests in `fixture_profiles.rs` and `fixture_macros.rs`.
 
 To regenerate after changing an encoder, run:
 

@@ -189,6 +189,7 @@ impl AppState {
         if self.active_port.as_ref() == Some(&gone.port) {
             let next = self.listed().next().map(|c| c.port.clone());
             self.active_port = next;
+            self.keep_selection();
         }
         if self.pending_move.as_ref() == Some(&gone.port) {
             self.pending_move = None;
@@ -207,8 +208,11 @@ impl AppState {
     /// so the header lists it.
     pub fn read_finished(&mut self, port: &str, result: Result<ProfileReadResult, String>) {
         let first_listed = !self.has_controller();
-        let others_unplugged_with_edits =
-            self.controllers.iter().any(|c| c.port != port && c.disconnected() && c.has_edits());
+        let model = self.controllers.iter().find(|c| c.port == port).and_then(|c| c.description);
+        let others_unplugged_with_edits = self
+            .controllers
+            .iter()
+            .any(|c| c.port != port && c.disconnected() && c.has_edits() && c.description == model);
         let Some(c) = self.controller_mut(port) else { return };
         c.reading = false;
         let read = match result {
@@ -258,6 +262,16 @@ impl AppState {
             self.drop_waiting_batch();
         }
         self.active_port = Some(port);
+        self.keep_selection();
+    }
+
+    /// Keeps the selected slot inside the shown model's modes and slots: another model
+    /// may have fewer. Out of range, the first slot of the first mode shows.
+    pub fn keep_selection(&mut self) {
+        let d = self.description();
+        if self.selected.0 >= d.modes.len() || self.selected.1 >= usize::from(d.slot_count) {
+            self.selected = (0, 0);
+        }
     }
 
     /// The header line of each listed controller, such as `Pro 3 · XInput`,
@@ -268,7 +282,8 @@ impl AppState {
             .listed()
             .map(|c| {
                 let state = c.mode.map_or("Disconnected", Mode::label);
-                format!("{} · {state}", self.description().short_name)
+                let name = &c.description.unwrap_or(self.fallback_description).short_name;
+                format!("{name} · {state}")
             })
             .collect();
         base.iter()
@@ -296,12 +311,16 @@ impl AppState {
     /// indices. Empty when no question waits.
     #[must_use]
     pub fn move_candidates(&self) -> Vec<usize> {
-        if self.pending_move.is_none() {
-            return Vec::new();
-        }
+        self.pending_move.as_deref().map(|to| self.move_candidates_for(to)).unwrap_or_default()
+    }
+
+    /// The unplugged controllers of the same model as the one on `to` that hold edits,
+    /// as listed indices.
+    fn move_candidates_for(&self, to: &str) -> Vec<usize> {
+        let model = self.controllers.iter().find(|c| c.port == to).and_then(|c| c.description);
         self.listed()
             .enumerate()
-            .filter(|(_, c)| c.disconnected() && c.has_edits())
+            .filter(|(_, c)| c.disconnected() && c.has_edits() && c.description == model)
             .map(|(i, _)| i)
             .collect()
     }
@@ -312,6 +331,9 @@ impl AppState {
     /// controller's changed list.
     pub fn answer_move(&mut self, from: Option<usize>) {
         let Some(to) = self.pending_move.take() else { return };
+        if from.is_none_or(|i| !self.move_candidates_for(&to).contains(&i)) {
+            return;
+        }
         let Some(from) = from.and_then(|i| self.listed().nth(i)).map(|c| c.port.clone()) else {
             return;
         };
@@ -322,6 +344,7 @@ impl AppState {
         let old = self.controllers.remove(i);
         if self.active_port.as_ref() == Some(&old.port) {
             self.active_port = Some(to.clone());
+            self.keep_selection();
         }
         let Some(c) = self.controller_mut(&to) else { return };
         for (key, slot) in old.slots {
@@ -423,6 +446,10 @@ mod tests {
         s.read_finished("3-1", Ok(test_pad_read("Pad")));
 
         assert_eq!(s.description().short_name, "Pro 3", "the first controller stays shown");
+        assert_eq!(s.controller_labels(), ["Pro 3 · XInput", "Test Pad · DInput"]);
+        s.select(0, 2);
+        s.pick_controller(1);
+        assert_eq!(s.selected_slot(), Some((Mode::DInput, 1)), "the test pad has no slot 3");
         s.active_port = Some("3-1".to_owned());
         assert_eq!(s.description().short_name, "Test Pad");
         assert_eq!(s.defaults().keys().copied().collect::<Vec<_>>(), [Mode::DInput]);
@@ -555,6 +582,23 @@ mod tests {
         assert_eq!(s.active().unwrap().port, "3-2");
         assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "Moved");
         assert_eq!(s.changed_slots(), [(Mode::XInput, 1)], "the new pad's slot 1 differs");
+    }
+
+    #[test]
+    fn another_model_is_not_asked_to_take_the_edits() {
+        use controller_core::devices::{pro3::Pro3, test_pad::TestPad};
+        let mut s = connected(Mode::XInput);
+        s.set_model(PORT, &Pro3);
+        edit(&mut s, Mode::XInput, "Pro 3 only");
+        s.presence(PORT, None);
+        s.presence("3-1", Some(Mode::DInput));
+        s.set_model("3-1", &TestPad);
+        s.read_finished("3-1", Ok(test_pad_read("Pad")));
+        assert_eq!(s.pending_move, None);
+        s.pending_move = Some("3-1".to_owned());
+        assert_eq!(s.move_candidates(), Vec::<usize>::new());
+        s.answer_move(Some(0));
+        assert_eq!(s.controllers.len(), 2, "the Pro 3 keeps its edits");
     }
 
     #[test]

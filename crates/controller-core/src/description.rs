@@ -12,7 +12,7 @@ use serde::{Deserialize, Deserializer};
 
 use crate::device::ConfigPort;
 use crate::error::{Error, Result};
-use crate::model::Mode;
+use crate::model::{Mode, PROFILE_FIELDS};
 use crate::view::View;
 
 /// The output that turns a button off. Valid for every remappable button in every
@@ -401,8 +401,9 @@ impl ControllerDescription {
         self.check_views(&ids)
     }
 
-    /// Every hotspot names a button, at most once per view, and every button has a
-    /// hotspot in at least one view.
+    /// Every tab names listed modes and shows once per mode. Every setting is a new JSON
+    /// pointer into a settings group, a number's min is not above its max, and each flag
+    /// a flag excludes is a flag of the same mode.
     fn check_settings(&self, modes: &BTreeSet<Mode>) -> std::result::Result<(), String> {
         for page in &self.settings {
             if let Some(mode) = page.modes.iter().find(|m| !modes.contains(m)) {
@@ -420,7 +421,7 @@ impl ControllerDescription {
                 if number.min > number.max {
                     return Err(format!("setting '{}' has min above max", number.field));
                 }
-                if !number.field.starts_with('/') || !fields.insert(number.field.as_str()) {
+                if !is_settings_pointer(&number.field) || !fields.insert(number.field.as_str()) {
                     return Err(format!(
                         "setting '{}' in {mode} mode is not a new JSON pointer",
                         number.field
@@ -428,7 +429,7 @@ impl ControllerDescription {
                 }
             }
             for flag in self.flags(mode) {
-                if !flag.field.starts_with('/') || !fields.insert(flag.field.as_str()) {
+                if !is_settings_pointer(&flag.field) || !fields.insert(flag.field.as_str()) {
                     return Err(format!(
                         "setting '{}' in {mode} mode is not a new JSON pointer",
                         flag.field
@@ -447,6 +448,8 @@ impl ControllerDescription {
         Ok(())
     }
 
+    /// Every hotspot names a button, at most once per view, and every button has a
+    /// hotspot in at least one view.
     fn check_views(&self, button_ids: &BTreeSet<&str>) -> std::result::Result<(), String> {
         let mut view_ids = BTreeSet::new();
         let mut placed = BTreeSet::new();
@@ -471,6 +474,15 @@ impl ControllerDescription {
             .find(|id| !placed.contains(*id))
             .map_or(Ok(()), |id| Err(format!("button '{id}' has no hotspot")))
     }
+}
+
+/// Whether `pointer` is a JSON pointer into a settings group, not into a field every
+/// profile has, such as `/name`.
+fn is_settings_pointer(pointer: &str) -> bool {
+    pointer
+        .strip_prefix('/')
+        .and_then(|path| path.split('/').next())
+        .is_some_and(|group| !group.is_empty() && !PROFILE_FIELDS.contains(&group))
 }
 
 fn invalid(e: &dyn std::fmt::Display) -> Error {
@@ -611,7 +623,9 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 15] = [
+        let cases: [fn(&mut Value); 17] = [
+            |v| v["settings"][1]["frames"][0]["sliders"][0]["low"]["field"] = json!("/name"),
+            |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/mode"),
             |v| v["settings"][1]["modes"] = json!(["dinput"]),
             |v| v["settings"][1]["id"] = json!("sticks"),
             |v| v["settings"][0]["frames"][0]["sliders"][0]["low"]["min"] = json!(95),

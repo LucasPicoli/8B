@@ -1,8 +1,7 @@
 //! Remap and the three settings patches: read the slot, change a few fields of its
 //! canonical profile, write it back. Everything else in the slot stays as read.
 //!
-//! Ports `remapButton`, `patchSticks`, `patchTriggers` and `patchVibration`. Unlike the
-//! C++ code, every patched field is range checked here, and the slot's macros are kept.
+//! Every patched field is range checked, and the slot's macros are kept.
 
 use serde_json::Value;
 

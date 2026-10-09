@@ -1,9 +1,8 @@
 //! Write operations of the real hidraw transport.
 //!
-//! Each function opens its own session (as the C++ `ProfileWriteService` does), builds
-//! packets with [`crate::protocol::wire_write`], and maps failures to the categories
-//! the C++ code used: transfer failure on a simple command is [`Error::Timeout`], a
-//! rejected response is [`Error::Write`].
+//! Each function opens its own session, builds packets with
+//! [`crate::protocol::wire_write`], and maps failures to categories: transfer failure on
+//! a simple command is [`Error::Timeout`], a rejected response is [`Error::Write`].
 
 use std::time::Duration;
 

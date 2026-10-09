@@ -1,6 +1,6 @@
 //! Error types and the stable exit-code contract.
 
-/// Classification of an error, mapped 1:1 from the C++ `core::ErrorCategory`.
+/// Classification of an error.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorCategory {

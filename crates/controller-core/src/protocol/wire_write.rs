@@ -1,7 +1,6 @@
 //! 64-byte packet builders and response validators for the write half of the
 //! config protocol (profile write, apply, macro erase, macro write).
 //!
-//! Ports the anonymous-namespace helpers of C++ `profile_write_service.cpp`.
 //! Read-side packets live in [`super::wire`].
 
 use crate::error::{Error, Result};
@@ -64,8 +63,8 @@ fn len_u16(len: usize) -> u16 {
 
 /// Builds a `PROFILE_WRITE` packet for `chunk` at `offset` of a `blob_size`-byte blob.
 ///
-/// The payload and its CRC window start at [`PAYLOAD_OFFSET`] in every mode. The C++
-/// oracle put `DInput` payloads at 16; the official app's `DInput` writes use 18.
+/// The payload and its CRC window start at [`PAYLOAD_OFFSET`] in every mode; the
+/// official app's `DInput` writes use 18 too.
 #[must_use]
 pub fn build_write_packet(offset: u16, chunk: &[u8], blob_size: u16) -> [u8; PACKET_LEN] {
     let mut p = header(CMD_PROFILE_WRITE, 0x00);
@@ -175,7 +174,7 @@ pub fn validate_command_response(resp: &[u8], command: u8) -> Result<()> {
     Ok(())
 }
 
-/// Macro responses carry `02 04` then byte 2 of `04` or `05` (the C++ hardware notes).
+/// Macro responses carry `02 04` then byte 2 of `04` or `05`, as seen on hardware.
 fn check_macro_header(resp: &[u8], command: u8, name: &str) -> Result<()> {
     check_len(resp, name)?;
     let head = take(resp, 0, 3)?;

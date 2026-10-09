@@ -4,7 +4,7 @@ use serde_json::{json, Map, Value};
 
 use super::ids::Mode;
 
-/// A single macro step — in-memory representation mirroring the C++ model.
+/// A single macro step, in memory.
 ///
 /// Canonical macro JSON (per `schemas/macro-v1.schema.json`, with its nested
 /// `repeat` and `actions.buttons.press/release` shape) is produced and consumed
@@ -45,7 +45,7 @@ impl Default for MacroStep {
     }
 }
 
-/// A complete macro definition — the in-memory representation mirroring the C++ model.
+/// A complete macro definition, in memory.
 ///
 /// Canonical macro JSON (per `schemas/macro-v1.schema.json`, with its nested
 /// `repeat` and `actions.buttons.press/release` shape) is produced and consumed
@@ -105,7 +105,7 @@ pub const STICK_CENTER: u8 = 127;
 /// ALWAYS emitted (with `press`+`release` arrays; the wire format only tracks
 /// the currently-pressed set, so `release` is always empty); `left_stick`,
 /// `right_stick` and `triggers` are OMITTED when at their defaults (stick
-/// `127/127`, triggers `0/0`). Faithful port of `MacroDecoder::toJson`.
+/// `127/127`, triggers `0/0`).
 #[must_use]
 pub fn macro_to_json(def: &MacroDefinition, device: &str) -> Value {
     let steps: Vec<Value> = def.steps.iter().map(step_to_json).collect();
@@ -128,7 +128,7 @@ pub fn macro_to_json(def: &MacroDefinition, device: &str) -> Value {
 fn step_to_json(step: &MacroStep) -> Value {
     let mut actions = Map::new();
 
-    // Buttons — always emitted; `release` mirrors the C++ (always empty).
+    // Buttons: always emitted; `release` is always empty.
     let press: Vec<Value> =
         step.pressed_buttons.iter().map(|name| Value::String(name.clone())).collect();
     actions.insert("buttons".to_owned(), json!({ "press": press, "release": Vec::<Value>::new() }));

@@ -1,8 +1,7 @@
 //! Write verbs: upload, deactivate, remap and the three patches.
 //!
 //! Each handler builds a [`ProfileWriteOrchestrator`] over the attached controller and
-//! prints its [`WriteResult`] as JSON. Mirrors `emitWriteResult` and the `run*` write
-//! adapters in the C++ `src/main.cpp`.
+//! prints its [`WriteResult`] as JSON.
 
 use std::io::{BufRead as _, IsTerminal as _, Write as _};
 use std::path::Path;
@@ -19,8 +18,7 @@ use crate::commands::{emit_json, error_category_label};
 
 /// Exit code for a write the user declined or that needs `--force`.
 ///
-/// The C++ code returns 0 here although its comment promises 2. A script must not read
-/// a refused write as a success, so this port follows the comment.
+/// A script must not read a refused write as a success, so this is not 0.
 const EXIT_ABORTED: i32 = 2;
 
 /// Builds the write JSON payload and exit code.

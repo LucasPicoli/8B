@@ -26,7 +26,7 @@ use crate::protocol::wire_write::PACKET_LEN;
 const SYSFS_USB_DEVICES: &str = "/sys/bus/usb/devices";
 /// Reply budget on the read path: the vendor app reads up to 10 times, 200 ms each.
 pub(super) const READ_TIMEOUT: Duration = Duration::from_secs(2);
-/// Reply budget on the write path (the C++ default).
+/// Reply budget on the write path.
 pub(super) const WRITE_TIMEOUT: Duration = Duration::from_secs(5);
 /// Wait after the pause command so the input stream stops before the drain.
 const PAUSE_SETTLE: Duration = Duration::from_millis(500);

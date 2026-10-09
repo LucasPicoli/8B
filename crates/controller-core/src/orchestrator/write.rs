@@ -1,10 +1,9 @@
 //! Write orchestrator: the one pipeline behind upload, deactivate, remap and the patches.
 //!
-//! Ports `ProfileWriteOrchestrator`. Every operation reads the slot back first, builds the
-//! new blob from that readback, then does slot select, write, apply, with rollback if the
-//! write fails. Building from the readback is what keeps the other slots intact, and the
-//! macro handling in [`ProtocolCodec::compile_profile_keep_macros`] keeps the target slot's
-//! macros (the C++ pipeline clears them).
+//! Every operation reads the slot back first, builds the new blob from that readback,
+//! then does slot select, write, apply, with rollback if the write fails. Building from
+//! the readback is what keeps the other slots intact, and the macro handling in
+//! [`ProtocolCodec::compile_profile_keep_macros`] keeps the target slot's macros.
 
 use std::path::Path;
 
@@ -158,7 +157,9 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         if let Err(e) = self.check_slot(slot) {
             return failure_from(mode, slot, &e);
         }
-        let rb = match readback_and_confirm(self.dev, self.model, mode, slot, policy) {
+        let rb = match readback_and_confirm(self.dev, self.model, mode, slot, policy)
+            .and_then(|rb| self.check_model().map(|()| rb))
+        {
             Ok(rb) => rb,
             Err(e) => return failure_from(mode, slot, &e),
         };
@@ -186,6 +187,20 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             }
         }
         result
+    }
+
+    /// Refuses to go on when the read the device last made identified another model
+    /// than the one this orchestrator compiles for, such as after a pad swap on the port.
+    pub(super) fn check_model(&self) -> Result<()> {
+        let attached = self.dev.model()?.description()?;
+        if std::ptr::eq(attached, self.model.description()?) {
+            Ok(())
+        } else {
+            Err(Error::Validation(format!(
+                "The controller is now a {}. Read it again before writing.",
+                attached.display_name
+            )))
+        }
     }
 
     /// Refuses a slot past the model's slot count, before any device access.

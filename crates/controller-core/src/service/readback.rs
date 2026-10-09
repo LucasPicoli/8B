@@ -1,7 +1,7 @@
 //! Pre-write readback: read the mode's blob, check whether the target slot is
 //! occupied, and apply the confirmation policy before anything is overwritten.
 //!
-//! Ports `PreWriteReadbackService::readbackAndConfirm`. The blob it returns is both the
+//! The blob it returns is both the
 //! rollback backup and the read-modify-write base for `compile_profile`, which is how
 //! the macros already on the controller survive a write.
 

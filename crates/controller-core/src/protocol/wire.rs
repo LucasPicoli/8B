@@ -73,7 +73,7 @@ pub fn build_upload_packet(offset: u16, chunk: &[u8], blob_size: u16) -> [u8; PA
 
 /// Decodes a `PROFILE_UPLOAD` response and extracts the payload chunk.
 ///
-/// Validates (matching C++ `decodeUploadChunk`): `resp.len() >= 64`; header
+/// Validates: `resp.len() >= 64`; header
 /// `[0..3] == [02 04 04]`; command echo `[4] == 0x02`; echoed size at `[6..8]`
 /// equals `expected_chunk_size`; echoed offset at `[14..16]` equals
 /// `expected_offset`. Returns `resp[18..18+echo_size]`.

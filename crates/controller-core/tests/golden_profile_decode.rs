@@ -2,7 +2,7 @@
 //!
 //! Each test decodes a real-hardware blob fixture and compares the canonical
 //! profile (as `serde_json::Value`, so key order is irrelevant) against the
-//! JSON exported by the C++ tool from the same blob.
+//! golden JSON of the same blob.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

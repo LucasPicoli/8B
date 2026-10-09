@@ -1,10 +1,7 @@
 //! Pro 3 macro decoder — `decode_macro_metadata`, `decode_macro_steps`, and the
 //! canonical-JSON serializer.
 //!
-//! A faithful port of `core::MacroDecoder` from `src/core/macro_decoder.cpp`
-//! (with the `bitmaskToStepButtonNames` / `keyMapToTriggerName` tables from
-//! `src/core/macro_models.cpp`). Verified byte-for-byte against golden vectors
-//! captured from the C++ encoder/decoder (`tests/golden_macro_decode.rs`).
+//! Verified byte for byte against golden vectors (`tests/golden_macro_decode.rs`).
 //!
 //! All variable-offset reads go through the bounds-checked
 //! [`crate::protocol::bytes`] accessors so the decoder is panic-free even on
@@ -22,7 +19,7 @@ use crate::protocol::bytes::{
 use crate::protocol::text::encode_utf16be_name;
 
 /// Converts a 16-bit step-button bitmask to canonical names, ordered by bit
-/// position. Port of `macro_models.cpp::bitmaskToStepButtonNames`.
+/// position.
 fn bitmask_to_step_button_names(keys: u16) -> Vec<String> {
     tables::STEP_BUTTONS
         .iter()
@@ -32,8 +29,7 @@ fn bitmask_to_step_button_names(keys: u16) -> Vec<String> {
 }
 
 /// Converts a 32-bit `KeyMap` value to its canonical trigger name, or `""` when
-/// it matches no single-button trigger. Port of
-/// `macro_models.cpp::keyMapToTriggerName`.
+/// it matches no single-button trigger.
 fn key_map_to_trigger_name(key_map: u32) -> String {
     tables::TRIGGERS
         .iter()
@@ -47,11 +43,11 @@ fn key_map_to_trigger_name(key_map: u32) -> String {
 /// `0x068C + (slot-1) * 216 + 8 + i * 52`, skipping empty slots
 /// (`key_map == 0 && max_steps == 0`). Each returned definition carries
 /// metadata only — its `steps` are left empty (filled separately from the step
-/// stream). Faithful port of `MacroDecoder::decodeMetadata`.
+/// stream).
 ///
 /// # Errors
 /// Returns [`crate::Error::Decode`] only via the bounds-checked readers; in
-/// practice a truncated descriptor simply terminates the scan, matching the C++.
+/// practice a truncated descriptor simply terminates the scan.
 pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<MacroDefinition>> {
     let mut result = Vec::new();
 
@@ -63,7 +59,7 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
     for macro_index in 0..tables::MACRO_SLOTS_PER_PROFILE {
         let descriptor_offset = slot_base + (macro_index * tables::MACRO_DESCRIPTOR_SIZE);
 
-        // A descriptor that does not fully fit terminates the scan (matches C++).
+        // A descriptor that does not fully fit terminates the scan.
         let Ok(descriptor) = take(blob, descriptor_offset, tables::MACRO_DESCRIPTOR_SIZE) else {
             break;
         };
@@ -96,7 +92,7 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
             repeat_count,
             interval_ms,
             // Pre-populate with `max_steps` default entries so callers know how
-            // many steps to read from flash (mirrors C++ `macro.steps.resize(maxSteps)`).
+            // many steps to read from flash.
             steps: vec![MacroStep::default(); usize::from(max_steps)],
             macro_slot,
         });
@@ -106,7 +102,7 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
 }
 
 /// Maps the `gamepad_mode` descriptor byte to a [`Mode`] (`3` → `XInput`, `1` → `DInput`,
-/// else `Switch`). Extends `MacroDecoder::gamepadByteToMode`, which has no `DInput`.
+/// else `Switch`).
 const fn gamepad_byte_to_mode(byte: u8) -> Mode {
     match byte {
         tables::MACRO_GAMEPAD_MODE_XINPUT => Mode::XInput,
@@ -120,12 +116,11 @@ const fn gamepad_byte_to_mode(byte: u8) -> Mode {
 /// Each record is `ms_time` LE16, `keys` LE16, `trigger_value` LE16, `left_joy`
 /// LE16 (`(Y<<8)|X`), `right_joy` LE16. L2/R2 decode is mode-aware: in `XInput`
 /// they come from `trigger_value` (`(L2<<8)|R2`) and the top two `keys` bits are
-/// cleared; in Switch they are the `keys` bits 14–15 (0 or 255). Faithful port
-/// of `MacroDecoder::decodeStepStream`.
+/// cleared; in Switch they are the `keys` bits 14 to 15 (0 or 255).
 ///
 /// # Errors
 /// Returns [`crate::Error::Decode`] only via the bounds-checked readers; a
-/// record that does not fully fit terminates the walk, matching the C++.
+/// record that does not fully fit terminates the walk.
 pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec<MacroStep>> {
     let is_xinput = mode == Mode::XInput;
     let mut result = Vec::with_capacity(count);
@@ -133,7 +128,7 @@ pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec
     for i in 0..count {
         let offset = i * tables::MACRO_STEP_RECORD_SIZE;
 
-        // A record that does not fully fit terminates the walk (matches C++).
+        // A record that does not fully fit terminates the walk.
         let Ok(record) = take(stream, offset, tables::MACRO_STEP_RECORD_SIZE) else {
             break;
         };
@@ -222,7 +217,7 @@ fn macro_mode_byte(mode: Mode) -> u8 {
 ///
 /// Each step is encoded as a 10-byte `record_content_t` (all fields LE16).
 /// The output is zero-padded to the next 32-byte boundary; empty input
-/// produces an empty `Vec`. Faithful port of `macro_encoder.cpp::encodeStepStream`.
+/// produces an empty `Vec`.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] if any `step.pressed_buttons` entry is unknown.
@@ -278,7 +273,7 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
 /// Encodes a macro's 52-byte Section-4 metadata descriptor (`record_macro_content_t`).
 ///
 /// The descriptor is zero-initialized then individual fields are written at their
-/// canonical offsets. Faithful port of `macro_encoder.cpp::encodeMetadata`.
+/// canonical offsets.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] if `def.trigger` is unknown or if

@@ -1,7 +1,7 @@
 //! The `export` command: read every profile and save each as canonical JSON.
 //!
-//! Mirrors `runExport` and `ProfileExportService` in the C++ code. The files are what
-//! `upload` takes back, so an export is also the restorable backup of a mode's slots.
+//! The files are what `upload` takes back, so an export is also the restorable backup
+//! of a mode's slots.
 
 use std::path::{Path, PathBuf};
 
@@ -16,7 +16,7 @@ use controller_core::transport::{DeviceIo as _, HidrawDevice};
 
 use crate::commands::{emit_json, error_category_label, mode_label};
 
-/// `profile-<mode>-slot-<N>-index-<N>.json`, as the C++ export names it.
+/// `profile-<mode>-slot-<N>-index-<N>.json`.
 fn file_name(p: &CanonicalProfileSummary) -> String {
     format!("profile-{}-slot-{}-index-{}.json", p.mode, p.source_slot, p.source_profile_index)
 }

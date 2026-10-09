@@ -1,6 +1,6 @@
 //! Rollback after a failed profile write, and the on-disk backup of last resort.
 //!
-//! Ports `WriteRollbackService`. When a write fails and the slot held a profile, the
+//! When a write fails and the slot held a profile, the
 //! backup blob from [`super::readback`] is written back and applied. If that fails too,
 //! the blob is saved to a file so the user can restore it by hand.
 

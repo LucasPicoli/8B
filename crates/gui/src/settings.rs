@@ -185,8 +185,10 @@ fn copy_rows<T: Clone + PartialEq + 'static>(old: &ModelRc<T>, new: &ModelRc<T>)
 /// Pushes the settings tabs, in place where their shape holds.
 pub fn render_settings(state: &AppState, ui: &AppWindow) {
     let new = pages(state);
-    // Another model can have fewer tabs: fall back to Buttons.
-    if usize::try_from(ui.get_tab()).is_ok_and(|tab| tab > new.len()) {
+    // Another model can have fewer tabs: fall back to Buttons. An empty slot has no pages
+    // but keeps its tabs, so count the tabs the description gives the mode.
+    let tabs = state.selected_slot().map_or(0, |(mode, _)| state.description().pages(mode).count());
+    if usize::try_from(ui.get_tab()).is_ok_and(|tab| tab > tabs) {
         ui.set_tab(0);
     }
     let old = ui.get_pages();

@@ -1,7 +1,6 @@
 //! Read services: thin orchestration of [`DeviceIo`] + codec calls.
 //!
-//! Ports `macro_read_service.cpp::readMacros`. The C++ read split the banks by
-//! product id; this one reads every bank of the model, so a blob is picked by mode alone.
+//! A read takes every bank of the model, so a blob is picked by mode alone.
 
 use std::collections::BTreeMap;
 
@@ -29,11 +28,8 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 
 /// Reads and decodes all active macros for `profile_slot` in `mode`.
 ///
-/// Faithful port of `MacroReadService::readMacros` from
-/// `src/core/macro_read_service.cpp` (lines ~85-210).
-///
 /// # Control flow
-/// 1. Read all profile blobs.
+/// 1. Refuse a slot past the model's slot count, then read all profile blobs.
 /// 2. Select the mode's blob via [`blob_for_mode`].
 /// 3. Verify the blob is the model's blob size.
 /// 4. Check that `profile_slot` is active; inactive slot → `Err`.
@@ -41,11 +37,13 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 /// 6. For each descriptor, read the step stream and decode it.
 ///
 /// # Errors
-/// - [`Error::Validation`] if the slot is inactive.
+/// - [`Error::Validation`] if the slot is past the model's slot count or inactive.
 /// - [`Error::Usb`] if no blob is available or the blob size mismatches.
 /// - Any [`Error`] propagated from the codec or device I/O.
 pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result<MacroReadResult> {
-    // 1. Read profile blobs.
+    // 1. Refuse a slot past the model's, then read profile blobs. The read identifies
+    // the model again, in case another pad took the port.
+    profile_slot.check(dev.model()?.description()?.slot_count)?;
     let read = dev.read_all_profiles()?;
     let codec = dev.model()?;
     profile_slot.check(codec.description()?.slot_count)?;
@@ -85,8 +83,8 @@ pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result
             if !stream.is_empty() {
                 def.steps = codec.decode_macro_steps(&stream, step_count, def.mode)?;
             }
-            // C++ tolerates an empty stream by keeping metadata-only steps; Rust
-            // propagates a read ERROR via `?` above — stricter than C++.
+            // An empty stream keeps metadata-only steps; a read error propagates via
+            // `?` above.
         } else {
             def.steps.clear();
         }

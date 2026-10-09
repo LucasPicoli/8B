@@ -1,6 +1,6 @@
 //! Hardware macro test: requires a physical 8BitDo Pro 3 on USB with a profile in
 //! `XInput` slot 1. It puts the `x-s1-m0-buttons` fixture macro (trigger `rp`) into macro
-//! slot 0 of that profile, in the C++ `write-macro` order: the profile blob with the new
+//! slot 0 of that profile, in this order: the profile blob with the new
 //! descriptor, then the step stream. It then reads both back. A second test gives `rp`
 //! the output X and removes the macro, the way the window does on a pick. Run with:
 //!   `cargo test -p controller-core --features hardware --test hardware_macro -- --ignored`

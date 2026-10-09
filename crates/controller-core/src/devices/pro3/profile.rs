@@ -1,11 +1,7 @@
 //! Pro 3 profile decoder (`map_profile`) and compiler (`compile_profile`).
 //!
-//! The decoder is a faithful port of `core::ProfileMapper::mapProfile` from
-//! `src/core/profile_mapper.cpp`. The compiler is a faithful port of
-//! `core::ProfileCompiler::compile` from `src/core/profile_compiler.cpp`.
-//! Both are verified byte-for-byte against golden vectors captured from live
-//! hardware and the C++ reference encoder (`tests/golden_profile_compile.rs`,
-//! `tests/golden_profile_decode.rs`).
+//! Both are verified byte for byte against golden vectors captured from live
+//! hardware (`tests/golden_profile_compile.rs`, `tests/golden_profile_decode.rs`).
 //!
 //! All variable-offset reads/writes go through the bounds-checked
 //! [`crate::protocol::bytes`] accessors so both codec paths are panic-free
@@ -64,27 +60,26 @@ fn marker_at(payload: &[u8], offset: usize) -> bool {
     take(payload, offset, tables::SLOT_MARKER.len()).is_ok_and(|s| s == tables::SLOT_MARKER)
 }
 
-/// Reads a single byte, returning 0 when out of range (mirrors C++ `readByteAt`).
+/// Reads a single byte, returning 0 when out of range.
 fn byte_at(payload: &[u8], offset: usize) -> u8 {
     read_u8(payload, offset).unwrap_or(0)
 }
 
-/// Reads a 4-byte encoding, returning zeros when out of range
-/// (mirrors C++ `readBytesAt(.., 4)`).
+/// Reads a 4-byte encoding, returning zeros when out of range.
 fn bytes4_at(payload: &[u8], offset: usize) -> [u8; 4] {
     take(payload, offset, 4).map_or(tables::NULL_ENCODING, |slice| {
         <[u8; 4]>::try_from(slice).unwrap_or(tables::NULL_ENCODING)
     })
 }
 
-/// Converts a raw byte to a clamped 0..=100 percentage using `qRound` semantics
-/// (round-half-up for the non-negative values produced here).
+/// Converts a raw byte to a clamped 0..=100 percentage, rounding half up (the values
+/// here are never negative).
 fn to_percent(raw: u8, raw_max: i32) -> i32 {
     if raw_max <= 0 {
         return 0;
     }
     let value = (f64::from(raw) * 100.0) / f64::from(raw_max);
-    // qRound(d) = floor(d + 0.5) for d >= 0; clamp into 0..=100 before the cast
+    // Round half up: floor(d + 0.5) for d >= 0; clamp into 0..=100 before the cast
     // so the result is provably representable as i32.
     let rounded = (value + 0.5).floor().clamp(0.0, 100.0);
     // Safe: `rounded` is in [0.0, 100.0] and integral.
@@ -95,8 +90,8 @@ fn to_percent(raw: u8, raw_max: i32) -> i32 {
 
 /// Decodes the LE16 mode field (a readback artifact at `0x0012`).
 ///
-/// Kept as a documented parity helper for the C++ `decodeMode` fallback path;
-/// the production decoder prefers `raw.mode_hint`. Exercised by unit tests.
+/// The fallback when no mode hint is known; the production decoder prefers
+/// `raw.mode_hint`. Exercised by unit tests.
 #[cfg(test)]
 fn decode_mode_field(payload: &[u8], layout: DecodeLayout) -> Option<Mode> {
     let offset = layout.adjust(tables::MODE_OFFSET);
@@ -138,8 +133,8 @@ fn has_target_only_output(entries: &[ButtonEncodingEntry], value: [u8; 4]) -> bo
 
 /// Resolves the target-control name for a single button entry.
 ///
-/// Port of C++ `decodeTargetControl`, except step 8: a value that matches no table
-/// entry decodes as [`UNRECOGNISED_OUTPUT`], where C++ guessed identity.
+/// A value that matches no table entry decodes as [`UNRECOGNISED_OUTPUT`] (step 8),
+/// never as a guessed identity.
 fn decode_target_control(
     entries: &[ButtonEncodingEntry],
     source_index: usize,
@@ -362,13 +357,13 @@ fn decode_vibration(payload: &[u8], source_slot: u8, layout: DecodeLayout) -> Vi
     Vibration { left_level: scale_vibration(left), right_level: scale_vibration(right) }
 }
 
-/// Maps a normalized vibration float to a clamped 0..=5 level (`qRound`-equiv).
+/// Maps a normalized vibration float to a clamped 0..=5 level, rounding half up.
 fn scale_vibration(value: f32) -> i32 {
     if !value.is_finite() {
         return 0;
     }
     let scaled = f64::from(value * tables::VIBRATION_LEVEL_SCALE);
-    // qRound for floats: floor(x + 0.5); clamp into the level range before the
+    // Round half up: floor(x + 0.5); clamp into the level range before the
     // cast so the result is provably representable as i32.
     let rounded = (scaled + 0.5).floor().clamp(0.0, f64::from(tables::VIBRATION_LEVEL_MAX));
     // Safe: `rounded` is in [0.0, 5.0] and integral.
@@ -391,7 +386,7 @@ fn detect_source_slot(payload: &[u8], layout: DecodeLayout) -> u8 {
 
 /// Decodes a raw Pro 3 profile blob into a canonical profile summary.
 ///
-/// Faithful port of `core::ProfileMapper::mapProfile`. The profile mode is
+/// The profile mode is
 /// taken from `raw.mode_hint` (always set on readback); the mode field at
 /// `0x0012` is only consulted as a fallback.
 ///
@@ -528,7 +523,7 @@ pub fn default_profile(mode: Mode) -> CanonicalProfile {
 }
 
 // ============================================================================
-// Compiler — `compile_profile` (faithful inverse of `map_profile`)
+// Compiler: `compile_profile`, the inverse of `map_profile`
 // ============================================================================
 
 // Device-native (shifted −2) layout offsets used by the compiler.
@@ -587,11 +582,11 @@ const MODE_DINPUT: u16 = 0x0001;
 /// Mode LE16 encoding: `XInput`.
 const MODE_XINPUT: u16 = 0x0003;
 
-/// Converts a percent (0..=100) to the stick raw byte using `qRound` semantics
-/// (round-half-up for non-negative values, clamp to `0..=STICK_RAW_MAX`).
+/// Converts a percent (0..=100) to the stick raw byte, rounding half up and clamping
+/// to `0..=STICK_RAW_MAX`.
 fn percent_to_stick_byte(pct: i32) -> u8 {
     let clamped = pct.clamp(0, 100);
-    // qRound: round(clamped * 128 / 100) — use f64 to match C++ qRound(double).
+    // Round half up: round(clamped * 128 / 100), in f64 so .5 ties land the same way.
     let raw = (f64::from(clamped) * f64::from(tables::STICK_RAW_MAX) / 100.0 + 0.5).floor();
     // Safe: raw in [0.0, 128.0], representable as u8.
     #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
@@ -599,8 +594,8 @@ fn percent_to_stick_byte(pct: i32) -> u8 {
     byte
 }
 
-/// Converts a percent (0..=100) to the trigger raw byte using `qRound` semantics
-/// (round-half-up, clamp to `0..=TRIGGER_RAW_MAX`).
+/// Converts a percent (0..=100) to the trigger raw byte, rounding half up and clamping
+/// to `0..=TRIGGER_RAW_MAX`.
 fn percent_to_trigger_byte(pct: i32) -> u8 {
     let clamped = pct.clamp(0, 100);
     let raw = (f64::from(clamped) * f64::from(tables::TRIGGER_RAW_MAX) / 100.0 + 0.5).floor();
@@ -658,8 +653,6 @@ fn write_encoding(name: &str, mode: Mode) -> Result<[u8; 4]> {
 
 /// Compiles a [`CanonicalProfile`] into the device-native 2348-byte blob.
 ///
-/// The compiler is a faithful, section-by-section port of
-/// `core::ProfileCompiler::compile` from `src/core/profile_compiler.cpp`.
 /// The produced blob is shifted −2 from the canonical layout (no 2-byte prefix),
 /// with button-map entries (`0x00E4`) and Section-4 macros (`0x068C`) as the
 /// only non-shifted exceptions.
@@ -677,8 +670,8 @@ fn write_encoding(name: &str, mode: Mode) -> Result<[u8; 4]> {
 /// Returns [`Error::Validation`] on an unknown control/trigger name, an
 /// out-of-range slot, an encoding overflow, or an `unrecognised` target whose
 /// `base_blob` entry does not decode as unrecognised.
-// The function is a faithful section-by-section port of a single C++ function;
-// splitting it would hurt readability more than it helps.
+// The function writes the blob section by section; splitting it would hurt
+// readability more than it helps.
 #[allow(clippy::cognitive_complexity, clippy::too_many_lines)]
 pub fn compile_profile(
     profile: &CanonicalProfile,
@@ -824,7 +817,6 @@ pub fn compile_profile(
     put_slice(&mut buf, btn_marker_off, &tables::SLOT_MARKER)?;
 
     // Build remap-override lookup: source_index → 4-byte wire encoding.
-    // Faithful port of C++ `populateSection3` inner loop.
     let mode = profile.mode;
     // Button-map entries are NOT shifted: canonical 0x00E4.
     let entry_base = DEV_BTN_DATA_BASE + idx * tables::BUTTON_MAP_SLOT_STRIDE;

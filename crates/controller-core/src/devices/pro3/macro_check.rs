@@ -1,6 +1,5 @@
-//! Pro 3 macro validation (schema + semantic). Faithful port of
-//! `macro_validation_service.cpp`. The app reads macros but never imports one, so
-//! only the tests run it.
+//! Pro 3 macro validation (schema + semantic). The app reads macros but never imports
+//! one, so only the tests run it.
 
 use std::collections::BTreeSet;
 
@@ -11,7 +10,6 @@ use crate::error::Result;
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
 /// Button names valid as macro triggers but NOT as step actions.
-/// Port of `macro_validation_service.cpp::invalidStepButtons()`.
 const INVALID_STEP_BUTTONS: [&str; 6] = ["turbo", "lp", "rp", "l4", "r4", "home/guide"];
 
 /// Validates a canonical macro JSON object (schema first, then semantics).
@@ -31,7 +29,7 @@ pub fn validate_macro(macro_json: &Value) -> Result<Vec<ValidationError>> {
     Ok(semantic_errors(macro_json))
 }
 
-/// Accumulates every semantic error (port of `validateSemantics`).
+/// Accumulates every semantic error.
 fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 

@@ -137,6 +137,7 @@ impl ProfileWriteOrchestrator<'_> {
             self.check_slot(job.slot).map_err(|e| fail(job, &e))?;
         }
         let read = self.dev.read_all_profiles().map_err(|e| fail(head, &e))?;
+        self.check_model().map_err(|e| fail(head, &e))?;
         let mut banks: Vec<Bank> = Vec::new();
         let mut outcomes = Vec::new();
         for (i, job) in jobs.iter().enumerate() {

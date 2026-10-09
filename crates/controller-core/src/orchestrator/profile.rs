@@ -1,7 +1,4 @@
 //! Profile orchestrator: detect → read pipeline and raw-blob dump helper.
-//!
-//! Ports `ProfileOrchestrator::detectAndReadAll` and the read step of
-//! `runDump` from `src/core/profile_orchestrator.cpp`.
 
 use crate::error::{Error, ErrorCategory, Result};
 use crate::model::{CanonicalProfileSummary, DeviceReadiness, Mode};
@@ -10,7 +7,6 @@ use crate::transport::device_io::DeviceIo;
 
 /// Result of a full detect → read pipeline.
 ///
-/// Mirrors the C++ `core::DetectAndReadResult` struct field-for-field.
 /// The CLI hand-builds JSON from this; do **not** derive `Serialize`.
 #[derive(Debug, Clone)]
 pub struct DetectAndReadResult {
@@ -71,8 +67,7 @@ fn failure_with_readiness(
 /// Detects a connected device and reads all on-device profiles.
 ///
 /// Infallible at the signature level — failures are captured in the returned
-/// struct (`success = false`, `error_category` set). Ports
-/// `ProfileOrchestrator::detectAndReadAll` from the C++ reference.
+/// struct (`success = false`, `error_category` set).
 ///
 /// # Steps
 /// 1. Probe device readiness via [`DeviceIo::detect_readiness`].
@@ -124,7 +119,7 @@ pub fn detect_and_read_all(dev: &dyn DeviceIo) -> DetectAndReadResult {
 
 /// Detects a connected device, reads all profiles, and returns the raw blobs.
 ///
-/// Ports the read step of `runDump` from `src/main.cpp`.
+/// The read step of `dump`.
 /// Returns `Err` if detection or reading fails, preserving the error category.
 ///
 /// # Errors

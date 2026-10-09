@@ -1,6 +1,5 @@
-//! Profile validation (model schema, then semantic rules). Ports
-//! `profile_validation_service.cpp`, with the settings rules read from the model's
-//! description instead of code.
+//! Profile validation (model schema, then semantic rules), with the settings rules read
+//! from the model's description instead of code.
 
 use std::collections::BTreeSet;
 
@@ -36,7 +35,7 @@ pub fn validate_profile(
     Ok(ProfileValidationResult { profile_id, valid: semantic.is_empty(), errors: semantic })
 }
 
-/// Validates a batch, mirroring the C++ `validateAll`: `all_valid` is `false`
+/// Validates a batch: `all_valid` is `false`
 /// if any profile is invalid; `results` preserves input order.
 ///
 /// # Errors
@@ -68,7 +67,7 @@ fn name(field: &str) -> &str {
     field.rsplit('/').next().unwrap_or(field)
 }
 
-/// Accumulates every semantic error (port of `validateSemantics`).
+/// Accumulates every semantic error.
 ///
 /// The profile must be for this model and one of its modes, hold every setting its
 /// mode declares with a value that fits, and nothing else. No flag may be on together

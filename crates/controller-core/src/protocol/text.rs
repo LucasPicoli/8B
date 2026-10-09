@@ -2,8 +2,7 @@
 
 /// Decodes a UTF-16BE name field, stopping at the first NUL unit.
 ///
-/// Does **not** trim surrounding whitespace — matches C++ `decodeName`
-/// (`profile_mapper.cpp`), which appends code points verbatim until NUL.
+/// Does **not** trim surrounding whitespace: code points are kept verbatim until NUL.
 #[must_use]
 pub fn decode_utf16be_name(bytes: &[u8]) -> String {
     let mut units: Vec<u16> = Vec::with_capacity(bytes.len() / 2);
@@ -49,7 +48,7 @@ mod tests {
 
     #[test]
     fn preserves_surrounding_whitespace() {
-        // C++ `decodeName` does not trim — a leading/trailing space must survive.
+        // No trim: a leading or trailing space must survive.
         let bytes = [0x00, b' ', 0x00, b'A', 0x00, b' ', 0x00, 0x00];
         assert_eq!(decode_utf16be_name(&bytes), " A ");
     }

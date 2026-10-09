@@ -9,5 +9,5 @@ pub use macros::{MacroDefinition, MacroStep};
 pub use outcome::{DeviceReadiness, WriteResult};
 pub use profile::{
     ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroRef, ProfileReadResult,
-    RawProfilePayload,
+    RawProfilePayload, PROFILE_FIELDS,
 };

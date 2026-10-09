@@ -1,10 +1,10 @@
-//! Ports `macro_validation_service_test.cpp` (+ key `macro_schema_test.cpp` cases).
+//! Pro 3 macro validation: semantic rules and the macro schema.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::devices::pro3::macro_check::validate_macro;
 use serde_json::{json, Value};
 
-/// Minimal valid macro JSON — mirrors C++ `makeValidMacro()`.
+/// Minimal valid macro JSON.
 fn make_valid_macro() -> Value {
     json!({
         "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
@@ -16,7 +16,7 @@ fn make_valid_macro() -> Value {
     })
 }
 
-/// Replace a step's press/release arrays — mirrors C++ `setStepButtons()`.
+/// Replace a step's press/release arrays.
 /// Direct `IndexMut` assignment unambiguously *moves* `press`/`release` into the
 /// tree (no `json!` borrow ambiguity, no `needless_pass_by_value`).
 fn set_step_buttons(mut macro_json: Value, step: usize, press: Value, release: Value) -> Value {
@@ -36,7 +36,7 @@ fn valid_macro_passes_validation() {
     assert_eq!(validate_macro(&make_valid_macro()).unwrap(), []);
 }
 
-// --- Schema-caught failures (C++ asserts only non-empty) ---------------------
+// --- Schema-caught failures ------------------------------------------------
 
 #[test]
 fn zero_steps_fails_schema() {
@@ -99,7 +99,7 @@ fn button_in_both_press_and_release_fails() {
     let errors = validate_macro(&m).unwrap();
     assert_ne!(errors, []);
     assert!(errors.iter().any(|e| e.reason.contains("both press and release")));
-    // Exact ported message + path.
+    // Exact message + path.
     assert!(errors.iter().any(|e| e.path == "/steps/0/actions/buttons"
         && e.reason == "Step 0: 'bottom face' appears in both press and release."));
 }
@@ -126,7 +126,7 @@ fn multiple_semantic_errors_reported() {
     assert!(errors.iter().any(|e| e.reason.contains("Step 1")));
 }
 
-// --- Schema-specific cases ported from macro_schema_test.cpp -----------------
+// --- Schema-specific cases --------------------------------------------------
 
 #[test]
 fn additional_properties_fails_schema() {

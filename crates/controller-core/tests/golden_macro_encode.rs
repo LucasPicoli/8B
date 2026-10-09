@@ -9,7 +9,7 @@ const SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET: usize = 0x0694; // slot1 macro0 in m
 
 #[test]
 fn macro_steps_encode_is_byte_exact_inverse_of_decoder() {
-    // macro-sample.steps.bin is real C++-encoder output (32B = 3 steps padded).
+    // macro-sample.steps.bin is a golden step stream (32B = 3 steps padded).
     let golden = std::fs::read("../../fixtures/pro3/macro-sample.steps.bin").unwrap();
     let steps = Pro3.decode_macro_steps(&golden, 3, Mode::XInput).unwrap();
     let reencoded = Pro3.encode_macro_steps(&steps, Mode::XInput).unwrap();

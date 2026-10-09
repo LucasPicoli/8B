@@ -29,7 +29,7 @@ pub struct DeviceReadiness {
 
 /// Outcome of a write operation, including rollback details on failure.
 ///
-/// Field names match the JSON the C++ CLI emits.
+/// Field names match the JSON the CLI emits.
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct WriteResult {
     /// Whether the write completed.

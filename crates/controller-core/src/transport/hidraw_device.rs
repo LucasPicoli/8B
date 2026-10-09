@@ -58,11 +58,13 @@ impl HidrawDevice {
         Target { port: self.port.as_deref() }
     }
 
-    /// Opens a read session and remembers the model it identified.
+    /// Opens a read session and remembers the model it identified. A failed open
+    /// forgets the model, so a pad that no longer answers as it is not taken for it.
     fn read_session(&self) -> Result<Session> {
-        let session = Session::open(self.target(), READ_TIMEOUT)?;
-        *self.model.lock().unwrap_or_else(PoisonError::into_inner) = Some(session.model()?);
-        Ok(session)
+        let opened = Session::open(self.target(), READ_TIMEOUT);
+        let model = opened.as_ref().ok().map(Session::model).transpose()?;
+        *self.model.lock().unwrap_or_else(PoisonError::into_inner) = model;
+        opened
     }
 }
 
@@ -95,7 +97,7 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
         let chunk_size_u16 = chunk_size as u16;
         let pkt = build_upload_packet(offset_u16, &filler, size_u16);
         let resp = session.send_recv(&pkt)?;
-        // Validate the echoed offset/size against what we requested (matches C++).
+        // Validate the echoed offset/size against what we requested.
         let payload = decode_upload_response(&resp, offset_u16, chunk_size_u16)
             .inspect_err(|e| session.log_failure(&pkt, e))?;
         blob.extend_from_slice(&payload);
@@ -122,7 +124,7 @@ fn select_current_bank(session: &mut Session) -> Result<()> {
 }
 
 // ---------------------------------------------------------------------------
-// Empty-slot placeholder (mirrors C++ default-constructed `CanonicalProfileSummary`)
+// Empty-slot placeholder
 // ---------------------------------------------------------------------------
 
 fn empty_summary(model: &dyn Model, mode: Mode, source_slot: u8) -> CanonicalProfileSummary {
@@ -320,8 +322,8 @@ impl crate::transport::DeviceIo for HidrawDevice {
                 return Ok(readiness);
             }
         };
-        // C++ `decodeSlotMarkerFromUploadResponse` reports the LOWEST active slot as a
-        // single digit, and the probe is "verified" only when such a marker is found.
+        // Report the LOWEST active slot as a single digit; the probe is "verified" only
+        // when such a marker is found.
         let lowest = (1..=description.slot_count).find(|&s| {
             Slot::new(s).is_ok_and(|slot| model.slot_active(&blob, slot).unwrap_or(false))
         });

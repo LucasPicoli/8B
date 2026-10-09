@@ -4,9 +4,9 @@
 //! printed labels differ. A button still at its default takes the target mode's
 //! default (Switch turbo takes a screenshot, `XInput` turbo is turbo). Two things can
 //! be lost: an output the target mode lacks becomes [`DISABLED_OUTPUT`], and a settings
-//! group whose declared fields differ in the target mode, such as the Pro 3's triggers
-//! between `XInput` and Switch, starts from the target mode's defaults. Each loss is
-//! listed for the import warning.
+//! group whose declared fields or ranges differ in the target mode, such as the Pro 3's
+//! triggers between `XInput` and Switch, starts from the target mode's defaults. Each
+//! loss is listed for the import warning. A group the target mode lacks is dropped.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -33,12 +33,16 @@ pub enum ConversionLoss {
     },
 }
 
+/// One declared field: its pointer, and its range if it is a number.
+type Field<'a> = (&'a str, Option<(i32, i32)>);
+
 /// The fields `description` declares for `mode`, by settings group.
-fn groups(description: &ControllerDescription, mode: Mode) -> BTreeMap<&str, BTreeSet<&str>> {
-    let mut groups: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+fn groups(description: &ControllerDescription, mode: Mode) -> BTreeMap<&str, BTreeSet<Field<'_>>> {
+    let mut groups: BTreeMap<&str, BTreeSet<Field<'_>>> = BTreeMap::new();
     for field in description.pages(mode).flat_map(SettingsPage::fields) {
         let group = field.trim_start_matches('/').split('/').next().unwrap_or_default();
-        groups.entry(group).or_default().insert(field);
+        let range = description.number(mode, field).map(|n| (n.min, n.max));
+        groups.entry(group).or_default().insert((field, range));
     }
     groups
 }
@@ -86,7 +90,10 @@ pub fn convert_profile(
         }
     }
     let from = groups(description, profile.mode);
-    for (group, fields) in groups(description, to) {
+    let target = groups(description, to);
+    // A group the target mode does not declare has no setting there to keep.
+    converted.settings.retain(|group, _| target.contains_key(group.as_str()));
+    for (group, fields) in target {
         if from.get(group) == Some(&fields) {
             continue;
         }
@@ -104,7 +111,7 @@ fn default_target<'a>(default: &'a CanonicalProfile, source: &str) -> Option<&'a
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::description::UNRECOGNISED_OUTPUT;
@@ -203,5 +210,29 @@ mod tests {
         let (same, losses) = convert(&source, Mode::DInput);
         assert!(losses.is_empty(), "same mode keeps the entry");
         assert_eq!(same, source);
+    }
+
+    #[test]
+    fn a_group_the_target_lacks_goes_and_a_narrower_range_resets() {
+        let mut d = Pro3.description().unwrap().clone();
+        let vibration = d.settings.iter().position(|p| p.id == "vibration").unwrap();
+        d.settings[vibration].modes = vec![Mode::XInput, Mode::DInput];
+        let source = Pro3.default_profile(Mode::XInput);
+        let switch = Pro3.default_profile(Mode::Switch);
+        let (p, losses) = convert_profile(&d, &source, &source, &switch).unwrap();
+        assert!(p.settings.get("vibration").is_none(), "Switch has no vibration here");
+        assert_eq!(losses, [triggers_reset()]);
+
+        // Switch gets its own vibration tab with a narrower range.
+        let mut narrow = d.settings[vibration].clone();
+        narrow.modes = vec![Mode::Switch];
+        for slider in narrow.frames.iter_mut().flat_map(|f| &mut f.sliders) {
+            slider.low.max = 3;
+        }
+        d.settings.push(narrow);
+        let (p, losses) = convert_profile(&d, &source, &source, &switch).unwrap();
+        let reset = ConversionLoss::SettingsReset { group: "vibration".to_owned() };
+        assert!(losses.contains(&reset), "{losses:?}");
+        assert_eq!(p.settings.get("vibration"), switch.settings.get("vibration"));
     }
 }

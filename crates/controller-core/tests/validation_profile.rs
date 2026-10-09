@@ -1,6 +1,5 @@
-//! Ports `profile_validation_service_test.cpp`.
-//! Note: the C++ `schemaNotLoadedReportsError` case is intentionally NOT ported —
-//! schemas are embedded (`include_str!`) and can never be unloaded.
+//! Profile validation: schema and semantic rules. Schemas are embedded
+//! (`include_str!`), so there is no schema-not-loaded case.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec as _;
@@ -9,8 +8,7 @@ use controller_core::model::{CanonicalProfile, CanonicalProfileSummary, Mode};
 use controller_core::service::validation::{validate_all_profiles, validate_profile};
 use serde_json::{json, Value};
 
-/// Minimal valid xinput profile JSON — mirrors C++ `makeValidXInputProfile()`
-/// (empty `button_mappings` is schema-valid; mappings added only where tested).
+/// Minimal valid xinput profile JSON (empty `button_mappings` is schema-valid; mappings added only where tested).
 fn make_valid_xinput_profile() -> Value {
     json!({
         "id": "xinput-slot-1-index-0", "name": "TestProfile", "version": 1,
@@ -29,7 +27,7 @@ fn make_valid_xinput_profile() -> Value {
     })
 }
 
-/// Minimal valid switch profile JSON — mirrors C++ `makeValidSwitchProfile()`.
+/// Minimal valid switch profile JSON.
 fn make_valid_switch_profile() -> Value {
     let mut p = make_valid_xinput_profile();
     p["id"] = json!("switch-slot-1-index-0");
@@ -85,7 +83,7 @@ fn duplicate_macro_triggers_fails_semantic() {
     ]);
     let r = validate_profile(&Pro3, &p).unwrap();
     assert!(!r.valid);
-    // Exact ported message + path (this rule passes schema and reaches semantics).
+    // Exact message + path (this rule passes schema and reaches semantics).
     assert!(r.errors.iter().any(|e| e.path == "/macro_refs/1/trigger"
         && e.reason == "Duplicate macro trigger 'l1'. Each trigger must be unique."));
 }

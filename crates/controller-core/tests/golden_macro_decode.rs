@@ -1,9 +1,8 @@
 //! Golden-vector tests for the Pro 3 macro decoder.
 //!
-//! `macro_steps_decode_to_golden_json` walks the 32-byte step stream produced by
-//! the C++ encoder, rebuilds the macro and compares its canonical JSON (as
-//! `serde_json::Value`, so key order is irrelevant) against the C++-exported
-//! fixture. `macro_metadata_decodes_from_section4` exercises the Section-4
+//! `macro_steps_decode_to_golden_json` walks a golden 32-byte step stream, rebuilds
+//! the macro and compares its canonical JSON (as `serde_json::Value`, so key order is
+//! irrelevant) against the golden fixture. `macro_metadata_decodes_from_section4` exercises the Section-4
 //! descriptor scan against a real 2348-byte profile blob.
 
 // Test module: panic-free lints are relaxed for assertions.

@@ -9,6 +9,19 @@ use serde_json::{Map, Value};
 
 use super::ids::Mode;
 
+/// The fields every profile has, by JSON name. A settings group may not take one.
+pub const PROFILE_FIELDS: [&str; 9] = [
+    "id",
+    "name",
+    "version",
+    "kind",
+    "device",
+    "mode",
+    "preferred_slot",
+    "button_mappings",
+    "macro_refs",
+];
+
 /// A full canonical profile (export/validation shape).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CanonicalProfile {
@@ -158,6 +171,8 @@ mod tests {
         });
         let mut p: CanonicalProfile = serde_json::from_value(json.clone()).unwrap();
         assert_eq!(p.mode, Mode::XInput);
+        let typed = json.as_object().unwrap().keys().filter(|k| !p.settings.contains_key(*k));
+        assert!(typed.into_iter().all(|k| PROFILE_FIELDS.contains(&k.as_str())));
         assert_eq!(serde_json::to_value(&p).unwrap(), json);
         // The settings groups sit where the typed fields were, so exported files keep
         // their field order.

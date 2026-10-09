@@ -14,8 +14,7 @@ const FLAG_STRIDE: usize = 4;
 
 /// Returns `true` if `blob` holds the active-slot marker at the position for `slot`.
 ///
-/// Ports `PreWriteReadbackService::isSlotActive`: `flag_offset = (slot-1) * 4`;
-/// compares 4 bytes against [`ACTIVE_SLOT_MARKER`]. The caller checks the blob size.
+/// `flag_offset = (slot-1) * 4`; compares 4 bytes against [`ACTIVE_SLOT_MARKER`]. The caller checks the blob size.
 ///
 /// # Errors
 /// Returns [`crate::Error::Decode`] if `blob` is too short to hold the marker.

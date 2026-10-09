@@ -1,8 +1,6 @@
 //! Pro 3 profile blob layout constants and per-mode button-encoding tables.
 //!
-//! Ported verbatim from `src/core/profile_mapper.cpp` and `button_names.h` of
-//! the C++ reference implementation. Every magic offset, stride and 4-byte
-//! button encoding lives here as a named, documented constant so the decoder in
+//! Every magic offset, stride and 4-byte button encoding lives here as a named, documented constant so the decoder in
 //! [`super::profile`] reads as plain logic and the golden vectors stay the
 //! single source of truth.
 //!
@@ -419,7 +417,7 @@ pub static DINPUT_ENCODINGS: LazyLock<Vec<ButtonEncodingEntry>> = LazyLock::new(
 // ---------------------------------------------------------------------------
 // Macro Section-4 metadata layout (`record_macro_content_t`, 52B each).
 //
-// Ported from `src/core/macro_decoder.cpp::decodeMetadata`. Section 4 holds, per
+// Section 4 holds, per
 // profile slot, a `record_macro_fun_record_t` (216B): an 8-byte header followed
 // by 4 × 52-byte macro descriptors.
 // ---------------------------------------------------------------------------
@@ -458,8 +456,6 @@ pub const MACRO_GAMEPAD_MODE_DINPUT: u8 = 1;
 
 // ---------------------------------------------------------------------------
 // Macro step layout (`record_content_t`, 10B each).
-//
-// Ported from `src/core/macro_decoder.cpp::decodeStepStream`.
 // ---------------------------------------------------------------------------
 
 /// Size of a single macro step record (`record_content_t`).
@@ -483,8 +479,7 @@ pub const STEP_SWITCH_L2_MASK: u16 = 0x4000;
 pub const STEP_SWITCH_R2_MASK: u16 = 0x8000;
 
 /// A canonical step-button name paired with its 16-bit bitmask, ordered by bit
-/// position for deterministic decode output. Ported from
-/// `src/core/macro_models.cpp::kStepButtons`.
+/// position for deterministic decode output.
 #[derive(Debug, Clone, Copy)]
 pub struct StepButtonEntry {
     /// Canonical step-button name (e.g. `"bottom face"`).
@@ -515,8 +510,7 @@ pub const STEP_BUTTONS: [StepButtonEntry; 16] = [
 
 /// A canonical trigger name paired with its 32-bit `KeyMap` value.
 ///
-/// Ported from `src/core/macro_models.cpp::triggerEncodeTable` (all 21
-/// `MacroTrigger` values); used as a reverse lookup for `keyMapToTriggerName`.
+/// All 21 trigger values; used as a reverse lookup by `key_map_to_trigger_name`.
 #[derive(Debug, Clone, Copy)]
 pub struct TriggerEntry {
     /// Canonical trigger name (e.g. `"l1"`).

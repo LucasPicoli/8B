@@ -24,16 +24,12 @@ use controller_core::transport::DeviceIo as _;
 // ---------------------------------------------------------------------------
 
 /// Maps an [`ErrorCategory`] to its deterministic process exit code.
-///
-/// Mirrors `core::exitCodeForCategory` in `exit_codes.h`.
 #[must_use]
 pub const fn exit_code_for_category(c: ErrorCategory) -> i32 {
     c.exit_code()
 }
 
 /// Returns the stable machine-readable string label for an [`ErrorCategory`].
-///
-/// Mirrors `core::errorCategoryLabel` in `exit_codes.h`.
 #[must_use]
 pub const fn error_category_label(c: ErrorCategory) -> &'static str {
     c.label()
@@ -41,7 +37,7 @@ pub const fn error_category_label(c: ErrorCategory) -> &'static str {
 
 /// Returns the mode string, or `"unknown"` when `None`.
 ///
-/// C++ `runDetect`/`runRead` use "unknown" for an absent mode — never null.
+/// `detect` and `read` print "unknown" for an absent mode, never null.
 #[must_use]
 pub fn mode_label(m: Option<Mode>) -> String {
     m.map_or_else(|| "unknown".to_owned(), |mode| mode.to_string())
@@ -52,8 +48,6 @@ pub fn mode_label(m: Option<Mode>) -> String {
 // ---------------------------------------------------------------------------
 
 /// Builds the detect/readiness JSON payload and exit code.
-///
-/// Mirrors `runDetect` in `src/main.cpp`.
 #[must_use]
 pub fn build_detect_payload(r: &DeviceReadiness) -> (Value, i32) {
     let exit_code = i32::from(!r.supported_device_connected);
@@ -74,8 +68,7 @@ pub fn build_detect_payload(r: &DeviceReadiness) -> (Value, i32) {
 
 /// Builds the read JSON payload and exit code.
 ///
-/// Mirrors `runRead` in `src/main.cpp`.  `error_category` is inserted only
-/// when `!success`, matching the C++ reference exactly.
+/// `error_category` is inserted only when `!success`.
 #[must_use]
 pub fn build_read_payload(out: &DetectAndReadResult) -> (Value, i32) {
     let exit_code = if out.success { 0 } else { exit_code_for_category(out.error_category) };
@@ -97,7 +90,7 @@ pub fn build_read_payload(out: &DetectAndReadResult) -> (Value, i32) {
 
     let profile_count = profiles.len();
 
-    // Build the object field by field to preserve insertion order, matching C++.
+    // Build the object field by field to keep the documented key order.
     let mut map = serde_json::Map::new();
     map.insert("success".to_owned(), Value::Bool(out.success));
     map.insert("exit_code".to_owned(), Value::Number(exit_code.into()));
@@ -117,7 +110,6 @@ pub fn build_read_payload(out: &DetectAndReadResult) -> (Value, i32) {
 
 /// Builds the read-macro success JSON payload and exit code.
 ///
-/// Mirrors the success branch of `runReadMacro` in `src/main.cpp`.
 /// Emits one `macros` entry per macro slot of the model, `macro_slots` of them (4 on a
 /// Pro 3); each active entry carries `trigger`/`name`/`step_count`/`repeat_count`/
 /// `interval_ms`; inactive entries carry only `macro_slot` and `active: false`.
@@ -168,7 +160,6 @@ pub fn build_read_macro_ok_payload(
 
 /// Builds the read-macro failure JSON payload and exit code.
 ///
-/// Mirrors the failure branch of `runReadMacro` in `src/main.cpp`.
 /// An error whose message contains `"no active profile"` maps to exit code 2
 /// (usage error) per the PRD spec.
 #[must_use]
@@ -191,7 +182,7 @@ pub fn build_read_macro_err_payload(mode: Mode, slot: u8, err: &Error) -> (Value
 // Command handlers (open device, call core, emit JSON)
 // ---------------------------------------------------------------------------
 
-/// Emits compact JSON to stdout followed by a newline. Mirrors C++ `emitJson`.
+/// Emits compact JSON to stdout followed by a newline.
 pub fn emit_json(payload: &Value) {
     // `Display` for `Value` produces compact JSON.
     println!("{payload}");
@@ -248,7 +239,7 @@ pub fn run_read() -> i32 {
 /// Runs the `dump` command.
 ///
 /// Writes one raw blob per mode to `output_dir/raw-blob-{i}.bin`.
-/// Not JSON — matches C++ `runDump` exactly.
+/// Not JSON.
 ///
 /// # Returns
 /// Process exit code.
@@ -278,7 +269,7 @@ pub fn run_dump(output_dir: &str) -> i32 {
             }
             Err(e) => {
                 eprintln!("Failed to write {}: {e}", file_path.display());
-                // C++ silently skips on failed open; match that behaviour.
+                // A file that fails to open is skipped; the others are still written.
             }
         }
     }

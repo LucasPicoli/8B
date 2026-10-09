@@ -1,6 +1,6 @@
 //! CLI entry point for the 8BitDo Pro 3 configuration tool.
 //!
-//! Mirrors the C++ `src/main.cpp` subcommands: `detect` (alias `readiness`), `read`,
+//! Subcommands: `detect` (alias `readiness`), `read`,
 //! `export`, `dump`, `read-macro`, and the write verbs `upload`, `deactivate`, `remap`,
 //! `patch-sticks`, `patch-triggers` and `patch-vibration`. The `dev` group adds tools for
 //! reverse engineering a controller the app does not support yet.
