@@ -1,8 +1,8 @@
 //! CLI entry point for the 8BitDo Pro 3 configuration tool.
 //!
 //! Subcommands: `detect` (alias `readiness`), `read`,
-//! `export`, `dump`, `read-macro`, and the write verbs `upload`, `deactivate`, `remap`,
-//! `patch-sticks`, `patch-triggers` and `patch-vibration`. The `dev` group adds tools for
+//! `export`, `dump`, `read-macro`, and the write verbs `upload`, `deactivate`, `remap`
+//! and `set`. The `dev` group adds tools for
 //! reverse engineering a controller the app does not support yet.
 //!
 //! Binary crates cannot expose a public API; suppress the lint that fires for
@@ -16,17 +16,12 @@ pub(crate) mod write;
 
 use std::path::PathBuf;
 
-use clap::builder::BoolishValueParser;
 use clap::{ArgAction, Args, Parser, Subcommand};
 
 use commands::{run_detect, run_dump, run_read, run_read_macro};
 use controller_core::model::{Mode, Slot};
-use controller_core::orchestrator::{StickPatch, TriggerPatch};
 use export::run_export;
 use write::{run_upload, run_write};
-
-/// Exit code for a usage error, as clap uses it.
-const EXIT_USAGE: i32 = 2;
 
 /// 8BitDo Pro 3 CLI.
 ///
@@ -198,135 +193,6 @@ enum Commands {
     /// Tools for reverse engineering a new controller. Plain-text output.
     #[command(subcommand)]
     Dev(DevCommand),
-
-    /// Change stick settings in an occupied slot. Unset options keep their value.
-    #[command(name = "patch-sticks")]
-    PatchSticks {
-        #[command(flatten)]
-        target: Target,
-        #[command(flatten)]
-        sticks: StickArgs,
-    },
-
-    /// Change trigger settings in an occupied slot. Unset options keep their value.
-    #[command(name = "patch-triggers")]
-    PatchTriggers {
-        #[command(flatten)]
-        target: Target,
-        #[command(flatten)]
-        triggers: TriggerArgs,
-    },
-
-    /// Set both vibration levels of an occupied slot.
-    #[command(name = "patch-vibration")]
-    PatchVibration {
-        #[command(flatten)]
-        target: Target,
-        /// Left motor level, 0 to 5 on a Pro 3.
-        #[arg(long)]
-        left: u8,
-        /// Right motor level, 0 to 5 on a Pro 3.
-        #[arg(long)]
-        right: u8,
-    },
-}
-
-/// `patch-sticks` options.
-#[derive(Debug, Args)]
-struct StickArgs {
-    /// Left stick min (dead zone) percent.
-    #[arg(long)]
-    left_min: Option<i32>,
-    /// Left stick max (range) percent.
-    #[arg(long)]
-    left_max: Option<i32>,
-    /// Right stick min (dead zone) percent.
-    #[arg(long)]
-    right_min: Option<i32>,
-    /// Right stick max (range) percent.
-    #[arg(long)]
-    right_max: Option<i32>,
-    /// Invert left stick X (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    invert_left_x: Option<bool>,
-    /// Invert left stick Y (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    invert_left_y: Option<bool>,
-    /// Invert right stick X (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    invert_right_x: Option<bool>,
-    /// Invert right stick Y (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    invert_right_y: Option<bool>,
-    /// Swap the two sticks (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    swap_sticks: Option<bool>,
-    /// Swap the D-pad with the left stick (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    swap_dpad: Option<bool>,
-}
-
-impl From<StickArgs> for StickPatch {
-    fn from(a: StickArgs) -> Self {
-        Self {
-            left_min_pct: a.left_min,
-            left_max_pct: a.left_max,
-            right_min_pct: a.right_min,
-            right_max_pct: a.right_max,
-            invert_left_x: a.invert_left_x,
-            invert_left_y: a.invert_left_y,
-            invert_right_x: a.invert_right_x,
-            invert_right_y: a.invert_right_y,
-            swap_sticks: a.swap_sticks,
-            swap_dpad_with_left_stick: a.swap_dpad,
-        }
-    }
-}
-
-/// `patch-triggers` options.
-#[derive(Debug, Args)]
-struct TriggerArgs {
-    /// Left trigger min percent (xinput, dinput).
-    #[arg(long)]
-    left_min: Option<i32>,
-    /// Left trigger max percent (xinput, dinput).
-    #[arg(long)]
-    left_max: Option<i32>,
-    /// Right trigger min percent (xinput, dinput).
-    #[arg(long)]
-    right_min: Option<i32>,
-    /// Right trigger max percent (xinput, dinput).
-    #[arg(long)]
-    right_max: Option<i32>,
-    /// Left trigger threshold percent (switch).
-    #[arg(long)]
-    left_threshold: Option<i32>,
-    /// Right trigger threshold percent (switch).
-    #[arg(long)]
-    right_threshold: Option<i32>,
-    /// Swap the two triggers (true/false).
-    #[arg(long, value_parser = BoolishValueParser::new())]
-    swap_triggers: Option<bool>,
-}
-
-impl From<TriggerArgs> for TriggerPatch {
-    fn from(a: TriggerArgs) -> Self {
-        Self {
-            left_min_pct: a.left_min,
-            left_max_pct: a.left_max,
-            right_min_pct: a.right_min,
-            right_max_pct: a.right_max,
-            left_threshold_pct: a.left_threshold,
-            right_threshold_pct: a.right_threshold,
-            swap_triggers: a.swap_triggers,
-        }
-    }
-}
-
-/// Prints a usage error for a patch with no option set.
-fn no_option(verb: &str, example: &str) -> i32 {
-    eprintln!("{verb} requires at least one option (for example {example}).");
-    EXIT_USAGE
 }
 
 /// The log filter for `-v` flags: `warn`, then `debug`, then `trace`. A non-empty
@@ -372,29 +238,10 @@ fn main() {
                 o.remap_button(t.mode, t.slot, &source, &output, p)
             })
         }
-        Commands::PatchSticks { target: t, sticks } => {
-            let patch = StickPatch::from(sticks);
-            if patch == StickPatch::default() {
-                no_option("patch-sticks", "--left-min 10")
-            } else {
-                run_write(t.force, &[], |o, p| o.patch_sticks(t.mode, t.slot, &patch, p))
-            }
-        }
-        Commands::PatchTriggers { target: t, triggers } => {
-            let patch = TriggerPatch::from(triggers);
-            if patch == TriggerPatch::default() {
-                no_option("patch-triggers", "--left-min 5 or --left-threshold 30")
-            } else {
-                run_write(t.force, &[], |o, p| o.patch_triggers(t.mode, t.slot, &patch, p))
-            }
-        }
         Commands::Set { target: t, changes } => {
             let changes: Vec<(&str, serde_json::Value)> =
                 changes.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
             run_write(t.force, &[], |o, p| o.patch_settings(t.mode, t.slot, &changes, p))
-        }
-        Commands::PatchVibration { target: t, left, right } => {
-            run_write(t.force, &[], |o, p| o.patch_vibration(t.mode, t.slot, left, right, p))
         }
     };
 

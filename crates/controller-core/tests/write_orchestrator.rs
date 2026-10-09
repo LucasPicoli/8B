@@ -16,7 +16,7 @@ use controller_core::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, MacroStep, Mode, ProfileReadResult,
     RawProfilePayload, Slot, WriteResult,
 };
-use controller_core::orchestrator::{ProfileWriteOrchestrator, StickPatch, TriggerPatch};
+use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::protocol::crc16::crc16_modbus;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
@@ -323,23 +323,11 @@ fn every_write_to_an_occupied_slot_keeps_all_macros() {
 
     go(&|o| o.upload_profile(&fixture("xinput-slot2"), Mode::XInput, slot(1), &f));
     go(&|o| o.remap_button(Mode::XInput, slot(1), "l1", "r1", &f));
+    go(&|o| o.patch_settings(Mode::XInput, slot(1), &[("/sticks/swap_sticks", true.into())], &f));
     go(&|o| {
-        o.patch_sticks(
-            Mode::XInput,
-            slot(1),
-            &StickPatch { swap_sticks: Some(true), ..StickPatch::default() },
-            &f,
-        )
+        o.patch_settings(Mode::XInput, slot(1), &[("/triggers/swap_triggers", true.into())], &f)
     });
-    go(&|o| {
-        o.patch_triggers(
-            Mode::XInput,
-            slot(1),
-            &TriggerPatch { swap_triggers: Some(true), ..TriggerPatch::default() },
-            &f,
-        )
-    });
-    go(&|o| o.patch_vibration(Mode::XInput, slot(1), 1, 4, &f));
+    go(&|o| o.patch_settings(Mode::XInput, slot(1), &[("/vibration/left_level", 4.into())], &f));
     go(&|o| o.deactivate_slot(Mode::XInput, slot(1), &f));
 }
 
@@ -481,9 +469,7 @@ fn patches_on_an_empty_slot_are_refused_without_a_write() {
     let f = ConfirmPolicy::Force;
     let results = [
         o.remap_button(Mode::XInput, slot(3), "l1", "r1", &f),
-        o.patch_sticks(Mode::XInput, slot(3), &StickPatch::default(), &f),
-        o.patch_triggers(Mode::XInput, slot(3), &TriggerPatch::default(), &f),
-        o.patch_vibration(Mode::XInput, slot(3), 1, 1, &f),
+        o.patch_settings(Mode::XInput, slot(3), &[("/vibration/left_level", 1.into())], &f),
     ];
     for r in &results {
         assert_failed(r, ErrorCategory::ValidationFailure);
@@ -493,20 +479,19 @@ fn patches_on_an_empty_slot_are_refused_without_a_write() {
 }
 
 #[test]
-fn patch_sticks_changes_only_the_set_fields() {
+fn patch_settings_changes_only_the_named_fields() {
     let base = base_blob(Mode::XInput);
     let dev = device(Mode::XInput, &base);
     let dir = tempfile::tempdir().unwrap();
-    let patch = StickPatch {
-        left_min_pct: Some(20),
-        left_max_pct: Some(80),
-        invert_right_y: Some(true),
-        swap_sticks: Some(true),
-        ..StickPatch::default()
-    };
+    let set = [
+        ("/sticks/left_min_pct", 20.into()),
+        ("/sticks/left_max_pct", 80.into()),
+        ("/sticks/invert_right_y", true.into()),
+        ("/sticks/swap_sticks", true.into()),
+    ];
 
     let r =
-        orch(&dev, dir.path()).patch_sticks(Mode::XInput, slot(1), &patch, &ConfirmPolicy::Force);
+        orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &set, &ConfirmPolicy::Force);
 
     assert!(r.success, "{}", r.message);
     let before = decode(&base, Mode::XInput, 1);
@@ -523,53 +508,56 @@ fn patch_sticks_changes_only_the_set_fields() {
 }
 
 #[test]
-fn patch_sticks_rules_run_before_any_write() {
+fn patch_settings_rules_run_before_any_write() {
     let dev = device(Mode::XInput, &base_blob(Mode::XInput));
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
     let f = ConfirmPolicy::Force;
 
-    let out_of_range = StickPatch { left_min_pct: Some(95), ..StickPatch::default() };
-    assert_failed(
-        &o.patch_sticks(Mode::XInput, slot(1), &out_of_range, &f),
-        ErrorCategory::ValidationFailure,
-    );
+    for bad in [
+        ("/sticks/left_min_pct", 95.into()),
+        ("/vibration/left_level", 6.into()),
+        ("/vibration/left_level", true.into()),
+        ("/sticks/swap_sticks", 1.into()),
+        ("/sticks/no_such_field", 1.into()),
+    ] {
+        let r = o.patch_settings(Mode::XInput, slot(1), &[bad], &f);
+        assert_failed(&r, ErrorCategory::ValidationFailure);
+    }
 
-    let conflict = StickPatch {
-        swap_dpad_with_left_stick: Some(true),
-        invert_left_x: Some(true),
-        ..StickPatch::default()
-    };
-    let r = o.patch_sticks(Mode::XInput, slot(1), &conflict, &f);
+    let conflict = [
+        ("/sticks/swap_dpad_with_left_stick", true.into()),
+        ("/sticks/invert_left_x", true.into()),
+    ];
+    let r = o.patch_settings(Mode::XInput, slot(1), &conflict, &f);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_dpad_with_left_stick"), "{}", r.message);
     assert!(r.message.contains("invert_left_x"), "{}", r.message);
     assert_eq!(dev.calls(), []);
 
     // A slot that already swaps the D-pad refuses swap sticks too, and keeps what it holds.
-    let dpad = StickPatch { swap_dpad_with_left_stick: Some(true), ..StickPatch::default() };
+    let dpad = [("/sticks/swap_dpad_with_left_stick", true.into())];
     let first = device(Mode::XInput, &base_blob(Mode::XInput));
-    assert!(orch(&first, dir.path()).patch_sticks(Mode::XInput, slot(1), &dpad, &f).success);
+    assert!(orch(&first, dir.path()).patch_settings(Mode::XInput, slot(1), &dpad, &f).success);
     let held = writes(&first).pop().unwrap();
     let dev = device(Mode::XInput, &held);
-    let swap = StickPatch { swap_sticks: Some(true), ..StickPatch::default() };
-    let r = orch(&dev, dir.path()).patch_sticks(Mode::XInput, slot(1), &swap, &f);
+    let swap = [("/sticks/swap_sticks", true.into())];
+    let r = orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &swap, &f);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_sticks"), "{}", r.message);
     assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
 }
 
 #[test]
-fn patch_triggers_is_mode_aware() {
+fn patch_settings_takes_the_trigger_form_of_the_mode() {
     let dir = tempfile::tempdir().unwrap();
     let f = ConfirmPolicy::Force;
 
     // XInput: min and max.
     let base = base_blob(Mode::XInput);
     let dev = device(Mode::XInput, &base);
-    let patch =
-        TriggerPatch { left_min_pct: Some(10), right_max_pct: Some(90), ..TriggerPatch::default() };
-    let r = orch(&dev, dir.path()).patch_triggers(Mode::XInput, slot(1), &patch, &f);
+    let set = [("/triggers/left_min_pct", 10.into()), ("/triggers/right_max_pct", 90.into())];
+    let r = orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &set, &f);
     assert!(r.success, "{}", r.message);
     let Triggers::Analog(before) = s(&decode(&base, Mode::XInput, 1)).triggers else {
         panic!("analog")
@@ -587,12 +575,9 @@ fn patch_triggers_is_mode_aware() {
     // Switch: thresholds.
     let base = base_blob(Mode::Switch);
     let dev = device(Mode::Switch, &base);
-    let patch = TriggerPatch {
-        left_threshold_pct: Some(30),
-        swap_triggers: Some(false),
-        ..TriggerPatch::default()
-    };
-    let r = orch(&dev, dir.path()).patch_triggers(Mode::Switch, slot(1), &patch, &f);
+    let set =
+        [("/triggers/left_threshold_pct", 30.into()), ("/triggers/swap_triggers", false.into())];
+    let r = orch(&dev, dir.path()).patch_settings(Mode::Switch, slot(1), &set, &f);
     assert!(r.success, "{}", r.message);
     let Triggers::Switch(after) = s(&decode(&writes(&dev).remove(0), Mode::Switch, 1)).triggers
     else {
@@ -602,43 +587,30 @@ fn patch_triggers_is_mode_aware() {
 }
 
 #[test]
-fn patch_triggers_rejects_options_for_the_wrong_mode_and_bad_ranges() {
+fn patch_settings_refuses_the_trigger_form_of_another_mode() {
     let dev = MockDevice::new();
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
     let f = ConfirmPolicy::Force;
-    let analog = TriggerPatch { left_min_pct: Some(10), ..TriggerPatch::default() };
-    let threshold = TriggerPatch { left_threshold_pct: Some(10), ..TriggerPatch::default() };
-    let too_high = TriggerPatch { left_threshold_pct: Some(95), ..TriggerPatch::default() };
-    assert_failed(
-        &o.patch_triggers(Mode::Switch, slot(1), &analog, &f),
-        ErrorCategory::ValidationFailure,
-    );
-    assert_failed(
-        &o.patch_triggers(Mode::XInput, slot(1), &threshold, &f),
-        ErrorCategory::ValidationFailure,
-    );
-    assert_failed(
-        &o.patch_triggers(Mode::Switch, slot(1), &too_high, &f),
-        ErrorCategory::ValidationFailure,
-    );
+    let analog = [("/triggers/left_min_pct", 10.into())];
+    let threshold = [("/triggers/left_threshold_pct", 10.into())];
+    let too_high = [("/triggers/left_threshold_pct", 95.into())];
+    for (mode, set) in
+        [(Mode::Switch, &analog), (Mode::XInput, &threshold), (Mode::Switch, &too_high)]
+    {
+        assert_failed(&o.patch_settings(mode, slot(1), set, &f), ErrorCategory::ValidationFailure);
+    }
     assert_eq!(dev.calls(), []);
 }
 
 #[test]
-fn patch_vibration_sets_both_levels_and_checks_the_range() {
+fn patch_settings_sets_the_vibration_levels() {
     let base = base_blob(Mode::XInput);
     let dev = device(Mode::XInput, &base);
     let dir = tempfile::tempdir().unwrap();
-    let o = orch(&dev, dir.path());
-
-    assert_failed(
-        &o.patch_vibration(Mode::XInput, slot(1), 6, 1, &ConfirmPolicy::Force),
-        ErrorCategory::ValidationFailure,
-    );
-    assert_eq!(dev.calls(), []);
-
-    let r = o.patch_vibration(Mode::XInput, slot(1), 1, 4, &ConfirmPolicy::Force);
+    let set = [("/vibration/left_level", 1.into()), ("/vibration/right_level", 4.into())];
+    let r =
+        orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &set, &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let after = decode(&writes(&dev).remove(0), Mode::XInput, 1);
     assert_eq!((s(&after).vibration.left_level, s(&after).vibration.right_level), (1, 4));

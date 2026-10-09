@@ -7,5 +7,5 @@ pub mod profile;
 pub mod write;
 
 pub use batch::{WriteJob, WriteOp};
-pub use patch::{StickPatch, TriggerPatch};
+
 pub use write::ProfileWriteOrchestrator;

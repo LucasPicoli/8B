@@ -250,5 +250,4 @@ description, so a Pro 3 and another model can be plugged in at once.
 
 The command line needs no change either. `set` writes any declared setting by its
 pointer, such as `set -m xinput -s 1 /vibration/left_level=3`, and `read-macro` lists
-the model's macro slots. `patch-sticks`, `patch-triggers` and `patch-vibration` are
-shortcuts for the Pro 3's settings, and refuse a model that does not declare them.
+the model's macro slots.

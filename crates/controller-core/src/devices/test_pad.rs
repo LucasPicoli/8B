@@ -273,7 +273,8 @@ mod tests {
         let too_high = [("/rumble/level", 4.into())];
         let refused = orchestrator.patch_settings(Mode::DInput, slot(2), &too_high, force);
         assert!(!refused.success, "the test pad's rumble stops at 3: {}", refused.message);
-        let pro3 = orchestrator.patch_vibration(Mode::DInput, slot(2), 1, 1, force);
+        let pro3 = [("/vibration/left_level", 1.into())];
+        let pro3 = orchestrator.patch_settings(Mode::DInput, slot(2), &pro3, force);
         assert!(pro3.message.contains("does not apply"), "{}", pro3.message);
 
         let set = [("/rumble/level", 3.into()), ("/lights/on", true.into())];
