@@ -72,7 +72,11 @@ pub(super) fn begin_write(to: Target<'_>) -> Result<Option<Mode>> {
 /// Sends the close command, then waits for the controller to come back in `back_to`.
 pub(super) fn end_write(to: Target<'_>, back_to: Mode) -> Result<()> {
     let session = Session::open(to, WRITE_TIMEOUT)?;
-    let close = session.model()?.mode_close_command();
+    let close = session.model()?.mode_close_command().ok_or_else(|| {
+        Error::write(format!(
+            "this controller cannot go back to {back_to} mode; unplug it and plug it back in"
+        ))
+    })?;
     session.send_last(&close)?;
     wait_for_mode(to, back_to, REENUMERATE_BUDGET)?;
     std::thread::sleep(RETURN_SETTLE);

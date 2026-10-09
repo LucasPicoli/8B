@@ -73,13 +73,6 @@ pub trait DeviceIo {
     /// device cannot be opened.
     fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()>;
 
-    /// Writes `data` at blob `offset` (the same packet twice, as the protocol requires).
-    ///
-    /// # Errors
-    /// Returns [`crate::Error::Write`] on empty data, a transfer failure or a rejected
-    /// response. Returns a connection error if the device cannot be opened.
-    fn write_patch(&self, mode: Mode, offset: u16, data: &[u8]) -> Result<()>;
-
     /// Sends the slot-select command that must precede any profile write.
     ///
     /// # Errors
@@ -92,32 +85,4 @@ pub trait DeviceIo {
     /// # Errors
     /// Same as [`Self::send_slot_select`].
     fn send_apply(&self, mode: Mode) -> Result<()>;
-
-    /// Sends `QUERY_STATUS`. Disrupts joydev input until the device is reconnected.
-    ///
-    /// # Errors
-    /// Same as [`Self::send_slot_select`].
-    fn query_status(&self, mode: Mode) -> Result<()>;
-
-    /// Erases the 4096-byte flash page of one macro slot.
-    ///
-    /// Passing a macro slot beyond the controller's range is impossible: [`MacroSlot`]
-    /// validates it.
-    ///
-    /// # Errors
-    /// Same as [`Self::send_slot_select`].
-    fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()>;
-
-    /// Erases a macro slot, then writes `stream` (padded step data) in 32-byte chunks.
-    ///
-    /// # Errors
-    /// Returns [`crate::Error::Write`] if `stream` is empty or not a multiple of 32 bytes,
-    /// plus every error of [`Self::erase_macro`].
-    fn write_macro_stream(
-        &self,
-        mode: Mode,
-        profile_slot: Slot,
-        macro_slot: MacroSlot,
-        stream: &[u8],
-    ) -> Result<()>;
 }

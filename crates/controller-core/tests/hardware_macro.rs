@@ -85,7 +85,7 @@ fn put_fixture_macro_on_xinput_slot1() {
         dev.send_apply(XINPUT)?;
         dev.write_macro_stream(XINPUT, slot, macro_slot, &stream)?;
         dev.send_apply(XINPUT)?;
-        dev.query_status(XINPUT)
+        dev.query_status()
     })();
     if let Some(mode) = back_to {
         dev.end_write(mode).unwrap();

@@ -8,7 +8,7 @@ use crate::devices::models;
 use crate::error::{Error, Result};
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 use crate::transport::device_io::DeviceIo;
-use crate::transport::write_input::{check_macro_stream, check_patch, check_profile_blob};
+use crate::transport::write_input::check_profile_blob;
 
 /// The write operations a [`MockDevice`] can record and fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,18 +19,10 @@ pub enum MockOp {
     EndWrite,
     /// [`DeviceIo::write_full_profile`].
     WriteFullProfile,
-    /// [`DeviceIo::write_patch`].
-    WritePatch,
     /// [`DeviceIo::send_slot_select`].
     SlotSelect,
     /// [`DeviceIo::send_apply`].
     Apply,
-    /// [`DeviceIo::query_status`].
-    QueryStatus,
-    /// [`DeviceIo::erase_macro`].
-    EraseMacro,
-    /// [`DeviceIo::write_macro_stream`].
-    WriteMacroStream,
 }
 
 /// One write call a [`MockDevice`] received, with its arguments.
@@ -47,41 +39,10 @@ pub enum MockCall {
         /// The blob that was sent.
         blob: Vec<u8>,
     },
-    /// [`DeviceIo::write_patch`].
-    WritePatch {
-        /// Target mode.
-        mode: Mode,
-        /// Blob offset of the patch.
-        offset: u16,
-        /// Patch bytes.
-        data: Vec<u8>,
-    },
     /// [`DeviceIo::send_slot_select`].
     SlotSelect(Mode),
     /// [`DeviceIo::send_apply`].
     Apply(Mode),
-    /// [`DeviceIo::query_status`].
-    QueryStatus(Mode),
-    /// [`DeviceIo::erase_macro`].
-    EraseMacro {
-        /// Target mode.
-        mode: Mode,
-        /// 1-based profile slot.
-        profile_slot: Slot,
-        /// Macro slot.
-        macro_slot: MacroSlot,
-    },
-    /// [`DeviceIo::write_macro_stream`].
-    WriteMacroStream {
-        /// Target mode.
-        mode: Mode,
-        /// 1-based profile slot.
-        profile_slot: Slot,
-        /// Macro slot.
-        macro_slot: MacroSlot,
-        /// The step stream that was sent.
-        stream: Vec<u8>,
-    },
 }
 
 impl MockCall {
@@ -92,12 +53,8 @@ impl MockCall {
             Self::BeginWrite => MockOp::BeginWrite,
             Self::EndWrite(_) => MockOp::EndWrite,
             Self::WriteFullProfile { .. } => MockOp::WriteFullProfile,
-            Self::WritePatch { .. } => MockOp::WritePatch,
             Self::SlotSelect(_) => MockOp::SlotSelect,
             Self::Apply(_) => MockOp::Apply,
-            Self::QueryStatus(_) => MockOp::QueryStatus,
-            Self::EraseMacro { .. } => MockOp::EraseMacro,
-            Self::WriteMacroStream { .. } => MockOp::WriteMacroStream,
         }
     }
 }
@@ -254,41 +211,12 @@ impl DeviceIo for MockDevice {
         self.record(MockCall::WriteFullProfile { mode, blob: blob.to_vec() })
     }
 
-    fn write_patch(&self, mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
-        check_patch(data)?;
-        self.record(MockCall::WritePatch { mode, offset, data: data.to_vec() })
-    }
-
     fn send_slot_select(&self, mode: Mode) -> Result<()> {
         self.record(MockCall::SlotSelect(mode))
     }
 
     fn send_apply(&self, mode: Mode) -> Result<()> {
         self.record(MockCall::Apply(mode))
-    }
-
-    fn query_status(&self, mode: Mode) -> Result<()> {
-        self.record(MockCall::QueryStatus(mode))
-    }
-
-    fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
-        self.record(MockCall::EraseMacro { mode, profile_slot, macro_slot })
-    }
-
-    fn write_macro_stream(
-        &self,
-        mode: Mode,
-        profile_slot: Slot,
-        macro_slot: MacroSlot,
-        stream: &[u8],
-    ) -> Result<()> {
-        check_macro_stream(stream, macro_slot)?;
-        self.record(MockCall::WriteMacroStream {
-            mode,
-            profile_slot,
-            macro_slot,
-            stream: stream.to_vec(),
-        })
     }
 }
 
@@ -340,9 +268,6 @@ mod tests {
     fn bad_inputs_are_rejected_and_not_recorded() {
         let dev = MockDevice::new();
         assert!(dev.write_full_profile(XINPUT, &[0; 10]).is_err());
-        assert!(dev.write_patch(XINPUT, 0, &[]).is_err());
-        let (ps, ms) = (Slot::new(1).unwrap(), MacroSlot::new(0).unwrap());
-        assert!(dev.write_macro_stream(XINPUT, ps, ms, &[0; 33]).is_err());
         assert_eq!(dev.calls(), []);
     }
 }

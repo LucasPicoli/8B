@@ -54,6 +54,47 @@ impl HidrawDevice {
         Target { port: self.port.as_deref() }
     }
 
+    /// Writes `data` at blob `offset` (the same packet twice, as the protocol requires).
+    ///
+    /// # Errors
+    /// Returns [`Error::Write`] on empty data, a transfer failure or a rejected response.
+    /// Returns a connection error if the device cannot be opened.
+    pub fn write_patch(&self, offset: u16, data: &[u8]) -> Result<()> {
+        hidraw_write::write_patch(self.target(), offset, data)
+    }
+
+    /// Sends `QUERY_STATUS`. Disrupts joydev input until the device is reconnected.
+    ///
+    /// # Errors
+    /// Returns [`Error::Timeout`] on a transfer failure, [`Error::Write`] on a rejected
+    /// response, or a connection error if the device cannot be opened.
+    pub fn query_status(&self) -> Result<()> {
+        hidraw_write::query_status(self.target())
+    }
+
+    /// Erases the 4096-byte flash page of one macro slot.
+    ///
+    /// # Errors
+    /// Same as [`Self::query_status`].
+    pub fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
+        hidraw_write::erase_macro(self.target(), mode, profile_slot, macro_slot)
+    }
+
+    /// Erases a macro slot, then writes `stream` (padded step data) in 32-byte chunks.
+    ///
+    /// # Errors
+    /// Returns [`Error::Write`] if `stream` is empty or not a multiple of 32 bytes, plus
+    /// every error of [`Self::erase_macro`].
+    pub fn write_macro_stream(
+        &self,
+        mode: Mode,
+        profile_slot: Slot,
+        macro_slot: MacroSlot,
+        stream: &[u8],
+    ) -> Result<()> {
+        hidraw_write::write_macro_stream(self.target(), mode, profile_slot, macro_slot, stream)
+    }
+
     /// Opens a read session and remembers the model it identified. A failed open
     /// forgets the model, so a pad that no longer answers as it is not taken for it.
     fn read_session(&self) -> Result<Session> {
@@ -349,33 +390,11 @@ impl crate::transport::DeviceIo for HidrawDevice {
         hidraw_write::write_full_profile(self.target(), blob)
     }
 
-    fn write_patch(&self, _mode: Mode, offset: u16, data: &[u8]) -> Result<()> {
-        hidraw_write::write_patch(self.target(), offset, data)
-    }
-
     fn send_slot_select(&self, mode: Mode) -> Result<()> {
         hidraw_write::send_slot_select(self.target(), mode)
     }
 
     fn send_apply(&self, _mode: Mode) -> Result<()> {
         hidraw_write::send_apply(self.target())
-    }
-
-    fn query_status(&self, _mode: Mode) -> Result<()> {
-        hidraw_write::query_status(self.target())
-    }
-
-    fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
-        hidraw_write::erase_macro(self.target(), mode, profile_slot, macro_slot)
-    }
-
-    fn write_macro_stream(
-        &self,
-        mode: Mode,
-        profile_slot: Slot,
-        macro_slot: MacroSlot,
-        stream: &[u8],
-    ) -> Result<()> {
-        hidraw_write::write_macro_stream(self.target(), mode, profile_slot, macro_slot, stream)
     }
 }

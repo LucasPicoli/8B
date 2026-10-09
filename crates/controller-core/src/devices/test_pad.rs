@@ -24,7 +24,6 @@ use crate::model::{
     RawProfilePayload, Slot,
 };
 use crate::protocol::bytes::{put_slice, read_u8, take};
-use crate::protocol::wire_write::PACKET_LEN;
 
 /// Blob size in bytes.
 const BLOB_SIZE: usize = 0x40;
@@ -43,15 +42,6 @@ pub struct TestPad;
 
 /// The test pad's one mode. No Pro 3 mode has this id.
 pub const STANDARD: Mode = Mode::from_static("standard");
-
-/// Refuses every mode but [`STANDARD`].
-fn check_mode(mode: Mode) -> Result<()> {
-    if mode == STANDARD {
-        Ok(())
-    } else {
-        Err(Error::Validation(format!("the test pad has no {mode} mode")))
-    }
-}
 
 static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
     ControllerDescription::parse(
@@ -82,21 +72,6 @@ impl ControllerSpec for TestPad {
     }
     fn blob_size(&self) -> usize {
         BLOB_SIZE
-    }
-    fn joydev_name_match(&self) -> &'static str {
-        "Test Pad"
-    }
-    fn slot_select_value(&self, mode: Mode) -> Result<u8> {
-        check_mode(mode).map(|()| 1)
-    }
-    fn macro_gamepad_mode(&self, mode: Mode) -> Result<u8> {
-        check_mode(mode).map(|()| 0)
-    }
-    fn mode_flip_command(&self, _target: Mode) -> Option<[u8; PACKET_LEN]> {
-        None
-    }
-    fn mode_close_command(&self) -> [u8; PACKET_LEN] {
-        [0; PACKET_LEN]
     }
     /// The test pad answers through a mock, the way a pad with another protocol
     /// brings its own transport.

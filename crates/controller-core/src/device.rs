@@ -46,7 +46,11 @@ pub struct ConfigPort {
     pub needs_keepalive: bool,
 }
 
-/// Protocol bytes of a controller model, plus a pointer to its description.
+/// A controller model's description, its blob size and its transport.
+///
+/// The methods with a default carry the bytes of the 8BitDo config protocol, which
+/// only [`crate::transport::HidrawDevice`] reads. A model with a transport of its own
+/// keeps the defaults.
 pub trait ControllerSpec {
     /// The model's embedded controller description, parsed once.
     ///
@@ -56,24 +60,33 @@ pub trait ControllerSpec {
     fn description(&self) -> Result<&'static ControllerDescription>;
     /// Profile blob size in bytes.
     fn blob_size(&self) -> usize;
-    /// Substring used to match the joydev device name.
-    fn joydev_name_match(&self) -> &'static str;
     /// Value sent in the slot-select command (`0x14`) to target `mode`'s slots.
     ///
     /// # Errors
-    /// Returns [`crate::Error::Validation`] for a mode the model does not have.
-    fn slot_select_value(&self, mode: Mode) -> Result<u8>;
+    /// Returns [`crate::Error::Validation`] for a mode the model does not have. The
+    /// default refuses every mode.
+    fn slot_select_value(&self, mode: Mode) -> Result<u8> {
+        Err(no_8bitdo_command("a slot select", mode))
+    }
     /// Gamepad-mode byte carried by the macro commands for `mode`.
     ///
     /// # Errors
-    /// Returns [`crate::Error::Validation`] for a mode the model does not have.
-    fn macro_gamepad_mode(&self, mode: Mode) -> Result<u8>;
+    /// Returns [`crate::Error::Validation`] for a mode the model does not have. The
+    /// default refuses every mode.
+    fn macro_gamepad_mode(&self, mode: Mode) -> Result<u8> {
+        Err(no_8bitdo_command("a macro command", mode))
+    }
     /// Normal-layout packet that makes the controller re-enumerate in `target` mode
-    /// until it is closed or replugged. `None` if the model cannot flip to `target`.
-    fn mode_flip_command(&self, target: Mode) -> Option<[u8; PACKET_LEN]>;
+    /// until it is closed or replugged. `None`, the default, if the model cannot flip
+    /// to `target`.
+    fn mode_flip_command(&self, _target: Mode) -> Option<[u8; PACKET_LEN]> {
+        None
+    }
     /// Normal-layout packet that sends a flipped controller back to the mode its
-    /// slide switch shows.
-    fn mode_close_command(&self) -> [u8; PACKET_LEN];
+    /// slide switch shows. `None`, the default, for a model that never flips.
+    fn mode_close_command(&self) -> Option<[u8; PACKET_LEN]> {
+        None
+    }
     /// The transport for this model's controller on USB port path `port`, such as `8-5`.
     /// The default, `None`, talks the 8BitDo config protocol over hidraw
     /// ([`crate::transport::HidrawDevice`]). A model with another protocol returns its
@@ -81,6 +94,11 @@ pub trait ControllerSpec {
     fn transport(&self, _port: &str) -> Option<Box<dyn DeviceIo + Send>> {
         None
     }
+}
+
+/// The refusal of a default [`ControllerSpec`] byte method: the model sends no `what`.
+fn no_8bitdo_command(what: &str, mode: Mode) -> crate::Error {
+    crate::Error::Validation(format!("this controller takes no 8BitDo {what} in {mode} mode"))
 }
 
 /// One supported controller model: its protocol bytes and its codec. The registry in

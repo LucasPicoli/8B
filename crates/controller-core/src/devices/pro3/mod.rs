@@ -109,9 +109,6 @@ impl ControllerSpec for Pro3 {
     fn blob_size(&self) -> usize {
         0x092C
     }
-    fn joydev_name_match(&self) -> &'static str {
-        "8BitDo"
-    }
     fn slot_select_value(&self, mode: Mode) -> Result<u8> {
         mode_byte(mode)
     }
@@ -130,8 +127,8 @@ impl ControllerSpec for Pro3 {
         }
         Some(p)
     }
-    fn mode_close_command(&self) -> [u8; PACKET_LEN] {
-        packet(&MODE_CLOSE)
+    fn mode_close_command(&self) -> Option<[u8; PACKET_LEN]> {
+        Some(packet(&MODE_CLOSE))
     }
 }
 
@@ -244,7 +241,7 @@ mod tests {
         assert!(Pro3.mode_flip_command(SWITCH).is_none());
         // Wrapped on the Switch id, as sent in the hardware run.
         assert_eq!(Framing::Wrapped.request(&flip)[..6], [0x01, 0x66, 0xAA, 0x00, 0x51, 0x01]);
-        assert_eq!(Pro3.mode_close_command()[..4], [0x81, 0x05, 0x07, 0x00]);
+        assert_eq!(Pro3.mode_close_command().unwrap()[..4], [0x81, 0x05, 0x07, 0x00]);
     }
 
     #[test]

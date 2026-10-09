@@ -22,11 +22,11 @@ A model has four parts:
 2. The views: one SVG per drawing of the controller, in the same folder. Draw them
    as [Drawing a controller's views](controller-views.md) describes. This guide does
    not repeat it.
-3. A `ControllerSpec` implementation: the protocol bytes that are not data. The
-   trait is in
+3. A `ControllerSpec` implementation. The trait is in
    [`crates/controller-core/src/device.rs`](../crates/controller-core/src/device.rs).
-   It gives the profile blob size, the slot-select value and macro gamepad byte of
-   each mode, and the mode-flip and mode-close packets.
+   A model must give its description and its profile blob size. The other methods
+   have defaults: the 8BitDo byte values, which only the 8BitDo transport reads, and
+   `transport`. The test pad sets only the two required ones and `transport`.
 4. A `ProtocolCodec` implementation, in the same file: the codec that turns a raw
    blob into a canonical profile and back, and does the same for macros.
 
@@ -211,8 +211,9 @@ The model supplies:
 3. The codec: `map_profile`, `compile_profile`, the macro functions, and the rest of
    `ProtocolCodec`.
 4. The per-mode `ControllerSpec` values: `slot_select_value`, `macro_gamepad_mode`,
-   `mode_flip_command`, `mode_close_command`. The first two refuse a mode the model
-   does not have.
+   `mode_flip_command`, `mode_close_command`. Each refuses a mode the model does not
+   have, and their defaults refuse every mode, so a model sets only the ones its
+   ports use.
 5. The counts in the description: `slot_count` (3 on the Pro 3) and
    `macro_slot_count` (4).
 
@@ -238,9 +239,11 @@ and uses that model's transport. A model that returns `None`, the default, gets
 `a_model_with_its_own_transport_gets_it_by_its_usb_id` in `devices/mod.rs` checks
 the choice.
 
-The write services still call `DeviceIo` in the 8BitDo order: slot select, write the
-whole blob, apply. A transport without those steps makes slot select and apply do
-nothing, and maps the blob of `blob_size` bytes onto its own reads and writes.
+`DeviceIo` has 8 methods. The write services call them in the 8BitDo order: slot
+select, write the whole blob, apply. A transport without those steps makes slot
+select and apply do nothing, and maps the blob of `blob_size` bytes onto its own
+reads and writes. The 8BitDo macro and patch commands are methods of `HidrawDevice`
+only, so a transport of its own does not implement them.
 
 ## What is tied to the Pro 3 today
 
