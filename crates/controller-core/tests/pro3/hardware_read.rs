@@ -1,22 +1,25 @@
 //! Hardware integration tests: require a physical 8BitDo Pro 3 on USB, in any
-//! current mode (`XInput`, Switch or `DInput`).
+//! current mode (`XInput`, Switch or `DInput`). Each seeds the pad with the fixture
+//! profiles first and puts its banks back after.
 //!
 //! Gated behind `--features hardware` and marked `#[ignore]` so they never run
 //! in CI without an attached device. Run with:
-//!   `cargo test -p controller-core --features hardware --test hardware_read -- --ignored`
-#![cfg(feature = "hardware")]
+//!   `cargo test -p controller-core --features hardware --test pro3 hardware_read -- --ignored`
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use controller_core::devices::pro3::MODES;
 use controller_core::model::Mode;
-use controller_core::transport::{DeviceIo, HidrawDevice};
+use controller_core::transport::DeviceIo;
 use serial_test::serial;
+
+use crate::seed;
 
 #[test]
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn reads_every_bank_from_the_current_mode() {
-    let dev = HidrawDevice::first();
+    let dev = seed::pad();
+    let _seed = seed::seed(&dev);
     let read = dev.read_all_profiles().unwrap();
     assert_eq!(read.raw_blobs.len(), MODES.len());
     assert!(read.raw_blobs.iter().all(|b| b.len() == 0x092C));
@@ -29,7 +32,8 @@ fn reads_every_bank_from_the_current_mode() {
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn detects_connected_device() {
-    let dev = HidrawDevice::first();
+    let dev = seed::pad();
+    let _seed = seed::seed(&dev);
     let rd = dev.detect_readiness().unwrap();
     assert!(rd.supported_device_connected);
     assert!(rd.mode.is_some());

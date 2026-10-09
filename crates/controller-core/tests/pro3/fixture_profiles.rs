@@ -153,7 +153,7 @@ fn home_guide_remap_attempt_is_forced_to_identity() {
 }
 
 /// Regenerate committed blobs from authored JSON. Ignored in normal runs.
-/// Run: `cargo test -p controller-core --test fixture_profiles regenerate -- --ignored`
+/// Run: `cargo test -p controller-core --test pro3 fixture_profiles::regenerate -- --ignored`
 #[test]
 #[ignore = "writes committed fixture blobs; run manually after authoring/encoder changes"]
 fn regenerate() {

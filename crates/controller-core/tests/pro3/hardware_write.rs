@@ -1,8 +1,7 @@
-//! Hardware write test: requires a physical 8BitDo Pro 3 on USB in `DInput` mode
-//! (`2dc8:6009`). It remaps l4 on `DInput` slot 3, reads the bank back, then puts l4
-//! back. Run with:
-//!   `cargo test -p controller-core --features hardware --test hardware_write -- --ignored`
-#![cfg(feature = "hardware")]
+//! Hardware write test: requires a physical 8BitDo Pro 3 on USB. It seeds the pad with
+//! the fixture profiles, remaps l4 on `DInput` slot 3, reads the bank back, then puts
+//! l4 back. Run with:
+//!   `cargo test -p controller-core --features hardware --test pro3 hardware_write -- --ignored`
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 use controller_core::devices::pro3::{Pro3, DINPUT};
@@ -10,6 +9,8 @@ use controller_core::model::Slot;
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use serial_test::serial;
+
+use crate::seed;
 
 /// Button entry 20 (l4) of slot 3.
 const L4_SLOT3: usize = 0x00E4 + 2 * 0x5C + 20 * 4;
@@ -26,13 +27,14 @@ fn changed(a: &[u8], b: &[u8]) -> Vec<usize> {
 }
 
 #[test]
-#[ignore = "requires attached 8BitDo Pro 3 in DInput mode"]
+#[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn dinput_remap_lands_on_slot3_l4_and_reverts() {
-    let dev = HidrawDevice::first();
+    let dev = seed::pad();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
     let slot = Slot::new(3).unwrap();
+    let _seed = seed::seed(&dev);
     let before = dinput_bank(&dev);
     assert_eq!(&before[L4_SLOT3..L4_SLOT3 + 4], &[0; 4], "l4 on slot 3 must start unassigned");
 
@@ -41,7 +43,8 @@ fn dinput_remap_lands_on_slot3_l4_and_reverts() {
     let remapped = dinput_bank(&dev);
     let diff = changed(&before, &remapped);
     println!("remap changed {diff:x?}");
-    assert_eq!(&remapped[L4_SLOT3..L4_SLOT3 + 4], &[0x00, 0x20, 0x00, 0x00]);
+    // DInput uses the vendor's Switch face layout, where bottom face is `00 10 00 00`.
+    assert_eq!(&remapped[L4_SLOT3..L4_SLOT3 + 4], &[0x00, 0x10, 0x00, 0x00]);
     // Sticks and triggers must not drift: only the l4 entry may change.
     assert!(diff.iter().all(|i| (L4_SLOT3..L4_SLOT3 + 4).contains(i)), "{diff:x?}");
 

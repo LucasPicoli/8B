@@ -7,13 +7,14 @@ These fixtures are produced by `controller-core`'s encoders
 `encode_macro_metadata` for macros). Each `.blob` and `.steps.bin` is
 the device-native byte representation; the corresponding `.json` is the
 canonical decoded (human-readable) form. Both are verified by round-trip
-tests in `fixture_profiles.rs` and `fixture_macros.rs`.
+tests in `crates/controller-core/tests/pro3/fixture_profiles.rs` and
+`fixture_macros.rs`.
 
 To regenerate after changing an encoder, run:
 
 ```
-cargo test -p controller-core --test fixture_profiles regenerate -- --ignored
-cargo test -p controller-core --test fixture_macros regenerate -- --ignored
+cargo test -p controller-core --test pro3 fixture_profiles::regenerate -- --ignored
+cargo test -p controller-core --test pro3 fixture_macros::regenerate -- --ignored
 ```
 
 Independent validation is done by loading the device-native bytes into a

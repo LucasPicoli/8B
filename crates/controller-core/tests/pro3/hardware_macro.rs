@@ -1,10 +1,10 @@
-//! Hardware macro test: requires a physical 8BitDo Pro 3 on USB with a profile in
-//! `XInput` slot 1. It puts the `x-s1-m0-buttons` fixture macro (trigger `rp`) into macro
-//! slot 0 of that profile, in this order: the profile blob with the new
-//! descriptor, then the step stream. It then reads both back. A second test gives `rp`
-//! the output X and removes the macro, the way the window does on a pick. Run with:
-//!   `cargo test -p controller-core --features hardware --test hardware_macro -- --ignored`
-#![cfg(feature = "hardware")]
+//! Hardware macro test: requires a physical 8BitDo Pro 3 on USB. It seeds the pad with
+//! the fixture profiles, then puts the `x-s1-m0-buttons` fixture macro (trigger `rp`)
+//! into macro slot 0 of `XInput` slot 1: the profile blob with the new descriptor, then
+//! the step stream. It reads both back, then gives `rp` the output X and removes the
+//! macro, the way the window does on a pick. The banks and the macro's flash page end
+//! as they began. Run with:
+//!   `cargo test -p controller-core --features hardware --test pro3 hardware_macro -- --ignored`
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec;
@@ -13,15 +13,22 @@ use controller_core::model::{
     ButtonMapping, MacroDefinition, MacroRef, MacroSlot, MacroStep, RawProfilePayload, Slot,
 };
 use controller_core::orchestrator::ProfileWriteOrchestrator;
+use controller_core::service::read::read_macros;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use serial_test::serial;
+
+use crate::seed;
 
 /// Section 4 record of profile slot 1: 216 bytes from `0x068C`.
 const SLOT1_SECTION4: std::ops::Range<usize> = 0x068C..0x068C + 216;
 /// The struct CRC.
 const CRC: std::ops::Range<usize> = 0x0C..0x10;
 const STREAM: &str = "../../fixtures/pro3/macros/x-s1-m0-buttons.steps.bin";
+/// Bytes per macro step on the wire.
+const STEP_LEN: usize = 10;
+/// A step stream is written in chunks of this many bytes.
+const CHUNK_LEN: usize = 32;
 
 fn step(duration_ms: u16, press: &[&str]) -> MacroStep {
     MacroStep {
@@ -52,18 +59,58 @@ fn xinput_bank(dev: &HidrawDevice) -> Vec<u8> {
     dev.read_all_profiles().unwrap().raw_blobs.remove(0)
 }
 
+/// The bytes a macro of `steps` steps takes in its flash page, padded as a stream is.
+const fn page_span(steps: usize) -> usize {
+    (steps * STEP_LEN).div_ceil(CHUNK_LEN) * CHUNK_LEN
+}
+
+/// The written span of macro slot 0 of `XInput` slot 1, if a macro there uses it. Read
+/// before the test writes the page, so it can be written back after.
+fn saved_page(dev: &HidrawDevice) -> Option<Vec<u8>> {
+    let slot = Slot::new(1).unwrap();
+    let read = dev.read_all_profiles().unwrap();
+    let occupied =
+        read.profiles.iter().any(|p| p.mode == XINPUT && p.source_slot == 1 && !p.id.is_empty());
+    // An empty slot has no macro, so nothing points at the page.
+    if !occupied {
+        return None;
+    }
+    let held = read_macros(dev, XINPUT, slot).unwrap();
+    let steps = held.macros.iter().find(|m| m.macro_slot == Some(0))?.steps.len();
+    let span = page_span(steps);
+    let mut page = dev
+        .read_macro_stream(XINPUT, slot, MacroSlot::new(0).unwrap(), span.div_ceil(STEP_LEN))
+        .unwrap();
+    page.truncate(span);
+    Some(page)
+}
+
 #[test]
-#[ignore = "writes a macro to XInput slot 1 of an attached 8BitDo Pro 3"]
+#[ignore = "writes and removes a macro on XInput slot 1 of an attached 8BitDo Pro 3"]
 #[serial]
-fn put_fixture_macro_on_xinput_slot1() {
-    let dev = HidrawDevice::first();
+fn put_and_remove_the_fixture_macro_on_xinput_slot1() {
+    let dev = seed::pad();
+    let page = saved_page(&dev);
+    let seed = seed::seed(&dev);
+    put_fixture_macro(&dev);
+    remove_it_on_a_pick(&dev);
+    if let Some(page) = page {
+        let (slot, macro_slot) = (Slot::new(1).unwrap(), MacroSlot::new(0).unwrap());
+        dev.write_macro_stream(XINPUT, slot, macro_slot, &page).unwrap();
+        dev.send_apply(XINPUT).unwrap();
+    }
+    drop(seed);
+}
+
+/// Puts the fixture macro on `rp` of `XInput` slot 1, which must hold no macro.
+fn put_fixture_macro(dev: &HidrawDevice) {
     let slot = Slot::new(1).unwrap();
     let macro_slot = MacroSlot::new(0).unwrap();
     let def = buttons_macro();
     let stream = std::fs::read(STREAM).unwrap();
     assert_eq!(stream, Pro3.encode_macro_steps(&def.steps, XINPUT).unwrap());
 
-    let before = xinput_bank(&dev);
+    let before = xinput_bank(dev);
     let raw = RawProfilePayload {
         payload: before.clone(),
         source_slot: 1,
@@ -101,20 +148,17 @@ fn put_fixture_macro_on_xinput_slot1() {
     assert_eq!(Pro3.decode_macro_steps(&back, def.steps.len(), XINPUT).unwrap(), def.steps);
 }
 
-#[test]
-#[ignore = "removes the macro on rp from XInput slot 1 of an attached 8BitDo Pro 3"]
-#[serial]
-fn remove_fixture_macro_on_a_pick() {
-    let dev = HidrawDevice::first();
+/// Gives `rp` the output X and removes its macro, as the window does on a pick.
+fn remove_it_on_a_pick(dev: &HidrawDevice) {
     let before = dev.read_all_profiles().unwrap();
     let mut profile = before.profiles[0].canonical.clone();
-    assert!(profile.macro_refs.iter().any(|m| m.trigger == "rp"), "run the put test first");
+    assert!(profile.macro_refs.iter().any(|m| m.trigger == "rp"), "the put came first");
     let x = ButtonMapping { source: "rp".to_owned(), target: "left face".to_owned() };
     profile.button_mappings.retain(|m| m.source != "rp");
     profile.button_mappings.push(x.clone());
 
     let dir = tempfile::tempdir().unwrap();
-    let r = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path()).upload_profile_dropping_macros(
+    let r = ProfileWriteOrchestrator::new(dev, &Pro3, dir.path()).upload_profile_dropping_macros(
         &serde_json::to_value(&profile).unwrap(),
         XINPUT,
         Slot::new(1).unwrap(),

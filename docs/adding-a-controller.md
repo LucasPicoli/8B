@@ -285,7 +285,11 @@ A port is correct when the bytes match, not when the code looks right.
    [`fixtures/pro3/FIXTURES.md`](../fixtures/pro3/FIXTURES.md) says where each file
    came from and how to regenerate the ones the encoders make.
 3. Write golden-vector tests as the Pro 3 does in
-   [`crates/controller-core/tests/`](../crates/controller-core/tests/):
+   [`crates/controller-core/tests/pro3/`](../crates/controller-core/tests/pro3/).
+   Each model keeps its integration tests in `tests/<model>/`, entered from that
+   folder's `main.rs`, which lists the files as modules. Cargo builds one test binary
+   per model, run with `cargo test -p controller-core --test <model>`, so one model's
+   tests never mix with another's. In the Pro 3's folder,
    `golden_profile_decode.rs` decodes a blob and compares it to the JSON,
    `golden_profile_compile.rs` compiles a profile and compares every byte to the blob,
    and `golden_macro_decode.rs` and `golden_macro_encode.rs` do the same for macros.
@@ -302,11 +306,23 @@ A port is correct when the bytes match, not when the code looks right.
    just hw
    ```
 
-   They are `#[ignore]` tests behind the `hardware` feature
-   (`tests/hardware_read.rs`, `hardware_write.rs`, `hardware_macro.rs`). They read
-   every bank, write a remap and revert it, and write and remove a macro. They
-   assume a Pro 3, so a new model needs its own copies. They write to the pad: keep
-   a backup of its profiles first.
+   They are `#[ignore]` tests behind the `hardware` feature. The Pro 3's are
+   `hardware_read.rs`, `hardware_write.rs`, `hardware_macro.rs` and
+   `hardware_batch.rs` in `tests/pro3/`. They read every bank, write a remap and
+   revert it, write and remove a macro, and time batch writes.
+
+   Every model shares the guard in
+   [`tests/support/hw.rs`](../crates/controller-core/tests/support/hw.rs):
+   - `hw::pad(&Model)` finds an attached pad that answers as that model, and panics
+     before any write when there is none. A test never writes one model's blobs to
+     another pad.
+   - `hw::seed(&dev, &Model, fill)` writes what `fill` makes of each bank, and returns
+     a guard that puts the banks back byte for byte when the test ends, pass or fail.
+
+   The Pro 3's `seed.rs` fills every slot with the fixture profiles, so its tests run
+   on any Pro 3, even one with every slot empty. A new model writes its own `seed.rs`
+   with its own fixtures. The tests write to the pad's flash: keep a dump of its banks
+   anyway.
 6. Run `just lint` before you commit.
 
 ## What the app needs

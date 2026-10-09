@@ -1,7 +1,7 @@
 //! Pro 3 macro decoder — `decode_macro_metadata`, `decode_macro_steps`, and the
 //! canonical-JSON serializer.
 //!
-//! Verified byte for byte against golden vectors (`tests/golden_macro_decode.rs`).
+//! Verified byte for byte against golden vectors (`tests/pro3/golden_macro_decode.rs`).
 //!
 //! All variable-offset reads go through the bounds-checked
 //! [`crate::protocol::bytes`] accessors so the decoder is panic-free even on

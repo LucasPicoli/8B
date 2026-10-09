@@ -222,7 +222,7 @@ fn macro_metadata_descriptor_is_52_bytes_with_correct_step_count() {
 }
 
 /// Regenerate committed `.json` + `.steps.bin`. Ignored in normal runs.
-/// Run: `cargo test -p controller-core --test fixture_macros regenerate -- --ignored`
+/// Run: `cargo test -p controller-core --test pro3 fixture_macros::regenerate -- --ignored`
 #[test]
 #[ignore = "writes committed fixture artifacts; run manually after model/encoder changes"]
 fn regenerate() {

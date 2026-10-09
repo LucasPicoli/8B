@@ -1,7 +1,7 @@
 //! Pro 3 profile decoder (`map_profile`) and compiler (`compile_profile`).
 //!
 //! Both are verified byte for byte against golden vectors captured from live
-//! hardware (`tests/golden_profile_compile.rs`, `tests/golden_profile_decode.rs`).
+//! hardware (`tests/pro3/golden_profile_compile.rs`, `tests/pro3/golden_profile_decode.rs`).
 //!
 //! All variable-offset reads/writes go through the bounds-checked
 //! [`crate::protocol::bytes`] accessors so both codec paths are panic-free
