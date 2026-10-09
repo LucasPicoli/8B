@@ -175,13 +175,18 @@ mod tests {
         let typed = json.as_object().unwrap().keys().filter(|k| !p.settings.contains_key(*k));
         assert!(typed.into_iter().all(|k| PROFILE_FIELDS.contains(&k.as_str())));
         assert_eq!(serde_json::to_value(&p).unwrap(), json);
-        // The settings groups sit where the typed fields were, so exported files keep
-        // their field order.
+        // The settings groups sit between `mode` and `button_mappings`, in name order.
+        // The keys inside a group come out in name order too, not in the order the
+        // description lists them: `serde_json` keeps a map sorted.
         let text = serde_json::to_string(&p).unwrap();
         let at = |key: &str| text.find(&format!("\"{key}\":")).unwrap();
         let order = ["mode", "sticks", "triggers", "vibration", "button_mappings", "macro_refs"];
         let positions: Vec<usize> = order.iter().map(|key| at(key)).collect();
         assert!(positions.is_sorted(), "{text}");
+        let sticks: Vec<&String> =
+            p.settings.get("sticks").and_then(Value::as_object).unwrap().keys().collect();
+        assert!(sticks.is_sorted(), "{sticks:?}");
+        assert!(at("left_max_pct") < at("left_min_pct"), "{text}");
 
         assert_eq!(p.setting("/vibration/left_level"), Some(&3.into()));
         assert!(p.set_setting("/vibration/left_level", 5.into()));
