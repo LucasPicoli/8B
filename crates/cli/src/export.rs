@@ -81,47 +81,59 @@ fn file_entry(model: &dyn Model, profile_id: &str, path: &Path, value: &Value) -
     (entry, passed)
 }
 
+/// What an export of `profiles` gave: its category, its message and one `files` entry
+/// with its verdict per file. An empty slot, one whose profile has no id, is skipped:
+/// its default profile is no backup and would not upload back.
+fn export_held(
+    model: &dyn Model,
+    profiles: &[CanonicalProfileSummary],
+    dir: &Path,
+    overwrite: bool,
+) -> (ErrorCategory, String, Vec<(Value, bool)>) {
+    let held: Vec<CanonicalProfileSummary> =
+        profiles.iter().filter(|p| !p.id.is_empty()).cloned().collect();
+    if held.is_empty() && !profiles.is_empty() {
+        return (ErrorCategory::None, "Every slot is empty: nothing to export.".to_owned(), vec![]);
+    }
+    let written = match write_files(&held, dir, overwrite) {
+        Ok(written) => written,
+        Err(message) => return (ErrorCategory::ExportFailure, message, vec![]),
+    };
+    let files: Vec<(Value, bool)> = held
+        .iter()
+        .zip(&written)
+        .map(|(p, (path, value))| file_entry(model, &p.id, path, value))
+        .collect();
+    let failed = files.iter().filter(|(_, ok)| !ok).count();
+    let skipped = profiles.len() - held.len();
+    let message = format!("Exported {} profile(s), skipped {skipped} empty slot(s).", files.len());
+    if failed == 0 {
+        (ErrorCategory::None, message, files)
+    } else {
+        let message = format!("{failed} exported profile(s) failed validation.");
+        (ErrorCategory::ValidationFailure, message, files)
+    }
+}
+
 /// Runs the `export` command.
 ///
 /// # Returns
 /// Process exit code.
 pub fn run_export(output_dir: &Path, overwrite: bool) -> i32 {
     let dev = devices::open(None);
-    let out = Some((detect_and_read_all(dev.as_ref()), dev.model()));
+    let read = detect_and_read_all(dev.as_ref());
     let abs = std::path::absolute(output_dir).unwrap_or_else(|_| output_dir.to_path_buf());
     let mut payload = json!({
         "output_directory": abs.display().to_string(),
         "overwrite": overwrite,
     });
 
-    let (category, message, mode, files) = match out {
-        None => {
-            (ErrorCategory::ConnectionFailure, "failed to open device".to_owned(), None, vec![])
-        }
-        Some((r, _)) if !r.success => (r.error_category, r.message, r.mode, vec![]),
-        Some((r, Err(e))) => (e.category(), e.to_string(), r.mode, vec![]),
-        Some((r, Ok(model))) => match write_files(&r.profiles, output_dir, overwrite) {
-            Err(message) => (ErrorCategory::ExportFailure, message, r.mode, vec![]),
-            Ok(written) => {
-                let files: Vec<(Value, bool)> = r
-                    .profiles
-                    .iter()
-                    .zip(&written)
-                    .map(|(p, (path, value))| file_entry(model, &p.id, path, value))
-                    .collect();
-                let failed = files.iter().filter(|(_, ok)| !ok).count();
-                let (category, message) = if failed == 0 {
-                    (ErrorCategory::None, format!("Exported {} profile(s).", files.len()))
-                } else {
-                    (
-                        ErrorCategory::ValidationFailure,
-                        format!("{failed} exported profile(s) failed validation."),
-                    )
-                };
-                (category, message, r.mode, files)
-            }
-        },
+    let (category, message, files) = match dev.model() {
+        _ if !read.success => (read.error_category, read.message, vec![]),
+        Err(e) => (e.category(), e.to_string(), vec![]),
+        Ok(model) => export_held(model, &read.profiles, output_dir, overwrite),
     };
+    let mode = read.mode;
 
     let success = category == ErrorCategory::None;
     let failed = files.iter().filter(|(_, ok)| !ok).count();
@@ -145,4 +157,44 @@ pub fn run_export(output_dir: &Path, overwrite: bool) -> i32 {
     }
     emit_json(&payload);
     code
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use controller_core::device::ProtocolCodec as _;
+    use controller_core::devices::pro3::{Pro3, XINPUT};
+
+    use super::*;
+
+    fn summary(slot: u8, name: &str) -> CanonicalProfileSummary {
+        let mut canonical = Pro3.default_profile(XINPUT);
+        let id = if name.is_empty() { String::new() } else { format!("xinput-slot-{slot}") };
+        canonical.id.clone_from(&id);
+        canonical.name = name.to_owned();
+        CanonicalProfileSummary {
+            id,
+            name: name.to_owned(),
+            mode: XINPUT,
+            source_slot: slot,
+            source_profile_index: slot - 1,
+            canonical,
+        }
+    }
+
+    #[test]
+    fn empty_slots_are_skipped_and_do_not_fail_the_export() {
+        let dir = tempfile::tempdir().unwrap();
+        let profiles = [summary(1, "Mine"), summary(2, ""), summary(3, "")];
+        let (category, message, files) = export_held(&Pro3, &profiles, dir.path(), false);
+        assert_eq!(category, ErrorCategory::None, "{message}");
+        assert_eq!(files.len(), 1);
+        assert!(message.contains("skipped 2 empty slot(s)"), "{message}");
+        assert!(dir.path().join("profile-xinput-slot-1-index-0.json").exists());
+        assert!(!dir.path().join("profile-xinput-slot-2-index-1.json").exists());
+
+        let empty = tempfile::tempdir().unwrap();
+        let (category, _, files) = export_held(&Pro3, &profiles[1..], empty.path(), false);
+        assert_eq!((category, files.len()), (ErrorCategory::None, 0));
+    }
 }

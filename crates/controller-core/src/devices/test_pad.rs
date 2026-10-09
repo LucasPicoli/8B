@@ -281,16 +281,15 @@ mod tests {
         let model = dev.model().unwrap();
         let orchestrator = ProfileWriteOrchestrator::new(&dev, model, Path::new("."));
 
-        let force = &ConfirmPolicy::Force;
         let too_high = [("/rumble/level", 4.into())];
-        let refused = orchestrator.patch_settings(STANDARD, slot(2), &too_high, force);
+        let refused = orchestrator.patch_settings(STANDARD, slot(2), &too_high);
         assert!(!refused.success, "the test pad's rumble stops at 3: {}", refused.message);
         let pro3 = [("/vibration/left_level", 1.into())];
-        let pro3 = orchestrator.patch_settings(STANDARD, slot(2), &pro3, force);
+        let pro3 = orchestrator.patch_settings(STANDARD, slot(2), &pro3);
         assert!(pro3.message.contains("does not apply"), "{}", pro3.message);
 
         let set = [("/rumble/level", 3.into()), ("/lights/on", true.into())];
-        let done = orchestrator.patch_settings(STANDARD, slot(2), &set, force);
+        let done = orchestrator.patch_settings(STANDARD, slot(2), &set);
         assert!(done.success, "{}", done.message);
         let blob = written(&dev);
         assert_eq!(blob.len(), BLOB_SIZE);
@@ -357,7 +356,7 @@ mod tests {
         });
         let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, Path::new("."));
         let set = [("/rumble/level", 1.into())];
-        let result = orchestrator.patch_settings(STANDARD, slot(2), &set, &ConfirmPolicy::Force);
+        let result = orchestrator.patch_settings(STANDARD, slot(2), &set);
         assert!(!result.success);
         assert!(dev.calls().iter().all(|c| !matches!(c, MockCall::WriteFullProfile { .. })));
     }

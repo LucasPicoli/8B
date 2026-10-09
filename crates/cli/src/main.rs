@@ -16,7 +16,8 @@ pub(crate) mod write;
 
 use std::path::PathBuf;
 
-use clap::{ArgAction, Args, Parser, Subcommand};
+use clap::error::ErrorKind;
+use clap::{ArgAction, Args, CommandFactory as _, Parser, Subcommand};
 
 use commands::{run_detect, run_dump, run_read, run_read_macro};
 use controller_core::devices;
@@ -92,7 +93,8 @@ struct Target {
     /// Target slot, from 1.
     #[arg(short, long, value_parser = parse_slot)]
     slot: Slot,
-    /// Overwrite an occupied slot without asking.
+    /// Overwrite an occupied slot without asking. Only upload and deactivate ask: set
+    /// and remap edit the profile the slot holds.
     #[arg(long)]
     force: bool,
 }
@@ -107,6 +109,15 @@ fn parse_change(s: &str) -> Result<(String, serde_json::Value), String> {
     let value = serde_json::from_str(value)
         .map_err(|_| format!("'{value}' is not a number or true/false"))?;
     Ok((pointer.to_owned(), value))
+}
+
+/// The first pointer that `changes` sets twice, if any.
+fn repeated_pointer(changes: &[(String, serde_json::Value)]) -> Option<&str> {
+    changes
+        .iter()
+        .enumerate()
+        .find(|(i, (p, _))| changes.iter().take(*i).any(|(q, _)| q == p))
+        .map(|(_, (p, _))| p.as_str())
 }
 
 /// Parses a mode that a built-in model declares, so a typo is a usage error before any
@@ -228,6 +239,12 @@ fn log_spec(verbose: u8, rust_log: Option<&str>) -> String {
 
 fn main() {
     let cli = Cli::parse();
+    if let Commands::Set { changes, .. } = &cli.command {
+        if let Some(pointer) = repeated_pointer(changes) {
+            let message = format!("'{pointer}' is set twice; give each setting once");
+            Cli::command().error(ErrorKind::ArgumentConflict, message).exit();
+        }
+    }
     env_logger::Builder::new()
         .parse_filters(&log_spec(cli.verbose, std::env::var("RUST_LOG").ok().as_deref()))
         .init();
@@ -260,13 +277,13 @@ fn main() {
             t.slot,
             t.force,
             &[("source", &source), ("target", &output)],
-            |o, p| o.remap_button(t.mode, t.slot, &source, &output, p),
+            |o, _| o.remap_button(t.mode, t.slot, &source, &output),
         ),
         Commands::Set { target: t, changes } => {
             let changes: Vec<(&str, serde_json::Value)> =
                 changes.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
-            run_write(t.mode, t.slot, t.force, &[], |o, p| {
-                o.patch_settings(t.mode, t.slot, &changes, p)
+            run_write(t.mode, t.slot, t.force, &[], |o, _| {
+                o.patch_settings(t.mode, t.slot, &changes)
             })
         }
     };
@@ -290,6 +307,15 @@ mod tests {
         assert!(parse_change("/a=loud").is_err());
         let cli = Cli::parse_from(["8b", "set", "-m", "xinput", "-s", "1", "/a=1", "/b=false"]);
         assert!(matches!(cli.command, Commands::Set { changes, .. } if changes.len() == 2));
+    }
+
+    #[test]
+    fn set_finds_a_pointer_given_twice() {
+        let change = |s: &str| (s.to_owned(), serde_json::Value::from(1));
+        let once = [change("/a"), change("/b")];
+        assert_eq!(repeated_pointer(&once), None);
+        let twice = [change("/a"), change("/b"), change("/a")];
+        assert_eq!(repeated_pointer(&twice), Some("/a"));
     }
 
     #[test]

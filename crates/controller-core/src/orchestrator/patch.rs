@@ -96,18 +96,11 @@ impl ProfileWriteOrchestrator<'_> {
     /// Points `source` at `target` in an occupied slot. `target` may be `disabled`,
     /// `screenshot` in Switch mode, or a back-paddle output in `DInput` mode.
     #[must_use]
-    pub fn remap_button(
-        &self,
-        mode: Mode,
-        slot: Slot,
-        source: &str,
-        target: &str,
-        policy: &ConfirmPolicy,
-    ) -> WriteResult {
+    pub fn remap_button(&self, mode: Mode, slot: Slot, source: &str, target: &str) -> WriteResult {
         if let Err(e) = self.model.validate_remap(mode, source, target) {
             return failure_from(mode, slot, &e);
         }
-        self.patch(mode, slot, policy, "remap", "Button remapped.", |profile| {
+        self.patch(mode, slot, "remap", "Button remapped.", |profile| {
             match profile.button_mappings.iter_mut().find(|m| m.source == source) {
                 Some(mapping) => target.clone_into(&mut mapping.target),
                 None => profile
@@ -122,13 +115,7 @@ impl ProfileWriteOrchestrator<'_> {
     /// `("/vibration/left_level", 3)`. Each pointer must be a setting the model declares
     /// for `mode`, and each value must fit it.
     #[must_use]
-    pub fn patch_settings(
-        &self,
-        mode: Mode,
-        slot: Slot,
-        changes: &[(&str, Value)],
-        policy: &ConfirmPolicy,
-    ) -> WriteResult {
+    pub fn patch_settings(&self, mode: Mode, slot: Slot, changes: &[(&str, Value)]) -> WriteResult {
         let description = match self.model.description() {
             Ok(d) => d,
             Err(e) => return failure_from(mode, slot, &e),
@@ -136,23 +123,24 @@ impl ProfileWriteOrchestrator<'_> {
         if let Err(e) = check_changes(description, mode, changes) {
             return failure_from(mode, slot, &e);
         }
-        self.patch(mode, slot, policy, "patch settings", "Settings patched.", |profile| {
+        self.patch(mode, slot, "patch settings", "Settings patched.", |profile| {
             apply_changes(description, mode, profile, changes)
         })
     }
 
     /// Shared patch flow: the slot must be occupied, its profile is decoded, `edit` changes
     /// it, and it is compiled back with the slot's macros kept.
+    ///
+    /// A patch edits the profile the slot holds, so it never asks to overwrite it.
     fn patch(
         &self,
         mode: Mode,
         slot: Slot,
-        policy: &ConfirmPolicy,
         what: &str,
         done: &str,
         edit: impl FnOnce(&mut CanonicalProfile) -> Result<()>,
     ) -> WriteResult {
-        self.run(mode, slot, policy, done, |rb: &ReadbackResult| {
+        self.run(mode, slot, &ConfirmPolicy::Force, done, |rb: &ReadbackResult| {
             if !rb.slot_active {
                 return Err(Error::Validation(format!(
                     "Cannot {what} on an empty slot. Upload a profile first."

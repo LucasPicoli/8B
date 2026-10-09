@@ -811,6 +811,7 @@ dependencies = [
  "controller-core",
  "env_logger",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

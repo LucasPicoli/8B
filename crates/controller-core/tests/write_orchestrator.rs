@@ -305,10 +305,10 @@ fn every_write_to_an_occupied_slot_keeps_all_macros() {
     let f = ConfirmPolicy::Force;
 
     go(&|o| o.upload_profile(&fixture("xinput-slot2"), XINPUT, slot(1), &f));
-    go(&|o| o.remap_button(XINPUT, slot(1), "l1", "r1", &f));
-    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/sticks/swap_sticks", true.into())], &f));
-    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/triggers/swap_triggers", true.into())], &f));
-    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/vibration/left_level", 4.into())], &f));
+    go(&|o| o.remap_button(XINPUT, slot(1), "l1", "r1"));
+    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/sticks/swap_sticks", true.into())]));
+    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/triggers/swap_triggers", true.into())]));
+    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/vibration/left_level", 4.into())]));
     go(&|o| o.deactivate_slot(XINPUT, slot(1), &f));
 }
 
@@ -401,7 +401,7 @@ fn remap_changes_one_mapping_and_nothing_else() {
     let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
 
-    let r = orch(&dev, dir.path()).remap_button(XINPUT, slot(1), "l1", "r1", &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).remap_button(XINPUT, slot(1), "l1", "r1");
 
     assert!(r.success, "{}", r.message);
     let before = decode(&base, XINPUT, 1);
@@ -426,7 +426,7 @@ fn remap_rejects_bad_names_before_touching_the_device() {
     for (source, target) in
         [("home/guide", "l1"), ("nope", "l1"), ("l1", "rp"), ("l1", "screenshot")]
     {
-        let r = o.remap_button(XINPUT, slot(1), source, target, &ConfirmPolicy::Force);
+        let r = o.remap_button(XINPUT, slot(1), source, target);
         assert_failed(&r, ErrorCategory::ValidationFailure);
     }
     assert_eq!(dev.calls(), []);
@@ -441,8 +441,8 @@ fn a_mode_the_model_lacks_is_refused_without_device_access() {
     let other = Mode::from_static("standard");
     let results = [
         o.deactivate_slot(other, slot(1), &f),
-        o.remap_button(other, slot(1), "l1", "r1", &f),
-        o.patch_settings(other, slot(1), &[("/vibration/left_level", 1.into())], &f),
+        o.remap_button(other, slot(1), "l1", "r1"),
+        o.patch_settings(other, slot(1), &[("/vibration/left_level", 1.into())]),
     ];
     for r in &results {
         assert_failed(r, ErrorCategory::ValidationFailure);
@@ -456,10 +456,9 @@ fn patches_on_an_empty_slot_are_refused_without_a_write() {
     let dev = device(XINPUT, &base_blob(XINPUT));
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
-    let f = ConfirmPolicy::Force;
     let results = [
-        o.remap_button(XINPUT, slot(3), "l1", "r1", &f),
-        o.patch_settings(XINPUT, slot(3), &[("/vibration/left_level", 1.into())], &f),
+        o.remap_button(XINPUT, slot(3), "l1", "r1"),
+        o.patch_settings(XINPUT, slot(3), &[("/vibration/left_level", 1.into())]),
     ];
     for r in &results {
         assert_failed(r, ErrorCategory::ValidationFailure);
@@ -480,7 +479,7 @@ fn patch_settings_changes_only_the_named_fields() {
         ("/sticks/swap_sticks", true.into()),
     ];
 
-    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set);
 
     assert!(r.success, "{}", r.message);
     let before = decode(&base, XINPUT, 1);
@@ -501,7 +500,6 @@ fn patch_settings_rules_run_before_any_write() {
     let dev = device(XINPUT, &base_blob(XINPUT));
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
-    let f = ConfirmPolicy::Force;
 
     for bad in [
         ("/sticks/left_min_pct", 95.into()),
@@ -510,7 +508,7 @@ fn patch_settings_rules_run_before_any_write() {
         ("/sticks/swap_sticks", 1.into()),
         ("/sticks/no_such_field", 1.into()),
     ] {
-        let r = o.patch_settings(XINPUT, slot(1), &[bad], &f);
+        let r = o.patch_settings(XINPUT, slot(1), &[bad]);
         assert_failed(&r, ErrorCategory::ValidationFailure);
     }
 
@@ -518,7 +516,7 @@ fn patch_settings_rules_run_before_any_write() {
         ("/sticks/swap_dpad_with_left_stick", true.into()),
         ("/sticks/invert_left_x", true.into()),
     ];
-    let r = o.patch_settings(XINPUT, slot(1), &conflict, &f);
+    let r = o.patch_settings(XINPUT, slot(1), &conflict);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_dpad_with_left_stick"), "{}", r.message);
     assert!(r.message.contains("invert_left_x"), "{}", r.message);
@@ -527,11 +525,11 @@ fn patch_settings_rules_run_before_any_write() {
     // A slot that already swaps the D-pad refuses swap sticks too, and keeps what it holds.
     let dpad = [("/sticks/swap_dpad_with_left_stick", true.into())];
     let first = device(XINPUT, &base_blob(XINPUT));
-    assert!(orch(&first, dir.path()).patch_settings(XINPUT, slot(1), &dpad, &f).success);
+    assert!(orch(&first, dir.path()).patch_settings(XINPUT, slot(1), &dpad).success);
     let held = writes(&first).pop().unwrap();
     let dev = device(XINPUT, &held);
     let swap = [("/sticks/swap_sticks", true.into())];
-    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &swap, &f);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &swap);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_sticks"), "{}", r.message);
     assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
@@ -540,7 +538,6 @@ fn patch_settings_rules_run_before_any_write() {
 #[test]
 fn patch_settings_refuses_a_clash_the_slot_already_holds() {
     let dir = tempfile::tempdir().unwrap();
-    let f = ConfirmPolicy::Force;
     let mut profile: CanonicalProfile = serde_json::from_value(fixture("xinput-slot1")).unwrap();
     let sticks = profile.settings.get_mut("sticks").unwrap();
     sticks["swap_dpad_with_left_stick"] = true.into();
@@ -550,7 +547,7 @@ fn patch_settings_refuses_a_clash_the_slot_already_holds() {
     let dev = device(XINPUT, &clash);
 
     let set = [("/sticks/left_min_pct", 10.into())];
-    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &f);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_dpad_with_left_stick"), "{}", r.message);
     assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
@@ -558,20 +555,19 @@ fn patch_settings_refuses_a_clash_the_slot_already_holds() {
     // A patch of another group leaves the sticks as they are.
     let dev = device(XINPUT, &clash);
     let set = [("/vibration/left_level", 1.into())];
-    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &f);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set);
     assert!(r.success, "{}", r.message);
 }
 
 #[test]
 fn patch_settings_takes_the_trigger_form_of_the_mode() {
     let dir = tempfile::tempdir().unwrap();
-    let f = ConfirmPolicy::Force;
 
     // XInput: min and max.
     let base = base_blob(XINPUT);
     let dev = device(XINPUT, &base);
     let set = [("/triggers/left_min_pct", 10.into()), ("/triggers/right_max_pct", 90.into())];
-    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &f);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set);
     assert!(r.success, "{}", r.message);
     let Triggers::Analog(before) = s(&decode(&base, XINPUT, 1)).triggers else { panic!("analog") };
     let Triggers::Analog(after) = s(&decode(&writes(&dev).remove(0), XINPUT, 1)).triggers else {
@@ -588,7 +584,7 @@ fn patch_settings_takes_the_trigger_form_of_the_mode() {
     let dev = device(SWITCH, &base);
     let set =
         [("/triggers/left_threshold_pct", 30.into()), ("/triggers/swap_triggers", false.into())];
-    let r = orch(&dev, dir.path()).patch_settings(SWITCH, slot(1), &set, &f);
+    let r = orch(&dev, dir.path()).patch_settings(SWITCH, slot(1), &set);
     assert!(r.success, "{}", r.message);
     let Triggers::Switch(after) = s(&decode(&writes(&dev).remove(0), SWITCH, 1)).triggers else {
         panic!("switch")
@@ -601,12 +597,11 @@ fn patch_settings_refuses_the_trigger_form_of_another_mode() {
     let dev = MockDevice::new();
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
-    let f = ConfirmPolicy::Force;
     let analog = [("/triggers/left_min_pct", 10.into())];
     let threshold = [("/triggers/left_threshold_pct", 10.into())];
     let too_high = [("/triggers/left_threshold_pct", 95.into())];
     for (mode, set) in [(SWITCH, &analog), (XINPUT, &threshold), (SWITCH, &too_high)] {
-        assert_failed(&o.patch_settings(mode, slot(1), set, &f), ErrorCategory::ValidationFailure);
+        assert_failed(&o.patch_settings(mode, slot(1), set), ErrorCategory::ValidationFailure);
     }
     assert_eq!(dev.calls(), []);
 }
@@ -617,7 +612,7 @@ fn patch_settings_sets_the_vibration_levels() {
     let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
     let set = [("/vibration/left_level", 1.into()), ("/vibration/right_level", 4.into())];
-    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set);
     assert!(r.success, "{}", r.message);
     let after = decode(&writes(&dev).remove(0), XINPUT, 1);
     assert_eq!((s(&after).vibration.left_level, s(&after).vibration.right_level), (1, 4));
@@ -750,13 +745,7 @@ fn dinput_remap_on_the_official_blob_changes_one_entry() {
     let dev = device(DINPUT, &official);
     let dir = tempfile::tempdir().unwrap();
 
-    let r = orch(&dev, dir.path()).remap_button(
-        DINPUT,
-        slot(3),
-        "l4",
-        "bottom face",
-        &ConfirmPolicy::Force,
-    );
+    let r = orch(&dev, dir.path()).remap_button(DINPUT, slot(3), "l4", "bottom face");
 
     assert!(r.success, "{}", r.message);
     assert_eq!(

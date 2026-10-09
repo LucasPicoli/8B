@@ -71,6 +71,10 @@ fn call(fd: impl AsFd, number: u8, buf: &mut [u8]) -> Result<usize> {
 /// The first byte of `buf` comes back as the report id. Returns the bytes the device
 /// sent, the id included.
 ///
+/// Ask only for an id the report descriptor declares as a feature report. On a Pro 3, an
+/// id it does not declare fails with `ETIMEDOUT` only after the kernel's control-transfer
+/// timeout, not at once, so probing ids stalls.
+///
 /// # Errors
 /// Returns [`Error::Usb`] if `buf` is empty or longer than [`MAX_FEATURE_LEN`], or if
 /// the ioctl fails, such as on a node that is not hidraw.

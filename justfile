@@ -5,8 +5,10 @@ lint:
     # Alone, so a test that needs a feature only another crate turns on fails here.
     cargo test -p controller-core
 
+# The hardware tests. `regenerate` is ignored too, but it rewrites the golden fixtures:
+# run it by hand after an encoder change, never here.
 hw:
-    cargo test --features hardware -- --ignored
+    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate
 
 # Build the x86_64 AppImage in ubuntu:22.04 (glibc 2.35), so it runs on that glibc and newer.
 appimage:
