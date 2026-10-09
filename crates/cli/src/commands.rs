@@ -157,14 +157,12 @@ pub fn build_read_macro_ok_payload(
     (Value::Object(map), 0)
 }
 
-/// Builds the read-macro failure JSON payload and exit code.
-///
-/// An error whose message contains `"no active profile"` maps to exit code 2
-/// (usage error) per the PRD spec.
+/// Builds the read-macro failure JSON payload and exit code. The exit code is the
+/// error category's, as for every other verb: an empty slot is a validation failure,
+/// exit 4.
 #[must_use]
 pub fn build_read_macro_err_payload(mode: Mode, slot: u8, err: &Error) -> (Value, i32) {
-    let is_empty_slot = err.to_string().contains("no active profile");
-    let exit_code = if is_empty_slot { 2 } else { exit_code_for_category(err.category()) };
+    let exit_code = exit_code_for_category(err.category());
 
     let payload = json!({
         "success": false,
@@ -488,10 +486,10 @@ mod tests {
     // -----------------------------------------------------------------------
 
     #[test]
-    fn read_macro_err_no_active_profile_is_exit_2() {
+    fn read_macro_err_no_active_profile_is_a_validation_failure() {
         let err = Error::Validation("no active profile in slot 1".to_owned());
         let (payload, code) = build_read_macro_err_payload(XINPUT, 1, &err);
-        assert_eq!(code, 2, "empty slot must map to exit code 2");
+        assert_eq!(code, 4, "an empty slot exits 4, as set and upload do");
         assert_eq!(payload["success"], false);
         assert_eq!(payload["error_category"], "validation_failure");
     }

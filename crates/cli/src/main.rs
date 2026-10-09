@@ -30,13 +30,15 @@ use write::{run_upload, run_write};
 /// Exit codes:
 ///   0  Success
 ///   1  Connection failure (no device or USB error)
-///   2  Usage error (invalid arguments, or an overwrite refused without --force)
+///   2  Usage error (invalid arguments), or a write to an occupied slot that
+///      upload or deactivate refused without --force
 ///   3  Timeout (device disconnected mid-transfer)
 ///   4  Validation failure (profile schema/semantic check failed)
-///   5  Export failure (could not write files to disk)
+///   5  Export failure (could not write files to disk, or a file exists and
+///      --overwrite is off)
 ///   6  Write failure (profile write to device failed)
 #[derive(Debug, Parser)]
-#[command(name = "8bitdo-pro-3", version, about)]
+#[command(name = "8bitdo-pro-3", version, about, verbatim_doc_comment)]
 struct Cli {
     /// Log to stderr: -v for debug, -vv for trace. `RUST_LOG` overrides it.
     #[arg(short, long, global = true, action = ArgAction::Count)]
@@ -159,7 +161,8 @@ enum Commands {
         /// Output directory.
         #[arg(short, long, default_value = "exports")]
         output_dir: PathBuf,
-        /// Replace files that already exist.
+        /// Replace files that already exist. Without it, an existing file stops the
+        /// export before anything is written, with exit 5.
         #[arg(long)]
         overwrite: bool,
     },
