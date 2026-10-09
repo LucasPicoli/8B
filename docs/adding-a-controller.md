@@ -137,7 +137,8 @@ mode the Pro 3 enumerates as `2dc8:310b`, and so does the Ultimate 2 (model id
 `0x6012`). The USB id finds a candidate. Only the model id says what it is. List
 every model id the model answers with, and the id of no other pad.
 
-Each `config_ports` entry in `description.json` has these fields:
+Each `config_ports` entry in `description.json` has these fields. One USB id stands for
+one mode, so the loader refuses a description that lists an id twice.
 
 | Field | Meaning |
 | --- | --- |
@@ -244,6 +245,11 @@ select, write the whole blob, apply. A transport without those steps makes slot
 select and apply do nothing, and maps the blob of `blob_size` bytes onto its own
 reads and writes. The 8BitDo macro and patch commands are methods of `HidrawDevice`
 only, so a transport of its own does not implement them.
+
+The app takes the current mode from the USB id of the config port. A pad that changes
+mode without changing its USB id lists one port and answers `DeviceIo::current_mode`.
+The app asks on every presence poll and prefers that answer, so a mode change shows
+and starts a new read.
 
 A pad that talks through HID feature reports can use `get_feature` and `set_feature`
 in [`transport/feature.rs`](../crates/controller-core/src/transport/feature.rs) on its

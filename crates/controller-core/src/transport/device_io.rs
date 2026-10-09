@@ -17,6 +17,15 @@ pub trait DeviceIo {
     /// [`crate::Error::UnsupportedModel`] for a model id no supported model lists.
     fn model(&self) -> Result<&'static dyn Model>;
 
+    /// The mode the controller says it is in, for a pad whose modes do not change its
+    /// USB id. `None`, the default, means the USB id of its config port tells the mode.
+    ///
+    /// The app asks on every presence poll, about once a second, so answer from what
+    /// the last session saw or from a cheap query.
+    fn current_mode(&self) -> Option<Mode> {
+        None
+    }
+
     /// Reads the profiles of every mode's bank, in the order of the model's
     /// description, from any current mode. `raw_blobs` holds one blob per bank in the
     /// same order.

@@ -77,6 +77,7 @@ pub struct MockDevice {
     macro_streams: HashMap<(Mode, u8, u8), Vec<u8>>,
     readiness: Option<DeviceReadiness>,
     flip_back_to: Option<Mode>,
+    current_mode: Option<Mode>,
     read_failures: Mutex<Vec<Error>>,
     writes: Mutex<WriteLog>,
 }
@@ -86,6 +87,14 @@ impl MockDevice {
     #[must_use]
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Makes [`DeviceIo::current_mode`] answer `mode`, as a pad whose modes share one
+    /// USB id would.
+    #[must_use]
+    pub const fn with_current_mode(mut self, mode: Mode) -> Self {
+        self.current_mode = Some(mode);
+        self
     }
 
     /// Configures what [`DeviceIo::model`] returns. Without it, the mock is the first
@@ -195,6 +204,10 @@ impl DeviceIo for MockDevice {
 
     fn detect_readiness(&self) -> Result<DeviceReadiness> {
         self.readiness.clone().ok_or(Error::NoDevice)
+    }
+
+    fn current_mode(&self) -> Option<Mode> {
+        self.current_mode
     }
 
     fn begin_write(&self) -> Result<Option<Mode>> {

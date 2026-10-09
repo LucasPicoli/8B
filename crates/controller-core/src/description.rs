@@ -356,6 +356,15 @@ impl ControllerDescription {
         if let Some(port) = self.config_ports.iter().find(|p| !modes.contains(&p.mode)) {
             return Err(format!("config port for unlisted mode '{}'", port.mode));
         }
+        let mut usb_ids = BTreeSet::new();
+        if let Some(port) =
+            self.config_ports.iter().find(|p| !usb_ids.insert((p.usb.vendor, p.usb.product)))
+        {
+            return Err(format!(
+                "config ports list USB id {:04x}:{:04x} twice: one id stands for one mode",
+                port.usb.vendor, port.usb.product
+            ));
+        }
         for port in &self.config_ports {
             let Some(via) = port.write_via else { continue };
             let takes_writes =
@@ -622,7 +631,7 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 17] = [
+        let cases: [fn(&mut Value); 18] = [
             |v| v["settings"][1]["frames"][0]["sliders"][0]["low"]["field"] = json!("/name"),
             |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/mode"),
             |v| v["settings"][1]["modes"] = json!(["dinput"]),
@@ -642,6 +651,12 @@ mod tests {
             |v| v["modes"][1]["id"] = json!("xinput"),
             |v| v["views"][1]["id"] = json!("front"),
             |v| v["views"][1]["svg"] = json!("missing.svg"),
+            |v| {
+                let port = v["config_ports"][0].clone();
+                let mut second = port;
+                second["mode"] = json!("switch");
+                v["config_ports"].as_array_mut().unwrap().push(second);
+            },
         ];
         for (i, break_it) in cases.iter().enumerate() {
             let mut v = minimal();

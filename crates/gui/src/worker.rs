@@ -228,10 +228,15 @@ fn run(
                 for v in keepalive.sync(&found, |usb| devnum(&usb.sysfs_path)) {
                     emit(Event::Fix { port: v.port, looping: v.looping });
                 }
+                // A transport that knows the pad's mode beats the USB id, for a pad whose
+                // modes share one id.
                 let seen: BTreeMap<String, Sighting> = found
                     .iter()
                     .map(|usb| {
-                        (usb.port_path().to_owned(), (usb.port.mode, devnum(&usb.sysfs_path)))
+                        let port = usb.port_path();
+                        let told = devices.get(port).and_then(|d| d.current_mode());
+                        let mode = told.unwrap_or(usb.port.mode);
+                        (port.to_owned(), (mode, devnum(&usb.sysfs_path)))
                     })
                     .collect();
                 for port in seen.keys() {
@@ -464,6 +469,34 @@ mod tests {
 
         fs::remove_dir_all(sysfs.path().join("3-1")).unwrap();
         assert!(matches!(next(&events), Event::Presence { mode: None, .. }));
+    }
+
+    #[test]
+    fn a_mode_the_transport_reports_beats_the_usb_id() {
+        let sysfs = tempfile::tempdir().unwrap();
+        plug(sysfs.path(), "2dc8", "6009");
+        let ports = Pro3.description().unwrap().config_ports.clone();
+        let dev = MockDevice::new()
+            .with_profiles(crate::state::tests::full_read())
+            .with_current_mode(XINPUT);
+        let (etx, events) = mpsc::channel();
+        let tx = spawn(
+            given(dev),
+            sysfs.path().to_owned(),
+            ports,
+            installed,
+            PathBuf::new(),
+            false,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        // Before a read opens the transport, only the USB id speaks.
+        assert!(matches!(next(&events), Event::Presence { mode: Some(DINPUT), .. }));
+        tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
+        assert!(matches!(next(&events), Event::Read { result: Ok(_), .. }));
+        assert!(matches!(next(&events), Event::Presence { mode: Some(XINPUT), .. }));
     }
 
     #[test]
