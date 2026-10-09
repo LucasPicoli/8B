@@ -1,4 +1,4 @@
-//! Write verbs: upload, deactivate, remap and the three patches.
+//! Write verbs: upload, deactivate, remap and set.
 //!
 //! Each handler builds a [`ProfileWriteOrchestrator`] over the attached controller and
 //! prints its [`WriteResult`] as JSON.
@@ -137,6 +137,7 @@ pub fn run_upload(file: &Path, mode: Mode, slot: Slot, force: bool) -> i32 {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
 
     fn slot() -> Slot {
         Slot::new(2).unwrap()
@@ -144,7 +145,7 @@ mod tests {
 
     #[test]
     fn success_has_no_error_fields() {
-        let mut r = WriteResult::success(Mode::XInput, slot(), "Profile uploaded successfully.");
+        let mut r = WriteResult::success(XINPUT, slot(), "Profile uploaded successfully.");
         r.profile_id = "p1".to_owned();
         let (payload, code) = build_write_payload(&r, &[]);
         assert_eq!(code, 0);
@@ -157,7 +158,7 @@ mod tests {
 
     #[test]
     fn remap_carries_source_and_target() {
-        let r = WriteResult::success(Mode::DInput, slot(), "Button remapped.");
+        let r = WriteResult::success(DINPUT, slot(), "Button remapped.");
         let (payload, _) = build_write_payload(&r, &[("source", "l4"), ("target", "a")]);
         assert_eq!(payload["source"], "l4");
         assert_eq!(payload["target"], "a");
@@ -166,7 +167,7 @@ mod tests {
 
     #[test]
     fn aborted_write_exits_2() {
-        let r = WriteResult::failure(Mode::XInput, slot(), ErrorCategory::None, "Use --force.");
+        let r = WriteResult::failure(XINPUT, slot(), ErrorCategory::None, "Use --force.");
         let (payload, code) = build_write_payload(&r, &[]);
         assert_eq!(code, 2);
         assert_eq!(payload["exit_code"], 2);
@@ -175,7 +176,7 @@ mod tests {
 
     #[test]
     fn failed_rollback_reports_backup_file() {
-        let mut r = WriteResult::failure(Mode::Switch, slot(), ErrorCategory::WriteFailure, "x");
+        let mut r = WriteResult::failure(SWITCH, slot(), ErrorCategory::WriteFailure, "x");
         r.rollback_attempted = true;
         r.backup_file_path = Some("./backup.bin".to_owned());
         let (payload, code) = build_write_payload(&r, &[]);
@@ -187,7 +188,7 @@ mod tests {
 
     #[test]
     fn validation_failure_exits_4() {
-        let r = WriteResult::failure(Mode::XInput, slot(), ErrorCategory::ValidationFailure, "x");
+        let r = WriteResult::failure(XINPUT, slot(), ErrorCategory::ValidationFailure, "x");
         assert_eq!(build_write_payload(&r, &[]).1, 4);
     }
 }

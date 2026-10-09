@@ -2,8 +2,8 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::Pro3;
-use controller_core::model::{MacroDefinition, MacroSlot, MacroStep, Mode};
+use controller_core::devices::pro3::{Pro3, SWITCH, XINPUT};
+use controller_core::model::{MacroDefinition, MacroSlot, MacroStep};
 
 const SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET: usize = 0x0694; // slot1 macro0 in macro-meta.blob
 
@@ -11,8 +11,8 @@ const SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET: usize = 0x0694; // slot1 macro0 in m
 fn macro_steps_encode_is_byte_exact_inverse_of_decoder() {
     // macro-sample.steps.bin is a golden step stream (32B = 3 steps padded).
     let golden = std::fs::read("../../fixtures/pro3/macro-sample.steps.bin").unwrap();
-    let steps = Pro3.decode_macro_steps(&golden, 3, Mode::XInput).unwrap();
-    let reencoded = Pro3.encode_macro_steps(&steps, Mode::XInput).unwrap();
+    let steps = Pro3.decode_macro_steps(&golden, 3, XINPUT).unwrap();
+    let reencoded = Pro3.encode_macro_steps(&steps, XINPUT).unwrap();
     assert_eq!(reencoded, golden);
 }
 
@@ -42,22 +42,22 @@ fn macro_steps_encode_matches_known_three_step_sample() {
         },
     ];
     let golden = std::fs::read("../../fixtures/pro3/macro-sample.steps.bin").unwrap();
-    assert_eq!(Pro3.encode_macro_steps(&steps, Mode::XInput).unwrap(), golden);
+    assert_eq!(Pro3.encode_macro_steps(&steps, XINPUT).unwrap(), golden);
 }
 
 #[test]
 fn macro_steps_pad_to_32_byte_boundary() {
     let one = vec![MacroStep::default()];
-    assert_eq!(Pro3.encode_macro_steps(&one, Mode::XInput).unwrap().len(), 32);
+    assert_eq!(Pro3.encode_macro_steps(&one, XINPUT).unwrap().len(), 32);
     let sixteen = vec![MacroStep::default(); 16];
-    assert_eq!(Pro3.encode_macro_steps(&sixteen, Mode::XInput).unwrap().len(), 160);
-    assert_eq!(Pro3.encode_macro_steps(&[], Mode::XInput).unwrap().len(), 0);
+    assert_eq!(Pro3.encode_macro_steps(&sixteen, XINPUT).unwrap().len(), 160);
+    assert_eq!(Pro3.encode_macro_steps(&[], XINPUT).unwrap().len(), 0);
 }
 
 #[test]
 fn macro_steps_switch_routes_triggers_into_keys_bits() {
     let steps = vec![MacroStep { trigger_left: 255, trigger_right: 0, ..MacroStep::default() }];
-    let out = Pro3.encode_macro_steps(&steps, Mode::Switch).unwrap();
+    let out = Pro3.encode_macro_steps(&steps, SWITCH).unwrap();
     let keys = u16::from_le_bytes([out[2], out[3]]);
     let trig = u16::from_le_bytes([out[4], out[5]]);
     assert_eq!(keys & 0x4000, 0x4000); // L2 -> bit 14
@@ -72,7 +72,7 @@ fn macro_metadata_is_byte_exact_against_goldenmac_descriptor() {
         &blob[SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET..SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET + 52];
     let def = MacroDefinition {
         name: "GoldenMac".into(),
-        mode: Mode::XInput,
+        mode: XINPUT,
         trigger: "l1".into(),
         repeat_count: 3,
         interval_ms: 100,
@@ -87,7 +87,7 @@ fn macro_metadata_is_byte_exact_against_goldenmac_descriptor() {
 fn macro_metadata_round_trips_through_decoder() {
     let def = MacroDefinition {
         name: "GoldenMac".into(),
-        mode: Mode::XInput,
+        mode: XINPUT,
         trigger: "l1".into(),
         repeat_count: 3,
         interval_ms: 100,

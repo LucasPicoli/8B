@@ -10,7 +10,7 @@ use controller_core::detect::is_slot_active;
 use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::settings::Settings;
 use controller_core::devices::pro3::settings::Triggers;
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, MacroStep, Mode, ProfileReadResult,
@@ -50,7 +50,7 @@ fn fixture(stem: &str) -> Value {
 fn macro_def(name: &str, trigger: &str, macro_slot: u8) -> MacroDefinition {
     MacroDefinition {
         name: name.into(),
-        mode: Mode::XInput,
+        mode: XINPUT,
         trigger: trigger.into(),
         repeat_count: 1,
         interval_ms: 10,
@@ -69,7 +69,7 @@ fn section4(blob: &[u8], slot_index: usize) -> &[u8] {
 /// first descriptor has bytes the canonical macro model cannot carry.
 fn base_blob(mode: Mode) -> Vec<u8> {
     let (first, second) = match mode {
-        Mode::Switch => ("switch-slot1", "switch-slot2"),
+        SWITCH => ("switch-slot1", "switch-slot2"),
         _ => ("xinput-slot1", "xinput-slot2"),
     };
     let profile =
@@ -93,8 +93,7 @@ fn base_blob(mode: Mode) -> Vec<u8> {
 
 /// A full read with `blob` in `mode`'s bank and the other banks empty.
 fn device(mode: Mode, blob: &[u8]) -> MockDevice {
-    let blobs =
-        Mode::ALL.iter().map(|&m| if m == mode { blob.to_vec() } else { vec![0; BLOB_SIZE] });
+    let blobs = MODES.iter().map(|&m| if m == mode { blob.to_vec() } else { vec![0; BLOB_SIZE] });
     MockDevice::new()
         .with_profiles(ProfileReadResult { raw_blobs: blobs.collect(), ..Default::default() })
 }
@@ -153,8 +152,8 @@ fn assert_failed(r: &WriteResult, category: ErrorCategory) {
 
 #[test]
 fn plain_compile_clears_macros_and_keep_macros_does_not() {
-    let base = base_blob(Mode::XInput);
-    let profile = decode(&base, Mode::XInput, 1);
+    let base = base_blob(XINPUT);
+    let profile = decode(&base, XINPUT, 1);
 
     let plain = Pro3.compile_profile(&profile, slot(1), &base, &[]).unwrap();
     assert!(section4(&plain, 0)[DESCRIPTORS..].iter().all(|&b| b == 0), "plain compile clears");
@@ -166,7 +165,7 @@ fn plain_compile_clears_macros_and_keep_macros_does_not() {
 
 #[test]
 fn decode_and_re_encode_would_have_changed_the_macro_bytes() {
-    let base = base_blob(Mode::XInput);
+    let base = base_blob(XINPUT);
     let metas = Pro3.decode_macro_metadata(&base, slot(1)).unwrap();
     let re_encoded = Pro3.encode_macro_metadata(&metas[0], MacroSlot::new(0).unwrap()).unwrap();
     let raw = &section4(&base, 0)[DESCRIPTORS..DESCRIPTORS + DESCRIPTOR_SIZE];
@@ -175,7 +174,7 @@ fn decode_and_re_encode_would_have_changed_the_macro_bytes() {
 
 #[test]
 fn keep_macros_with_a_foreign_sized_base_keeps_nothing_and_still_compiles() {
-    let profile = decode(&base_blob(Mode::XInput), Mode::XInput, 1);
+    let profile = decode(&base_blob(XINPUT), XINPUT, 1);
     let blob = Pro3.compile_profile_keep_macros(&profile, slot(1), &[]).unwrap();
     assert_eq!(blob.len(), BLOB_SIZE);
     assert!(section4(&blob, 0)[DESCRIPTORS..].iter().all(|&b| b == 0));
@@ -187,17 +186,16 @@ fn keep_macros_with_a_foreign_sized_base_keeps_nothing_and_still_compiles() {
 
 #[test]
 fn upload_into_an_empty_slot_runs_the_full_pipeline() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
     let json = fixture("xinput-slot2");
 
-    let r =
-        orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(3), &ConfirmPolicy::Abort);
+    let r = orch(&dev, dir.path()).upload_profile(&json, XINPUT, slot(3), &ConfirmPolicy::Abort);
 
     assert!(r.success, "{}", r.message);
     assert_eq!(r.profile_id, json["id"].as_str().unwrap());
-    assert_eq!((r.mode, r.slot), (Mode::XInput, 3));
+    assert_eq!((r.mode, r.slot), (XINPUT, 3));
     assert_eq!(
         ops(&dev),
         [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
@@ -205,7 +203,7 @@ fn upload_into_an_empty_slot_runs_the_full_pipeline() {
 
     let written = writes(&dev).remove(0);
     assert!(is_slot_active(&written, slot(3)).unwrap());
-    let decoded = decode(&written, Mode::XInput, 3);
+    let decoded = decode(&written, XINPUT, 3);
     let uploaded: CanonicalProfile = serde_json::from_value(json).unwrap();
     assert_eq!(decoded.name, uploaded.name);
     assert_eq!(s(&decoded).sticks, s(&uploaded).sticks);
@@ -216,18 +214,17 @@ fn upload_into_an_empty_slot_runs_the_full_pipeline() {
     assert_eq!(section4(&written, 0), section4(&base, 0));
     assert_eq!(section4(&written, 1), section4(&base, 1));
     assert!(section4(&written, 2)[DESCRIPTORS..].iter().all(|&b| b == 0));
-    assert_eq!(decode(&written, Mode::XInput, 1), decode(&base, Mode::XInput, 1));
-    assert_eq!(decode(&written, Mode::XInput, 2), decode(&base, Mode::XInput, 2));
+    assert_eq!(decode(&written, XINPUT, 1), decode(&base, XINPUT, 1));
+    assert_eq!(decode(&written, XINPUT, 2), decode(&base, XINPUT, 2));
 }
 
 #[test]
 fn a_read_that_finds_another_model_stops_the_write() {
     use controller_core::devices::test_pad::TestPad;
-    let dev = device(Mode::XInput, &base_blob(Mode::XInput)).with_model(&TestPad);
+    let dev = device(XINPUT, &base_blob(XINPUT)).with_model(&TestPad);
     let dir = tempfile::tempdir().unwrap();
     let json = fixture("xinput-slot2");
-    let r =
-        orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(3), &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).upload_profile(&json, XINPUT, slot(3), &ConfirmPolicy::Force);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("now a Test Pad"), "{}", r.message);
     assert_eq!(ops(&dev), [], "nothing went out after the read");
@@ -241,15 +238,14 @@ fn upload_rejects_bad_input_before_touching_the_device() {
 
     let mut bad = fixture("xinput-slot1");
     bad["sticks"]["left_max_pct"] = json!(500);
-    let r = o.upload_profile(&bad, Mode::XInput, slot(1), &ConfirmPolicy::Force);
+    let r = o.upload_profile(&bad, XINPUT, slot(1), &ConfirmPolicy::Force);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.starts_with("Profile validation failed"), "{}", r.message);
 
-    let r = o.upload_profile(&json!({"x": 1}), Mode::XInput, slot(1), &ConfirmPolicy::Force);
+    let r = o.upload_profile(&json!({"x": 1}), XINPUT, slot(1), &ConfirmPolicy::Force);
     assert_failed(&r, ErrorCategory::ValidationFailure);
 
-    let r =
-        o.upload_profile(&fixture("switch-slot1"), Mode::XInput, slot(1), &ConfirmPolicy::Force);
+    let r = o.upload_profile(&fixture("switch-slot1"), XINPUT, slot(1), &ConfirmPolicy::Force);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.starts_with("Mode mismatch"), "{}", r.message);
 
@@ -258,41 +254,40 @@ fn upload_rejects_bad_input_before_touching_the_device() {
 
 #[test]
 fn overwrite_policy_decides_whether_an_occupied_slot_is_written() {
-    let base = base_blob(Mode::XInput);
+    let base = base_blob(XINPUT);
     let json = fixture("xinput-slot2");
     let dir = tempfile::tempdir().unwrap();
     let asked = Arc::new(AtomicUsize::new(0));
 
     for policy in [ConfirmPolicy::Abort, asking(false, &asked)] {
-        let dev = device(Mode::XInput, &base);
-        let r = orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(1), &policy);
+        let dev = device(XINPUT, &base);
+        let r = orch(&dev, dir.path()).upload_profile(&json, XINPUT, slot(1), &policy);
         assert_failed(&r, ErrorCategory::None);
         assert_eq!(dev.calls(), []);
     }
     for policy in [ConfirmPolicy::Force, asking(true, &asked)] {
-        let dev = device(Mode::XInput, &base);
-        let r = orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(1), &policy);
+        let dev = device(XINPUT, &base);
+        let r = orch(&dev, dir.path()).upload_profile(&json, XINPUT, slot(1), &policy);
         assert!(r.success, "{}", r.message);
         assert_eq!(writes(&dev).len(), 1);
     }
     assert_eq!(asked.load(Ordering::SeqCst), 2);
 
     // An empty slot never asks.
-    let dev = device(Mode::XInput, &base);
-    let r =
-        orch(&dev, dir.path()).upload_profile(&json, Mode::XInput, slot(3), &asking(false, &asked));
+    let dev = device(XINPUT, &base);
+    let r = orch(&dev, dir.path()).upload_profile(&json, XINPUT, slot(3), &asking(false, &asked));
     assert!(r.success);
     assert_eq!(asked.load(Ordering::SeqCst), 2);
 }
 
 #[test]
 fn upload_in_switch_mode_uses_the_switch_blob() {
-    let base = base_blob(Mode::Switch);
-    let dev = device(Mode::Switch, &base);
+    let base = base_blob(SWITCH);
+    let dev = device(SWITCH, &base);
     let dir = tempfile::tempdir().unwrap();
     let r = orch(&dev, dir.path()).upload_profile(
         &fixture("switch-slot2"),
-        Mode::Switch,
+        SWITCH,
         slot(3),
         &ConfirmPolicy::Abort,
     );
@@ -307,10 +302,10 @@ fn upload_in_switch_mode_uses_the_switch_blob() {
 
 #[test]
 fn every_write_to_an_occupied_slot_keeps_all_macros() {
-    let base = base_blob(Mode::XInput);
+    let base = base_blob(XINPUT);
     let dir = tempfile::tempdir().unwrap();
     let go = |f: &dyn Fn(&ProfileWriteOrchestrator<'_>) -> WriteResult| {
-        let dev = device(Mode::XInput, &base);
+        let dev = device(XINPUT, &base);
         let r = f(&orch(&dev, dir.path()));
         assert!(r.success, "{}", r.message);
         let written = writes(&dev).pop().unwrap();
@@ -321,29 +316,23 @@ fn every_write_to_an_occupied_slot_keeps_all_macros() {
     };
     let f = ConfirmPolicy::Force;
 
-    go(&|o| o.upload_profile(&fixture("xinput-slot2"), Mode::XInput, slot(1), &f));
-    go(&|o| o.remap_button(Mode::XInput, slot(1), "l1", "r1", &f));
-    go(&|o| o.patch_settings(Mode::XInput, slot(1), &[("/sticks/swap_sticks", true.into())], &f));
-    go(&|o| {
-        o.patch_settings(Mode::XInput, slot(1), &[("/triggers/swap_triggers", true.into())], &f)
-    });
-    go(&|o| o.patch_settings(Mode::XInput, slot(1), &[("/vibration/left_level", 4.into())], &f));
-    go(&|o| o.deactivate_slot(Mode::XInput, slot(1), &f));
+    go(&|o| o.upload_profile(&fixture("xinput-slot2"), XINPUT, slot(1), &f));
+    go(&|o| o.remap_button(XINPUT, slot(1), "l1", "r1", &f));
+    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/sticks/swap_sticks", true.into())], &f));
+    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/triggers/swap_triggers", true.into())], &f));
+    go(&|o| o.patch_settings(XINPUT, slot(1), &[("/vibration/left_level", 4.into())], &f));
+    go(&|o| o.deactivate_slot(XINPUT, slot(1), &f));
 }
 
 #[test]
 fn upload_ignores_macro_refs_and_keeps_the_slots_macros() {
-    let base = base_blob(Mode::XInput);
+    let base = base_blob(XINPUT);
     let dir = tempfile::tempdir().unwrap();
-    let dev = device(Mode::XInput, &base);
+    let dev = device(XINPUT, &base);
     let mut with_refs = fixture("xinput-slot2");
     with_refs["macro_refs"] = json!([{"trigger": "r4", "path": "m.json"}]);
-    let r = orch(&dev, dir.path()).upload_profile(
-        &with_refs,
-        Mode::XInput,
-        slot(1),
-        &ConfirmPolicy::Force,
-    );
+    let r =
+        orch(&dev, dir.path()).upload_profile(&with_refs, XINPUT, slot(1), &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     assert!(r.message.ends_with("Ignored 1 macro reference(s): the slot keeps the macros it has."));
     let written = writes(&dev).pop().unwrap();
@@ -354,12 +343,12 @@ fn upload_ignores_macro_refs_and_keeps_the_slots_macros() {
 fn upload_dropping_a_macro_zeroes_its_descriptor_and_keeps_the_others() {
     let profile: CanonicalProfile = serde_json::from_value(fixture("xinput-slot1")).unwrap();
     let two = [macro_def("Alpha", "l1", 0), macro_def("Gamma", "r4", 3)];
-    let base = Pro3.compile_profile(&profile, slot(1), &base_blob(Mode::XInput), &two).unwrap();
+    let base = Pro3.compile_profile(&profile, slot(1), &base_blob(XINPUT), &two).unwrap();
     let dir = tempfile::tempdir().unwrap();
-    let dev = device(Mode::XInput, &base);
+    let dev = device(XINPUT, &base);
     let r = orch(&dev, dir.path()).upload_profile_dropping_macros(
         &fixture("xinput-slot1"),
-        Mode::XInput,
+        XINPUT,
         slot(1),
         &["l1".to_owned(), "a button with no macro".to_owned()],
         &ConfirmPolicy::Force,
@@ -382,11 +371,11 @@ fn upload_dropping_a_macro_zeroes_its_descriptor_and_keeps_the_others() {
 
 #[test]
 fn deactivate_clears_only_the_flag_and_reseals_the_crc() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
 
-    let r = orch(&dev, dir.path()).deactivate_slot(Mode::XInput, slot(2), &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).deactivate_slot(XINPUT, slot(2), &ConfirmPolicy::Force);
 
     assert!(r.success, "{}", r.message);
     assert_eq!(
@@ -406,9 +395,9 @@ fn deactivate_clears_only_the_flag_and_reseals_the_crc() {
 
 #[test]
 fn deactivating_an_empty_slot_succeeds_without_writing() {
-    let dev = device(Mode::XInput, &base_blob(Mode::XInput));
+    let dev = device(XINPUT, &base_blob(XINPUT));
     let dir = tempfile::tempdir().unwrap();
-    let r = orch(&dev, dir.path()).deactivate_slot(Mode::XInput, slot(3), &ConfirmPolicy::Abort);
+    let r = orch(&dev, dir.path()).deactivate_slot(XINPUT, slot(3), &ConfirmPolicy::Abort);
     assert!(r.success);
     assert!(r.message.contains("already empty"), "{}", r.message);
     assert_eq!(dev.calls(), []);
@@ -420,21 +409,15 @@ fn deactivating_an_empty_slot_succeeds_without_writing() {
 
 #[test]
 fn remap_changes_one_mapping_and_nothing_else() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
 
-    let r = orch(&dev, dir.path()).remap_button(
-        Mode::XInput,
-        slot(1),
-        "l1",
-        "r1",
-        &ConfirmPolicy::Force,
-    );
+    let r = orch(&dev, dir.path()).remap_button(XINPUT, slot(1), "l1", "r1", &ConfirmPolicy::Force);
 
     assert!(r.success, "{}", r.message);
-    let before = decode(&base, Mode::XInput, 1);
-    let after = decode(&writes(&dev).remove(0), Mode::XInput, 1);
+    let before = decode(&base, XINPUT, 1);
+    let after = decode(&writes(&dev).remove(0), XINPUT, 1);
     assert!(after.button_mappings.iter().any(|m| m.source == "l1" && m.target == "r1"));
     assert_eq!(
         CanonicalProfile { button_mappings: vec![], ..after.clone() },
@@ -455,21 +438,40 @@ fn remap_rejects_bad_names_before_touching_the_device() {
     for (source, target) in
         [("home/guide", "l1"), ("nope", "l1"), ("l1", "rp"), ("l1", "screenshot")]
     {
-        let r = o.remap_button(Mode::XInput, slot(1), source, target, &ConfirmPolicy::Force);
+        let r = o.remap_button(XINPUT, slot(1), source, target, &ConfirmPolicy::Force);
         assert_failed(&r, ErrorCategory::ValidationFailure);
     }
     assert_eq!(dev.calls(), []);
 }
 
 #[test]
+fn a_mode_the_model_lacks_is_refused_without_device_access() {
+    let dev = device(XINPUT, &base_blob(XINPUT));
+    let dir = tempfile::tempdir().unwrap();
+    let o = orch(&dev, dir.path());
+    let f = ConfirmPolicy::Force;
+    let other = Mode::from_static("standard");
+    let results = [
+        o.deactivate_slot(other, slot(1), &f),
+        o.remap_button(other, slot(1), "l1", "r1", &f),
+        o.patch_settings(other, slot(1), &[("/vibration/left_level", 1.into())], &f),
+    ];
+    for r in &results {
+        assert_failed(r, ErrorCategory::ValidationFailure);
+    }
+    assert!(results[0].message.contains("has no standard mode"), "{}", results[0].message);
+    assert_eq!(dev.calls(), []);
+}
+
+#[test]
 fn patches_on_an_empty_slot_are_refused_without_a_write() {
-    let dev = device(Mode::XInput, &base_blob(Mode::XInput));
+    let dev = device(XINPUT, &base_blob(XINPUT));
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
     let f = ConfirmPolicy::Force;
     let results = [
-        o.remap_button(Mode::XInput, slot(3), "l1", "r1", &f),
-        o.patch_settings(Mode::XInput, slot(3), &[("/vibration/left_level", 1.into())], &f),
+        o.remap_button(XINPUT, slot(3), "l1", "r1", &f),
+        o.patch_settings(XINPUT, slot(3), &[("/vibration/left_level", 1.into())], &f),
     ];
     for r in &results {
         assert_failed(r, ErrorCategory::ValidationFailure);
@@ -480,8 +482,8 @@ fn patches_on_an_empty_slot_are_refused_without_a_write() {
 
 #[test]
 fn patch_settings_changes_only_the_named_fields() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
     let set = [
         ("/sticks/left_min_pct", 20.into()),
@@ -490,12 +492,11 @@ fn patch_settings_changes_only_the_named_fields() {
         ("/sticks/swap_sticks", true.into()),
     ];
 
-    let r =
-        orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &set, &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &ConfirmPolicy::Force);
 
     assert!(r.success, "{}", r.message);
-    let before = decode(&base, Mode::XInput, 1);
-    let after = decode(&writes(&dev).remove(0), Mode::XInput, 1);
+    let before = decode(&base, XINPUT, 1);
+    let after = decode(&writes(&dev).remove(0), XINPUT, 1);
     let mut expected = s(&before).sticks;
     expected.left_min_pct = 20;
     expected.left_max_pct = 80;
@@ -509,7 +510,7 @@ fn patch_settings_changes_only_the_named_fields() {
 
 #[test]
 fn patch_settings_rules_run_before_any_write() {
-    let dev = device(Mode::XInput, &base_blob(Mode::XInput));
+    let dev = device(XINPUT, &base_blob(XINPUT));
     let dir = tempfile::tempdir().unwrap();
     let o = orch(&dev, dir.path());
     let f = ConfirmPolicy::Force;
@@ -521,7 +522,7 @@ fn patch_settings_rules_run_before_any_write() {
         ("/sticks/swap_sticks", 1.into()),
         ("/sticks/no_such_field", 1.into()),
     ] {
-        let r = o.patch_settings(Mode::XInput, slot(1), &[bad], &f);
+        let r = o.patch_settings(XINPUT, slot(1), &[bad], &f);
         assert_failed(&r, ErrorCategory::ValidationFailure);
     }
 
@@ -529,7 +530,7 @@ fn patch_settings_rules_run_before_any_write() {
         ("/sticks/swap_dpad_with_left_stick", true.into()),
         ("/sticks/invert_left_x", true.into()),
     ];
-    let r = o.patch_settings(Mode::XInput, slot(1), &conflict, &f);
+    let r = o.patch_settings(XINPUT, slot(1), &conflict, &f);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_dpad_with_left_stick"), "{}", r.message);
     assert!(r.message.contains("invert_left_x"), "{}", r.message);
@@ -537,12 +538,12 @@ fn patch_settings_rules_run_before_any_write() {
 
     // A slot that already swaps the D-pad refuses swap sticks too, and keeps what it holds.
     let dpad = [("/sticks/swap_dpad_with_left_stick", true.into())];
-    let first = device(Mode::XInput, &base_blob(Mode::XInput));
-    assert!(orch(&first, dir.path()).patch_settings(Mode::XInput, slot(1), &dpad, &f).success);
+    let first = device(XINPUT, &base_blob(XINPUT));
+    assert!(orch(&first, dir.path()).patch_settings(XINPUT, slot(1), &dpad, &f).success);
     let held = writes(&first).pop().unwrap();
-    let dev = device(Mode::XInput, &held);
+    let dev = device(XINPUT, &held);
     let swap = [("/sticks/swap_sticks", true.into())];
-    let r = orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &swap, &f);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &swap, &f);
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_sticks"), "{}", r.message);
     assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
@@ -554,16 +555,13 @@ fn patch_settings_takes_the_trigger_form_of_the_mode() {
     let f = ConfirmPolicy::Force;
 
     // XInput: min and max.
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base);
     let set = [("/triggers/left_min_pct", 10.into()), ("/triggers/right_max_pct", 90.into())];
-    let r = orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &set, &f);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &f);
     assert!(r.success, "{}", r.message);
-    let Triggers::Analog(before) = s(&decode(&base, Mode::XInput, 1)).triggers else {
-        panic!("analog")
-    };
-    let Triggers::Analog(after) = s(&decode(&writes(&dev).remove(0), Mode::XInput, 1)).triggers
-    else {
+    let Triggers::Analog(before) = s(&decode(&base, XINPUT, 1)).triggers else { panic!("analog") };
+    let Triggers::Analog(after) = s(&decode(&writes(&dev).remove(0), XINPUT, 1)).triggers else {
         panic!("analog")
     };
     assert_eq!((after.left_min_pct, after.right_max_pct), (10, 90));
@@ -573,14 +571,13 @@ fn patch_settings_takes_the_trigger_form_of_the_mode() {
     );
 
     // Switch: thresholds.
-    let base = base_blob(Mode::Switch);
-    let dev = device(Mode::Switch, &base);
+    let base = base_blob(SWITCH);
+    let dev = device(SWITCH, &base);
     let set =
         [("/triggers/left_threshold_pct", 30.into()), ("/triggers/swap_triggers", false.into())];
-    let r = orch(&dev, dir.path()).patch_settings(Mode::Switch, slot(1), &set, &f);
+    let r = orch(&dev, dir.path()).patch_settings(SWITCH, slot(1), &set, &f);
     assert!(r.success, "{}", r.message);
-    let Triggers::Switch(after) = s(&decode(&writes(&dev).remove(0), Mode::Switch, 1)).triggers
-    else {
+    let Triggers::Switch(after) = s(&decode(&writes(&dev).remove(0), SWITCH, 1)).triggers else {
         panic!("switch")
     };
     assert_eq!((after.left_threshold_pct, after.swap_triggers), (30, false));
@@ -595,9 +592,7 @@ fn patch_settings_refuses_the_trigger_form_of_another_mode() {
     let analog = [("/triggers/left_min_pct", 10.into())];
     let threshold = [("/triggers/left_threshold_pct", 10.into())];
     let too_high = [("/triggers/left_threshold_pct", 95.into())];
-    for (mode, set) in
-        [(Mode::Switch, &analog), (Mode::XInput, &threshold), (Mode::Switch, &too_high)]
-    {
+    for (mode, set) in [(SWITCH, &analog), (XINPUT, &threshold), (SWITCH, &too_high)] {
         assert_failed(&o.patch_settings(mode, slot(1), set, &f), ErrorCategory::ValidationFailure);
     }
     assert_eq!(dev.calls(), []);
@@ -605,14 +600,13 @@ fn patch_settings_refuses_the_trigger_form_of_another_mode() {
 
 #[test]
 fn patch_settings_sets_the_vibration_levels() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base);
     let dir = tempfile::tempdir().unwrap();
     let set = [("/vibration/left_level", 1.into()), ("/vibration/right_level", 4.into())];
-    let r =
-        orch(&dev, dir.path()).patch_settings(Mode::XInput, slot(1), &set, &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
-    let after = decode(&writes(&dev).remove(0), Mode::XInput, 1);
+    let after = decode(&writes(&dev).remove(0), XINPUT, 1);
     assert_eq!((s(&after).vibration.left_level, s(&after).vibration.right_level), (1, 4));
 }
 
@@ -625,18 +619,13 @@ fn write_error() -> Error {
 }
 
 fn upload_over_slot1(dev: &MockDevice, dir: &Path) -> WriteResult {
-    orch(dev, dir).upload_profile(
-        &fixture("xinput-slot2"),
-        Mode::XInput,
-        slot(1),
-        &ConfirmPolicy::Force,
-    )
+    orch(dev, dir).upload_profile(&fixture("xinput-slot2"), XINPUT, slot(1), &ConfirmPolicy::Force)
 }
 
 #[test]
 fn slot_select_failure_stops_before_any_write() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base).fail_nth(MockOp::SlotSelect, 0, Error::Timeout);
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base).fail_nth(MockOp::SlotSelect, 0, Error::Timeout);
     let dir = tempfile::tempdir().unwrap();
     let r = upload_over_slot1(&dev, dir.path());
     assert_failed(&r, ErrorCategory::ConnectionFailure);
@@ -646,8 +635,8 @@ fn slot_select_failure_stops_before_any_write() {
 
 #[test]
 fn failed_write_is_rolled_back_with_the_readback() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base).fail_nth(MockOp::WriteFullProfile, 0, write_error());
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base).fail_nth(MockOp::WriteFullProfile, 0, write_error());
     let dir = tempfile::tempdir().unwrap();
 
     let r = upload_over_slot1(&dev, dir.path());
@@ -673,10 +662,12 @@ fn failed_write_is_rolled_back_with_the_readback() {
 
 #[test]
 fn failed_rollback_saves_the_backup_file() {
-    let base = base_blob(Mode::XInput);
-    let dev = device(Mode::XInput, &base)
-        .fail_nth(MockOp::WriteFullProfile, 0, write_error())
-        .fail_nth(MockOp::WriteFullProfile, 1, write_error());
+    let base = base_blob(XINPUT);
+    let dev = device(XINPUT, &base).fail_nth(MockOp::WriteFullProfile, 0, write_error()).fail_nth(
+        MockOp::WriteFullProfile,
+        1,
+        write_error(),
+    );
     let dir = tempfile::tempdir().unwrap();
 
     let r = upload_over_slot1(&dev, dir.path());
@@ -690,15 +681,12 @@ fn failed_rollback_saves_the_backup_file() {
 
 #[test]
 fn failed_write_into_an_empty_slot_needs_no_rollback() {
-    let dev = device(Mode::XInput, &base_blob(Mode::XInput)).fail_nth(
-        MockOp::WriteFullProfile,
-        0,
-        write_error(),
-    );
+    let dev =
+        device(XINPUT, &base_blob(XINPUT)).fail_nth(MockOp::WriteFullProfile, 0, write_error());
     let dir = tempfile::tempdir().unwrap();
     let r = orch(&dev, dir.path()).upload_profile(
         &fixture("xinput-slot2"),
-        Mode::XInput,
+        XINPUT,
         slot(3),
         &ConfirmPolicy::Abort,
     );
@@ -709,7 +697,7 @@ fn failed_write_into_an_empty_slot_needs_no_rollback() {
 
 #[test]
 fn write_that_never_reached_the_device_is_not_rolled_back() {
-    let dev = device(Mode::XInput, &base_blob(Mode::XInput)).fail_nth(
+    let dev = device(XINPUT, &base_blob(XINPUT)).fail_nth(
         MockOp::WriteFullProfile,
         0,
         Error::Usb("cannot open".into()),
@@ -723,8 +711,7 @@ fn write_that_never_reached_the_device_is_not_rolled_back() {
 
 #[test]
 fn apply_failure_after_a_good_write_is_reported_without_rollback() {
-    let dev =
-        device(Mode::XInput, &base_blob(Mode::XInput)).fail_nth(MockOp::Apply, 0, Error::Timeout);
+    let dev = device(XINPUT, &base_blob(XINPUT)).fail_nth(MockOp::Apply, 0, Error::Timeout);
     let dir = tempfile::tempdir().unwrap();
     let r = upload_over_slot1(&dev, dir.path());
     assert_failed(&r, ErrorCategory::WriteFailure);
@@ -740,18 +727,18 @@ fn apply_failure_after_a_good_write_is_reported_without_rollback() {
 fn no_device_is_a_connection_failure() {
     let dev = MockDevice::new();
     let dir = tempfile::tempdir().unwrap();
-    let r = orch(&dev, dir.path()).deactivate_slot(Mode::XInput, slot(1), &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).deactivate_slot(XINPUT, slot(1), &ConfirmPolicy::Force);
     assert_failed(&r, ErrorCategory::ConnectionFailure);
 }
 
 #[test]
 fn dinput_remap_on_the_official_blob_changes_one_entry() {
     let official = std::fs::read("../../fixtures/pro3/dinput-official.blob").unwrap();
-    let dev = device(Mode::DInput, &official);
+    let dev = device(DINPUT, &official);
     let dir = tempfile::tempdir().unwrap();
 
     let r = orch(&dev, dir.path()).remap_button(
-        Mode::DInput,
+        DINPUT,
         slot(3),
         "l4",
         "bottom face",
@@ -773,23 +760,18 @@ fn dinput_remap_on_the_official_blob_changes_one_entry() {
 }
 
 fn upload_switch_slot1(dev: &MockDevice, dir: &Path) -> WriteResult {
-    orch(dev, dir).upload_profile(
-        &fixture("switch-slot2"),
-        Mode::Switch,
-        slot(1),
-        &ConfirmPolicy::Force,
-    )
+    orch(dev, dir).upload_profile(&fixture("switch-slot2"), SWITCH, slot(1), &ConfirmPolicy::Force)
 }
 
 #[test]
 fn a_flipped_write_flips_back_once_after_apply() {
-    let dev = device(Mode::Switch, &base_blob(Mode::Switch)).with_flip(Mode::Switch);
+    let dev = device(SWITCH, &base_blob(SWITCH)).with_flip(SWITCH);
     let dir = tempfile::tempdir().unwrap();
     let r = upload_switch_slot1(&dev, dir.path());
     assert!(r.success, "{}", r.message);
     assert_eq!(
         dev.calls().first().zip(dev.calls().last()),
-        Some((&MockCall::BeginWrite, &MockCall::EndWrite(Mode::Switch)))
+        Some((&MockCall::BeginWrite, &MockCall::EndWrite(SWITCH)))
     );
     assert_eq!(
         ops(&dev),
@@ -805,20 +787,20 @@ fn a_flipped_write_flips_back_once_after_apply() {
 
 #[test]
 fn a_failed_flipped_write_still_flips_back() {
-    let dev = device(Mode::Switch, &base_blob(Mode::Switch))
-        .with_flip(Mode::Switch)
+    let dev = device(SWITCH, &base_blob(SWITCH))
+        .with_flip(SWITCH)
         .fail_nth(MockOp::WriteFullProfile, 0, write_error())
         .fail_nth(MockOp::WriteFullProfile, 1, write_error());
     let dir = tempfile::tempdir().unwrap();
     let r = upload_switch_slot1(&dev, dir.path());
     assert_failed(&r, ErrorCategory::WriteFailure);
     assert!(r.rollback_attempted && !r.rollback_succeeded);
-    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(Mode::Switch)));
+    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(SWITCH)));
 }
 
 #[test]
 fn a_pad_that_never_comes_back_gets_no_write() {
-    let dev = device(Mode::Switch, &base_blob(Mode::Switch)).with_flip(Mode::Switch).fail_nth(
+    let dev = device(SWITCH, &base_blob(SWITCH)).with_flip(SWITCH).fail_nth(
         MockOp::BeginWrite,
         0,
         Error::write("the controller did not come back in dinput mode"),
@@ -832,7 +814,7 @@ fn a_pad_that_never_comes_back_gets_no_write() {
 
 #[test]
 fn a_failed_flip_back_keeps_the_write_and_says_to_replug() {
-    let dev = device(Mode::Switch, &base_blob(Mode::Switch)).with_flip(Mode::Switch).fail_nth(
+    let dev = device(SWITCH, &base_blob(SWITCH)).with_flip(SWITCH).fail_nth(
         MockOp::EndWrite,
         0,
         Error::Timeout,
@@ -845,9 +827,9 @@ fn a_failed_flip_back_keeps_the_write_and_says_to_replug() {
 
 #[test]
 fn nothing_to_write_flips_nothing() {
-    let dev = device(Mode::Switch, &base_blob(Mode::Switch)).with_flip(Mode::Switch);
+    let dev = device(SWITCH, &base_blob(SWITCH)).with_flip(SWITCH);
     let dir = tempfile::tempdir().unwrap();
-    let r = orch(&dev, dir.path()).deactivate_slot(Mode::Switch, slot(3), &ConfirmPolicy::Force);
+    let r = orch(&dev, dir.path()).deactivate_slot(SWITCH, slot(3), &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     assert_eq!(dev.calls(), []);
 }

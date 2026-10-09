@@ -9,7 +9,7 @@
 
 use serde_json::Value;
 
-use crate::devices::pro3::tables;
+use crate::devices::pro3::{tables, DINPUT, SWITCH, XINPUT};
 use crate::error::{Error, Result};
 use crate::model::macros::macro_to_json;
 use crate::model::{MacroDefinition, MacroSlot, MacroStep, Mode, Slot};
@@ -105,9 +105,9 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
 /// else `Switch`).
 const fn gamepad_byte_to_mode(byte: u8) -> Mode {
     match byte {
-        tables::MACRO_GAMEPAD_MODE_XINPUT => Mode::XInput,
-        tables::MACRO_GAMEPAD_MODE_DINPUT => Mode::DInput,
-        _ => Mode::Switch,
+        tables::MACRO_GAMEPAD_MODE_XINPUT => XINPUT,
+        tables::MACRO_GAMEPAD_MODE_DINPUT => DINPUT,
+        _ => SWITCH,
     }
 }
 
@@ -122,7 +122,7 @@ const fn gamepad_byte_to_mode(byte: u8) -> Mode {
 /// Returns [`crate::Error::Decode`] only via the bounds-checked readers; a
 /// record that does not fully fit terminates the walk.
 pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec<MacroStep>> {
-    let is_xinput = mode == Mode::XInput;
+    let is_xinput = mode == XINPUT;
     let mut result = Vec::with_capacity(count);
 
     for i in 0..count {
@@ -206,7 +206,7 @@ fn trigger_key_map(name: &str) -> Result<u32> {
 
 /// Maps a [`Mode`] to the `gamepad_mode` descriptor byte.
 fn macro_mode_byte(mode: Mode) -> u8 {
-    if mode == Mode::XInput {
+    if mode == XINPUT {
         tables::MACRO_GAMEPAD_MODE_XINPUT
     } else {
         0
@@ -230,7 +230,7 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
     let padded_len = if raw_len % 32 == 0 { raw_len } else { (raw_len / 32 + 1) * 32 };
     let mut out = vec![0u8; padded_len];
 
-    let is_xinput = mode == Mode::XInput;
+    let is_xinput = mode == XINPUT;
 
     for (i, step) in steps.iter().enumerate() {
         let base = i * tables::MACRO_STEP_RECORD_SIZE;
@@ -326,6 +326,7 @@ pub fn macro_to_canonical_json(def: &MacroDefinition) -> Value {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::devices::pro3::{SWITCH, XINPUT};
 
     #[test]
     fn bitmask_decodes_buttons_in_bit_order() {
@@ -343,8 +344,8 @@ mod tests {
 
     #[test]
     fn gamepad_byte_maps_mode() {
-        assert_eq!(gamepad_byte_to_mode(3), Mode::XInput);
-        assert_eq!(gamepad_byte_to_mode(0), Mode::Switch);
+        assert_eq!(gamepad_byte_to_mode(3), XINPUT);
+        assert_eq!(gamepad_byte_to_mode(0), SWITCH);
     }
 
     #[test]
@@ -357,7 +358,7 @@ mod tests {
         rec[7] = 127;
         rec[8] = 127;
         rec[9] = 127;
-        let steps = decode_macro_steps(&rec, 1, Mode::Switch).unwrap();
+        let steps = decode_macro_steps(&rec, 1, SWITCH).unwrap();
         assert_eq!(steps[0].trigger_left, 255);
         assert_eq!(steps[0].trigger_right, 0);
         assert_eq!(steps[0].pressed_buttons, Vec::<String>::new());

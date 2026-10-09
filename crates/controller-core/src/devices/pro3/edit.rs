@@ -113,23 +113,24 @@ pub fn validate_remap(mode: Mode, source: &str, target: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::devices::pro3::{DINPUT, SWITCH, XINPUT};
 
     #[test]
     fn remap_rules() {
-        assert!(validate_remap(Mode::XInput, "l1", "r1").is_ok());
-        assert!(validate_remap(Mode::XInput, "rp", "l1").is_ok(), "paddles are valid sources");
-        assert!(validate_remap(Mode::XInput, "l1", "disabled").is_ok());
-        assert!(validate_remap(Mode::Switch, "turbo", "screenshot").is_ok());
-        assert!(validate_remap(Mode::XInput, "turbo", "screenshot").is_err());
-        assert!(validate_remap(Mode::DInput, "l1", "rp output").is_ok());
-        assert!(validate_remap(Mode::XInput, "l1", "rp output").is_err());
-        assert!(validate_remap(Mode::Switch, "l1", "r4 output").is_err());
+        assert!(validate_remap(XINPUT, "l1", "r1").is_ok());
+        assert!(validate_remap(XINPUT, "rp", "l1").is_ok(), "paddles are valid sources");
+        assert!(validate_remap(XINPUT, "l1", "disabled").is_ok());
+        assert!(validate_remap(SWITCH, "turbo", "screenshot").is_ok());
+        assert!(validate_remap(XINPUT, "turbo", "screenshot").is_err());
+        assert!(validate_remap(DINPUT, "l1", "rp output").is_ok());
+        assert!(validate_remap(XINPUT, "l1", "rp output").is_err());
+        assert!(validate_remap(SWITCH, "l1", "r4 output").is_err());
         // A button mapped to turbo fires nothing on the real pad; Turbo itself still works.
-        assert!(validate_remap(Mode::DInput, "l4", "turbo").is_err());
-        assert!(validate_remap(Mode::DInput, "turbo", "turbo").is_ok());
-        assert!(validate_remap(Mode::XInput, "l1", "rp").is_err(), "paddles are not targets");
-        assert!(validate_remap(Mode::XInput, "home/guide", "l1").is_err());
-        assert!(validate_remap(Mode::XInput, "nope", "l1").is_err());
-        assert!(validate_remap(Mode::XInput, "l1", "nope").is_err());
+        assert!(validate_remap(DINPUT, "l4", "turbo").is_err());
+        assert!(validate_remap(DINPUT, "turbo", "turbo").is_ok());
+        assert!(validate_remap(XINPUT, "l1", "rp").is_err(), "paddles are not targets");
+        assert!(validate_remap(XINPUT, "home/guide", "l1").is_err());
+        assert!(validate_remap(XINPUT, "nope", "l1").is_err());
+        assert!(validate_remap(XINPUT, "l1", "nope").is_err());
     }
 }

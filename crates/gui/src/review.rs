@@ -258,7 +258,7 @@ impl AppState {
         holders: Option<&str>,
     ) {
         let key = (job.mode, result.slot);
-        let title = format!("{} slot {}", job.mode.label(), result.slot);
+        let title = format!("{} slot {}", self.description().mode_label(job.mode), result.slot);
         if !result.success {
             // A lost connection before any chunk went out leaves the slot as it was.
             let lost = matches!(
@@ -366,7 +366,7 @@ impl AppState {
         let changes = self.change_list(slot);
         ReviewInfo {
             shown: true,
-            slot_title: format!("{} slot {}", slot.0.label(), slot.1).into(),
+            slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
             name: state.edited.as_ref().map(|e| e.name.as_str()).unwrap_or_default().into(),
             replaces: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
             is_new: state.pad.is_none(),
@@ -388,7 +388,7 @@ impl AppState {
         let state = self.slot_at(slot);
         ClearInfo {
             shown: true,
-            slot_title: format!("{} slot {}", slot.0.label(), slot.1).into(),
+            slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
             name: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
             macros: count(state.pad.as_ref().map_or(0, |p| p.macro_refs.len())),
             has_edits: state.unsaved(),
@@ -457,7 +457,12 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
     );
     let failed = state.write.failed.as_ref().map(|f| FailedInfo {
         shown: true,
-        slot_title: format!("{} slot {}", f.job.mode.label(), f.job.slot.get()).into(),
+        slot_title: format!(
+            "{} slot {}",
+            state.description().mode_label(f.job.mode),
+            f.job.slot.get()
+        )
+        .into(),
         detail: f.detail.as_str().into(),
         backup_path: f.backup.as_deref().unwrap_or_default().into(),
         is_clear: f.job.op == WriteOp::Clear,
@@ -471,7 +476,13 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
             .as_ref()
             .filter(|_| state.write.batch.is_none())
             .and_then(|(_, jobs)| jobs.first())
-            .map(|job| format!("Writing {} slot {}", job.mode.label(), job.slot.get()))
+            .map(|job| {
+                format!(
+                    "Writing {} slot {}",
+                    state.description().mode_label(job.mode),
+                    job.slot.get()
+                )
+            })
             .unwrap_or_default()
             .into(),
     );
@@ -480,6 +491,7 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
+    use controller_core::devices::pro3::{DINPUT, XINPUT};
     use controller_core::model::MacroRef;
 
     use super::*;
@@ -488,8 +500,8 @@ mod tests {
     /// `XInput` slot 1 with a macro on `rp`, a rename, a remap, a stick range and a flag
     /// edited.
     fn edited() -> AppState {
-        let mut s = connected(Mode::XInput);
-        let pad = s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap();
+        let mut s = connected(XINPUT);
+        let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap();
         pad.pad.as_mut().unwrap().macro_refs.push(MacroRef {
             trigger: "rp".to_owned(),
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
@@ -519,7 +531,7 @@ mod tests {
     #[test]
     fn the_change_list_names_each_difference_in_tab_order() {
         let s = edited();
-        let list = lines(&s.change_list((Mode::XInput, 1)));
+        let list = lines(&s.change_list((XINPUT, 1)));
         assert_eq!(list[0], "Name | “XInput” -> “Mine”");
         assert!(list.contains(&"RB | RB -> Disabled".to_owned()), "{list:?}");
         assert!(list.contains(&"PR | Macro 1 (Buttons) -> B".to_owned()), "{list:?}");
@@ -533,7 +545,7 @@ mod tests {
             .map(|p| list.iter().position(|l| l.starts_with(p)).unwrap())
             .collect();
         assert!(order.windows(2).all(|w| w[0] < w[1]), "name, buttons, sticks: {order:?}");
-        assert!(s.change_list((Mode::XInput, 2)).is_empty(), "an untouched slot has none");
+        assert!(s.change_list((XINPUT, 2)).is_empty(), "an untouched slot has none");
     }
 
     #[test]
@@ -547,8 +559,8 @@ mod tests {
         assert!(s.review_open().is_none());
         s.read_finished(PORT, Ok(read_with_macro()));
         s.review_read(PORT, true);
-        assert_eq!(s.review_open().map(|t| t.1), Some((Mode::XInput, 1)));
-        let info = s.review_info((Mode::XInput, 1));
+        assert_eq!(s.review_open().map(|t| t.1), Some((XINPUT, 1)));
+        let info = s.review_info((XINPUT, 1));
         assert!(!info.is_new && info.macros_stay == 0);
         assert_eq!(info.replaces, "XInput");
         let removed: Vec<_> = info.removed.iter().collect();
@@ -570,14 +582,14 @@ mod tests {
         s.begin_review().unwrap();
         let mut read = full_read();
         for p in &mut read.profiles {
-            if (p.mode, p.source_slot) == (Mode::XInput, 1) {
+            if (p.mode, p.source_slot) == (XINPUT, 1) {
                 p.canonical.name = "Theirs".to_owned();
             }
         }
         s.read_finished(PORT, Ok(read));
         s.review_read(PORT, true);
         assert!(s.review_open().is_none(), "the changed-slot question comes first");
-        s.choose_changed((Mode::XInput, 1), false);
+        s.choose_changed((XINPUT, 1), false);
         s.apply_changed();
         assert!(s.review_open().is_none() && s.write.review.is_none(), "nothing left to write");
 
@@ -589,7 +601,7 @@ mod tests {
         s.review_read(PORT, true);
         s.apply_changed();
         assert!(s.review_open().is_some(), "keep mine goes on to the review");
-        assert_eq!(s.change_list((Mode::XInput, 1))[0].from, "“Theirs”");
+        assert_eq!(s.change_list((XINPUT, 1))[0].from, "“Theirs”");
     }
 
     #[test]
@@ -607,9 +619,9 @@ mod tests {
         assert_eq!(profile["name"], "Mine");
         assert!(!s.can_write() && !s.can_clear(), "locked while the write runs");
 
-        let ok = WriteResult::success(Mode::XInput, job.slot, "done");
+        let ok = WriteResult::success(XINPUT, job.slot, "done");
         s.write_finished(PORT, &[ok], None);
-        let slot = s.slot(Mode::XInput, 1);
+        let slot = s.slot(XINPUT, 1);
         assert!(!slot.unsaved() && slot.pad.unwrap().name == "Mine");
         assert!(s.notice.as_ref().is_some_and(|n| !n.error && n.title.contains("XInput slot 1")));
         assert!(s.write.running.is_none() && s.write.failed.is_none());
@@ -617,13 +629,13 @@ mod tests {
 
     #[test]
     fn a_new_profile_gets_the_slots_own_id() {
-        let mut s = connected(Mode::DInput);
+        let mut s = connected(DINPUT);
         s.select(2, 2);
         s.start_from_default();
-        let job = s.upload_job((Mode::DInput, 3)).unwrap();
+        let job = s.upload_job((DINPUT, 3)).unwrap();
         let WriteOp::Upload { profile, .. } = job.op else { panic!("an upload") };
         assert_eq!(profile["id"], "dinput-slot-3-index-2");
-        let info = s.review_info((Mode::DInput, 3));
+        let info = s.review_info((DINPUT, 3));
         assert!(info.is_new && info.changes.row_count() == 0);
     }
 
@@ -636,7 +648,7 @@ mod tests {
         let (_, mut jobs) = s.confirm_review().unwrap();
         let job = jobs.remove(0);
         let mut bad = WriteResult::failure(
-            Mode::XInput,
+            XINPUT,
             job.slot,
             controller_core::ErrorCategory::WriteFailure,
             "Write failed at chunk 12/53. Rollback failed.",
@@ -650,7 +662,7 @@ mod tests {
             "The controller did not accept the profile, and the slot could not be put back as it was. A copy of the old profile is saved. Steam also has it open."
         );
         assert!(failed.backup.is_some());
-        assert!(s.slot(Mode::XInput, 1).unsaved(), "the edits stay");
+        assert!(s.slot(XINPUT, 1).unsaved(), "the edits stay");
         assert!(!s.can_write(), "the dialog comes first");
         let (_, mut agains) = s.retry_write().unwrap();
         let again = agains.remove(0);
@@ -667,7 +679,7 @@ mod tests {
         let (_, mut jobs) = s.confirm_review().unwrap();
         let job = jobs.remove(0);
         let lost = WriteResult::failure(
-            Mode::XInput,
+            XINPUT,
             job.slot,
             ErrorCategory::Timeout,
             "usb error: Connection timed out (os error 110)",
@@ -677,21 +689,21 @@ mod tests {
             s.write.failed.clone().unwrap().detail,
             "Could not reach the controller, so nothing was written. Check the cable and that the mode switch has not moved."
         );
-        assert!(s.slot(Mode::XInput, 1).unsaved(), "the edits stay");
+        assert!(s.slot(XINPUT, 1).unsaved(), "the edits stay");
     }
 
     #[test]
     fn clearing_asks_first_then_empties_the_slot() {
         let mut s = edited();
         s.begin_clear();
-        let info = s.clear_info((Mode::XInput, 1));
+        let info = s.clear_info((XINPUT, 1));
         assert_eq!((info.name.as_str(), info.macros, info.has_edits), ("XInput", 1, true));
         let (_, mut jobs) = s.confirm_clear().unwrap();
         let job = jobs.remove(0);
-        assert_eq!((job.mode, job.slot.get(), &job.op), (Mode::XInput, 1, &WriteOp::Clear));
-        let ok = WriteResult::success(Mode::XInput, job.slot, "Slot deactivated.");
+        assert_eq!((job.mode, job.slot.get(), &job.op), (XINPUT, 1, &WriteOp::Clear));
+        let ok = WriteResult::success(XINPUT, job.slot, "Slot deactivated.");
         s.write_finished(PORT, &[ok], None);
-        let slot = s.slot(Mode::XInput, 1);
+        let slot = s.slot(XINPUT, 1);
         assert_eq!((slot.pad, slot.edited), (None, None));
         s.begin_clear();
         assert!(s.write.clearing.is_none(), "an empty slot has nothing to clear");
@@ -707,26 +719,26 @@ mod tests {
 
     #[test]
     fn a_clashing_pair_read_from_the_pad_loads_and_the_review_names_it() {
-        let mut s = connected(Mode::XInput);
-        let pad = s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap();
+        let mut s = connected(XINPUT);
+        let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap();
         let held = pad.pad.as_mut().unwrap();
         held.set_setting("/sticks/invert_left_x", true.into());
         held.set_setting("/sticks/swap_dpad_with_left_stick", true.into());
         s.set_name("Mine");
-        let problem = s.review_info((Mode::XInput, 1)).problem;
+        let problem = s.review_info((XINPUT, 1)).problem;
         assert!(problem.contains("“Invert X” in Left stick"), "{problem}");
         // Turning the swap off in the window clears it.
         s.set_flag("/sticks/swap_dpad_with_left_stick", false);
-        assert_eq!(s.review_info((Mode::XInput, 1)).problem, "");
+        assert_eq!(s.review_info((XINPUT, 1)).problem, "");
     }
 
     /// `DInput` slot 3, empty on the pad, started from default; Write pressed and the
     /// slot read again.
     fn empty_slot_write(leftover: usize) -> AppState {
-        let mut s = connected(Mode::DInput);
+        let mut s = connected(DINPUT);
         s.select(2, 2);
         s.start_from_default();
-        s.set_leftover(PORT, [((Mode::DInput, 3), leftover)].into());
+        s.set_leftover(PORT, [((DINPUT, 3), leftover)].into());
         s.begin_review().unwrap();
         s.review_read(PORT, true);
         s
@@ -737,7 +749,7 @@ mod tests {
         let mut s = empty_slot_write(0);
         let (_, mut jobs) = s.skip_empty_review().unwrap();
         let job = jobs.remove(0);
-        assert_eq!((job.mode, job.slot.get()), (Mode::DInput, 3));
+        assert_eq!((job.mode, job.slot.get()), (DINPUT, 3));
         assert!(s.review_open().is_none() && s.write.running.is_some());
     }
 
@@ -760,11 +772,11 @@ mod tests {
 
     #[test]
     fn leftover_macros_of_an_empty_slot_reach_the_review() {
-        let mut s = connected(Mode::DInput);
+        let mut s = connected(DINPUT);
         s.select(2, 2);
         s.start_from_default();
-        s.set_leftover(PORT, [((Mode::DInput, 3), 2)].into());
-        assert_eq!(s.review_info((Mode::DInput, 3)).leftover, 2);
+        s.set_leftover(PORT, [((DINPUT, 3), 2)].into());
+        assert_eq!(s.review_info((DINPUT, 3)).leftover, 2);
     }
 }
 

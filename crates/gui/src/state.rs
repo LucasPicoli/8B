@@ -194,7 +194,13 @@ impl AppState {
     /// while that controller has not been read.
     #[must_use]
     pub fn description(&self) -> &'static ControllerDescription {
-        self.active().and_then(|c| c.description).unwrap_or(self.fallback_description)
+        self.active().map_or(self.fallback_description, |c| self.description_of(c))
+    }
+
+    /// The description of controller `c`, or the fallback before its model is known.
+    #[must_use]
+    pub fn description_of(&self, c: &Controller) -> &'static ControllerDescription {
+        c.description.unwrap_or(self.fallback_description)
     }
 
     /// Which tabs of slot `number` of `mode` hold unsaved edits, on the shown controller.
@@ -409,7 +415,7 @@ impl AppState {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 pub mod tests {
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
-    use controller_core::devices::pro3::Pro3;
+    use controller_core::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};
     use controller_core::model::{CanonicalProfileSummary, ProfileReadResult, RawProfilePayload};
 
     use super::*;
@@ -434,7 +440,7 @@ pub mod tests {
 
     /// A window for the Pro 3 with no controller seen yet.
     pub fn new_state() -> AppState {
-        let defaults = Mode::ALL.iter().map(|&m| (m, Pro3.default_profile(m))).collect();
+        let defaults = MODES.iter().map(|&m| (m, Pro3.default_profile(m))).collect();
         AppState::new(description(), defaults)
     }
 
@@ -470,10 +476,14 @@ pub mod tests {
     /// A full read: slot 1 of each mode named after it, slot 2 with two macros,
     /// slot 3 empty.
     pub fn full_read() -> ProfileReadResult {
-        let profiles = Mode::ALL
+        let profiles = MODES
             .iter()
             .flat_map(|&m| {
-                [summary(m, 1, m.label(), 0), summary(m, 2, "Racing", 2), summary(m, 3, "", 0)]
+                [
+                    summary(m, 1, &description().mode_label(m), 0),
+                    summary(m, 2, "Racing", 2),
+                    summary(m, 3, "", 0),
+                ]
             })
             .collect();
         ProfileReadResult { profiles, raw_blobs: vec![] }
@@ -496,48 +506,44 @@ pub mod tests {
     #[test]
     fn first_read_fills_every_slot_and_selects_the_current_mode() {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::Switch));
+        s.presence(PORT, Some(SWITCH));
         s.read_started(PORT);
         s.read_finished(PORT, Ok(full_read()));
         assert!(s.has_controller() && !s.reading());
         assert_eq!(s.active().unwrap().slots.len(), 9);
-        assert_eq!(s.slot(Mode::DInput, 3).pad, None);
-        assert_eq!(s.slot(Mode::DInput, 2).pad.unwrap().name, "Racing");
-        assert_eq!(s.selected_slot(), Some((Mode::Switch, 1)));
+        assert_eq!(s.slot(DINPUT, 3).pad, None);
+        assert_eq!(s.slot(DINPUT, 2).pad.unwrap().name, "Racing");
+        assert_eq!(s.selected_slot(), Some((SWITCH, 1)));
     }
 
     #[test]
     fn unplug_keeps_slots_and_edits() {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_finished(PORT, Ok(full_read()));
-        let mut edited = s.slot(Mode::XInput, 1).pad.unwrap();
+        let mut edited = s.slot(XINPUT, 1).pad.unwrap();
         edited.name = "Edited".to_owned();
-        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().edited = Some(edited);
+        s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().edited = Some(edited);
         s.presence(PORT, None);
         assert!(s.has_controller());
         assert_eq!(s.current_mode(), None);
-        assert!(s.slot(Mode::XInput, 1).unsaved());
+        assert!(s.slot(XINPUT, 1).unsaved());
         // A reread replaces what the pad holds and keeps the edit.
-        s.presence(PORT, Some(Mode::DInput));
+        s.presence(PORT, Some(DINPUT));
         s.read_finished(PORT, Ok(full_read()));
-        assert!(s.slot(Mode::XInput, 1).unsaved());
-        assert_eq!(
-            s.selected_slot(),
-            Some((Mode::XInput, 1)),
-            "selection stays after the first read"
-        );
+        assert!(s.slot(XINPUT, 1).unsaved());
+        assert_eq!(s.selected_slot(), Some((XINPUT, 1)), "selection stays after the first read");
     }
 
     #[test]
     fn failed_read_is_kept_until_it_clears_or_the_controller_goes() {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_started(PORT);
         s.read_finished(PORT, Err("device disconnected".to_owned()));
         assert_eq!(s.read_error(), Some("device disconnected"));
         assert!(!s.reading() && !s.has_controller());
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         assert_eq!(s.read_error(), None);
         s.read_finished(PORT, Err("device disconnected".to_owned()));
         s.read_started(PORT);
@@ -552,7 +558,7 @@ pub mod tests {
     #[test]
     fn denied_read_asks_for_access_until_a_good_read() {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_started(PORT);
         s.read_denied(PORT, Rule::Missing);
         assert_eq!(s.access, Some(Access::Denied));
@@ -575,7 +581,7 @@ pub mod tests {
     fn the_sandbox_asks_only_while_a_read_is_denied() {
         let mut s = new_state();
         s.sandboxed = true;
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         // The sandbox cannot see the host's rule, so it reads as missing.
         s.read_denied(PORT, Rule::Missing);
         assert_eq!(s.access, Some(Access::Denied));
@@ -587,7 +593,7 @@ pub mod tests {
     #[test]
     fn still_blocked_shows_once_a_check_comes_back_denied() {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_denied(PORT, Rule::Current);
         assert!(!s.still_blocked(), "no check yet");
         s.check_started();
@@ -607,7 +613,7 @@ pub mod tests {
     #[test]
     fn unplug_leaves_the_permission_screen() {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_denied(PORT, Rule::Current);
         s.presence(PORT, None);
         assert_eq!(s.access, None);
@@ -618,7 +624,7 @@ pub mod tests {
         let mut s = new_state();
         s.rule = Rule::Missing;
         assert!(!s.asks_for_rule(), "no read has been denied yet");
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_finished(PORT, Ok(full_read()));
         assert!(!s.asks_for_rule(), "another rule grants access");
         s.read_denied(PORT, Rule::Missing);
@@ -627,7 +633,7 @@ pub mod tests {
 
     #[test]
     fn outdated_rule_asks_until_installed_or_skipped() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         assert!(!s.asks_for_rule());
         s.rule = Rule::Outdated;
         assert!(s.asks_for_rule(), "no denied read needed");
@@ -635,7 +641,7 @@ pub mod tests {
         assert!(s.asks_for_rule(), "an unplug keeps the question");
         s.rule_skipped = true;
         assert!(!s.asks_for_rule());
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_denied(PORT, Rule::Outdated);
         assert!(s.asks_for_rule(), "a denied read asks again after a skip");
         s.install_finished(Ok(()));
@@ -647,7 +653,7 @@ pub mod tests {
     fn select_ignores_out_of_range() {
         let mut s = new_state();
         s.select(2, 2);
-        assert_eq!(s.selected_slot(), Some((Mode::DInput, 3)));
+        assert_eq!(s.selected_slot(), Some((DINPUT, 3)));
         s.select(3, 0);
         s.select(0, 3);
         assert_eq!(s.selected, (2, 2));
@@ -663,68 +669,68 @@ pub mod tests {
 
     #[test]
     fn first_change_copies_the_pad_and_marks_its_tab() {
-        let mut s = connected(Mode::XInput);
-        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default());
+        let mut s = connected(XINPUT);
+        assert_eq!(s.slot_dirty(XINPUT, 1), Dirty::default());
         s.set_output("r1", "disabled");
-        let slot = s.slot(Mode::XInput, 1);
+        let slot = s.slot(XINPUT, 1);
         assert!(slot.unsaved());
-        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty { buttons: true, ..Dirty::default() });
+        assert_eq!(s.slot_dirty(XINPUT, 1), Dirty { buttons: true, ..Dirty::default() });
         // Changing it back leaves a working copy equal to the pad: nothing unsaved.
         s.set_output("r1", "r1");
-        assert!(!s.slot(Mode::XInput, 1).unsaved());
-        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default());
+        assert!(!s.slot(XINPUT, 1).unsaved());
+        assert_eq!(s.slot_dirty(XINPUT, 1), Dirty::default());
     }
 
     #[test]
     fn a_rename_marks_no_tab_and_is_cut_to_the_limit() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("A name far longer than sixteen");
-        let slot = s.slot(Mode::XInput, 1);
+        let slot = s.slot(XINPUT, 1);
         assert_eq!(slot.shown().unwrap().name, "A name far longe");
         assert!(slot.unsaved());
-        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default());
+        assert_eq!(s.slot_dirty(XINPUT, 1), Dirty::default());
     }
 
     #[test]
     fn discard_drops_the_working_copy_of_the_selected_slot_only() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_output("l1", "disabled");
         s.select(0, 1);
         s.set_output("l1", "disabled");
         s.discard();
-        assert!(!s.slot(Mode::XInput, 2).unsaved());
-        assert!(s.slot(Mode::XInput, 1).unsaved());
+        assert!(!s.slot(XINPUT, 2).unsaved());
+        assert!(s.slot(XINPUT, 1).unsaved());
     }
 
     #[test]
     fn an_empty_slot_starts_from_the_mode_default() {
-        let mut s = connected(Mode::Switch);
+        let mut s = connected(SWITCH);
         s.select(1, 2);
         s.set_output("l1", "disabled");
-        assert_eq!(s.slot(Mode::Switch, 3).edited, None, "an empty slot has nothing to edit");
+        assert_eq!(s.slot(SWITCH, 3).edited, None, "an empty slot has nothing to edit");
         s.start_from_default();
-        let slot = s.slot(Mode::Switch, 3);
+        let slot = s.slot(SWITCH, 3);
         let p = slot.shown().unwrap();
-        assert_eq!((p.name.as_str(), p.mode), (NEW_PROFILE_NAME, Mode::Switch));
+        assert_eq!((p.name.as_str(), p.mode), (NEW_PROFILE_NAME, SWITCH));
         assert!(slot.unsaved());
         let tabs = ["sticks", "triggers", "vibration"].map(str::to_owned).into();
-        assert_eq!(s.slot_dirty(Mode::Switch, 3), Dirty { buttons: true, tabs });
+        assert_eq!(s.slot_dirty(SWITCH, 3), Dirty { buttons: true, tabs });
         // A second press keeps the edits made since.
         s.set_output("l1", "disabled");
         s.start_from_default();
-        let p = s.slot(Mode::Switch, 3).edited.unwrap();
+        let p = s.slot(SWITCH, 3).edited.unwrap();
         assert!(p.button_mappings.iter().any(|m| m.source == "l1" && m.target == "disabled"));
     }
 
     #[test]
     fn an_unrecognised_output_can_be_left_but_not_chosen() {
-        let mut s = connected(Mode::DInput);
+        let mut s = connected(DINPUT);
         s.set_output("l1", UNRECOGNISED_OUTPUT);
-        assert_eq!(s.slot(Mode::DInput, 1).edited, None);
+        assert_eq!(s.slot(DINPUT, 1).edited, None);
         s.active_mut()
             .unwrap()
             .slots
-            .get_mut(&(Mode::DInput, 1))
+            .get_mut(&(DINPUT, 1))
             .unwrap()
             .pad
             .as_mut()
@@ -733,7 +739,7 @@ pub mod tests {
             .target = UNRECOGNISED_OUTPUT.to_owned();
         s.set_output("right face", "disabled");
         s.set_output("right face", UNRECOGNISED_OUTPUT);
-        let edited = s.slot(Mode::DInput, 1).edited.unwrap();
+        let edited = s.slot(DINPUT, 1).edited.unwrap();
         assert_eq!(edited.button_mappings[0].target, "disabled");
     }
 }

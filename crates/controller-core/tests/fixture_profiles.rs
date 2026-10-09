@@ -4,19 +4,19 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, SWITCH, XINPUT};
 use controller_core::model::{CanonicalProfile, Mode, RawProfilePayload, Slot};
 
 const DIR: &str = "../../fixtures/pro3/remap";
 
 /// (file stem, 1-based slot, 0-based profile index, mode)
 const PROFILES: &[(&str, u8, u8, Mode)] = &[
-    ("xinput-slot1", 1, 0, Mode::XInput),
-    ("xinput-slot2", 2, 1, Mode::XInput),
-    ("xinput-slot3", 3, 2, Mode::XInput),
-    ("switch-slot1", 1, 0, Mode::Switch),
-    ("switch-slot2", 2, 1, Mode::Switch),
-    ("switch-slot3", 3, 2, Mode::Switch),
+    ("xinput-slot1", 1, 0, XINPUT),
+    ("xinput-slot2", 2, 1, XINPUT),
+    ("xinput-slot3", 3, 2, XINPUT),
+    ("switch-slot1", 1, 0, SWITCH),
+    ("switch-slot2", 2, 1, SWITCH),
+    ("switch-slot3", 3, 2, SWITCH),
 ];
 
 fn load_profile(stem: &str) -> CanonicalProfile {
@@ -145,7 +145,7 @@ fn home_guide_remap_attempt_is_forced_to_identity() {
         payload: b,
         source_slot: 1,
         source_profile_index: 0,
-        mode_hint: Mode::XInput,
+        mode_hint: XINPUT,
     };
     let decoded = Pro3.map_profile(&raw).unwrap().canonical;
     let hg = decoded.button_mappings.iter().find(|m| m.source == "home/guide").unwrap();

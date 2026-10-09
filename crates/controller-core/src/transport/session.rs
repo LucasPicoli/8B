@@ -382,7 +382,7 @@ mod tests {
 
     use super::*;
     use crate::device::{ConfigPort, ControllerSpec as _};
-    use crate::devices::pro3::Pro3;
+    use crate::devices::pro3::{Pro3, DINPUT};
     use crate::protocol::wire_write::build_write_packet;
 
     /// Keeps every record, so a test can read back what the session logged.
@@ -410,7 +410,7 @@ mod tests {
             timeout: Duration::from_millis(50),
             paused: false,
             framing: Framing::Plain,
-            current_mode: Mode::DInput,
+            current_mode: DINPUT,
             write_via: None,
             firmware_version: String::new(),
             model: None,

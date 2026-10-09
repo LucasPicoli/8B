@@ -12,9 +12,9 @@ use crate::devices::pro3::macros::{decode_macro_metadata, encode_macro_metadata}
 use crate::devices::pro3::settings::{
     Settings, Sticks, Triggers, TriggersAnalog, TriggersSwitch, Vibration,
 };
-use crate::devices::pro3::tables;
 use crate::devices::pro3::tables::ButtonEncodingEntry;
 use crate::devices::pro3::Pro3;
+use crate::devices::pro3::{tables, DINPUT, SWITCH, XINPUT};
 use crate::error::{Error, Result};
 use crate::model::macros::macro_file_name;
 use crate::model::profile::canonical_id;
@@ -96,9 +96,9 @@ fn to_percent(raw: u8, raw_max: i32) -> i32 {
 fn decode_mode_field(payload: &[u8], layout: DecodeLayout) -> Option<Mode> {
     let offset = layout.adjust(tables::MODE_OFFSET);
     match crate::protocol::bytes::read_u16_le(payload, offset).ok()? {
-        0 => Some(Mode::Switch),
-        1 => Some(Mode::DInput),
-        3 => Some(Mode::XInput),
+        0 => Some(SWITCH),
+        1 => Some(DINPUT),
+        3 => Some(XINPUT),
         _ => None,
     }
 }
@@ -114,12 +114,14 @@ fn decode_name(payload: &[u8], source_slot: u8, layout: DecodeLayout) -> String 
         .map_or_else(|_| "unnamed".to_owned(), decode_utf16be_name)
 }
 
-/// Picks the encoding table for `mode`.
+/// Picks the encoding table for `mode`. A mode the Pro 3 lacks has none, so it decodes
+/// no mappings and every encode refuses its controls.
 fn encodings_for_mode(mode: Mode) -> &'static [ButtonEncodingEntry] {
     match mode {
-        Mode::Switch => &tables::SWITCH_ENCODINGS,
-        Mode::DInput => &tables::DINPUT_ENCODINGS,
-        Mode::XInput => &tables::XINPUT_ENCODINGS,
+        SWITCH => &tables::SWITCH_ENCODINGS,
+        DINPUT => &tables::DINPUT_ENCODINGS,
+        XINPUT => &tables::XINPUT_ENCODINGS,
+        _ => &[],
     }
 }
 
@@ -284,7 +286,7 @@ fn decode_sticks(payload: &[u8], source_slot: u8, layout: DecodeLayout) -> Stick
 
 /// Decodes trigger ranges/thresholds for `source_slot`, shape depending on mode.
 fn decode_triggers(payload: &[u8], mode: Mode, source_slot: u8, layout: DecodeLayout) -> Triggers {
-    let is_switch = mode == Mode::Switch;
+    let is_switch = mode == SWITCH;
     if !(1..=3).contains(&source_slot) {
         return if is_switch {
             Triggers::Switch(TriggersSwitch {
@@ -477,7 +479,7 @@ pub fn default_profile(mode: Mode) -> CanonicalProfile {
         .enumerate()
         .map(|(i, e)| {
             // Switch turbo takes a screenshot by default.
-            let encoding = if mode == Mode::Switch && i == tables::TURBO_INDEX {
+            let encoding = if mode == SWITCH && i == tables::TURBO_INDEX {
                 tables::SWITCH_TURBO_DEFAULT
             } else {
                 e.encoding
@@ -698,9 +700,10 @@ pub fn compile_profile(
 
     // Mode LE16.
     let mode_enc = match profile.mode {
-        Mode::Switch => MODE_SWITCH,
-        Mode::DInput => MODE_DINPUT,
-        Mode::XInput => MODE_XINPUT,
+        SWITCH => MODE_SWITCH,
+        DINPUT => MODE_DINPUT,
+        XINPUT => MODE_XINPUT,
+        other => return Err(super::no_such_mode(other)),
     };
     put_u16_le(&mut buf, DEV_MODE_OFFSET, mode_enc)?;
 
@@ -854,7 +857,7 @@ pub fn compile_profile(
             } else {
                 tables::NULL_ENCODING
             }
-        } else if mapping.target == "screenshot" && mode == Mode::Switch {
+        } else if mapping.target == "screenshot" && mode == SWITCH {
             tables::SWITCH_TURBO_DEFAULT
         } else if mapping.target == "screenshot" {
             // XInput: "screenshot" is not a valid XInput target; write the source's
@@ -880,7 +883,7 @@ pub fn compile_profile(
 
     // Switch turbo default override (index 12): screenshot encoding when not remapped.
     let switch_turbo_default: Option<[u8; 4]> =
-        if mode == Mode::Switch { Some(tables::SWITCH_TURBO_DEFAULT) } else { None };
+        if mode == SWITCH { Some(tables::SWITCH_TURBO_DEFAULT) } else { None };
 
     // Write 22 button entries.
     for i in 0..tables::SOURCE_BUTTON_COUNT {
@@ -968,6 +971,7 @@ pub(super) fn seal_crc(buf: &mut [u8]) -> Result<()> {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::devices::pro3::{DINPUT, MODES, SWITCH, XINPUT};
 
     /// The typed view of `p`'s settings.
     fn s(p: &CanonicalProfile) -> Settings {
@@ -991,24 +995,24 @@ mod tests {
         let mut blob = vec![0u8; tables::EXPECTED_PROFILE_SIZE];
         blob[0x0010] = 0x03;
         let layout = DecodeLayout { shifted_by_two: true };
-        assert_eq!(decode_mode_field(&blob, layout), Some(Mode::XInput));
+        assert_eq!(decode_mode_field(&blob, layout), Some(XINPUT));
         blob[0x0010] = 0x00;
-        assert_eq!(decode_mode_field(&blob, layout), Some(Mode::Switch));
+        assert_eq!(decode_mode_field(&blob, layout), Some(SWITCH));
         blob[0x0010] = 0x01;
-        assert_eq!(decode_mode_field(&blob, layout), Some(Mode::DInput));
+        assert_eq!(decode_mode_field(&blob, layout), Some(DINPUT));
         blob[0x0010] = 0x07;
         assert_eq!(decode_mode_field(&blob, layout), None);
     }
 
     #[test]
     fn default_profile_reads_back_as_written() {
-        for mode in Mode::ALL {
+        for mode in MODES {
             let mut profile = default_profile(mode);
             assert_eq!(profile.button_mappings.len(), tables::SOURCE_BUTTON_COUNT);
             let target = |s: &str| {
                 profile.button_mappings.iter().find(|m| m.source == s).map(|m| m.target.clone())
             };
-            let rp = if mode == Mode::DInput { "rp output" } else { "disabled" };
+            let rp = if mode == DINPUT { "rp output" } else { "disabled" };
             assert_eq!(target("rp").as_deref(), Some(rp), "{mode}");
             assert_eq!(target("l1").as_deref(), Some("l1"), "{mode}");
             profile.name = "New".to_owned();
@@ -1029,7 +1033,7 @@ mod tests {
 
     #[test]
     fn default_profile_matches_the_vendor_defaults_and_compiles_to_their_bytes() {
-        for mode in Mode::ALL {
+        for mode in MODES {
             let profile = default_profile(mode);
             assert_eq!(s(&profile).sticks.left_min_pct, 13, "{mode}");
             assert_eq!(s(&profile).sticks.right_min_pct, 13, "{mode}");
@@ -1039,7 +1043,7 @@ mod tests {
             );
             let blob = compile_profile(&profile, Slot::new(1).unwrap(), &[], &[]).unwrap();
             assert_eq!(&blob[DEV_STICK_DATA_BASE..][..4], &[0x11, 0x80, 0x11, 0x80], "{mode}");
-            let want = if mode == Mode::Switch {
+            let want = if mode == SWITCH {
                 assert!(matches!(
                     s(&profile).triggers,
                     Triggers::Switch(t) if (t.left_threshold_pct, t.right_threshold_pct) == (30, 30)
@@ -1054,7 +1058,7 @@ mod tests {
 
     #[test]
     fn every_output_on_a_paddle_reads_back_as_written() {
-        for mode in Mode::ALL {
+        for mode in MODES {
             let entries = encodings_for_mode(mode);
             let paddles = ["rp", "lp", "l4", "r4"];
             let targets = entries
@@ -1103,7 +1107,7 @@ mod tests {
             payload: vec![0u8; 16],
             source_slot: 1,
             source_profile_index: 0,
-            mode_hint: Mode::XInput,
+            mode_hint: XINPUT,
         };
         assert!(matches!(map_profile(&Pro3, &raw), Err(Error::Decode(_))));
     }
@@ -1111,7 +1115,7 @@ mod tests {
     #[test]
     fn a_slot_holding_the_dpad_swap_with_swap_sticks_and_an_invert_still_decodes() {
         // The vendor app never writes this pair, but a pad can hold it: flags `11 01`.
-        let mut profile = default_profile(Mode::XInput);
+        let mut profile = default_profile(XINPUT);
         profile.set_setting("/sticks/invert_left_x", (true).into());
         profile.set_setting("/sticks/swap_sticks", (true).into());
         profile.set_setting("/sticks/swap_dpad_with_left_stick", (true).into());
@@ -1120,7 +1124,7 @@ mod tests {
             payload: blob,
             source_slot: 1,
             source_profile_index: 0,
-            mode_hint: Mode::XInput,
+            mode_hint: XINPUT,
         };
         let back = map_profile(&Pro3, &raw).unwrap().canonical;
         assert_eq!(s(&back).sticks, s(&profile).sticks);

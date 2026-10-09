@@ -135,6 +135,7 @@ fn utc_stamp(unix_secs: u64) -> String {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use crate::transport::mock::{MockCall, MockDevice, MockOp};
 
     fn backup() -> Vec<u8> {
@@ -151,7 +152,7 @@ mod tests {
     const FAILED: FailedWrite = FailedWrite { chunk: Some(29), total_chunks: 53 };
 
     fn rollback(dev: &MockDevice, active: bool, dir: &Path) -> WriteResult {
-        attempt_rollback(dev, Mode::XInput, slot(2), &backup(), active, FAILED, dir)
+        attempt_rollback(dev, XINPUT, slot(2), &backup(), active, FAILED, dir)
     }
 
     #[test]
@@ -163,7 +164,7 @@ mod tests {
         assert!(r.message.contains("chunk 30/53"));
         assert!(r.message.contains("no rollback needed"));
         assert_eq!(dev.calls(), []);
-        let none = attempt_rollback(&dev, Mode::XInput, slot(2), &[], true, FAILED, dir.path());
+        let none = attempt_rollback(&dev, XINPUT, slot(2), &[], true, FAILED, dir.path());
         assert!(!none.rollback_attempted);
     }
 
@@ -177,10 +178,7 @@ mod tests {
         assert!(r.message.contains("Rollback succeeded"));
         assert_eq!(
             dev.calls(),
-            [
-                MockCall::WriteFullProfile { mode: Mode::XInput, blob: backup() },
-                MockCall::Apply(Mode::XInput)
-            ]
+            [MockCall::WriteFullProfile { mode: XINPUT, blob: backup() }, MockCall::Apply(XINPUT)]
         );
         assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
     }
@@ -221,7 +219,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let r = attempt_rollback(
             &dev,
-            Mode::XInput,
+            XINPUT,
             slot(1),
             &backup(),
             true,
@@ -236,8 +234,8 @@ mod tests {
     fn result_carries_mode_and_slot() {
         let dev = MockDevice::new();
         let dir = tempfile::tempdir().unwrap();
-        let r = attempt_rollback(&dev, Mode::DInput, slot(3), &backup(), true, FAILED, dir.path());
-        assert_eq!((r.mode, r.slot), (Mode::DInput, 3));
+        let r = attempt_rollback(&dev, DINPUT, slot(3), &backup(), true, FAILED, dir.path());
+        assert_eq!((r.mode, r.slot), (DINPUT, 3));
     }
 
     #[test]
@@ -250,7 +248,7 @@ mod tests {
     #[test]
     fn save_backup_name_content_and_rejections() {
         let dir = tempfile::tempdir().unwrap();
-        let path = save_backup(Mode::Switch, slot(3), &backup(), dir.path()).unwrap();
+        let path = save_backup(SWITCH, slot(3), &backup(), dir.path()).unwrap();
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         assert!(
             name.starts_with("backup-switch-slot-3-")
@@ -258,16 +256,16 @@ mod tests {
         );
         assert_eq!(name.len(), "backup-switch-slot-3-YYYYMMDD-HHMMSS.bin".len());
         assert_eq!(std::fs::read(&path).unwrap(), backup());
-        assert!(save_backup(Mode::Switch, slot(3), &[], dir.path()).is_err());
+        assert!(save_backup(SWITCH, slot(3), &[], dir.path()).is_err());
     }
 
     #[test]
     fn save_backup_never_overwrites() {
         let dir = tempfile::tempdir().unwrap();
-        let first = save_backup(Mode::XInput, slot(1), &backup(), dir.path()).unwrap();
+        let first = save_backup(XINPUT, slot(1), &backup(), dir.path()).unwrap();
         std::fs::write(&first, b"keep me").unwrap();
         // Same second, same name: the second save must fail, not clobber.
-        if let Ok(second) = save_backup(Mode::XInput, slot(1), &backup(), dir.path()) {
+        if let Ok(second) = save_backup(XINPUT, slot(1), &backup(), dir.path()) {
             assert_ne!(second, first); // the clock ticked over; still no overwrite
         }
         assert_eq!(std::fs::read(&first).unwrap(), b"keep me");

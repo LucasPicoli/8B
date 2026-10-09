@@ -167,19 +167,20 @@ fn step_to_json(step: &MacroStep) -> Value {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::devices::pro3::XINPUT;
 
     #[test]
     fn a_macro_file_name_parses_back_to_its_slot_and_name() {
         let def = MacroDefinition {
             name: "My-macro 1".into(),
-            mode: Mode::XInput,
+            mode: XINPUT,
             trigger: "l1".into(),
             repeat_count: 1,
             interval_ms: 0,
             steps: Vec::new(),
             macro_slot: Some(2),
         };
-        let path = macro_file_name(Mode::XInput, 1, &def);
+        let path = macro_file_name(XINPUT, 1, &def);
         assert_eq!(parse_macro_file_name(&path), Some((2, "My-macro_1")));
         assert_eq!(parse_macro_file_name("m.json"), None);
         assert_eq!(parse_macro_file_name("xinput-slot1-macroX-a.json"), None);

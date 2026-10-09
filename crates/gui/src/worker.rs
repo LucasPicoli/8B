@@ -310,7 +310,7 @@ mod tests {
     use std::time::Instant;
 
     use controller_core::device::ControllerSpec as _;
-    use controller_core::devices::pro3::Pro3;
+    use controller_core::devices::pro3::{Pro3, DINPUT, XINPUT};
     use controller_core::model::Slot;
     use controller_core::transport::mock::MockOp;
     use controller_core::transport::MockDevice;
@@ -327,7 +327,7 @@ mod tests {
     fn debounce_needs_settle_polls_in_a_row() {
         let mut d = Debounce::default();
         assert!(!d.observe(None));
-        let x = Some((Mode::XInput, Some(5)));
+        let x = Some((XINPUT, Some(5)));
         for _ in 1..SETTLE_POLLS {
             assert!(!d.observe(x));
         }
@@ -336,7 +336,7 @@ mod tests {
         assert!(!d.observe(x));
         // A slide-switch move: a gap, then the new mode.
         assert!(!d.observe(None));
-        assert_eq!(settle(&mut d, Some((Mode::DInput, Some(6)))), SETTLE_POLLS);
+        assert_eq!(settle(&mut d, Some((DINPUT, Some(6)))), SETTLE_POLLS);
         assert_eq!(settle(&mut d, None), SETTLE_POLLS);
     }
 
@@ -381,10 +381,10 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::XInput), .. }));
+        assert!(matches!(next(&events), Event::Presence { mode: Some(XINPUT), .. }));
         // Unplugged and back between two polls: the kernel gave it a new number.
         fs::write(sysfs.path().join("3-1/devnum"), "45\n").unwrap();
-        assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::XInput), .. }));
+        assert!(matches!(next(&events), Event::Presence { mode: Some(XINPUT), .. }));
     }
 
     /// An installer that succeeds without touching the system.
@@ -453,7 +453,7 @@ mod tests {
 
         let start = Instant::now();
         plug(sysfs.path(), "2dc8", "6009");
-        assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::DInput), .. }));
+        assert!(matches!(next(&events), Event::Presence { mode: Some(DINPUT), .. }));
         assert!(start.elapsed() >= POLL, "one sighting is not enough");
 
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
@@ -487,11 +487,11 @@ mod tests {
             },
         )
         .unwrap();
-        assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::XInput), .. }));
+        assert!(matches!(next(&events), Event::Presence { mode: Some(XINPUT), .. }));
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         // No failed read comes back: the controller goes, comes back, and rereads.
         assert!(matches!(next(&events), Event::Presence { mode: None, .. }));
-        assert!(matches!(next(&events), Event::Presence { mode: Some(Mode::XInput), .. }));
+        assert!(matches!(next(&events), Event::Presence { mode: Some(XINPUT), .. }));
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         assert!(matches!(next(&events), Event::Read { result: Ok(_), .. }));
     }
@@ -652,10 +652,7 @@ mod tests {
                 other => panic!("expected a presence, got {other:?}"),
             })
             .collect();
-        assert_eq!(
-            seen,
-            BTreeSet::from([("3-1".to_owned(), Mode::XInput), ("3-2".to_owned(), Mode::DInput)])
-        );
+        assert_eq!(seen, BTreeSet::from([("3-1".to_owned(), XINPUT), ("3-2".to_owned(), DINPUT)]));
         tx.send(Command::ReadAll("3-2".to_owned())).unwrap();
         assert!(matches!(next(&events), Event::Read { port, result: Ok(_) } if port == "3-2"));
         tx.send(Command::ReadAll("3-1".to_owned())).unwrap();
@@ -671,7 +668,7 @@ mod tests {
     fn upload_job() -> WriteJob {
         let text = fs::read_to_string("../../fixtures/pro3/xinput-slot1.profile.json").unwrap();
         WriteJob {
-            mode: Mode::XInput,
+            mode: XINPUT,
             slot: Slot::new(1).unwrap(),
             op: WriteOp::Upload {
                 profile: serde_json::from_str(&text).unwrap(),

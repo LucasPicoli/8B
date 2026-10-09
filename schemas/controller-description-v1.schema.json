@@ -76,7 +76,11 @@
   },
   "$defs": {
     "HexId": { "type": "string", "pattern": "^0x[0-9a-f]{4}$" },
-    "ModeId": { "type": "string", "enum": ["xinput", "switch", "dinput"] },
+    "ModeId": {
+      "description": "A mode's id, such as xinput. Each model names its own modes.",
+      "type": "string",
+      "pattern": "^[a-z0-9_-]{1,15}$"
+    },
     "ConfigPort": {
       "type": "object",
       "additionalProperties": false,
@@ -116,13 +120,13 @@
     "Mode": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "trigger_kind", "extra_outputs"],
+      "required": ["id", "label", "extra_outputs"],
       "properties": {
         "id": { "$ref": "#/$defs/ModeId" },
-        "trigger_kind": {
-          "description": "analog: min and max range. threshold: one press point.",
+        "label": {
+          "description": "Name shown to the user, such as XInput.",
           "type": "string",
-          "enum": ["analog", "threshold"]
+          "minLength": 1
         },
         "extra_outputs": {
           "description": "Outputs beyond the buttons and 'disabled', which every mode has.",

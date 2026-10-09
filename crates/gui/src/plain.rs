@@ -56,7 +56,8 @@ pub const fn write_failure(result: &WriteResult) -> &'static str {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use controller_core::model::{Mode, Slot};
+    use controller_core::devices::pro3::XINPUT;
+    use controller_core::model::Slot;
 
     use super::*;
 
@@ -94,7 +95,7 @@ mod tests {
 
     fn failed(category: ErrorCategory) -> WriteResult {
         let slot = Slot::new(1).unwrap();
-        WriteResult::failure(Mode::XInput, slot, category, "Write failed at chunk 12/53.")
+        WriteResult::failure(XINPUT, slot, category, "Write failed at chunk 12/53.")
     }
 
     #[test]

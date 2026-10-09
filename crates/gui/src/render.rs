@@ -37,7 +37,7 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
                 }
             });
             ModeGroup {
-                name: mode.id.label().into(),
+                name: mode.label.as_str().into(),
                 current: state.current_mode() == Some(mode.id),
                 slots: ModelRc::from(Rc::new(slots.collect::<VecModel<_>>())),
             }
@@ -51,9 +51,13 @@ pub fn device_status(state: &AppState) -> String {
     let failed = state.shown().is_some_and(|c| c.read_error.is_some());
     match state.current_mode() {
         None => "Not connected".to_owned(),
-        Some(mode) if state.reading() => format!("Reading over USB · {}", mode.label()),
-        Some(mode) if failed => format!("Could not read · {}", mode.label()),
-        Some(mode) => format!("Connected over USB · {}", mode.label()),
+        Some(mode) if state.reading() => {
+            format!("Reading over USB · {}", state.description().mode_label(mode))
+        }
+        Some(mode) if failed => {
+            format!("Could not read · {}", state.description().mode_label(mode))
+        }
+        Some(mode) => format!("Connected over USB · {}", state.description().mode_label(mode)),
     }
 }
 
@@ -92,7 +96,7 @@ pub fn changed_slots(state: &AppState) -> Vec<String> {
         .into_iter()
         .map(|(mode, n)| {
             let name = state.slot(mode, n).shown().map(|p| p.name.clone()).unwrap_or_default();
-            format!("{} slot {n} · {name}", mode.label())
+            format!("{} slot {n} · {name}", state.description().mode_label(mode))
         })
         .collect()
 }
@@ -100,7 +104,9 @@ pub fn changed_slots(state: &AppState) -> Vec<String> {
 /// The title of the selected slot, such as `XInput slot 2`.
 #[must_use]
 pub fn slot_title(state: &AppState) -> String {
-    state.selected_slot().map_or_else(String::new, |(mode, n)| format!("{} slot {n}", mode.label()))
+    state.selected_slot().map_or_else(String::new, |(mode, n)| {
+        format!("{} slot {n}", state.description().mode_label(mode))
+    })
 }
 
 /// Whether the selected slot holds nothing, on the controller or in the edits.
@@ -223,6 +229,7 @@ pub fn fit_toolbar(ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
+    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use controller_core::model::Mode;
     use slint::Model as _;
 
@@ -238,7 +245,7 @@ mod tests {
 
     #[test]
     fn sidebar_lists_the_description_modes_and_slots() {
-        let s = connected(Mode::Switch);
+        let s = connected(SWITCH);
         let g = groups(&s);
         let names: Vec<_> = g.iter().map(|g| g.name.to_string()).collect();
         assert_eq!(names, ["XInput", "Switch", "DInput"]);
@@ -253,10 +260,10 @@ mod tests {
 
     #[test]
     fn sidebar_shows_the_edited_copy() {
-        let mut s = connected(Mode::XInput);
-        let mut edited = s.slot(Mode::XInput, 2).pad.unwrap();
+        let mut s = connected(XINPUT);
+        let mut edited = s.slot(XINPUT, 2).pad.unwrap();
         edited.name = "Edited".to_owned();
-        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 2)).unwrap().edited = Some(edited);
+        s.active_mut().unwrap().slots.get_mut(&(XINPUT, 2)).unwrap().edited = Some(edited);
         let slot = groups(&s)[0].slots.row_data(1).unwrap();
         assert_eq!(slot.name, "Edited");
         assert!(slot.unsaved);
@@ -273,7 +280,7 @@ mod tests {
     fn status_title_and_empty_slot() {
         let mut s = new_state();
         assert_eq!(device_status(&s), "Not connected");
-        s.presence(PORT, Some(Mode::DInput));
+        s.presence(PORT, Some(DINPUT));
         s.read_started(PORT);
         assert_eq!(device_status(&s), "Reading over USB · DInput");
         s.read_finished(PORT, Ok(full_read()));

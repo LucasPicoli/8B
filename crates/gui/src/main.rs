@@ -89,7 +89,7 @@ fn read_present(commands: &Sender<Command>, state: &mut AppState) {
 fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
     match &event {
         Event::Presence { port, mode } => {
-            info!("controller on {port} {}", mode.map_or("gone", Mode::label));
+            info!("controller on {port} {}", mode.as_ref().map_or("gone", Mode::as_str));
         }
         Event::Read { port, result: Ok((model, read)) } => {
             let name = model.description().map_or("unknown model", |d| d.short_name.as_str());

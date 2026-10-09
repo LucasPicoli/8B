@@ -5,8 +5,8 @@
 
 use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::macros::macro_to_canonical_json;
-use controller_core::devices::pro3::Pro3;
-use controller_core::model::{MacroDefinition, MacroSlot, MacroStep, Mode};
+use controller_core::devices::pro3::{Pro3, SWITCH, XINPUT};
+use controller_core::model::{MacroDefinition, MacroSlot, MacroStep};
 
 const DIR: &str = "../../fixtures/pro3/macros";
 
@@ -50,7 +50,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "x-s1-m0-buttons",
             def: MacroDefinition {
                 name: "Buttons".into(),
-                mode: Mode::XInput,
+                mode: XINPUT,
                 trigger: "rp".into(),
                 repeat_count: 1,
                 interval_ms: 0,
@@ -66,7 +66,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "x-s2-m1-allbuttons",
             def: MacroDefinition {
                 name: "AllButtons".into(),
-                mode: Mode::XInput,
+                mode: XINPUT,
                 trigger: "l1".into(),
                 repeat_count: 2,
                 interval_ms: 200,
@@ -78,7 +78,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "x-s3-m2-sticks-triggers",
             def: MacroDefinition {
                 name: "SticksTrig".into(),
-                mode: Mode::XInput,
+                mode: XINPUT,
                 trigger: "r4".into(),
                 repeat_count: 1,
                 interval_ms: 0,
@@ -105,7 +105,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "x-s1-m3-repeat",
             def: MacroDefinition {
                 name: "Repeat255".into(),
-                mode: Mode::XInput,
+                mode: XINPUT,
                 trigger: "turbo".into(),
                 repeat_count: 255,
                 interval_ms: 1000,
@@ -117,7 +117,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "s-s1-m0-switch-routing",
             def: MacroDefinition {
                 name: "SwitchL2".into(),
-                mode: Mode::Switch,
+                mode: SWITCH,
                 trigger: "l2".into(),
                 repeat_count: 1,
                 interval_ms: 0,
@@ -134,7 +134,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "s-s2-m1-continuous",
             def: MacroDefinition {
                 name: "Continuous".into(),
-                mode: Mode::Switch,
+                mode: SWITCH,
                 trigger: "r2".into(),
                 repeat_count: u32::MAX,
                 interval_ms: 16,
@@ -146,7 +146,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "s-s3-m2-maxsteps",
             def: MacroDefinition {
                 name: "MaxSteps".into(),
-                mode: Mode::Switch,
+                mode: SWITCH,
                 trigger: "select/back".into(),
                 repeat_count: 1,
                 interval_ms: 0,
@@ -158,7 +158,7 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             stem: "s-s2-m3-triggervariety",
             def: MacroDefinition {
                 name: "TrigVariety".into(),
-                mode: Mode::Switch,
+                mode: SWITCH,
                 trigger: "start/menu".into(),
                 repeat_count: 3,
                 interval_ms: 100,

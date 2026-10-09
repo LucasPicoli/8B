@@ -84,7 +84,7 @@ fn parse(model: Option<&dyn Model>, text: &str) -> Result<CanonicalProfile, Stri
 impl AppState {
     /// Saved slot `slot`'s profile to a file, or failed to.
     pub fn exported(&mut self, slot: (Mode, u8), unsaved: bool, result: Result<String, String>) {
-        let title = format!("{} slot {}", slot.0.label(), slot.1);
+        let title = format!("{} slot {}", self.description().mode_label(slot.0), slot.1);
         self.notice = Some(match result {
             Ok(name) => Notice {
                 error: false,
@@ -174,7 +174,10 @@ impl AppState {
         };
         self.notice = Some(Notice {
             error: false,
-            title: format!("Imported “{file_name}” into {} slot {number}.", mode.label()),
+            title: format!(
+                "Imported “{file_name}” into {} slot {number}.",
+                self.description().mode_label(mode)
+            ),
             body: skipped + "Nothing reaches the controller until you write.",
         });
     }
@@ -193,7 +196,9 @@ pub fn swapped_letters(description: &ControllerDescription, from: Mode, to: Mode
         .filter(|(f, t)| {
             f != t && description.buttons.iter().any(|o| label(o, from).as_ref() == Some(t))
         })
-        .map(|(f, t)| format!("{} {f} is {} {t}", from.label(), to.label()))
+        .map(|(f, t)| {
+            format!("{} {f} is {} {t}", description.mode_label(from), description.mode_label(to))
+        })
         .collect::<Vec<_>>()
         .join(", ")
 }
@@ -218,10 +223,10 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
         .collect();
     ImportWarning {
         shown: true,
-        slot_title: format!("{} slot {}", to.label(), p.slot.1).into(),
+        slot_title: format!("{} slot {}", state.description().mode_label(to), p.slot.1).into(),
         file_name: p.file_name.as_str().into(),
-        from_mode: from.label().into(),
-        to_mode: to.label().into(),
+        from_mode: state.description().mode_label(from).into(),
+        to_mode: state.description().mode_label(to).into(),
         lost: ModelRc::from(Rc::new(VecModel::from(lost))),
         reset: reset_groups(&p.losses).into(),
         letters: swapped_letters(d, from, to).into(),
@@ -254,6 +259,7 @@ pub fn render_files(state: &AppState, ui: &AppWindow) {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use controller_core::description::UNRECOGNISED_OUTPUT;
+    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use controller_core::model::MacroRef;
     use slint::Model as _;
 
@@ -268,7 +274,7 @@ mod tests {
 
     /// A Switch default profile as an export file holds it, after `change`.
     fn switch_file(s: &AppState, change: impl FnOnce(&mut CanonicalProfile)) -> String {
-        let mut p = s.defaults()[&Mode::Switch].clone();
+        let mut p = s.defaults()[&SWITCH].clone();
         "switch-slot-1-index-0".clone_into(&mut p.id);
         "Switch".clone_into(&mut p.name);
         change(&mut p);
@@ -289,9 +295,9 @@ mod tests {
 
     #[test]
     fn export_names_and_shape_match_the_cli() {
-        let s = connected(Mode::XInput);
-        assert_eq!(file_name(Mode::Switch, 3), "profile-switch-slot-3-index-2.json");
-        let text = file(&s, Mode::XInput, 1, |_| {});
+        let s = connected(XINPUT);
+        assert_eq!(file_name(SWITCH, 3), "profile-switch-slot-3-index-2.json");
+        let text = file(&s, XINPUT, 1, |_| {});
         assert!(text.ends_with("}\n"));
         let back: Value = serde_json::from_str(&text).unwrap();
         assert!(validate_profile(s.model().unwrap(), &back).unwrap().valid);
@@ -299,16 +305,16 @@ mod tests {
 
     #[test]
     fn a_same_mode_file_round_trips_into_the_edits() {
-        let mut s = connected(Mode::XInput);
-        let text = file(&s, Mode::XInput, 1, |p| {
+        let mut s = connected(XINPUT);
+        let text = file(&s, XINPUT, 1, |p| {
             p.name = "From file".to_owned();
             p.id = "xinput-slot-1-index-0".to_owned();
             remap(p, "r1", "disabled");
         });
-        s.import((Mode::XInput, 2), "a.json", Ok(text));
+        s.import((XINPUT, 2), "a.json", Ok(text));
         assert_eq!(s.pending_import, None);
-        assert_eq!(s.selected_slot(), Some((Mode::XInput, 2)), "the import shows its slot");
-        let slot = s.slot(Mode::XInput, 2);
+        assert_eq!(s.selected_slot(), Some((XINPUT, 2)), "the import shows its slot");
+        let slot = s.slot(XINPUT, 2);
         let edited = slot.edited.as_ref().unwrap();
         assert_eq!(edited.name, "From file");
         assert_eq!(edited.id, slot.pad.as_ref().unwrap().id, "the slot keeps its own id");
@@ -318,98 +324,98 @@ mod tests {
 
         // Export of the edits, imported back unchanged, leaves the edits as they were.
         let again = export_text(edited).unwrap();
-        s.import((Mode::XInput, 2), "b.json", Ok(again));
-        assert_eq!(s.slot(Mode::XInput, 2), slot);
+        s.import((XINPUT, 2), "b.json", Ok(again));
+        assert_eq!(s.slot(XINPUT, 2), slot);
     }
 
     #[test]
     fn a_file_with_the_dpad_swap_and_an_inverted_left_stick_is_refused() {
-        let mut s = connected(Mode::XInput);
-        let text = file(&s, Mode::XInput, 1, |p| {
+        let mut s = connected(XINPUT);
+        let text = file(&s, XINPUT, 1, |p| {
             p.set_setting("/sticks/invert_left_x", true.into());
             p.set_setting("/sticks/swap_dpad_with_left_stick", true.into());
         });
-        s.import((Mode::XInput, 2), "clash.json", Ok(text));
+        s.import((XINPUT, 2), "clash.json", Ok(text));
         let notice = s.notice.clone().unwrap();
         assert!(notice.error);
         assert!(notice.body.contains("swap_dpad_with_left_stick cannot be on"), "{}", notice.body);
-        assert!(!s.slot(Mode::XInput, 2).unsaved());
+        assert!(!s.slot(XINPUT, 2).unsaved());
     }
 
     #[test]
     fn macro_refs_in_the_file_are_skipped_with_a_note() {
-        let mut s = connected(Mode::DInput);
-        let text = file(&s, Mode::DInput, 1, |p| {
+        let mut s = connected(DINPUT);
+        let text = file(&s, DINPUT, 1, |p| {
             p.macro_refs =
                 vec![MacroRef { trigger: "right face".to_owned(), path: "m.json".to_owned() }];
         });
-        s.import((Mode::DInput, 3), "m.json", Ok(text));
-        let edited = s.slot(Mode::DInput, 3).edited.unwrap();
+        s.import((DINPUT, 3), "m.json", Ok(text));
+        let edited = s.slot(DINPUT, 3).edited.unwrap();
         assert!(edited.macro_refs.is_empty(), "an empty slot holds no macros");
         assert!(s.notice.unwrap().body.starts_with("The file’s macro reference was skipped."));
     }
 
     #[test]
     fn a_file_for_another_mode_waits_for_a_yes() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         let text = switch_file(&s, |p| {
             remap(p, "l1", UNRECOGNISED_OUTPUT);
         });
-        s.import((Mode::XInput, 2), "switch.json", Ok(text));
-        assert_eq!(s.slot(Mode::XInput, 2).edited, None, "nothing loads before the yes");
+        s.import((XINPUT, 2), "switch.json", Ok(text));
+        assert_eq!(s.slot(XINPUT, 2).edited, None, "nothing loads before the yes");
         let p = s.pending_import.clone().unwrap();
-        assert_eq!((p.from, p.slot), (Mode::Switch, (Mode::XInput, 2)));
+        assert_eq!((p.from, p.slot), (SWITCH, (XINPUT, 2)));
         let reset = ConversionLoss::SettingsReset { group: "triggers".to_owned() };
         assert!(p.losses.contains(&reset));
 
         s.cancel_import();
-        assert_eq!((s.pending_import.as_ref(), s.slot(Mode::XInput, 2).edited), (None, None));
+        assert_eq!((s.pending_import.as_ref(), s.slot(XINPUT, 2).edited), (None, None));
 
         s.pending_import = Some(p);
         s.confirm_import();
-        let edited = s.slot(Mode::XInput, 2).edited.unwrap();
-        assert_eq!(edited.mode, Mode::XInput);
+        let edited = s.slot(XINPUT, 2).edited.unwrap();
+        assert_eq!(edited.mode, XINPUT);
         assert!(edited.button_mappings.iter().any(|m| m.source == "l1" && m.target == "disabled"));
     }
 
     #[test]
     fn a_bad_file_leaves_the_slot_and_says_why() {
-        let mut s = connected(Mode::XInput);
-        let before = s.slot(Mode::XInput, 1);
+        let mut s = connected(XINPUT);
+        let before = s.slot(XINPUT, 1);
         for text in [
             Ok("not json".to_owned()),
             Ok("{\"id\": 3}".to_owned()),
             Err("No such file.".to_owned()),
         ] {
-            s.import((Mode::XInput, 1), "bad.json", text);
+            s.import((XINPUT, 1), "bad.json", text);
             let n = s.notice.take().unwrap();
             assert!(n.error && n.title == "Could not import “bad.json”.", "{n:?}");
             assert_ne!(n.body, "");
         }
-        assert_eq!(s.slot(Mode::XInput, 1), before);
+        assert_eq!(s.slot(XINPUT, 1), before);
         assert_eq!(s.pending_import, None);
     }
 
     #[test]
     fn export_message_says_when_edits_are_unsaved() {
-        let mut s = connected(Mode::Switch);
-        s.exported((Mode::Switch, 2), true, Ok("x.json".to_owned()));
+        let mut s = connected(SWITCH);
+        s.exported((SWITCH, 2), true, Ok("x.json".to_owned()));
         let n = s.notice.take().unwrap();
         assert_eq!(n.title, "Saved Switch slot 2 to “x.json”.");
         assert!(n.body.contains("not yet written"));
-        s.exported((Mode::Switch, 2), false, Ok("x.json".to_owned()));
+        s.exported((SWITCH, 2), false, Ok("x.json".to_owned()));
         assert_eq!(s.notice.take().unwrap().body, "");
-        s.exported((Mode::Switch, 2), false, Err("Permission denied.".to_owned()));
+        s.exported((SWITCH, 2), false, Err("Permission denied.".to_owned()));
         assert!(s.notice.unwrap().error);
     }
 
     #[test]
     fn the_warning_lists_losses_and_swapped_letters() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         let text = switch_file(&s, |p| {
             remap(p, "r1", UNRECOGNISED_OUTPUT);
         });
-        s.import((Mode::XInput, 3), "s.json", Ok(text));
+        s.import((XINPUT, 3), "s.json", Ok(text));
         let w = import_warning(&s);
         assert!(w.shown && w.reset == "triggers");
         assert_eq!((w.from_mode.as_str(), w.to_mode.as_str()), ("Switch", "XInput"));
@@ -424,7 +430,7 @@ mod tests {
             "Switch A is XInput B, Switch B is XInput A, Switch X is XInput Y, Switch Y is XInput X"
         );
         let d = s.description();
-        assert_eq!(swapped_letters(d, Mode::XInput, Mode::DInput), "");
+        assert_eq!(swapped_letters(d, XINPUT, DINPUT), "");
         s.cancel_import();
         assert!(!import_warning(&s).shown);
     }

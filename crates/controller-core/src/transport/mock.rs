@@ -117,7 +117,7 @@ struct WriteLog {
 pub struct MockDevice {
     model: Option<&'static dyn Model>,
     profiles: Option<ProfileReadResult>,
-    macro_streams: HashMap<(&'static str, u8, u8), Vec<u8>>,
+    macro_streams: HashMap<(Mode, u8, u8), Vec<u8>>,
     readiness: Option<DeviceReadiness>,
     flip_back_to: Option<Mode>,
     read_failures: Mutex<Vec<Error>>,
@@ -155,7 +155,7 @@ impl MockDevice {
         macro_slot: MacroSlot,
         stream: Vec<u8>,
     ) -> Self {
-        self.macro_streams.insert((mode.as_str(), profile_slot.get(), macro_slot.get()), stream);
+        self.macro_streams.insert((mode, profile_slot.get(), macro_slot.get()), stream);
         self
     }
 
@@ -231,7 +231,7 @@ impl DeviceIo for MockDevice {
         _step_count: usize,
     ) -> Result<Vec<u8>> {
         self.macro_streams
-            .get(&(mode.as_str(), profile_slot.get(), macro_slot.get()))
+            .get(&(mode, profile_slot.get(), macro_slot.get()))
             .cloned()
             .ok_or(Error::NoDevice)
     }
@@ -295,7 +295,8 @@ impl DeviceIo for MockDevice {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Mode, ProfileReadResult};
+    use crate::devices::pro3::{SWITCH, XINPUT};
+    use crate::model::ProfileReadResult;
 
     #[allow(clippy::unwrap_used)]
     #[test]
@@ -312,14 +313,14 @@ mod tests {
     #[test]
     fn writes_are_recorded_in_order() {
         let dev = MockDevice::new();
-        dev.send_slot_select(Mode::XInput).unwrap();
-        dev.write_full_profile(Mode::XInput, &[7; 0x092C]).unwrap();
-        dev.send_apply(Mode::XInput).unwrap();
+        dev.send_slot_select(XINPUT).unwrap();
+        dev.write_full_profile(XINPUT, &[7; 0x092C]).unwrap();
+        dev.send_apply(XINPUT).unwrap();
         let ops: Vec<MockOp> = dev.calls().iter().map(MockCall::op).collect();
         assert_eq!(ops, [MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]);
         assert_eq!(
             dev.calls().get(1),
-            Some(&MockCall::WriteFullProfile { mode: Mode::XInput, blob: vec![7; 0x092C] })
+            Some(&MockCall::WriteFullProfile { mode: XINPUT, blob: vec![7; 0x092C] })
         );
     }
 
@@ -328,9 +329,9 @@ mod tests {
     fn fail_nth_fails_only_that_occurrence() {
         let dev = MockDevice::new().fail_nth(MockOp::WriteFullProfile, 1, Error::write("boom"));
         let blob = [0u8; 0x092C];
-        dev.write_full_profile(Mode::Switch, &blob).unwrap();
-        assert!(matches!(dev.write_full_profile(Mode::Switch, &blob), Err(Error::Write { .. })));
-        dev.write_full_profile(Mode::Switch, &blob).unwrap();
+        dev.write_full_profile(SWITCH, &blob).unwrap();
+        assert!(matches!(dev.write_full_profile(SWITCH, &blob), Err(Error::Write { .. })));
+        dev.write_full_profile(SWITCH, &blob).unwrap();
         assert_eq!(dev.calls().len(), 3);
     }
 
@@ -338,10 +339,10 @@ mod tests {
     #[test]
     fn bad_inputs_are_rejected_and_not_recorded() {
         let dev = MockDevice::new();
-        assert!(dev.write_full_profile(Mode::XInput, &[0; 10]).is_err());
-        assert!(dev.write_patch(Mode::XInput, 0, &[]).is_err());
+        assert!(dev.write_full_profile(XINPUT, &[0; 10]).is_err());
+        assert!(dev.write_patch(XINPUT, 0, &[]).is_err());
         let (ps, ms) = (Slot::new(1).unwrap(), MacroSlot::new(0).unwrap());
-        assert!(dev.write_macro_stream(Mode::XInput, ps, ms, &[0; 33]).is_err());
+        assert!(dev.write_macro_stream(XINPUT, ps, ms, &[0; 33]).is_err());
         assert_eq!(dev.calls(), []);
     }
 }

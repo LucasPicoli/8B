@@ -143,7 +143,8 @@ pub fn dump_blobs(dev: &dyn DeviceIo) -> Result<Vec<Vec<u8>>> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 mod tests {
     use super::*;
-    use crate::model::{DeviceReadiness, Mode, ProfileReadResult};
+    use crate::devices::pro3::XINPUT;
+    use crate::model::{DeviceReadiness, ProfileReadResult};
     use crate::transport::mock::MockDevice;
 
     /// A minimal [`CanonicalProfileSummary`] for test use.
@@ -154,14 +155,14 @@ mod tests {
         CanonicalProfileSummary {
             id: "test-id".into(),
             name: "Test Profile".into(),
-            mode: Mode::XInput,
+            mode: XINPUT,
             source_slot: 1,
             source_profile_index: 0,
             canonical: CanonicalProfile {
                 id: "test-id".into(),
                 name: "Test Profile".into(),
                 button_mappings: Vec::new(),
-                ..Pro3.default_profile(Mode::XInput)
+                ..Pro3.default_profile(XINPUT)
             },
         }
     }
@@ -178,7 +179,7 @@ mod tests {
     fn detect_and_read_succeeds_with_mock() {
         let readiness = DeviceReadiness {
             supported_device_connected: true,
-            mode: Some(Mode::XInput),
+            mode: Some(XINPUT),
             product_id: "310b".into(),
             active_slot_marker: "1".into(),
             active_slot_marker_verified: true,
@@ -192,7 +193,7 @@ mod tests {
 
         let out = detect_and_read_all(&dev);
         assert!(out.success, "expected success with mock device");
-        assert_eq!(out.mode, Some(Mode::XInput));
+        assert_eq!(out.mode, Some(XINPUT));
         assert_eq!(out.product_id, "310b");
         assert_eq!(out.profiles.len(), 1);
         assert_eq!(out.raw_blobs.len(), 2);
@@ -202,7 +203,7 @@ mod tests {
     fn dump_blobs_returns_blobs() {
         let readiness = DeviceReadiness {
             supported_device_connected: true,
-            mode: Some(Mode::XInput),
+            mode: Some(XINPUT),
             product_id: "310b".into(),
             active_slot_marker: "1".into(),
             active_slot_marker_verified: true,

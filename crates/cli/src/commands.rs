@@ -358,6 +358,7 @@ fn export_macros(res: &MacroReadResult, mode: Mode, slot: u8, dir: &str, device:
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use controller_core::model::{MacroDefinition, MacroStep};
 
     // -----------------------------------------------------------------------
@@ -368,7 +369,7 @@ mod tests {
     fn detect_connected_device() {
         let r = DeviceReadiness {
             supported_device_connected: true,
-            mode: Some(Mode::XInput),
+            mode: Some(XINPUT),
             active_slot_marker: "1".to_owned(),
             active_slot_marker_verified: true,
             vendor_id: "2dc8".to_owned(),
@@ -436,13 +437,13 @@ mod tests {
             success: true,
             message: "Profiles read successfully.".to_owned(),
             error_category: ErrorCategory::None,
-            mode: Some(Mode::XInput),
+            mode: Some(XINPUT),
             product_id: "310b".to_owned(),
             active_slot_marker: "1".to_owned(),
             active_slot_marker_verified: true,
             profiles: vec![
-                make_summary("id1", "Profile 1", Mode::XInput, 1),
-                make_summary("", "", Mode::XInput, 2),
+                make_summary("id1", "Profile 1", XINPUT, 1),
+                make_summary("", "", XINPUT, 2),
             ],
             raw_blobs: vec![],
         };
@@ -486,7 +487,7 @@ mod tests {
     fn make_macro_def(macro_slot: u8) -> MacroDefinition {
         MacroDefinition {
             name: "TestMacro".to_owned(),
-            mode: Mode::XInput,
+            mode: XINPUT,
             trigger: "l1".to_owned(),
             repeat_count: 1,
             interval_ms: 50,
@@ -498,7 +499,7 @@ mod tests {
     #[test]
     fn read_macro_ok_four_entry_array() {
         let res = MacroReadResult { macros: vec![make_macro_def(0)] };
-        let (payload, code) = build_read_macro_ok_payload(Mode::XInput, 1, &res, 4);
+        let (payload, code) = build_read_macro_ok_payload(XINPUT, 1, &res, 4);
         assert_eq!(code, 0);
         let macros = payload["macros"].as_array().unwrap();
         assert_eq!(macros.len(), 4, "must always emit 4 macro entries");
@@ -521,7 +522,7 @@ mod tests {
     #[test]
     fn read_macro_err_no_active_profile_is_exit_2() {
         let err = Error::Validation("no active profile in slot 1".to_owned());
-        let (payload, code) = build_read_macro_err_payload(Mode::XInput, 1, &err);
+        let (payload, code) = build_read_macro_err_payload(XINPUT, 1, &err);
         assert_eq!(code, 2, "empty slot must map to exit code 2");
         assert_eq!(payload["success"], false);
         assert_eq!(payload["error_category"], "validation_failure");
@@ -530,7 +531,7 @@ mod tests {
     #[test]
     fn read_macro_err_connection_failure_is_exit_1() {
         let err = Error::NoDevice;
-        let (payload, code) = build_read_macro_err_payload(Mode::XInput, 1, &err);
+        let (payload, code) = build_read_macro_err_payload(XINPUT, 1, &err);
         assert_eq!(code, 1);
         assert_eq!(payload["error_category"], "connection_failure");
     }
@@ -538,7 +539,7 @@ mod tests {
     #[test]
     fn read_macro_err_timeout_is_exit_3() {
         let err = Error::Timeout;
-        let (payload, code) = build_read_macro_err_payload(Mode::Switch, 2, &err);
+        let (payload, code) = build_read_macro_err_payload(SWITCH, 2, &err);
         assert_eq!(code, 3);
         assert_eq!(payload["error_category"], "timeout");
     }
@@ -546,9 +547,9 @@ mod tests {
     #[test]
     fn mode_label_unknown_for_none() {
         assert_eq!(mode_label(None), "unknown");
-        assert_eq!(mode_label(Some(Mode::XInput)), "xinput");
-        assert_eq!(mode_label(Some(Mode::Switch)), "switch");
-        assert_eq!(mode_label(Some(Mode::DInput)), "dinput");
+        assert_eq!(mode_label(Some(XINPUT)), "xinput");
+        assert_eq!(mode_label(Some(SWITCH)), "switch");
+        assert_eq!(mode_label(Some(DINPUT)), "dinput");
     }
 
     #[test]

@@ -125,8 +125,8 @@ fn read_trimmed(path: &Path) -> Option<String> {
 mod tests {
     use super::*;
     use crate::device::ControllerSpec as _;
-    use crate::devices::pro3::Pro3;
-    use crate::model::{Mode, Slot};
+    use crate::devices::pro3::{Pro3, DINPUT, SWITCH, XINPUT};
+    use crate::model::Slot;
     use crate::protocol::framing::Framing;
 
     #[test]
@@ -150,7 +150,7 @@ mod tests {
         write(&dir.path().join("8-5/idVendor"), "057e\n");
         write(&dir.path().join("8-5/idProduct"), "2009\n");
         let found = scan_sysfs(dir.path(), &Pro3.description().unwrap().config_ports).unwrap();
-        assert_eq!(found.port.mode, Mode::Switch);
+        assert_eq!(found.port.mode, SWITCH);
         assert_eq!(found.port.framing, Framing::Wrapped);
         assert_eq!(found.product_id, "2009");
         assert_eq!(found.port_path(), "8-5");
@@ -168,7 +168,7 @@ mod tests {
         }
         let found = scan_sysfs_all(dir.path(), &Pro3.description().unwrap().config_ports);
         let seen: Vec<_> = found.iter().map(|f| (f.port_path(), f.port.mode)).collect();
-        assert_eq!(seen, [("3-1", Mode::XInput), ("3-2", Mode::DInput), ("8-5", Mode::Switch)]);
+        assert_eq!(seen, [("3-1", XINPUT), ("3-2", DINPUT), ("8-5", SWITCH)]);
     }
 
     #[test]

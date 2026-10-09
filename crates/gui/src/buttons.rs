@@ -259,52 +259,54 @@ mod tests {
     use super::*;
     use crate::state::tests::{connected as read, description};
 
+    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
+
     fn ids(list: &[(String, String)]) -> Vec<&str> {
         list.iter().map(|(id, _)| id.as_str()).collect()
     }
 
     #[test]
     fn picker_lists_outputs_then_mode_extras_then_disabled() {
-        let s = read(Mode::Switch);
-        let list = choices(&s, Mode::Switch, "l1", "l1");
+        let s = read(SWITCH);
+        let list = choices(&s, SWITCH, "l1", "l1");
         let names = ids(&list);
         assert_eq!(names.len(), 19, "17 output buttons, Screenshot, Disabled");
         assert_eq!(names.first(), Some(&"right face"));
         assert_eq!(&names[17..], ["screenshot", "disabled"]);
         assert!(!names.contains(&"turbo") && !names.contains(&"rp"));
         assert_eq!(list[0].1, "A", "labels follow the mode");
-        assert!(!ids(&choices(&s, Mode::XInput, "l1", "l1")).contains(&"screenshot"));
+        assert!(!ids(&choices(&s, XINPUT, "l1", "l1")).contains(&"screenshot"));
     }
 
     #[test]
     fn picker_offers_the_paddle_outputs_in_dinput_only() {
-        let s = read(Mode::DInput);
-        let list = choices(&s, Mode::DInput, "l1", "l1");
+        let s = read(DINPUT);
+        let list = choices(&s, DINPUT, "l1", "l1");
         assert_eq!(
             &ids(&list)[17..],
             ["rp output", "lp output", "l4 output", "r4 output", "disabled"]
         );
         assert_eq!(list[17].1, "PR");
-        for mode in [Mode::XInput, Mode::Switch] {
+        for mode in [XINPUT, SWITCH] {
             assert!(!ids(&choices(&s, mode, "l1", "l1")).contains(&"rp output"), "{mode}");
         }
     }
 
     #[test]
     fn picker_offers_turbo_its_own_press_and_shows_unknown_first() {
-        let s = read(Mode::XInput);
-        let turbo = choices(&s, Mode::XInput, "turbo", "disabled");
+        let s = read(XINPUT);
+        let turbo = choices(&s, XINPUT, "turbo", "disabled");
         assert_eq!(turbo[0], ("turbo".to_owned(), "Turbo".to_owned()));
-        let paddle = choices(&s, Mode::XInput, "rp", "disabled");
+        let paddle = choices(&s, XINPUT, "rp", "disabled");
         assert!(!ids(&paddle).contains(&"rp"), "a paddle's default is Disabled");
-        let unknown = choices(&s, Mode::XInput, "l1", UNRECOGNISED_OUTPUT);
+        let unknown = choices(&s, XINPUT, "l1", UNRECOGNISED_OUTPUT);
         assert_eq!(unknown[0], (UNRECOGNISED_OUTPUT.to_owned(), "Unknown".to_owned()));
         assert_eq!(unknown.len(), 19, "Unknown, 17 output buttons, Disabled");
     }
 
     #[test]
     fn a_pick_names_the_row_button_and_the_chosen_output() {
-        let s = read(Mode::XInput);
+        let s = read(XINPUT);
         let row = s.description().buttons.iter().position(|b| b.id == "r1").unwrap();
         assert_eq!(picked_output(&s, row, 17), Some(("r1".to_owned(), "disabled".to_owned())));
         assert_eq!(picked_output(&s, row, 99), None);
@@ -313,16 +315,9 @@ mod tests {
 
     #[test]
     fn rows_mark_fixed_unknown_and_changed_buttons() {
-        let mut s = read(Mode::XInput);
-        let pad = s
-            .active_mut()
-            .unwrap()
-            .slots
-            .get_mut(&(Mode::XInput, 1))
-            .unwrap()
-            .pad
-            .as_mut()
-            .unwrap();
+        let mut s = read(XINPUT);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
         pad.button_mappings[1].target = UNRECOGNISED_OUTPUT.to_owned();
         s.set_output("r1", "disabled");
         let rows = rows(&s);
@@ -342,16 +337,9 @@ mod tests {
 
     /// `XInput` slot 1 with macro slot 0, `Buttons`, on `rp`, as on the test pad.
     fn with_macro() -> AppState {
-        let mut s = read(Mode::XInput);
-        let pad = s
-            .active_mut()
-            .unwrap()
-            .slots
-            .get_mut(&(Mode::XInput, 1))
-            .unwrap()
-            .pad
-            .as_mut()
-            .unwrap();
+        let mut s = read(XINPUT);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
         pad.macro_refs.push(controller_core::model::MacroRef {
             trigger: "rp".to_owned(),
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
@@ -383,8 +371,8 @@ mod tests {
         let row = &rows(&s)[at];
         assert_eq!(row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap(), "B");
         assert!(row.changed);
-        assert_eq!(s.slot(Mode::XInput, 1).edited.unwrap().macro_refs, []);
-        assert!(s.slot_dirty(Mode::XInput, 1).buttons);
+        assert_eq!(s.slot(XINPUT, 1).edited.unwrap().macro_refs, []);
+        assert!(s.slot_dirty(XINPUT, 1).buttons);
         s.discard();
         assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
     }
@@ -392,12 +380,12 @@ mod tests {
     #[test]
     fn a_macro_path_of_another_shape_is_still_a_macro() {
         let d = description();
-        assert_eq!(output_label(d, Mode::XInput, "macro:m.json"), "Macro");
+        assert_eq!(output_label(d, XINPUT, "macro:m.json"), "Macro");
     }
 
     #[test]
     fn spots_light_outputs_that_differ_from_the_default() {
-        let mut s = read(Mode::DInput);
+        let mut s = read(DINPUT);
         s.select(2, 2);
         s.start_from_default();
         assert!(spots(&s).iter().all(|p| !p.mapped));
@@ -406,7 +394,7 @@ mod tests {
         assert_eq!(lit.len(), 2, "L4 is on the front and the back");
         assert!(lit.iter().all(|p| p.output == "A"));
         assert!(lit.iter().all(|p| !p.pending), "nothing is on the controller to differ from");
-        let mut s = read(Mode::XInput);
+        let mut s = read(XINPUT);
         s.set_output("l2", "disabled");
         let pending: Vec<_> = spots(&s).into_iter().filter(|p| p.pending).collect();
         assert_eq!(pending.len(), 1);
@@ -426,7 +414,7 @@ mod tests {
 
     #[test]
     fn tabs_carry_the_dirty_dots() {
-        let mut s = read(Mode::XInput);
+        let mut s = read(XINPUT);
         assert!(sections(&s).iter().all(|t| !t.unsaved));
         s.set_output("r1", "disabled");
         let dots: Vec<bool> = sections(&s).iter().map(|t| t.unsaved).collect();

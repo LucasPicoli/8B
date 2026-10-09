@@ -202,19 +202,19 @@ pub fn render_settings(state: &AppState, ui: &AppWindow) {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use controller_core::devices::pro3::settings::{Settings, Sticks, Triggers};
-    use controller_core::model::Mode;
+    use controller_core::devices::pro3::{SWITCH, XINPUT};
 
     use super::*;
     use crate::state::tests::connected;
     use crate::state::Dirty;
 
     fn sticks(s: &AppState) -> Sticks {
-        Settings::of(s.slot(Mode::XInput, 1).shown().unwrap()).unwrap().sticks
+        Settings::of(s.slot(XINPUT, 1).shown().unwrap()).unwrap().sticks
     }
 
     #[test]
     fn numbers_are_rounded_and_kept_in_the_limits() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_number("/sticks/left_min_pct", 95.0);
         assert_eq!(sticks(&s).left_min_pct, 90, "dead zone tops out at 90");
         s.set_number("/sticks/left_max_pct", 2.0);
@@ -223,11 +223,7 @@ mod tests {
         assert_eq!(sticks(&s).right_min_pct, 13);
         s.set_number("/vibration/left_level", 9.0);
         let level = |s: &AppState, side: &str| {
-            s.slot(Mode::XInput, 1)
-                .shown()
-                .unwrap()
-                .setting(&format!("/vibration/{side}_level"))
-                .cloned()
+            s.slot(XINPUT, 1).shown().unwrap().setting(&format!("/vibration/{side}_level")).cloned()
         };
         assert_eq!(level(&s, "left"), Some(5.into()));
         s.set_number("/vibration/right_level", -3.0);
@@ -236,31 +232,31 @@ mod tests {
 
     #[test]
     fn a_threshold_is_kept_in_its_own_limit() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.select(1, 0);
-        let default = s.defaults()[&Mode::Switch].clone();
-        let slot = s.active_mut().unwrap().slots.get_mut(&(Mode::Switch, 1)).unwrap();
+        let default = s.defaults()[&SWITCH].clone();
+        let slot = s.active_mut().unwrap().slots.get_mut(&(SWITCH, 1)).unwrap();
         slot.pad = Some(default);
         s.set_number("/triggers/left_threshold_pct", 100.0);
-        let triggers = Settings::of(&s.slot(Mode::Switch, 1).edited.unwrap()).unwrap().triggers;
+        let triggers = Settings::of(&s.slot(SWITCH, 1).edited.unwrap()).unwrap().triggers;
         assert!(matches!(triggers, Triggers::Switch(t) if t.left_threshold_pct == 90));
     }
 
     #[test]
     fn unknown_pointers_and_wrong_types_change_nothing() {
-        let mut s = connected(Mode::XInput);
-        let before = s.slot(Mode::XInput, 1).shown().unwrap().clone();
+        let mut s = connected(XINPUT);
+        let before = s.slot(XINPUT, 1).shown().unwrap().clone();
         s.set_number("/sticks/invert_left_x", 1.0);
         s.set_number("/name", 1.0);
         s.set_flag("/sticks/left_min_pct", true);
         s.set_flag("/triggers/left_threshold_pct", true);
         s.set_number("/triggers/left_threshold_pct", 50.0);
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap(), &before);
+        assert_eq!(s.slot(XINPUT, 1).shown().unwrap(), &before);
     }
 
     #[test]
     fn the_dpad_swap_and_the_left_stick_flags_turn_each_other_off() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_flag("/sticks/swap_dpad_with_left_stick", true);
         s.set_flag("/sticks/swap_sticks", true);
         let st = sticks(&s);
@@ -288,20 +284,20 @@ mod tests {
             ("/vibration/left_level", "vibration"),
         ];
         for (pointer, id) in cases {
-            let mut s = connected(Mode::XInput);
+            let mut s = connected(XINPUT);
             s.set_number(pointer, 1.0);
-            assert_eq!(s.slot_dirty(Mode::XInput, 1), tab(id), "{pointer}");
+            assert_eq!(s.slot_dirty(XINPUT, 1), tab(id), "{pointer}");
         }
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_flag("/triggers/swap_triggers", true);
-        assert_eq!(s.slot_dirty(Mode::XInput, 1), tab("triggers"));
+        assert_eq!(s.slot_dirty(XINPUT, 1), tab("triggers"));
         s.set_flag("/triggers/swap_triggers", false);
-        assert_eq!(s.slot_dirty(Mode::XInput, 1), Dirty::default(), "back to the pad");
+        assert_eq!(s.slot_dirty(XINPUT, 1), Dirty::default(), "back to the pad");
     }
 
     #[test]
     fn pages_follow_the_trigger_form_and_show_what_changed() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         let tabs = pages(&s);
         let (st, tr, vi) = (&tabs[0], &tabs[1], &tabs[2]);
         assert_eq!(st.frames.row_count(), 3);
@@ -332,7 +328,7 @@ mod tests {
 
     #[test]
     fn an_update_keeps_the_models_when_the_shape_holds() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         let old = pages(&s).remove(0);
         s.set_number("/sticks/left_min_pct", 40.0);
         let new = pages(&s).remove(0);

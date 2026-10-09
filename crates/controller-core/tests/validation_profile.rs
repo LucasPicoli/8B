@@ -3,8 +3,8 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec as _;
-use controller_core::devices::pro3::Pro3;
-use controller_core::model::{CanonicalProfile, CanonicalProfileSummary, Mode};
+use controller_core::devices::pro3::{Pro3, XINPUT};
+use controller_core::model::{CanonicalProfile, CanonicalProfileSummary};
 use controller_core::service::validation::{validate_all_profiles, validate_profile};
 use serde_json::{json, Value};
 
@@ -156,7 +156,7 @@ fn canonical_xinput(id: &str) -> CanonicalProfile {
         id: id.to_owned(),
         name: "TestProfile".to_owned(),
         button_mappings: Vec::new(),
-        ..Pro3.default_profile(Mode::XInput)
+        ..Pro3.default_profile(XINPUT)
     }
 }
 

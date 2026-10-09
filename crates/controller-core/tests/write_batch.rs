@@ -6,7 +6,7 @@ use std::path::Path;
 
 use controller_core::detect::is_slot_active;
 use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, MODES, SWITCH, XINPUT};
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::{
     CanonicalProfile, Mode, ProfileReadResult, RawProfilePayload, Slot, WriteResult,
@@ -39,10 +39,10 @@ fn bank(stem: &str) -> Vec<u8> {
 
 /// A controller with filled `XInput` and Switch banks and empty others.
 fn device() -> MockDevice {
-    let blobs = Mode::ALL.iter().map(|m| match m {
-        Mode::XInput => bank("xinput"),
-        Mode::Switch => bank("switch"),
-        Mode::DInput => vec![0; BLOB_SIZE],
+    let blobs = MODES.iter().map(|&m| match m {
+        XINPUT => bank("xinput"),
+        SWITCH => bank("switch"),
+        _ => vec![0; BLOB_SIZE],
     });
     MockDevice::new()
         .with_profiles(ProfileReadResult { raw_blobs: blobs.collect(), ..Default::default() })
@@ -54,7 +54,7 @@ fn orch<'a>(dev: &'a MockDevice, dir: &'a Path) -> ProfileWriteOrchestrator<'a> 
 
 fn upload(mode: Mode, n: u8, name: &str) -> WriteJob {
     let mut profile =
-        fixture(&format!("{}-slot1", if mode == Mode::Switch { "switch" } else { "xinput" }));
+        fixture(&format!("{}-slot1", if mode == SWITCH { "switch" } else { "xinput" }));
     profile["name"] = json!(name);
     profile["macro_refs"] = json!([]);
     WriteJob { mode, slot: slot(n), op: WriteOp::Upload { profile, drop_macros: Vec::new() } }
@@ -98,36 +98,32 @@ fn all_ok(results: &[WriteResult]) {
 fn slots_of_one_mode_go_out_in_one_write() {
     let dev = device();
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [upload(Mode::XInput, 2, "Two"), upload(Mode::XInput, 3, "Three")];
+    let jobs = [upload(XINPUT, 2, "Two"), upload(XINPUT, 3, "Three")];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
 
     all_ok(&results);
     assert_eq!(results.len(), 2);
-    assert_eq!((results[1].mode, results[1].slot), (Mode::XInput, 3));
+    assert_eq!((results[1].mode, results[1].slot), (XINPUT, 3));
     assert_eq!(
         ops(&dev),
         [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
     );
     let (_, blob) = written(&dev).remove(0);
-    assert_eq!(name_in(&blob, Mode::XInput, 2), "Two");
-    assert_eq!(name_in(&blob, Mode::XInput, 3), "Three");
-    assert_eq!(name_in(&blob, Mode::XInput, 1), name_in(&bank("xinput"), Mode::XInput, 1));
+    assert_eq!(name_in(&blob, XINPUT, 2), "Two");
+    assert_eq!(name_in(&blob, XINPUT, 3), "Three");
+    assert_eq!(name_in(&blob, XINPUT, 1), name_in(&bank("xinput"), XINPUT, 1));
 }
 
 #[test]
 fn a_batch_of_one_writes_what_the_single_upload_writes() {
-    let job = upload(Mode::XInput, 2, "Solo");
+    let job = upload(XINPUT, 2, "Solo");
     let WriteOp::Upload { profile, .. } = &job.op else { panic!("an upload") };
     let dir = tempfile::tempdir().unwrap();
 
     let single = device();
-    let r = orch(&single, dir.path()).upload_profile(
-        profile,
-        Mode::XInput,
-        slot(2),
-        &ConfirmPolicy::Force,
-    );
+    let r =
+        orch(&single, dir.path()).upload_profile(profile, XINPUT, slot(2), &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let batch = device();
     all_ok(&orch(&batch, dir.path()).write_slots(&[job], &ConfirmPolicy::Force));
@@ -137,13 +133,9 @@ fn a_batch_of_one_writes_what_the_single_upload_writes() {
 
 #[test]
 fn each_changed_mode_gets_its_own_select_write_and_apply_inside_one_flip() {
-    let dev = device().with_flip(Mode::Switch);
+    let dev = device().with_flip(SWITCH);
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [
-        upload(Mode::XInput, 3, "X3"),
-        upload(Mode::Switch, 3, "S3"),
-        upload(Mode::XInput, 1, "X1"),
-    ];
+    let jobs = [upload(XINPUT, 3, "X3"), upload(SWITCH, 3, "S3"), upload(XINPUT, 1, "X1")];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
 
@@ -161,19 +153,19 @@ fn each_changed_mode_gets_its_own_select_write_and_apply_inside_one_flip() {
             MockOp::EndWrite,
         ]
     );
-    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(Mode::Switch)));
+    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(SWITCH)));
     let blobs = written(&dev);
-    assert_eq!(blobs.iter().map(|(m, _)| *m).collect::<Vec<_>>(), [Mode::XInput, Mode::Switch]);
-    assert_eq!(name_in(&blobs[0].1, Mode::XInput, 3), "X3");
-    assert_eq!(name_in(&blobs[0].1, Mode::XInput, 1), "X1");
-    assert_eq!(name_in(&blobs[1].1, Mode::Switch, 3), "S3");
+    assert_eq!(blobs.iter().map(|(m, _)| *m).collect::<Vec<_>>(), [XINPUT, SWITCH]);
+    assert_eq!(name_in(&blobs[0].1, XINPUT, 3), "X3");
+    assert_eq!(name_in(&blobs[0].1, XINPUT, 1), "X1");
+    assert_eq!(name_in(&blobs[1].1, SWITCH, 3), "S3");
 }
 
 #[test]
 fn clear_and_upload_share_a_bank() {
     let dev = device();
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [clear(Mode::XInput, 1), upload(Mode::XInput, 3, "Three")];
+    let jobs = [clear(XINPUT, 1), upload(XINPUT, 3, "Three")];
 
     all_ok(&orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force));
 
@@ -185,11 +177,10 @@ fn clear_and_upload_share_a_bank() {
 
 #[test]
 fn clearing_only_empty_slots_does_not_touch_the_controller() {
-    let dev = device().with_flip(Mode::Switch);
+    let dev = device().with_flip(SWITCH);
     let dir = tempfile::tempdir().unwrap();
 
-    let results =
-        orch(&dev, dir.path()).write_slots(&[clear(Mode::XInput, 3)], &ConfirmPolicy::Force);
+    let results = orch(&dev, dir.path()).write_slots(&[clear(XINPUT, 3)], &ConfirmPolicy::Force);
 
     all_ok(&results);
     assert!(results[0].message.contains("already empty"), "{}", results[0].message);
@@ -200,11 +191,11 @@ fn clearing_only_empty_slots_does_not_touch_the_controller() {
 fn an_invalid_job_stops_the_batch_before_anything_is_sent() {
     let dev = device();
     let dir = tempfile::tempdir().unwrap();
-    let mut bad = upload(Mode::Switch, 3, "Bad");
+    let mut bad = upload(SWITCH, 3, "Bad");
     if let WriteOp::Upload { profile, .. } = &mut bad.op {
         profile["sticks"]["left_max_pct"] = json!(500);
     }
-    let jobs = [upload(Mode::XInput, 3, "Fine"), bad];
+    let jobs = [upload(XINPUT, 3, "Fine"), bad];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
 
@@ -218,7 +209,7 @@ fn an_invalid_job_stops_the_batch_before_anything_is_sent() {
             r.message
         );
     }
-    assert_eq!((results[0].mode, results[0].slot), (Mode::XInput, 3));
+    assert_eq!((results[0].mode, results[0].slot), (XINPUT, 3));
     assert_eq!(dev.calls(), []);
 }
 
@@ -226,7 +217,7 @@ fn an_invalid_job_stops_the_batch_before_anything_is_sent() {
 fn a_declined_overwrite_stops_the_batch_before_anything_is_sent() {
     let dev = device();
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [upload(Mode::XInput, 3, "Empty"), upload(Mode::XInput, 2, "Taken")];
+    let jobs = [upload(XINPUT, 3, "Empty"), upload(XINPUT, 2, "Taken")];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Abort);
 
@@ -239,7 +230,7 @@ fn a_declined_overwrite_stops_the_batch_before_anything_is_sent() {
 fn a_slot_named_twice_is_refused() {
     let dev = device();
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [upload(Mode::XInput, 3, "A"), upload(Mode::XInput, 3, "B")];
+    let jobs = [upload(XINPUT, 3, "A"), upload(XINPUT, 3, "B")];
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
     assert!(results.iter().all(|r| !r.success));
     assert_eq!(dev.calls(), []);
@@ -249,11 +240,7 @@ fn a_slot_named_twice_is_refused() {
 fn a_failed_bank_is_rolled_back_and_the_banks_before_it_stay_written() {
     let dev = device().fail_nth(MockOp::WriteFullProfile, 1, Error::write("chunk refused"));
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [
-        upload(Mode::XInput, 3, "X3"),
-        upload(Mode::Switch, 1, "S1"),
-        upload(Mode::Switch, 3, "S3"),
-    ];
+    let jobs = [upload(XINPUT, 3, "X3"), upload(SWITCH, 1, "S1"), upload(SWITCH, 3, "S3")];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
 
@@ -266,27 +253,27 @@ fn a_failed_bank_is_rolled_back_and_the_banks_before_it_stay_written() {
     // The rollback sends the Switch bank as it was read.
     let blobs = written(&dev);
     assert_eq!(blobs.len(), 3);
-    assert_eq!(blobs[2], (Mode::Switch, bank("switch")));
+    assert_eq!(blobs[2], (SWITCH, bank("switch")));
 }
 
 #[test]
 fn banks_after_a_failure_are_not_written() {
     let dev = device().fail_nth(MockOp::WriteFullProfile, 0, Error::write("chunk refused"));
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [upload(Mode::XInput, 3, "X3"), upload(Mode::Switch, 3, "S3")];
+    let jobs = [upload(XINPUT, 3, "X3"), upload(SWITCH, 3, "S3")];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
 
     assert!(!results[0].success && !results[1].success);
     assert_eq!(results[1].message, "Not written: an earlier slot failed.");
-    assert_eq!(written(&dev).iter().filter(|(m, _)| *m == Mode::Switch).count(), 0);
+    assert_eq!(written(&dev).iter().filter(|(m, _)| *m == SWITCH).count(), 0);
 }
 
 #[test]
 fn a_controller_that_stays_flipped_is_reported_on_every_result() {
-    let dev = device().with_flip(Mode::XInput).fail_nth(MockOp::EndWrite, 0, Error::Timeout);
+    let dev = device().with_flip(XINPUT).fail_nth(MockOp::EndWrite, 0, Error::Timeout);
     let dir = tempfile::tempdir().unwrap();
-    let jobs = [upload(Mode::XInput, 3, "X3"), upload(Mode::XInput, 2, "X2")];
+    let jobs = [upload(XINPUT, 3, "X3"), upload(XINPUT, 2, "X2")];
 
     let results = orch(&dev, dir.path()).write_slots(&jobs, &ConfirmPolicy::Force);
 

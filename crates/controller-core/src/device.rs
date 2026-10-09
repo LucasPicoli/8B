@@ -58,9 +58,15 @@ pub trait ControllerSpec {
     /// Substring used to match the joydev device name.
     fn joydev_name_match(&self) -> &'static str;
     /// Value sent in the slot-select command (`0x14`) to target `mode`'s slots.
-    fn slot_select_value(&self, mode: Mode) -> u8;
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] for a mode the model does not have.
+    fn slot_select_value(&self, mode: Mode) -> Result<u8>;
     /// Gamepad-mode byte carried by the macro commands for `mode`.
-    fn macro_gamepad_mode(&self, mode: Mode) -> u8;
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] for a mode the model does not have.
+    fn macro_gamepad_mode(&self, mode: Mode) -> Result<u8>;
     /// Normal-layout packet that makes the controller re-enumerate in `target` mode
     /// until it is closed or replugged. `None` if the model cannot flip to `target`.
     fn mode_flip_command(&self, target: Mode) -> Option<[u8; PACKET_LEN]>;

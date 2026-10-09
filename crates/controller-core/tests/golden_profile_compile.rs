@@ -3,7 +3,7 @@
 
 use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::settings::Settings;
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, DINPUT, SWITCH, XINPUT};
 use controller_core::model::{CanonicalProfile, Mode, RawProfilePayload, Slot};
 
 /// The Pro 3's typed view of `p`'s settings.
@@ -31,15 +31,15 @@ fn roundtrip(json: &str, slot: u8, index: u8, mode: Mode) {
 
 #[test]
 fn xinput_slot1_round_trips() {
-    roundtrip("../../fixtures/pro3/xinput-slot1.profile.json", 1, 0, Mode::XInput);
+    roundtrip("../../fixtures/pro3/xinput-slot1.profile.json", 1, 0, XINPUT);
 }
 #[test]
 fn xinput_slot2_round_trips() {
-    roundtrip("../../fixtures/pro3/xinput-slot2.profile.json", 2, 1, Mode::XInput);
+    roundtrip("../../fixtures/pro3/xinput-slot2.profile.json", 2, 1, XINPUT);
 }
 #[test]
 fn switch_slot1_round_trips() {
-    roundtrip("../../fixtures/pro3/switch-slot1.profile.json", 1, 0, Mode::Switch);
+    roundtrip("../../fixtures/pro3/switch-slot1.profile.json", 1, 0, SWITCH);
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn compile_profile_embeds_macro_into_section4() {
     let profile = load("../../fixtures/pro3/xinput-slot1.profile.json");
     let def = MacroDefinition {
         name: "GoldenMac".into(),
-        mode: Mode::XInput,
+        mode: XINPUT,
         trigger: "l1".into(),
         repeat_count: 3,
         interval_ms: 100,
@@ -152,11 +152,11 @@ fn dinput_official_write_decodes_with_swapped_faces_and_recompiles_unchanged() {
             payload: official.clone(),
             source_slot: slot,
             source_profile_index: slot - 1,
-            mode_hint: Mode::DInput,
+            mode_hint: DINPUT,
         };
         let profile = Pro3.map_profile(&raw).unwrap().canonical;
-        assert_eq!(profile.mode, Mode::DInput);
-        let default = Pro3.default_profile(Mode::DInput);
+        assert_eq!(profile.mode, DINPUT);
+        let default = Pro3.default_profile(DINPUT);
         assert_eq!(s(&profile).sticks, s(&default).sticks, "slot {slot}");
         assert_eq!(s(&profile).triggers, s(&default).triggers, "slot {slot}");
         // The faces swap in pairs, every other button maps to itself, and the four
@@ -193,9 +193,9 @@ fn untouched_stick_and_trigger_bytes_do_not_drift() {
     const ANALOG_TRIGGERS: [u8; 4] = [0xB2, 0xEF, 0x02, 0xFD];
     const SWITCH_TRIGGERS: [u8; 4] = [0xB2, 0xFF, 0x02, 0xFF];
     let cases = [
-        ("xinput.blob", Mode::XInput, ANALOG_TRIGGERS),
-        ("xinput.blob", Mode::DInput, ANALOG_TRIGGERS),
-        ("switch.blob", Mode::Switch, SWITCH_TRIGGERS),
+        ("xinput.blob", XINPUT, ANALOG_TRIGGERS),
+        ("xinput.blob", DINPUT, ANALOG_TRIGGERS),
+        ("switch.blob", SWITCH, SWITCH_TRIGGERS),
     ];
     for (file, mode, triggers) in cases {
         let mut base = std::fs::read(format!("../../fixtures/pro3/{file}")).unwrap();
@@ -236,7 +236,7 @@ fn target_of<'a>(profile: &'a CanonicalProfile, source: &str) -> &'a str {
 fn unknown_button_entry_decodes_unrecognised_and_recompiles_unchanged() {
     let base = std::fs::read(DINPUT_SLOT_MARKER).unwrap();
     for slot in 1..=3u8 {
-        let profile = decode_slot(&base, slot, Mode::DInput);
+        let profile = decode_slot(&base, slot, DINPUT);
         let want = if slot < 3 { "unrecognised" } else { "d-pad left" };
         assert_eq!(target_of(&profile, "d-pad left"), want, "slot {slot}");
         let mut out =
@@ -253,7 +253,7 @@ fn made_up_button_mask_decodes_unrecognised_and_survives_an_edit() {
     let mut base = std::fs::read("../../fixtures/pro3/xinput.blob").unwrap();
     // Entry 0 (right face) of slot 1: a mask with no table value.
     base[0x00E4..0x00E8].copy_from_slice(&[0x00, 0x00, 0x00, 0x80]);
-    let mut profile = decode_slot(&base, 1, Mode::XInput);
+    let mut profile = decode_slot(&base, 1, XINPUT);
     assert_eq!(target_of(&profile, "right face"), "unrecognised");
     // Remap an unrelated button; the unknown entry keeps its bytes.
     for m in &mut profile.button_mappings {
@@ -269,7 +269,7 @@ fn made_up_button_mask_decodes_unrecognised_and_survives_an_edit() {
 #[test]
 fn unrecognised_target_without_bytes_to_keep_is_refused() {
     let base = std::fs::read(DINPUT_SLOT_MARKER).unwrap();
-    let mut profile = decode_slot(&base, 1, Mode::DInput);
+    let mut profile = decode_slot(&base, 1, DINPUT);
     // Slot 3 d-pad left is a plain d-pad left, so there is nothing to keep.
     let slot3 = Slot::new(3).unwrap();
     assert!(Pro3.compile_profile_keep_macros(&profile, slot3, &base).is_err());
@@ -292,7 +292,7 @@ const DINPUT_MACRO: &str = "../../fixtures/pro3/dinput-macro.blob";
 fn dinput_macros_decode_as_refs_and_survive_or_leave_with_an_edit() {
     let base = std::fs::read(DINPUT_MACRO).unwrap();
     for slot in 1..=3u8 {
-        let profile = decode_slot(&base, slot, Mode::DInput);
+        let profile = decode_slot(&base, slot, DINPUT);
         let want = format!("dinput-slot{slot}-macro3-mx_d{slot}4.json");
         let refs: Vec<_> = profile.macro_refs.iter().map(|m| (&*m.path, &*m.trigger)).collect();
         assert_eq!(refs, [(want.as_str(), "r4")], "slot {slot}");
@@ -303,7 +303,7 @@ fn dinput_macros_decode_as_refs_and_survive_or_leave_with_an_edit() {
         let region = 0x068C + usize::from(slot - 1) * 216..0x068C + usize::from(slot) * 216;
         assert_eq!(kept[region.clone()], base[region.clone()], "slot {slot} keeps");
         let dropped = Pro3.drop_macros(&base, at, &["r4".to_owned()]).unwrap();
-        assert!(decode_slot(&dropped, slot, Mode::DInput).macro_refs.is_empty(), "slot {slot}");
+        assert!(decode_slot(&dropped, slot, DINPUT).macro_refs.is_empty(), "slot {slot}");
     }
 }
 
@@ -331,9 +331,9 @@ fn vendor_default_banks_decode_to_the_default_profile() {
     /// Bytes per slot of the button map: 22 entries of 4 bytes.
     const BUTTON_MAP_BYTES: usize = 22 * 4;
     for (file, mode) in [
-        ("vendor-default-xinput.blob", Mode::XInput),
-        ("vendor-default-switch.blob", Mode::Switch),
-        ("vendor-default-dinput.blob", Mode::DInput),
+        ("vendor-default-xinput.blob", XINPUT),
+        ("vendor-default-switch.blob", SWITCH),
+        ("vendor-default-dinput.blob", DINPUT),
     ] {
         let base = std::fs::read(format!("../../fixtures/pro3/{file}")).unwrap();
         let default = Pro3.default_profile(mode);
@@ -362,7 +362,7 @@ fn dinput_paddle_outputs_write_the_paddle_codes_and_read_back() {
         payload,
         source_slot: 1,
         source_profile_index: 0,
-        mode_hint: Mode::DInput,
+        mode_hint: DINPUT,
     };
     let mut profile = Pro3.map_profile(&raw(official.clone())).unwrap().canonical;
     // (source, entry index, output, code)
@@ -394,7 +394,7 @@ fn dinput_disabled_paddles_write_the_zeros_of_the_official_blob() {
     let official = std::fs::read(DINPUT_OFFICIAL).unwrap();
     let base = std::fs::read("../../fixtures/pro3/vendor-default-dinput.blob").unwrap();
     for slot in 1..=3u8 {
-        let mut profile = decode_slot(&base, slot, Mode::DInput);
+        let mut profile = decode_slot(&base, slot, DINPUT);
         for m in &mut profile.button_mappings[PADDLES] {
             assert_eq!(m.target, format!("{} output", m.source), "slot {slot}");
             "disabled".clone_into(&mut m.target);
@@ -405,7 +405,7 @@ fn dinput_disabled_paddles_write_the_zeros_of_the_official_blob() {
         let paddles = start + PADDLES.start * 4..start + PADDLES.end * 4;
         assert_eq!(&blob[paddles.clone()], &[0u8; 16], "slot {slot}");
         assert_eq!(&blob[paddles.clone()], &official[paddles], "slot {slot}");
-        let back = decode_slot(&blob, slot, Mode::DInput);
+        let back = decode_slot(&blob, slot, DINPUT);
         assert_eq!(back.button_mappings, profile.button_mappings, "slot {slot}");
     }
 }

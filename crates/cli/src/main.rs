@@ -85,7 +85,7 @@ enum DevCommand {
 /// Where a write goes, shared by every write verb.
 #[derive(Debug, Args)]
 struct Target {
-    /// Target mode: xinput, switch or dinput.
+    /// Target mode, by the id the controller's description gives it, such as xinput.
     #[arg(short, long)]
     mode: Mode,
     /// Target slot, from 1.
@@ -142,7 +142,7 @@ enum Commands {
     /// Read macros from a profile slot and report them as JSON.
     #[command(name = "read-macro")]
     ReadMacro {
-        /// Mode: xinput, switch or dinput.
+        /// Mode, by the id the controller's description gives it, such as xinput.
         mode: Mode,
         /// Profile slot, from 1.
         slot: u8,

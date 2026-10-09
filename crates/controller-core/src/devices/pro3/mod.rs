@@ -28,6 +28,33 @@ const FLIP_TO_XINPUT: u8 = 0x02;
 /// The close command (`81 05 07`): back to the slide-switch mode.
 const MODE_CLOSE: [u8; 3] = [0x81, 0x05, 0x07];
 
+/// The Pro 3's `XInput` mode (USB id `2dc8:310b`).
+pub const XINPUT: Mode = Mode::from_static("xinput");
+/// The Pro 3's Nintendo Switch mode (USB id `057e:2009`).
+pub const SWITCH: Mode = Mode::from_static("switch");
+/// The Pro 3's `DInput` mode (USB id `2dc8:6009`).
+pub const DINPUT: Mode = Mode::from_static("dinput");
+/// The Pro 3's modes, in the order its description lists them.
+pub const MODES: [Mode; 3] = [XINPUT, SWITCH, DINPUT];
+
+/// The refusal for a mode the Pro 3 does not have.
+pub(crate) fn no_such_mode(mode: Mode) -> crate::Error {
+    crate::Error::Validation(format!("the Pro 3 has no {mode} mode"))
+}
+
+/// The byte the Pro 3 uses for `mode` in the slot-select and macro commands.
+///
+/// # Errors
+/// Returns [`crate::Error::Validation`] for a mode the Pro 3 does not have.
+fn mode_byte(mode: Mode) -> Result<u8> {
+    match mode {
+        SWITCH => Ok(0),
+        DINPUT => Ok(1),
+        XINPUT => Ok(3),
+        other => Err(no_such_mode(other)),
+    }
+}
+
 /// A zero-padded normal-layout packet that starts with `head`.
 fn packet(head: &[u8]) -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];
@@ -85,25 +112,17 @@ impl ControllerSpec for Pro3 {
     fn joydev_name_match(&self) -> &'static str {
         "8BitDo"
     }
-    fn slot_select_value(&self, mode: Mode) -> u8 {
-        match mode {
-            Mode::Switch => 0,
-            Mode::DInput => 1,
-            Mode::XInput => 3,
-        }
+    fn slot_select_value(&self, mode: Mode) -> Result<u8> {
+        mode_byte(mode)
     }
-    fn macro_gamepad_mode(&self, mode: Mode) -> u8 {
-        match mode {
-            Mode::Switch => 0,
-            Mode::DInput => 1,
-            Mode::XInput => 3,
-        }
+    fn macro_gamepad_mode(&self, mode: Mode) -> Result<u8> {
+        mode_byte(mode)
     }
     fn mode_flip_command(&self, target: Mode) -> Option<[u8; PACKET_LEN]> {
         let target_byte = match target {
-            Mode::DInput => FLIP_TO_DINPUT,
-            Mode::XInput => FLIP_TO_XINPUT,
-            Mode::Switch => return None,
+            DINPUT => FLIP_TO_DINPUT,
+            XINPUT => FLIP_TO_XINPUT,
+            _ => return None,
         };
         let mut p = packet(&MODE_FLIP);
         if let Some(b) = p.get_mut(MODE_FLIP.len()) {
@@ -208,21 +227,21 @@ mod tests {
         let ports: Vec<Mode> = d.config_ports.iter().map(|p| p.mode).collect();
         let modes: Vec<Mode> = d.modes.iter().map(|m| m.id).collect();
         assert_eq!(ports, modes);
-        assert_eq!(modes, [Mode::XInput, Mode::Switch, Mode::DInput]);
+        assert_eq!(modes, [XINPUT, SWITCH, DINPUT]);
         assert_eq!(d.config_ports[1].framing, Framing::Wrapped);
         assert_eq!(d.model_ids, [0x6009, 0x600A]);
         assert_eq!((d.slot_count, d.macro_slot_count), (3, 4));
         assert_eq!(Pro3.blob_size(), 0x092C);
         let via: Vec<Option<Mode>> = d.config_ports.iter().map(|p| p.write_via).collect();
-        assert_eq!(via, [None, Some(Mode::DInput), None]);
+        assert_eq!(via, [None, Some(DINPUT), None]);
     }
 
     #[test]
     fn pro3_flip_and_close_bytes() {
-        let flip = Pro3.mode_flip_command(Mode::DInput).unwrap();
+        let flip = Pro3.mode_flip_command(DINPUT).unwrap();
         assert_eq!(flip[..5], [0x81, 0x00, 0x51, 0x01, 0x00]);
-        assert_eq!(Pro3.mode_flip_command(Mode::XInput).unwrap()[3], 0x02);
-        assert!(Pro3.mode_flip_command(Mode::Switch).is_none());
+        assert_eq!(Pro3.mode_flip_command(XINPUT).unwrap()[3], 0x02);
+        assert!(Pro3.mode_flip_command(SWITCH).is_none());
         // Wrapped on the Switch id, as sent in the hardware run.
         assert_eq!(Framing::Wrapped.request(&flip)[..6], [0x01, 0x66, 0xAA, 0x00, 0x51, 0x01]);
         assert_eq!(Pro3.mode_close_command()[..4], [0x81, 0x05, 0x07, 0x00]);
@@ -303,7 +322,7 @@ mod tests {
         let field = |mode, pointer: &str| pair(d.number(mode, pointer).unwrap().range());
         for side in ["left", "right"] {
             let sticks = format!("{defs}/Sticks/properties/{side}");
-            for mode in Mode::ALL {
+            for mode in MODES {
                 let min = field(mode, &format!("/sticks/{side}_min_pct"));
                 assert_eq!(
                     min,
@@ -320,22 +339,33 @@ mod tests {
             }
             for end in ["min", "max"] {
                 let at = format!("{defs}/TriggersAnalog/properties/{side}_{end}_pct");
-                let pct = field(Mode::XInput, &format!("/triggers/{side}_{end}_pct"));
+                let pct = field(XINPUT, &format!("/triggers/{side}_{end}_pct"));
                 assert_eq!(pct, range(&profile, &at, "minimum", "maximum"));
             }
             let at = format!("{defs}/TriggersSwitch/properties/{side}_threshold_pct");
-            let point = field(Mode::Switch, &format!("/triggers/{side}_threshold_pct"));
+            let point = field(SWITCH, &format!("/triggers/{side}_threshold_pct"));
             assert_eq!(point, range(&profile, &at, "minimum", "maximum"));
         }
     }
 
     #[test]
     fn pro3_slot_select_and_macro_mode_values() {
-        assert_eq!(Pro3.slot_select_value(Mode::Switch), 0);
-        assert_eq!(Pro3.slot_select_value(Mode::DInput), 1);
-        assert_eq!(Pro3.slot_select_value(Mode::XInput), 3);
-        assert_eq!(Pro3.macro_gamepad_mode(Mode::XInput), 3);
-        assert_eq!(Pro3.macro_gamepad_mode(Mode::Switch), 0);
-        assert_eq!(Pro3.macro_gamepad_mode(Mode::DInput), 1);
+        assert_eq!(Pro3.slot_select_value(SWITCH).unwrap(), 0);
+        assert_eq!(Pro3.slot_select_value(DINPUT).unwrap(), 1);
+        assert_eq!(Pro3.slot_select_value(XINPUT).unwrap(), 3);
+        assert_eq!(Pro3.macro_gamepad_mode(XINPUT).unwrap(), 3);
+        assert_eq!(Pro3.macro_gamepad_mode(SWITCH).unwrap(), 0);
+        assert_eq!(Pro3.macro_gamepad_mode(DINPUT).unwrap(), 1);
+        let other = Mode::from_static("standard");
+        assert!(Pro3.slot_select_value(other).is_err());
+        assert!(Pro3.mode_flip_command(other).is_none());
+    }
+
+    #[test]
+    fn pro3_mode_constants_match_its_description() {
+        let ids: Vec<&str> = MODES.iter().map(Mode::as_str).collect();
+        assert_eq!(ids, ["xinput", "switch", "dinput"], "no constant was cut short");
+        let listed: Vec<Mode> = Pro3.description().unwrap().modes.iter().map(|m| m.id).collect();
+        assert_eq!(listed, MODES);
     }
 }

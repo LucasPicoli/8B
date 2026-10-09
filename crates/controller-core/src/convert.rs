@@ -116,7 +116,7 @@ mod tests {
     use super::*;
     use crate::description::UNRECOGNISED_OUTPUT;
     use crate::device::{ControllerSpec, ProtocolCodec};
-    use crate::devices::pro3::Pro3;
+    use crate::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};
 
     fn triggers_reset() -> ConversionLoss {
         ConversionLoss::SettingsReset { group: "triggers".to_owned() }
@@ -140,14 +140,13 @@ mod tests {
 
     #[test]
     fn every_mode_pair_gives_a_valid_profile_of_the_target_mode() {
-        let d = Pro3.description().unwrap();
-        for from in Mode::ALL {
-            for to in Mode::ALL {
+        for from in MODES {
+            for to in MODES {
                 let source = with_mapping(from, "r4", "bottom face");
                 let (p, losses) = convert(&source, to);
                 assert_eq!(p.mode, to, "{from} to {to}");
-                let reset = from != to
-                    && d.mode(from).unwrap().trigger_kind != d.mode(to).unwrap().trigger_kind;
+                // Only Switch tunes the triggers by a threshold.
+                let reset = (from == SWITCH) != (to == SWITCH);
                 assert_eq!(
                     losses,
                     if reset { vec![triggers_reset()] } else { vec![] },
@@ -169,17 +168,17 @@ mod tests {
 
     #[test]
     fn xinput_and_dinput_round_trip_unchanged() {
-        let source = with_mapping(Mode::XInput, "lp", "right face");
-        let (dinput, losses) = convert(&source, Mode::DInput);
+        let source = with_mapping(XINPUT, "lp", "right face");
+        let (dinput, losses) = convert(&source, DINPUT);
         assert_eq!(losses, []);
-        let (back, losses) = convert(&dinput, Mode::XInput);
+        let (back, losses) = convert(&dinput, XINPUT);
         assert_eq!(losses, []);
         assert_eq!(back, source);
     }
 
     #[test]
     fn switch_screenshot_into_xinput_loses_the_output_and_the_thresholds() {
-        let (p, losses) = convert(&with_mapping(Mode::Switch, "r4", "screenshot"), Mode::XInput);
+        let (p, losses) = convert(&with_mapping(SWITCH, "r4", "screenshot"), XINPUT);
         assert_eq!(
             losses,
             [
@@ -195,8 +194,8 @@ mod tests {
 
     #[test]
     fn an_unrecognised_entry_into_switch_is_disabled() {
-        let source = with_mapping(Mode::DInput, "d-pad left", UNRECOGNISED_OUTPUT);
-        let (_, losses) = convert(&source, Mode::Switch);
+        let source = with_mapping(DINPUT, "d-pad left", UNRECOGNISED_OUTPUT);
+        let (_, losses) = convert(&source, SWITCH);
         assert_eq!(
             losses,
             [
@@ -207,7 +206,7 @@ mod tests {
                 triggers_reset(),
             ]
         );
-        let (same, losses) = convert(&source, Mode::DInput);
+        let (same, losses) = convert(&source, DINPUT);
         assert!(losses.is_empty(), "same mode keeps the entry");
         assert_eq!(same, source);
     }
@@ -216,16 +215,16 @@ mod tests {
     fn a_group_the_target_lacks_goes_and_a_narrower_range_resets() {
         let mut d = Pro3.description().unwrap().clone();
         let vibration = d.settings.iter().position(|p| p.id == "vibration").unwrap();
-        d.settings[vibration].modes = vec![Mode::XInput, Mode::DInput];
-        let source = Pro3.default_profile(Mode::XInput);
-        let switch = Pro3.default_profile(Mode::Switch);
+        d.settings[vibration].modes = vec![XINPUT, DINPUT];
+        let source = Pro3.default_profile(XINPUT);
+        let switch = Pro3.default_profile(SWITCH);
         let (p, losses) = convert_profile(&d, &source, &source, &switch).unwrap();
         assert!(p.settings.get("vibration").is_none(), "Switch has no vibration here");
         assert_eq!(losses, [triggers_reset()]);
 
         // Switch gets its own vibration tab with a narrower range.
         let mut narrow = d.settings[vibration].clone();
-        narrow.modes = vec![Mode::Switch];
+        narrow.modes = vec![SWITCH];
         for slider in narrow.frames.iter_mut().flat_map(|f| &mut f.sliders) {
             slider.low.max = 3;
         }

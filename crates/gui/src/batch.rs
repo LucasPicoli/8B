@@ -5,6 +5,7 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
+use controller_core::description::ControllerDescription;
 use controller_core::model::Mode;
 use slint::{Model as _, ModelRc, VecModel};
 
@@ -72,8 +73,8 @@ fn slots(n: usize) -> String {
 }
 
 /// The title of the slot `job` writes, such as `XInput slot 2`.
-fn title(job: &WriteJob) -> String {
-    format!("{} slot {}", job.mode.label(), job.slot.get())
+fn title(description: &ControllerDescription, job: &WriteJob) -> String {
+    format!("{} slot {}", description.mode_label(job.mode), job.slot.get())
 }
 
 impl AppState {
@@ -87,7 +88,7 @@ impl AppState {
     /// Every slot of controller `c` with unsaved edits, in the sidebar's order.
     #[must_use]
     pub fn edited_of(&self, c: &Controller) -> Vec<Key> {
-        let d = self.description();
+        let d = self.description_of(c);
         d.modes
             .iter()
             .flat_map(|m| (1..=d.slot_count).map(move |n| (m.id, n)))
@@ -288,7 +289,10 @@ impl AppState {
         let listed = |jobs: &[WriteJob]| {
             let rows: Vec<BatchSlot> = jobs
                 .iter()
-                .map(|j| BatchSlot { title: title(j).into(), ..BatchSlot::default() })
+                .map(|j| BatchSlot {
+                    title: title(self.description(), j).into(),
+                    ..BatchSlot::default()
+                })
                 .collect();
             ModelRc::from(Rc::new(VecModel::from(rows)))
         };
@@ -326,6 +330,7 @@ pub fn render_batch(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
+    use controller_core::devices::pro3::{DINPUT, XINPUT};
     use controller_core::model::WriteResult;
 
     use super::*;
@@ -336,7 +341,7 @@ mod tests {
     /// pad, started from default) and `DInput` slot 1, in the order the sidebar lists
     /// them.
     fn edited() -> AppState {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.select(0, 1);
         s.set_name("Two");
         s.select(0, 2);
@@ -376,7 +381,7 @@ mod tests {
 
     #[test]
     fn a_batch_of_empty_slots_skips_its_review_and_a_mixed_one_keeps_it() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.select(0, 2);
         s.start_from_default();
         s.select(2, 2);
@@ -385,7 +390,7 @@ mod tests {
         s.read_finished(PORT, Ok(full_read()));
         s.review_read(PORT, true);
         let (_, jobs) = s.skip_empty_review().unwrap();
-        assert_eq!(targets(&jobs), [(Mode::XInput, 3), (Mode::DInput, 3)]);
+        assert_eq!(targets(&jobs), [(XINPUT, 3), (DINPUT, 3)]);
         assert_eq!(s.batch_info().stage, STAGE_WRITING);
 
         let mut s = reviewing();
@@ -396,9 +401,9 @@ mod tests {
     #[test]
     fn the_edited_slots_come_in_the_sidebar_order() {
         let s = edited();
-        assert_eq!(s.edited_slots(), [(Mode::XInput, 2), (Mode::XInput, 3), (Mode::DInput, 1)]);
+        assert_eq!(s.edited_slots(), [(XINPUT, 2), (XINPUT, 3), (DINPUT, 1)]);
         assert!(s.can_write_all());
-        let clean = connected(Mode::XInput);
+        let clean = connected(XINPUT);
         assert!(clean.edited_slots().is_empty() && !clean.can_write_all());
     }
 
@@ -447,14 +452,14 @@ mod tests {
         s.begin_batch().unwrap();
         let mut read = full_read();
         for p in &mut read.profiles {
-            if (p.mode, p.source_slot) == (Mode::XInput, 2) {
+            if (p.mode, p.source_slot) == (XINPUT, 2) {
                 p.canonical.name = "Theirs".to_owned();
             }
         }
         s.read_finished(PORT, Ok(read));
         s.review_read(PORT, true);
         assert_eq!(s.batch_info().stage, 0, "the changed-slot question comes first");
-        s.choose_changed((Mode::XInput, 2), false);
+        s.choose_changed((XINPUT, 2), false);
         s.apply_changed();
         let info = s.batch_info();
         assert_eq!(info.stage, 1);
@@ -465,7 +470,7 @@ mod tests {
         s.begin_batch().unwrap();
         let mut read = full_read();
         for p in &mut read.profiles {
-            if p.source_slot == 2 || (p.mode, p.source_slot) == (Mode::DInput, 1) {
+            if p.source_slot == 2 || (p.mode, p.source_slot) == (DINPUT, 1) {
                 p.canonical.name = "Theirs".to_owned();
             }
         }
@@ -498,7 +503,7 @@ mod tests {
     #[test]
     fn another_controller_drops_a_waiting_batch() {
         let mut s = edited();
-        s.presence("3-2", Some(Mode::XInput));
+        s.presence("3-2", Some(XINPUT));
         s.read_finished("3-2", Ok(full_read()));
         s.begin_batch().unwrap();
         s.pick_controller(1);
@@ -528,7 +533,7 @@ mod tests {
 
     #[test]
     fn a_slot_that_removes_a_macro_is_open_even_when_it_is_not_first() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.select(0, 0);
         s.set_name("One");
         s.select(0, 1);
@@ -561,15 +566,15 @@ mod tests {
         let mut s = reviewing();
         let (port, jobs) = s.confirm_batch().unwrap();
         assert_eq!(port, PORT);
-        assert_eq!(targets(&jobs), [(Mode::XInput, 2), (Mode::XInput, 3), (Mode::DInput, 1)]);
+        assert_eq!(targets(&jobs), [(XINPUT, 2), (XINPUT, 3), (DINPUT, 1)]);
         assert!(matches!(jobs[0].op, WriteOp::Upload { .. }));
         let info = s.batch_info();
         assert_eq!((info.stage, info.at), (STAGE_WRITING, 0));
         assert!(s.write.running.is_some());
 
         s.write_finished(PORT, &oks(&jobs), None);
-        assert!(!s.slot(Mode::XInput, 2).unsaved(), "a written slot is saved at once");
-        assert!(!s.slot(Mode::XInput, 3).unsaved() && !s.slot(Mode::DInput, 1).unsaved());
+        assert!(!s.slot(XINPUT, 2).unsaved(), "a written slot is saved at once");
+        assert!(!s.slot(XINPUT, 3).unsaved() && !s.slot(DINPUT, 1).unsaved());
         s.batch_after_write();
         assert!(s.write.batch.is_none() && s.write.running.is_none());
         assert_eq!(s.edited_slots().len(), 0);
@@ -597,7 +602,7 @@ mod tests {
         s.batch_after_write();
         assert!(s.write.failed.is_none(), "the single-slot failure does not open");
         assert!(s.notice.is_none());
-        assert_eq!(s.edited_slots(), [(Mode::XInput, 3), (Mode::DInput, 1)]);
+        assert_eq!(s.edited_slots(), [(XINPUT, 3), (DINPUT, 1)]);
 
         let info = s.batch_info();
         assert_eq!((info.stage, info.at), (3, 1));
@@ -638,7 +643,7 @@ mod tests {
 
     #[test]
     fn one_slot_reads_as_one_slot() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Solo");
         s.begin_batch().unwrap();
         s.read_finished(PORT, Ok(full_read()));
@@ -651,7 +656,7 @@ mod tests {
 
     #[test]
     fn a_single_write_is_not_a_batch_write() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Solo");
         s.begin_review().unwrap();
         s.review_read(PORT, true);

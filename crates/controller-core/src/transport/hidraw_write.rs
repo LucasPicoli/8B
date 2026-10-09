@@ -162,7 +162,7 @@ fn command_with(
 }
 
 pub(super) fn send_slot_select(to: Target<'_>, mode: Mode) -> Result<()> {
-    let build = |s: &Session| Ok(build_slot_select(s.model()?.slot_select_value(mode)));
+    let build = |s: &Session| Ok(build_slot_select(s.model()?.slot_select_value(mode)?));
     command_with(to, build, CMD_SLOT_SELECT, "slot select")
 }
 
@@ -188,7 +188,7 @@ fn erase_in_session(
     let packet = build_erase_macro(
         MACRO_CMD_MODE,
         profile_slot0(profile_slot),
-        session.model()?.macro_gamepad_mode(mode),
+        session.model()?.macro_gamepad_mode(mode)?,
         macro_slot.get(),
     );
     exchange(session, &packet, validate_erase_response).map_err(|e| {
@@ -221,7 +221,7 @@ pub(super) fn write_macro_stream(
     let total_len = macro_total_len(stream.len(), macro_slot)?;
     let base = macro_flash_base(macro_slot)?;
     let mut session = open(to)?;
-    let gamepad_mode = session.model()?.macro_gamepad_mode(mode);
+    let gamepad_mode = session.model()?.macro_gamepad_mode(mode)?;
     erase_in_session(&mut session, mode, profile_slot, macro_slot)?;
 
     let total = stream.len() / MACRO_CHUNK_LEN;

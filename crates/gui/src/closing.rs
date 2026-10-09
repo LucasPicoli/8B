@@ -105,7 +105,8 @@ impl AppState {
                     .edited_of(c)
                     .into_iter()
                     .map(|(mode, n)| CloseSlot {
-                        title: format!("{} slot {n}", mode.label()).into(),
+                        title: format!("{} slot {n}", self.description_of(c).mode_label(mode))
+                            .into(),
                         name: c
                             .slots
                             .get(&(mode, n))
@@ -139,11 +140,13 @@ pub fn render_close(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use controller_core::model::Mode;
+
     use slint::Model as _;
 
     use super::*;
     use crate::state::tests::{connected, full_read, PORT};
+
+    use controller_core::devices::pro3::{DINPUT, XINPUT};
 
     /// The rows of each group in the question, as `title · name`, by label.
     fn rows(s: &AppState) -> Vec<(String, Vec<String>)> {
@@ -159,14 +162,14 @@ mod tests {
 
     #[test]
     fn no_edits_close_at_once() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         assert_eq!(s.close_requested(), CloseOutcome::Close);
         assert!(!s.closing && !s.close_info().shown);
     }
 
     #[test]
     fn one_edited_slot_asks_and_cancel_keeps_it() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.select(0, 1);
         s.set_name("Drift");
         assert_eq!(s.close_requested(), CloseOutcome::Ask);
@@ -179,15 +182,15 @@ mod tests {
         );
         s.cancel_close();
         assert!(!s.close_info().shown);
-        assert!(s.slot(Mode::XInput, 2).unsaved(), "Cancel keeps the edit");
+        assert!(s.slot(XINPUT, 2).unsaved(), "Cancel keeps the edit");
     }
 
     #[test]
     fn edits_on_an_unplugged_controller_ask_too() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Kept");
         s.presence(PORT, None);
-        s.presence("3-2", Some(Mode::DInput));
+        s.presence("3-2", Some(DINPUT));
         s.read_finished("3-2", Ok(full_read()));
         s.answer_move(None);
         s.pick_controller(1);
@@ -203,7 +206,7 @@ mod tests {
 
     #[test]
     fn a_running_write_ignores_the_close() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Solo");
         s.begin_review().unwrap();
         s.review_read(PORT, true);
@@ -214,11 +217,11 @@ mod tests {
 
     #[test]
     fn the_changed_dialog_hides_write_but_still_asks() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Mine");
         let mut read = full_read();
         for p in &mut read.profiles {
-            if (p.mode, p.source_slot) == (Mode::XInput, 1) {
+            if (p.mode, p.source_slot) == (XINPUT, 1) {
                 p.canonical.name = "Theirs".to_owned();
             }
         }
@@ -231,8 +234,8 @@ mod tests {
 
     #[test]
     fn the_shown_controller_comes_first_and_write_counts_only_it() {
-        let mut s = connected(Mode::XInput);
-        s.presence("3-2", Some(Mode::DInput));
+        let mut s = connected(XINPUT);
+        s.presence("3-2", Some(DINPUT));
         s.read_finished("3-2", Ok(full_read()));
         s.set_name("First");
         s.pick_controller(1);
@@ -257,7 +260,7 @@ mod tests {
 
     #[test]
     fn write_closes_the_question_and_starts_write_all() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Solo");
         assert_eq!(s.write_before_close(), None, "only from the question");
         s.close_requested();
@@ -267,7 +270,7 @@ mod tests {
 
     #[test]
     fn edits_that_go_while_the_question_is_open_close_it() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Solo");
         s.close_requested();
         s.discard();

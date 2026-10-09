@@ -149,11 +149,12 @@ pub fn canonical_id(mode: Mode, source_slot: u8, source_profile_index: u8) -> St
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::devices::pro3::{SWITCH, XINPUT};
 
     #[test]
     fn canonical_id_uses_mode_slot_index() {
-        assert_eq!(canonical_id(Mode::XInput, 1, 0), "xinput-slot-1-index-0");
-        assert_eq!(canonical_id(Mode::Switch, 2, 1), "switch-slot-2-index-1");
+        assert_eq!(canonical_id(XINPUT, 1, 0), "xinput-slot-1-index-0");
+        assert_eq!(canonical_id(SWITCH, 2, 1), "switch-slot-2-index-1");
     }
 
     #[allow(clippy::unwrap_used)]
@@ -170,7 +171,7 @@ mod tests {
             "button_mappings":[], "macro_refs":[]
         });
         let mut p: CanonicalProfile = serde_json::from_value(json.clone()).unwrap();
-        assert_eq!(p.mode, Mode::XInput);
+        assert_eq!(p.mode, XINPUT);
         let typed = json.as_object().unwrap().keys().filter(|k| !p.settings.contains_key(*k));
         assert!(typed.into_iter().all(|k| PROFILE_FIELDS.contains(&k.as_str())));
         assert_eq!(serde_json::to_value(&p).unwrap(), json);

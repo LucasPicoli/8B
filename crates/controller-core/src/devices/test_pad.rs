@@ -41,6 +41,18 @@ const NAME_LEN: usize = 16;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct TestPad;
 
+/// The test pad's one mode. No Pro 3 mode has this id.
+pub const STANDARD: Mode = Mode::from_static("standard");
+
+/// Refuses every mode but [`STANDARD`].
+fn check_mode(mode: Mode) -> Result<()> {
+    if mode == STANDARD {
+        Ok(())
+    } else {
+        Err(Error::Validation(format!("the test pad has no {mode} mode")))
+    }
+}
+
 static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
     ControllerDescription::parse(
         include_str!("../../controllers/test-pad/description.json"),
@@ -74,11 +86,11 @@ impl ControllerSpec for TestPad {
     fn joydev_name_match(&self) -> &'static str {
         "Test Pad"
     }
-    fn slot_select_value(&self, _mode: Mode) -> u8 {
-        1
+    fn slot_select_value(&self, mode: Mode) -> Result<u8> {
+        check_mode(mode).map(|()| 1)
     }
-    fn macro_gamepad_mode(&self, _mode: Mode) -> u8 {
-        0
+    fn macro_gamepad_mode(&self, mode: Mode) -> Result<u8> {
+        check_mode(mode).map(|()| 0)
     }
     fn mode_flip_command(&self, _target: Mode) -> Option<[u8; PACKET_LEN]> {
         None
@@ -199,6 +211,7 @@ mod tests {
 
     use super::*;
     use crate::device::Model;
+    use crate::devices::pro3::XINPUT;
     use crate::devices::{find_model, pro3::Pro3};
     use crate::model::ProfileReadResult;
     use crate::orchestrator::ProfileWriteOrchestrator;
@@ -214,7 +227,7 @@ mod tests {
 
     /// A bank with slot 2 holding "Pad two" at rumble level 2 with the light off.
     fn bank() -> Vec<u8> {
-        let mut profile = TestPad.default_profile(Mode::DInput);
+        let mut profile = TestPad.default_profile(STANDARD);
         profile.name = "Pad two".to_owned();
         profile.settings = feel(2, false);
         TestPad.compile_profile(&profile, slot(2), &[], &[]).unwrap()
@@ -253,7 +266,7 @@ mod tests {
             payload: bank(),
             source_slot: 2,
             source_profile_index: 1,
-            mode_hint: Mode::DInput,
+            mode_hint: STANDARD,
         };
         let summary = TestPad.map_profile(&raw).unwrap();
         assert_eq!(summary.name, "Pad two");
@@ -271,14 +284,14 @@ mod tests {
 
         let force = &ConfirmPolicy::Force;
         let too_high = [("/rumble/level", 4.into())];
-        let refused = orchestrator.patch_settings(Mode::DInput, slot(2), &too_high, force);
+        let refused = orchestrator.patch_settings(STANDARD, slot(2), &too_high, force);
         assert!(!refused.success, "the test pad's rumble stops at 3: {}", refused.message);
         let pro3 = [("/vibration/left_level", 1.into())];
-        let pro3 = orchestrator.patch_settings(Mode::DInput, slot(2), &pro3, force);
+        let pro3 = orchestrator.patch_settings(STANDARD, slot(2), &pro3, force);
         assert!(pro3.message.contains("does not apply"), "{}", pro3.message);
 
         let set = [("/rumble/level", 3.into()), ("/lights/on", true.into())];
-        let done = orchestrator.patch_settings(Mode::DInput, slot(2), &set, force);
+        let done = orchestrator.patch_settings(STANDARD, slot(2), &set, force);
         assert!(done.success, "{}", done.message);
         let blob = written(&dev);
         assert_eq!(blob.len(), BLOB_SIZE);
@@ -290,18 +303,18 @@ mod tests {
     fn a_clear_and_a_macro_read_work_on_a_pad_without_macros() {
         let dev = device();
         let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, Path::new("."));
-        let cleared = orchestrator.deactivate_slot(Mode::DInput, slot(2), &ConfirmPolicy::Force);
+        let cleared = orchestrator.deactivate_slot(STANDARD, slot(2), &ConfirmPolicy::Force);
         assert!(cleared.success, "{}", cleared.message);
         assert!(!TestPad.slot_active(&written(&dev), slot(2)).unwrap());
 
-        assert_eq!(read_macros(&dev, Mode::DInput, slot(2)).unwrap().macros, []);
+        assert_eq!(read_macros(&dev, STANDARD, slot(2)).unwrap().macros, []);
         let read = dev.read_all_profiles().unwrap();
         assert!(leftover_macros(&TestPad, &read).is_empty());
     }
 
     #[test]
     fn its_own_profiles_validate_and_upload_and_wrong_ones_are_named() {
-        let mut profile = TestPad.default_profile(Mode::DInput);
+        let mut profile = TestPad.default_profile(STANDARD);
         profile.name = "Mine".to_owned();
         let json = serde_json::to_value(&profile).unwrap();
         let ok = validate_profile(&TestPad, &json).unwrap();
@@ -320,7 +333,7 @@ mod tests {
 
         let dev = device();
         let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, Path::new("."));
-        let r = orchestrator.upload_profile(&json, Mode::DInput, slot(1), &ConfirmPolicy::Force);
+        let r = orchestrator.upload_profile(&json, STANDARD, slot(1), &ConfirmPolicy::Force);
         assert!(r.success, "{}", r.message);
         assert!(TestPad.slot_active(&written(&dev), slot(1)).unwrap());
     }
@@ -329,11 +342,11 @@ mod tests {
     fn a_slot_past_the_models_count_is_refused_before_any_device_access() {
         let dev = device();
         let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, Path::new("."));
-        let r = orchestrator.deactivate_slot(Mode::DInput, slot(3), &ConfirmPolicy::Force);
+        let r = orchestrator.deactivate_slot(STANDARD, slot(3), &ConfirmPolicy::Force);
         assert!(!r.success && r.message.contains("1-2"), "{}", r.message);
         assert_eq!(dev.calls(), []);
-        assert!(read_macros(&dev, Mode::DInput, slot(3)).is_err());
-        let pro3 = Pro3.default_profile(Mode::XInput);
+        assert!(read_macros(&dev, STANDARD, slot(3)).is_err());
+        let pro3 = Pro3.default_profile(XINPUT);
         assert!(Pro3.compile_profile(&pro3, slot(4), &[], &[]).is_err(), "the Pro 3 has 3 slots");
     }
 
@@ -345,8 +358,7 @@ mod tests {
         });
         let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, Path::new("."));
         let set = [("/rumble/level", 1.into())];
-        let result =
-            orchestrator.patch_settings(Mode::DInput, slot(2), &set, &ConfirmPolicy::Force);
+        let result = orchestrator.patch_settings(STANDARD, slot(2), &set, &ConfirmPolicy::Force);
         assert!(!result.success);
         assert!(dev.calls().iter().all(|c| !matches!(c, MockCall::WriteFullProfile { .. })));
     }

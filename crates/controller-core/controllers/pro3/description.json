@@ -39,12 +39,12 @@
   "modes": [
     {
       "id": "xinput",
-      "trigger_kind": "analog",
+      "label": "XInput",
       "extra_outputs": []
     },
     {
       "id": "switch",
-      "trigger_kind": "threshold",
+      "label": "Switch",
       "extra_outputs": [
         {
           "id": "screenshot",
@@ -54,7 +54,7 @@
     },
     {
       "id": "dinput",
-      "trigger_kind": "analog",
+      "label": "DInput",
       "extra_outputs": [
         {
           "id": "rp output",

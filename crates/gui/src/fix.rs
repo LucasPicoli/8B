@@ -77,14 +77,15 @@ impl AppState {
 
 #[cfg(test)]
 mod tests {
-    use controller_core::model::Mode;
 
     use super::*;
     use crate::state::tests::{full_read, new_state, PORT};
 
+    use controller_core::devices::pro3::XINPUT;
+
     fn connected() -> AppState {
         let mut s = new_state();
-        s.presence(PORT, Some(Mode::XInput));
+        s.presence(PORT, Some(XINPUT));
         s.read_finished(PORT, Ok(full_read()));
         s
     }

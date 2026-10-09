@@ -7,6 +7,7 @@
 #![cfg(feature = "hardware")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use controller_core::devices::pro3::MODES;
 use controller_core::model::Mode;
 use controller_core::transport::{DeviceIo, HidrawDevice};
 use serial_test::serial;
@@ -17,10 +18,10 @@ use serial_test::serial;
 fn reads_every_bank_from_the_current_mode() {
     let dev = HidrawDevice::open().unwrap();
     let read = dev.read_all_profiles().unwrap();
-    assert_eq!(read.raw_blobs.len(), Mode::ALL.len());
+    assert_eq!(read.raw_blobs.len(), MODES.len());
     assert!(read.raw_blobs.iter().all(|b| b.len() == 0x092C));
     let modes: Vec<Mode> = read.profiles.iter().map(|p| p.mode).collect();
-    assert_eq!(modes, Mode::ALL.iter().flat_map(|&m| [m; 3]).collect::<Vec<_>>());
+    assert_eq!(modes, MODES.iter().flat_map(|&m| [m; 3]).collect::<Vec<_>>());
     assert!(read.profiles.iter().any(|p| !p.name.is_empty())); // at least one active mapped profile
 }
 

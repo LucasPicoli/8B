@@ -16,6 +16,8 @@ use super::*;
 use crate::buttons::{picked_output, rows};
 use crate::state::tests::connected;
 
+use controller_core::devices::pro3::{SWITCH, XINPUT};
+
 /// Key of a control, then the JSON pointer of the field it sets. A button row
 /// names its mapping by source button, as `/button_mappings/<source>/target`.
 const EXPECTED: &[(&str, &str)] = &[
@@ -65,14 +67,14 @@ const EXPECTED: &[(&str, &str)] = &[
 /// A Pro 3 read in `XInput`, or with a default Switch profile in slot 1 of Switch.
 /// Returns the state and the slot its controls edit.
 fn start(switch: bool) -> (AppState, (Mode, u8)) {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     if !switch {
-        return (s, (Mode::XInput, 1));
+        return (s, (XINPUT, 1));
     }
     s.select(1, 0);
-    let default = s.defaults()[&Mode::Switch].clone();
-    s.active_mut().unwrap().slots.get_mut(&(Mode::Switch, 1)).unwrap().pad = Some(default);
-    (s, (Mode::Switch, 1))
+    let default = s.defaults()[&SWITCH].clone();
+    s.active_mut().unwrap().slots.get_mut(&(SWITCH, 1)).unwrap().pad = Some(default);
+    (s, (SWITCH, 1))
 }
 
 /// Every leaf of `json` by pointer.

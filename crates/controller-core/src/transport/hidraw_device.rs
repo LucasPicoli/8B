@@ -118,7 +118,7 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
 /// the pad stays there until the next select or replug. The profile button then cycles
 /// that bank's slots, so a pad left on another bank runs that bank's profiles.
 fn select_current_bank(session: &mut Session) -> Result<()> {
-    let value = session.model()?.slot_select_value(session.current_mode);
+    let value = session.model()?.slot_select_value(session.current_mode)?;
     let _ = session.send_recv(&build_slot_select(value))?;
     Ok(())
 }
@@ -171,7 +171,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
         let mut raw_blobs = Vec::new();
 
         for target_mode in description.modes.iter().map(|m| m.id) {
-            let slot_select = model.slot_select_value(target_mode);
+            let slot_select = model.slot_select_value(target_mode)?;
             let _ = session.send_recv(&build_slot_select(slot_select))?;
             let blob = read_blob_chunks(&mut session)?;
 
@@ -235,8 +235,8 @@ impl crate::transport::DeviceIo for HidrawDevice {
         // Prime: `START_CONFIG` (sent by the session) → `QUERY_STATUS` → `SLOT_SELECT`
         // → upload×53 → `QUERY_STATUS`
         let mut session = self.read_session()?;
-        let macro_gamepad_mode = session.model()?.macro_gamepad_mode(mode);
-        let slot_select = session.model()?.slot_select_value(mode);
+        let macro_gamepad_mode = session.model()?.macro_gamepad_mode(mode)?;
+        let slot_select = session.model()?.slot_select_value(mode)?;
         let _ = session.send_recv(&build_query_status())?;
         let _ = session.send_recv(&build_slot_select(slot_select))?;
         let _ = read_blob_chunks(&mut session)?;
@@ -314,7 +314,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
         let description = model.description()?;
         let name = &description.display_name;
         readiness.firmware_version.clone_from(&session.firmware_version);
-        let blob = match read_blob(&mut session, model.slot_select_value(found.port.mode)) {
+        let blob = match read_blob(&mut session, model.slot_select_value(found.port.mode)?) {
             Ok(blob) => blob,
             Err(e) => {
                 readiness.message =

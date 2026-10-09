@@ -150,20 +150,10 @@ pub struct Flag {
 pub struct ModeDescription {
     /// The mode.
     pub id: Mode,
-    /// How the triggers are tuned in this mode.
-    pub trigger_kind: TriggerKind,
+    /// Name shown to the user, such as `XInput`.
+    pub label: String,
     /// Outputs a button may map to in this mode beyond the buttons and [`DISABLED_OUTPUT`].
     pub extra_outputs: Vec<ExtraOutput>,
-}
-
-/// How the triggers of a mode are tuned.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum TriggerKind {
-    /// Analog triggers with a min and max range.
-    Analog,
-    /// Digital triggers with a press threshold.
-    Threshold,
 }
 
 /// A mode-specific output that is not a button press.
@@ -248,6 +238,13 @@ impl ControllerDescription {
     #[must_use]
     pub fn mode(&self, mode: Mode) -> Option<&ModeDescription> {
         self.modes.iter().find(|m| m.id == mode)
+    }
+
+    /// The name of `mode` shown to the user, such as `XInput`, or its id when this
+    /// controller lacks it.
+    #[must_use]
+    pub fn mode_label(&self, mode: Mode) -> String {
+        self.mode(mode).map_or_else(|| mode.to_string(), |m| m.label.clone())
     }
 
     /// The settings tabs `mode` shows, in display order.
@@ -514,6 +511,8 @@ mod tests {
     use super::*;
     use serde_json::{json, Value};
 
+    use crate::devices::pro3::{DINPUT, SWITCH, XINPUT};
+
     fn minimal() -> Value {
         let range = json!({ "min": 0, "max": 1 });
         json!({
@@ -525,8 +524,8 @@ mod tests {
                   "mode": "xinput", "interface": 2, "framing": "plain" }
             ],
             "modes": [
-                { "id": "xinput", "trigger_kind": "analog", "extra_outputs": [] },
-                { "id": "switch", "trigger_kind": "threshold",
+                { "id": "xinput", "label": "XInput", "extra_outputs": [] },
+                { "id": "switch", "label": "Switch",
                   "extra_outputs": [{ "id": "screenshot", "label": "Screenshot" }] }
             ],
             "slot_count": 3,
@@ -609,16 +608,16 @@ mod tests {
     fn settings_follow_the_mode_and_exclusions_go_both_ways() {
         let d = parse(&minimal()).unwrap();
         let tabs = |m| d.pages(m).map(|p| p.id.as_str()).collect::<Vec<_>>();
-        assert_eq!(tabs(Mode::XInput), ["sticks"]);
-        assert_eq!(tabs(Mode::Switch), ["sticks", "triggers"]);
+        assert_eq!(tabs(XINPUT), ["sticks"]);
+        assert_eq!(tabs(SWITCH), ["sticks", "triggers"]);
         assert_eq!(
-            d.number(Mode::Switch, "/t").map(NumberField::range),
+            d.number(SWITCH, "/t").map(NumberField::range),
             Some(LimitRange { min: 0, max: 9 })
         );
-        assert!(d.number(Mode::XInput, "/t").is_none(), "the press point is Switch only");
-        assert!(d.flag(Mode::XInput, "/sticks/min").is_none(), "a number is no flag");
-        assert_eq!(d.excluded_by(Mode::XInput, "/sticks/swap"), ["/sticks/invert"]);
-        assert_eq!(d.excluded_by(Mode::XInput, "/sticks/invert"), ["/sticks/swap"]);
+        assert!(d.number(XINPUT, "/t").is_none(), "the press point is Switch only");
+        assert!(d.flag(XINPUT, "/sticks/min").is_none(), "a number is no flag");
+        assert_eq!(d.excluded_by(XINPUT, "/sticks/swap"), ["/sticks/invert"]);
+        assert_eq!(d.excluded_by(XINPUT, "/sticks/invert"), ["/sticks/swap"]);
     }
 
     #[test]
@@ -683,16 +682,16 @@ mod tests {
     #[test]
     fn remap_follows_the_flags() {
         let d = parse(&minimal()).unwrap();
-        assert!(d.validate_remap(Mode::XInput, "paddle", "a").is_ok());
-        assert!(d.validate_remap(Mode::XInput, "a", "home").is_ok());
-        assert!(d.validate_remap(Mode::XInput, "a", DISABLED_OUTPUT).is_ok());
-        assert!(d.validate_remap(Mode::XInput, "a", UNRECOGNISED_OUTPUT).is_err(), "read-only");
-        assert!(d.validate_remap(Mode::Switch, "a", "screenshot").is_ok());
-        assert!(d.validate_remap(Mode::XInput, "home", "a").is_err());
-        assert!(d.validate_remap(Mode::XInput, "a", "paddle").is_err());
-        assert!(d.validate_remap(Mode::DInput, "a", "a").is_err(), "unlisted mode");
+        assert!(d.validate_remap(XINPUT, "paddle", "a").is_ok());
+        assert!(d.validate_remap(XINPUT, "a", "home").is_ok());
+        assert!(d.validate_remap(XINPUT, "a", DISABLED_OUTPUT).is_ok());
+        assert!(d.validate_remap(XINPUT, "a", UNRECOGNISED_OUTPUT).is_err(), "read-only");
+        assert!(d.validate_remap(SWITCH, "a", "screenshot").is_ok());
+        assert!(d.validate_remap(XINPUT, "home", "a").is_err());
+        assert!(d.validate_remap(XINPUT, "a", "paddle").is_err());
+        assert!(d.validate_remap(DINPUT, "a", "a").is_err(), "unlisted mode");
         assert!(matches!(
-            d.validate_remap(Mode::XInput, "a", "screenshot"),
+            d.validate_remap(XINPUT, "a", "screenshot"),
             Err(Error::Validation(m)) if m == "Target 'screenshot' is only valid for switch mode."
         ));
     }

@@ -11,8 +11,8 @@
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::{macros::macro_to_canonical_json, Pro3};
-use controller_core::model::{MacroDefinition, MacroRef, MacroStep, Mode, RawProfilePayload, Slot};
+use controller_core::devices::pro3::{macros::macro_to_canonical_json, Pro3, DINPUT, XINPUT};
+use controller_core::model::{MacroDefinition, MacroRef, MacroStep, RawProfilePayload, Slot};
 
 #[test]
 fn macro_steps_decode_to_golden_json() {
@@ -21,10 +21,10 @@ fn macro_steps_decode_to_golden_json() {
         serde_json::from_slice(&std::fs::read("../../fixtures/pro3/macro-sample.json").unwrap())
             .unwrap();
     let step_count = expected["steps"].as_array().unwrap().len();
-    let steps = Pro3.decode_macro_steps(&stream, step_count, Mode::XInput).unwrap();
+    let steps = Pro3.decode_macro_steps(&stream, step_count, XINPUT).unwrap();
     let def = MacroDefinition {
         name: expected["name"].as_str().unwrap_or("").to_owned(),
-        mode: Mode::XInput,
+        mode: XINPUT,
         trigger: expected["trigger"].as_str().unwrap().to_owned(),
         repeat_count: u32::try_from(expected["repeat"]["count"].as_u64().unwrap()).unwrap(),
         interval_ms: u32::try_from(expected["repeat"]["interval_ms"].as_u64().unwrap()).unwrap(),
@@ -65,8 +65,8 @@ fn profile_read_fills_macro_refs_from_section4() {
         trigger: "l1".to_owned(),
         path: "xinput-slot1-macro0-GoldenMac.json".to_owned(),
     };
-    assert_eq!(read(Mode::XInput), vec![expected]);
-    let dinput = read(Mode::DInput);
+    assert_eq!(read(XINPUT), vec![expected]);
+    let dinput = read(DINPUT);
     assert_eq!(dinput.len(), 1, "every mode reads its descriptors");
     assert_eq!(dinput[0].path, "dinput-slot1-macro0-GoldenMac.json");
 }

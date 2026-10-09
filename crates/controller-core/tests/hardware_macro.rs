@@ -8,9 +8,9 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
 use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, XINPUT};
 use controller_core::model::{
-    ButtonMapping, MacroDefinition, MacroRef, MacroSlot, MacroStep, Mode, RawProfilePayload, Slot,
+    ButtonMapping, MacroDefinition, MacroRef, MacroSlot, MacroStep, RawProfilePayload, Slot,
 };
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::service::ConfirmPolicy;
@@ -35,7 +35,7 @@ fn step(duration_ms: u16, press: &[&str]) -> MacroStep {
 fn buttons_macro() -> MacroDefinition {
     MacroDefinition {
         name: "Buttons".into(),
-        mode: Mode::XInput,
+        mode: XINPUT,
         trigger: "rp".into(),
         repeat_count: 1,
         interval_ms: 0,
@@ -61,14 +61,14 @@ fn put_fixture_macro_on_xinput_slot1() {
     let macro_slot = MacroSlot::new(0).unwrap();
     let def = buttons_macro();
     let stream = std::fs::read(STREAM).unwrap();
-    assert_eq!(stream, Pro3.encode_macro_steps(&def.steps, Mode::XInput).unwrap());
+    assert_eq!(stream, Pro3.encode_macro_steps(&def.steps, XINPUT).unwrap());
 
     let before = xinput_bank(&dev);
     let raw = RawProfilePayload {
         payload: before.clone(),
         source_slot: 1,
         source_profile_index: 0,
-        mode_hint: Mode::XInput,
+        mode_hint: XINPUT,
     };
     let profile = Pro3.map_profile(&raw).unwrap().canonical;
     assert!(profile.macro_refs.is_empty(), "slot 1 must start without macros");
@@ -80,12 +80,12 @@ fn put_fixture_macro_on_xinput_slot1() {
 
     let back_to = dev.begin_write().unwrap();
     let sent = (|| {
-        dev.send_slot_select(Mode::XInput)?;
-        dev.write_full_profile(Mode::XInput, &blob)?;
-        dev.send_apply(Mode::XInput)?;
-        dev.write_macro_stream(Mode::XInput, slot, macro_slot, &stream)?;
-        dev.send_apply(Mode::XInput)?;
-        dev.query_status(Mode::XInput)
+        dev.send_slot_select(XINPUT)?;
+        dev.write_full_profile(XINPUT, &blob)?;
+        dev.send_apply(XINPUT)?;
+        dev.write_macro_stream(XINPUT, slot, macro_slot, &stream)?;
+        dev.send_apply(XINPUT)?;
+        dev.query_status(XINPUT)
     })();
     if let Some(mode) = back_to {
         dev.end_write(mode).unwrap();
@@ -97,8 +97,8 @@ fn put_fixture_macro_on_xinput_slot1() {
     let expected =
         MacroRef { trigger: "rp".to_owned(), path: "xinput-slot1-macro0-Buttons.json".to_owned() };
     assert_eq!(refs, &vec![expected]);
-    let back = dev.read_macro_stream(Mode::XInput, slot, macro_slot, def.steps.len()).unwrap();
-    assert_eq!(Pro3.decode_macro_steps(&back, def.steps.len(), Mode::XInput).unwrap(), def.steps);
+    let back = dev.read_macro_stream(XINPUT, slot, macro_slot, def.steps.len()).unwrap();
+    assert_eq!(Pro3.decode_macro_steps(&back, def.steps.len(), XINPUT).unwrap(), def.steps);
 }
 
 #[test]
@@ -116,7 +116,7 @@ fn remove_fixture_macro_on_a_pick() {
     let dir = tempfile::tempdir().unwrap();
     let r = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path()).upload_profile_dropping_macros(
         &serde_json::to_value(&profile).unwrap(),
-        Mode::XInput,
+        XINPUT,
         Slot::new(1).unwrap(),
         &["rp".to_owned()],
         &ConfirmPolicy::Force,

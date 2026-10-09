@@ -281,8 +281,10 @@ impl AppState {
         let base: Vec<String> = self
             .listed()
             .map(|c| {
-                let state = c.mode.map_or("Disconnected", Mode::label);
-                let name = &c.description.unwrap_or(self.fallback_description).short_name;
+                let description = self.description_of(c);
+                let state =
+                    c.mode.map_or_else(|| "Disconnected".to_owned(), |m| description.mode_label(m));
+                let name = &description.short_name;
                 format!("{name} · {state}")
             })
             .collect();
@@ -363,14 +365,27 @@ impl AppState {
     /// edits, waiting for an answer.
     #[must_use]
     pub fn changed_slots(&self) -> Vec<(Mode, u8)> {
-        self.active().map(|c| c.changed.keys().copied().collect()).unwrap_or_default()
+        self.changed_in_order().into_iter().map(|(key, _)| key).collect()
+    }
+
+    /// The changed slots of the shown controller with their answers, in the sidebar's
+    /// order: by the description's mode order, then by number.
+    fn changed_in_order(&self) -> Vec<((Mode, u8), bool)> {
+        let d = self.description();
+        let rank = |mode: Mode| d.modes.iter().position(|m| m.id == mode);
+        let mut changed: Vec<_> = self
+            .active()
+            .map(|c| c.changed.iter().map(|(&k, &v)| (k, v)).collect())
+            .unwrap_or_default();
+        changed.sort_by_key(|&((mode, n), _)| (rank(mode), n));
+        changed
     }
 
     /// The answer picked so far for each of [`Self::changed_slots`]: `true` keeps
     /// the edits.
     #[must_use]
     pub fn changed_choices(&self) -> Vec<bool> {
-        self.active().map(|c| c.changed.values().copied().collect()).unwrap_or_default()
+        self.changed_in_order().into_iter().map(|(_, keep)| keep).collect()
     }
 
     /// Picks the answer for one changed slot: keep the edits over the new stored
@@ -416,19 +431,22 @@ impl AppState {
 mod tests {
     use super::*;
     use crate::state::tests::{connected, full_read, new_state, PORT};
+    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
+    use controller_core::devices::test_pad::STANDARD;
 
     /// A read of the test pad: slot 1 named `name`, slot 2 empty.
     fn test_pad_read(name: &str) -> ProfileReadResult {
         use controller_core::device::ProtocolCodec as _;
         use controller_core::devices::test_pad::TestPad;
         let summary = |number: u8, name: &str| {
-            let mut canonical = TestPad.default_profile(Mode::DInput);
+            let mut canonical = TestPad.default_profile(STANDARD);
             canonical.name = name.to_owned();
-            let id = if name.is_empty() { String::new() } else { format!("dinput-slot-{number}") };
+            let id =
+                if name.is_empty() { String::new() } else { format!("standard-slot-{number}") };
             controller_core::model::CanonicalProfileSummary {
                 id,
                 name: name.to_owned(),
-                mode: Mode::DInput,
+                mode: STANDARD,
                 source_slot: number,
                 source_profile_index: number - 1,
                 canonical,
@@ -440,30 +458,30 @@ mod tests {
     #[test]
     fn each_controller_shows_its_own_model() {
         use controller_core::devices::test_pad::TestPad;
-        let mut s = connected(Mode::XInput);
-        s.presence("3-1", Some(Mode::DInput));
+        let mut s = connected(XINPUT);
+        s.presence("3-1", Some(STANDARD));
         s.set_model("3-1", &TestPad);
         s.read_finished("3-1", Ok(test_pad_read("Pad")));
 
         assert_eq!(s.description().short_name, "Pro 3", "the first controller stays shown");
-        assert_eq!(s.controller_labels(), ["Pro 3 · XInput", "Test Pad · DInput"]);
+        assert_eq!(s.controller_labels(), ["Pro 3 · XInput", "Test Pad · Standard"]);
         s.select(0, 2);
         s.pick_controller(1);
-        assert_eq!(s.selected_slot(), Some((Mode::DInput, 1)), "the test pad has no slot 3");
+        assert_eq!(s.selected_slot(), Some((STANDARD, 1)), "the test pad has no slot 3");
         s.active_port = Some("3-1".to_owned());
         assert_eq!(s.description().short_name, "Test Pad");
-        assert_eq!(s.defaults().keys().copied().collect::<Vec<_>>(), [Mode::DInput]);
+        assert_eq!(s.defaults().keys().copied().collect::<Vec<_>>(), [STANDARD]);
         let groups = crate::render::groups(&s);
         assert_eq!(groups.len(), 1, "the test pad has one mode");
         let slots = groups.first().map(|g| slint::Model::row_count(&g.slots));
         assert_eq!(slots, Some(2), "and two slots");
-        assert_eq!(s.slot(Mode::DInput, 1).pad.as_ref().map(|p| p.name.as_str()), Some("Pad"));
+        assert_eq!(s.slot(STANDARD, 1).pad.as_ref().map(|p| p.name.as_str()), Some("Pad"));
         s.select(0, 0);
         let tabs: Vec<_> = crate::buttons::sections(&s).into_iter().map(|t| t.name).collect();
         assert_eq!(tabs, ["Buttons", "Feel"], "the test pad declares one settings tab");
         s.set_number("/rumble/level", 9.0);
         s.set_flag("/lights/on", false);
-        let edited = s.slot(Mode::DInput, 1).edited.unwrap();
+        let edited = s.slot(STANDARD, 1).edited.unwrap();
         assert_eq!(edited.setting("/rumble/level"), Some(&3.into()), "kept in its own range");
         assert_eq!(edited.setting("/lights/on"), Some(&false.into()));
 
@@ -492,7 +510,7 @@ mod tests {
     #[test]
     fn a_controller_is_listed_only_once_a_read_names_it() {
         let mut s = new_state();
-        s.presence("3-1", Some(Mode::Switch));
+        s.presence("3-1", Some(SWITCH));
         assert!(!s.has_controller());
         s.read_started("3-1");
         assert!(s.reading(), "the no-controller screen shows the read");
@@ -505,10 +523,10 @@ mod tests {
 
     #[test]
     fn a_failed_first_read_on_a_new_port_shows_behind_a_listed_controller() {
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_name("Kept");
         s.presence(PORT, None);
-        s.presence("3-2", Some(Mode::DInput));
+        s.presence("3-2", Some(DINPUT));
         s.read_finished("3-2", Err("device communication timed out".to_owned()));
         assert_eq!(s.active().unwrap().port, PORT, "the unplugged entry still shows");
         assert_eq!(s.read_error(), Some("device communication timed out"));
@@ -523,75 +541,75 @@ mod tests {
 
     #[test]
     fn two_controllers_keep_their_edits_apart() {
-        let mut s = connected(Mode::XInput);
-        s.presence("3-2", Some(Mode::XInput));
+        let mut s = connected(XINPUT);
+        s.presence("3-2", Some(XINPUT));
         s.read_finished("3-2", Ok(full_read()));
         assert_eq!(s.active().unwrap().port, PORT, "the selection stays when another appears");
         assert_eq!(s.controller_labels(), ["Pro 3 · XInput (1)", "Pro 3 · XInput (2)"]);
-        edit(&mut s, Mode::XInput, "First");
+        edit(&mut s, XINPUT, "First");
         s.pick_controller(1);
         assert_eq!(s.active_index(), 1);
-        assert!(!s.slot(Mode::XInput, 1).unsaved());
-        edit(&mut s, Mode::XInput, "Second");
+        assert!(!s.slot(XINPUT, 1).unsaved());
+        edit(&mut s, XINPUT, "Second");
         s.pick_controller(0);
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "First");
+        assert_eq!(s.slot(XINPUT, 1).shown().unwrap().name, "First");
     }
 
     #[test]
     fn a_mode_slide_keeps_the_entry_and_its_edits() {
-        let mut s = connected(Mode::XInput);
-        edit(&mut s, Mode::DInput, "Kept");
+        let mut s = connected(XINPUT);
+        edit(&mut s, DINPUT, "Kept");
         s.presence(PORT, None);
-        s.presence(PORT, Some(Mode::DInput));
+        s.presence(PORT, Some(DINPUT));
         s.read_finished(PORT, Ok(full_read()));
         assert_eq!(s.controllers.len(), 1);
         assert_eq!(s.controller_labels(), ["Pro 3 · DInput"]);
-        assert_eq!(s.slot(Mode::DInput, 1).shown().unwrap().name, "Kept");
+        assert_eq!(s.slot(DINPUT, 1).shown().unwrap().name, "Kept");
         assert!(s.changed_slots().is_empty(), "the slot did not change under the edit");
     }
 
     #[test]
     fn unplug_keeps_an_entry_with_edits_and_drops_one_without() {
-        let mut s = connected(Mode::XInput);
-        s.presence("3-2", Some(Mode::DInput));
+        let mut s = connected(XINPUT);
+        s.presence("3-2", Some(DINPUT));
         s.read_finished("3-2", Ok(full_read()));
-        edit(&mut s, Mode::XInput, "Kept");
+        edit(&mut s, XINPUT, "Kept");
         s.presence(PORT, None);
         s.presence("3-2", None);
         assert_eq!(s.controller_labels(), ["Pro 3 · Disconnected"]);
         assert!(s.has_controller() && s.current_mode().is_none());
         // Back on the same port: the entry takes it.
-        s.presence(PORT, Some(Mode::Switch));
+        s.presence(PORT, Some(SWITCH));
         s.read_finished(PORT, Ok(full_read()));
         assert_eq!(s.pending_move, None);
         assert_eq!(s.controller_labels(), ["Pro 3 · Switch"]);
-        assert!(s.slot(Mode::XInput, 1).unsaved());
+        assert!(s.slot(XINPUT, 1).unsaved());
     }
 
     #[test]
     fn a_new_port_is_asked_to_take_the_edits() {
-        let mut s = connected(Mode::XInput);
-        edit(&mut s, Mode::XInput, "Moved");
+        let mut s = connected(XINPUT);
+        edit(&mut s, XINPUT, "Moved");
         s.presence(PORT, None);
-        s.presence("3-2", Some(Mode::XInput));
-        s.read_finished("3-2", Ok(read_with(Mode::XInput, "Changed")));
+        s.presence("3-2", Some(XINPUT));
+        s.read_finished("3-2", Ok(read_with(XINPUT, "Changed")));
         assert_eq!(s.pending_move.as_deref(), Some("3-2"));
         assert_eq!(s.move_candidates(), [0]);
         s.answer_move(Some(0));
         assert_eq!(s.controllers.len(), 1);
         assert_eq!(s.active().unwrap().port, "3-2");
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "Moved");
-        assert_eq!(s.changed_slots(), [(Mode::XInput, 1)], "the new pad's slot 1 differs");
+        assert_eq!(s.slot(XINPUT, 1).shown().unwrap().name, "Moved");
+        assert_eq!(s.changed_slots(), [(XINPUT, 1)], "the new pad's slot 1 differs");
     }
 
     #[test]
     fn another_model_is_not_asked_to_take_the_edits() {
         use controller_core::devices::{pro3::Pro3, test_pad::TestPad};
-        let mut s = connected(Mode::XInput);
+        let mut s = connected(XINPUT);
         s.set_model(PORT, &Pro3);
-        edit(&mut s, Mode::XInput, "Pro 3 only");
+        edit(&mut s, XINPUT, "Pro 3 only");
         s.presence(PORT, None);
-        s.presence("3-1", Some(Mode::DInput));
+        s.presence("3-1", Some(STANDARD));
         s.set_model("3-1", &TestPad);
         s.read_finished("3-1", Ok(test_pad_read("Pad")));
         assert_eq!(s.pending_move, None);
@@ -603,10 +621,10 @@ mod tests {
 
     #[test]
     fn no_keeps_the_unplugged_entry_apart() {
-        let mut s = connected(Mode::XInput);
-        edit(&mut s, Mode::XInput, "Stays");
+        let mut s = connected(XINPUT);
+        edit(&mut s, XINPUT, "Stays");
         s.presence(PORT, None);
-        s.presence("3-2", Some(Mode::DInput));
+        s.presence("3-2", Some(DINPUT));
         s.read_finished("3-2", Ok(full_read()));
         s.answer_move(None);
         assert_eq!(s.pending_move, None);
@@ -616,35 +634,35 @@ mod tests {
 
     #[test]
     fn a_slot_changed_under_its_edits_asks_keep_or_discard() {
-        let mut s = connected(Mode::XInput);
-        edit(&mut s, Mode::XInput, "Mine");
-        edit(&mut s, Mode::Switch, "Mine too");
+        let mut s = connected(XINPUT);
+        edit(&mut s, XINPUT, "Mine");
+        edit(&mut s, SWITCH, "Mine too");
         s.read_started(PORT);
-        let mut read = read_with(Mode::XInput, "Theirs");
+        let mut read = read_with(XINPUT, "Theirs");
         for p in &mut read.profiles {
-            if (p.mode, p.source_slot) == (Mode::Switch, 1) {
+            if (p.mode, p.source_slot) == (SWITCH, 1) {
                 p.canonical.name = "Theirs too".to_owned();
             }
         }
         s.read_finished(PORT, Ok(read));
-        assert_eq!(s.changed_slots(), [(Mode::XInput, 1), (Mode::Switch, 1)]);
+        assert_eq!(s.changed_slots(), [(XINPUT, 1), (SWITCH, 1)]);
         assert_eq!(s.changed_choices(), [true, true], "Keep mine is picked first");
-        s.choose_changed((Mode::Switch, 1), false);
+        s.choose_changed((SWITCH, 1), false);
         assert_eq!(s.changed_choices(), [true, false]);
-        assert_eq!(s.slot(Mode::Switch, 1).shown().unwrap().name, "Mine too", "not yet applied");
+        assert_eq!(s.slot(SWITCH, 1).shown().unwrap().name, "Mine too", "not yet applied");
         s.apply_changed();
         assert_eq!(s.changed_slots(), []);
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "Mine");
-        assert_eq!(s.slot(Mode::Switch, 1).shown().unwrap().name, "Theirs too");
+        assert_eq!(s.slot(XINPUT, 1).shown().unwrap().name, "Mine");
+        assert_eq!(s.slot(SWITCH, 1).shown().unwrap().name, "Theirs too");
     }
 
     #[test]
     fn an_edit_undone_by_hand_does_not_undo_a_change_on_the_pad() {
-        let mut s = connected(Mode::XInput);
-        edit(&mut s, Mode::XInput, "Temp");
-        edit(&mut s, Mode::XInput, "XInput");
-        s.read_finished(PORT, Ok(read_with(Mode::XInput, "Theirs")));
+        let mut s = connected(XINPUT);
+        edit(&mut s, XINPUT, "Temp");
+        edit(&mut s, XINPUT, "XInput");
+        s.read_finished(PORT, Ok(read_with(XINPUT, "Theirs")));
         assert_eq!(s.changed_slots(), []);
-        assert_eq!(s.slot(Mode::XInput, 1).shown().unwrap().name, "Theirs");
+        assert_eq!(s.slot(XINPUT, 1).shown().unwrap().name, "Theirs");
     }
 }

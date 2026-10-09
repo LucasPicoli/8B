@@ -8,7 +8,7 @@
 
 use std::time::Instant;
 
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};
 use controller_core::model::{Mode, ProfileReadResult, Slot};
 use controller_core::orchestrator::{ProfileWriteOrchestrator, WriteJob, WriteOp};
 use controller_core::service::ConfirmPolicy;
@@ -17,7 +17,7 @@ use serde_json::Value;
 use serial_test::serial;
 
 fn bank_index(mode: Mode) -> usize {
-    Mode::ALL.iter().position(|&m| m == mode).unwrap()
+    MODES.iter().position(|&m| m == mode).unwrap()
 }
 
 /// The raw banks as they were when the test began. Dropping it writes them back.
@@ -104,8 +104,8 @@ fn two_slots_of_one_bank_land_in_one_write() {
     let dev = HidrawDevice::open().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
-    let r = start(&dev, &[Mode::XInput]);
-    let jobs = [rename(&r, Mode::XInput, 1, "bt-A"), rename(&r, Mode::XInput, 3, "bt-B")];
+    let r = start(&dev, &[XINPUT]);
+    let jobs = [rename(&r, XINPUT, 1, "bt-A"), rename(&r, XINPUT, 3, "bt-B")];
 
     let t = Instant::now();
     let results = orch.write_slots(&jobs, &ConfirmPolicy::Force);
@@ -115,15 +115,15 @@ fn two_slots_of_one_bank_land_in_one_write() {
     }
 
     let now = dev.read_all_profiles().unwrap();
-    assert_eq!(name_of(&now, Mode::XInput, 1), "bt-A");
-    assert_eq!(name_of(&now, Mode::XInput, 3), "bt-B");
+    assert_eq!(name_of(&now, XINPUT, 1), "bt-A");
+    assert_eq!(name_of(&now, XINPUT, 3), "bt-B");
     assert_eq!(
-        profile_json(&now, Mode::XInput, 2),
-        profile_json(&r.before, Mode::XInput, 2),
+        profile_json(&now, XINPUT, 2),
+        profile_json(&r.before, XINPUT, 2),
         "the slot the batch did not name changed"
     );
     // The other banks were not touched.
-    for mode in [Mode::Switch, Mode::DInput] {
+    for mode in [SWITCH, DINPUT] {
         assert_eq!(now.raw_blobs[bank_index(mode)], r.before.raw_blobs[bank_index(mode)]);
     }
 
@@ -138,8 +138,8 @@ fn slots_of_two_banks_land_in_one_session() {
     let dev = HidrawDevice::open().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
-    let r = start(&dev, &[Mode::XInput, Mode::DInput]);
-    let jobs = [rename(&r, Mode::XInput, 2, "bt-X"), rename(&r, Mode::DInput, 2, "bt-D")];
+    let r = start(&dev, &[XINPUT, DINPUT]);
+    let jobs = [rename(&r, XINPUT, 2, "bt-X"), rename(&r, DINPUT, 2, "bt-D")];
 
     let t = Instant::now();
     let results = orch.write_slots(&jobs, &ConfirmPolicy::Force);
@@ -149,12 +149,9 @@ fn slots_of_two_banks_land_in_one_session() {
     }
 
     let now = dev.read_all_profiles().unwrap();
-    assert_eq!(name_of(&now, Mode::XInput, 2), "bt-X");
-    assert_eq!(name_of(&now, Mode::DInput, 2), "bt-D");
-    assert_eq!(
-        now.raw_blobs[bank_index(Mode::Switch)],
-        r.before.raw_blobs[bank_index(Mode::Switch)]
-    );
+    assert_eq!(name_of(&now, XINPUT, 2), "bt-X");
+    assert_eq!(name_of(&now, DINPUT, 2), "bt-D");
+    assert_eq!(now.raw_blobs[bank_index(SWITCH)], r.before.raw_blobs[bank_index(SWITCH)]);
 
     r.put_back();
     r.assert_restored();
@@ -167,10 +164,10 @@ fn batch_is_faster_than_one_write_per_slot() {
     let dev = HidrawDevice::open().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
-    let r = start(&dev, &[Mode::XInput]);
+    let r = start(&dev, &[XINPUT]);
     let names = ["bt-1", "bt-2", "bt-3"];
     let jobs: Vec<WriteJob> =
-        (1..=3u8).map(|n| rename(&r, Mode::XInput, n, names[usize::from(n) - 1])).collect();
+        (1..=3u8).map(|n| rename(&r, XINPUT, n, names[usize::from(n) - 1])).collect();
 
     let t = Instant::now();
     for job in &jobs {
@@ -188,7 +185,7 @@ fn batch_is_faster_than_one_write_per_slot() {
     let batched = t.elapsed();
     let now = dev.read_all_profiles().unwrap();
     for (n, name) in (1..=3u8).zip(names) {
-        assert_eq!(name_of(&now, Mode::XInput, n), name);
+        assert_eq!(name_of(&now, XINPUT, n), name);
     }
 
     println!("3 slots, one write each: {one_by_one:?}\n3 slots, one batch:      {batched:?}");

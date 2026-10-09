@@ -5,8 +5,8 @@
 #![cfg(feature = "hardware")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
-use controller_core::devices::pro3::Pro3;
-use controller_core::model::{Mode, Slot};
+use controller_core::devices::pro3::{Pro3, DINPUT};
+use controller_core::model::Slot;
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::{DeviceIo, HidrawDevice};
@@ -37,7 +37,7 @@ fn dinput_remap_lands_on_slot3_l4_and_reverts() {
     let before = dinput_bank(&dev);
     assert_eq!(&before[L4_SLOT3..L4_SLOT3 + 4], &[0; 4], "l4 on slot 3 must start unassigned");
 
-    let r = orch.remap_button(Mode::DInput, slot, "l4", "bottom face", &ConfirmPolicy::Force);
+    let r = orch.remap_button(DINPUT, slot, "l4", "bottom face", &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let remapped = dinput_bank(&dev);
     let diff = changed(&before, &remapped);
@@ -46,7 +46,7 @@ fn dinput_remap_lands_on_slot3_l4_and_reverts() {
     // Sticks and triggers must not drift: only the l4 entry may change.
     assert!(diff.iter().all(|i| (L4_SLOT3..L4_SLOT3 + 4).contains(i)), "{diff:x?}");
 
-    let r = orch.remap_button(Mode::DInput, slot, "l4", "disabled", &ConfirmPolicy::Force);
+    let r = orch.remap_button(DINPUT, slot, "l4", "disabled", &ConfirmPolicy::Force);
     assert!(r.success, "{}", r.message);
     let reverted = dinput_bank(&dev);
     let left = changed(&before, &reverted);

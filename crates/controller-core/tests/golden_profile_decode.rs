@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::Pro3;
+use controller_core::devices::pro3::{Pro3, SWITCH, XINPUT};
 use controller_core::model::{Mode, RawProfilePayload};
 
 fn decode_slot(blob_path: &str, slot: u8, index: u8, mode: Mode) -> serde_json::Value {
@@ -29,7 +29,7 @@ fn golden(path: &str) -> serde_json::Value {
 fn xinput_slot1_decodes_to_golden_json() {
     // PRIMARY: remaps, disabled paddles, stick inversion, custom ranges.
     assert_eq!(
-        decode_slot("../../fixtures/pro3/xinput.blob", 1, 0, Mode::XInput),
+        decode_slot("../../fixtures/pro3/xinput.blob", 1, 0, XINPUT),
         golden("../../fixtures/pro3/xinput-slot1.profile.json"),
     );
 }
@@ -37,7 +37,7 @@ fn xinput_slot1_decodes_to_golden_json() {
 #[test]
 fn xinput_slot2_decodes_to_golden_json() {
     assert_eq!(
-        decode_slot("../../fixtures/pro3/xinput.blob", 2, 1, Mode::XInput),
+        decode_slot("../../fixtures/pro3/xinput.blob", 2, 1, XINPUT),
         golden("../../fixtures/pro3/xinput-slot2.profile.json"),
     );
 }
@@ -45,7 +45,7 @@ fn xinput_slot2_decodes_to_golden_json() {
 #[test]
 fn switch_slot1_decodes_to_golden_json() {
     assert_eq!(
-        decode_slot("../../fixtures/pro3/switch.blob", 1, 0, Mode::Switch),
+        decode_slot("../../fixtures/pro3/switch.blob", 1, 0, SWITCH),
         golden("../../fixtures/pro3/switch-slot1.profile.json"),
     );
 }

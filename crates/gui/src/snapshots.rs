@@ -8,6 +8,7 @@ use std::fmt::Write as _;
 use std::io::Write as _;
 use std::rc::Rc;
 
+use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
 use controller_core::model::Mode;
 use slint::platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType};
 use slint::platform::{Platform, WindowAdapter};
@@ -79,21 +80,21 @@ fn no_controller() {
 #[test]
 fn first_read_failed() {
     let mut s = new_state();
-    s.presence(PORT, Some(Mode::XInput));
+    s.presence(PORT, Some(XINPUT));
     s.read_finished(PORT, Err("device communication timed out".to_owned()));
     shoot("first-read-failed", &s);
 }
 
 #[test]
 fn sidebar_with_an_empty_slot() {
-    let mut s = connected(Mode::DInput);
+    let mut s = connected(DINPUT);
     s.select(2, 2);
     shoot("empty-slot", &s);
 }
 
 #[test]
 fn unplugged() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.set_name("Edited");
     s.presence(PORT, None);
     shoot("unplugged", &s);
@@ -102,7 +103,7 @@ fn unplugged() {
 /// The Pro 3 on [`PORT`] with an edit in Switch slot 1, plus a second one in
 /// `mode` on port `3-2`.
 fn two_controllers(mode: Mode) -> AppState {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.set_name("Edited");
     s.presence("3-2", Some(mode));
     s.read_finished("3-2", Ok(full_read()));
@@ -111,37 +112,37 @@ fn two_controllers(mode: Mode) -> AppState {
 
 #[test]
 fn controller_dropdown() {
-    shoot("controller-dropdown", &two_controllers(Mode::Switch));
+    shoot("controller-dropdown", &two_controllers(SWITCH));
 }
 
 #[test]
 fn move_edits_from_one() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.set_name("Edited");
     s.presence(PORT, None);
-    s.presence("3-2", Some(Mode::XInput));
+    s.presence("3-2", Some(XINPUT));
     s.read_finished("3-2", Ok(full_read()));
     shoot("move-edits-one", &s);
 }
 
 #[test]
 fn move_edits_from_several() {
-    let mut s = two_controllers(Mode::XInput);
+    let mut s = two_controllers(XINPUT);
     s.pick_controller(1);
     s.set_name("Other");
     s.presence(PORT, None);
     s.presence("3-2", None);
-    s.presence("3-3", Some(Mode::DInput));
+    s.presence("3-3", Some(DINPUT));
     s.read_finished("3-3", Ok(full_read()));
     shoot("move-edits-several", &s);
 }
 
 #[test]
 fn new_port_read_failed_behind_an_unplugged_entry() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.set_name("Edited");
     s.presence(PORT, None);
-    s.presence("3-2", Some(Mode::DInput));
+    s.presence("3-2", Some(DINPUT));
     s.read_finished(
         "3-2",
         Err("Device communication timed out. steam also has the controller open. Close it \
@@ -153,13 +154,13 @@ fn new_port_read_failed_behind_an_unplugged_entry() {
 
 #[test]
 fn slots_changed_under_edits() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.set_name("Mine");
     s.select(0, 1);
     s.set_name("Mine too");
     let mut read = full_read();
     for p in &mut read.profiles {
-        if p.mode == Mode::XInput && p.source_slot < 3 {
+        if p.mode == XINPUT && p.source_slot < 3 {
             p.canonical.name = "Theirs".to_owned();
         }
     }
@@ -169,14 +170,14 @@ fn slots_changed_under_edits() {
 
 #[test]
 fn read_failed() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.read_finished(PORT, Err("device communication timed out".to_owned()));
     shoot("read-failed", &s);
 }
 
 #[test]
 fn read_failed_with_holders() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.read_finished(
         PORT,
         Err("Device communication timed out. steam and winedevice.exe also have \
@@ -188,7 +189,7 @@ fn read_failed_with_holders() {
 
 #[test]
 fn read_failed_in_the_sandbox() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.sandboxed = true;
     let hint = crate::holders::hint(&[], s.sandboxed).unwrap();
     s.read_finished(PORT, Err(format!("Device communication timed out. {hint}")));
@@ -197,7 +198,7 @@ fn read_failed_in_the_sandbox() {
 
 #[test]
 fn read_failed_trying_again() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.read_finished(PORT, Err("device communication timed out".to_owned()));
     s.read_started(PORT);
     shoot("read-failed-trying-again", &s);
@@ -205,7 +206,7 @@ fn read_failed_trying_again() {
 
 fn denied(rule: Rule) -> AppState {
     let mut s = new_state();
-    s.presence(PORT, Some(Mode::XInput));
+    s.presence(PORT, Some(XINPUT));
     s.read_started(PORT);
     s.read_denied(PORT, rule);
     s
@@ -228,7 +229,7 @@ fn permission_denied_in_the_sandbox() {
 
 #[test]
 fn permission_outdated() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.rule = Rule::Outdated;
     shoot("permission-outdated", &s);
 }
@@ -274,7 +275,7 @@ fn permission_checking() {
 
 /// A connected controller the fix is offered for.
 fn offered() -> AppState {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.fix_verdict(PORT, true);
     s
 }
@@ -302,12 +303,12 @@ fn fix_offer_dialog_in_both_builds() {
 
 #[test]
 fn clean_slot() {
-    shoot("buttons-clean", &connected(Mode::XInput));
+    shoot("buttons-clean", &connected(XINPUT));
 }
 
 #[test]
 fn edited_slot() {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.set_output("r1", "disabled");
     s.set_output("rp", "top face");
     s.set_output("bottom face", "screenshot");
@@ -317,7 +318,7 @@ fn edited_slot() {
 
 #[test]
 fn slot_started_from_default() {
-    let mut s = connected(Mode::DInput);
+    let mut s = connected(DINPUT);
     s.select(2, 2);
     s.start_from_default();
     shoot("buttons-from-default", &s);
@@ -325,10 +326,9 @@ fn slot_started_from_default() {
 
 #[test]
 fn slot_with_an_unrecognised_row() {
-    let mut s = connected(Mode::DInput);
+    let mut s = connected(DINPUT);
     s.select(2, 1);
-    let pad =
-        s.active_mut().unwrap().slots.get_mut(&(Mode::DInput, 2)).unwrap().pad.as_mut().unwrap();
+    let pad = s.active_mut().unwrap().slots.get_mut(&(DINPUT, 2)).unwrap().pad.as_mut().unwrap();
     let left = pad.button_mappings.iter_mut().find(|m| m.source == "d-pad left").unwrap();
     left.target = controller_core::description::UNRECOGNISED_OUTPUT.to_owned();
     shoot("buttons-unrecognised", &s);
@@ -336,9 +336,8 @@ fn slot_with_an_unrecognised_row() {
 
 #[test]
 fn slot_with_a_macro() {
-    let mut s = connected(Mode::XInput);
-    let pad =
-        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    let mut s = connected(XINPUT);
+    let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
         trigger: "rp".to_owned(),
         path: "xinput-slot1-macro0-Buttons.json".to_owned(),
@@ -356,7 +355,7 @@ fn slot_with_a_macro() {
 
 #[test]
 fn a_click_on_the_drawing_selects_the_button_row() {
-    let s = connected(Mode::XInput);
+    let s = connected(XINPUT);
     let ui = window(&s);
     let d = s.description();
     ui.on_hit(move |view, x, y| crate::buttons::hit(d, usize::try_from(view).unwrap(), x, y));
@@ -378,7 +377,7 @@ fn click(ui: &AppWindow, x: f32, y: f32) {
 
 #[test]
 fn picking_another_slot_clears_the_selected_button() {
-    let ui = window(&connected(Mode::XInput));
+    let ui = window(&connected(XINPUT));
     ui.set_selected_row(4);
     // XInput slot 1, the slot on screen, in the sidebar.
     click(&ui, 130.0, 105.0);
@@ -390,7 +389,7 @@ fn picking_another_slot_clears_the_selected_button() {
 
 /// The editor at `width`×800, with the toolbar fitted to it.
 fn toolbar_at(width: u32) -> AppWindow {
-    let s = connected(Mode::XInput);
+    let s = connected(XINPUT);
     let ui = window(&s);
     ui.window().set_size(PhysicalSize::new(width, 800));
     fit_toolbar(&ui);
@@ -424,7 +423,7 @@ fn tab(name: &str, state: &AppState, tab: i32, dark: bool) {
 
 /// A Switch slot with an edit on every settings tab.
 fn edited_settings() -> AppState {
-    let mut s = connected(Mode::Switch);
+    let mut s = connected(SWITCH);
     s.set_number("/sticks/left_min_pct", 12.0);
     s.set_number("/sticks/right_max_pct", 85.0);
     s.set_flag("/sticks/invert_right_y", true);
@@ -437,7 +436,7 @@ fn edited_settings() -> AppState {
 
 #[test]
 fn settings_tabs() {
-    let clean = connected(Mode::XInput);
+    let clean = connected(XINPUT);
     let edited = edited_settings();
     for dark in [false, true] {
         for (i, name) in [(1, "sticks"), (2, "triggers"), (3, "vibration")] {
@@ -450,7 +449,7 @@ fn settings_tabs() {
 #[test]
 fn a_slider_drag_survives_the_render_after_each_move() {
     use slint::platform::{PointerEventButton, WindowEvent};
-    let state = Rc::new(std::cell::RefCell::new(connected(Mode::XInput)));
+    let state = Rc::new(std::cell::RefCell::new(connected(XINPUT)));
     let ui = window(&state.borrow());
     ui.set_tab(1);
     let (s, weak) = (Rc::clone(&state), ui.as_weak());
@@ -460,7 +459,7 @@ fn a_slider_drag_survives_the_render_after_each_move() {
     });
     let low = || {
         let s = state.borrow();
-        let pct = s.slot(Mode::XInput, 1).shown().unwrap().setting("/sticks/left_min_pct").cloned();
+        let pct = s.slot(XINPUT, 1).shown().unwrap().setting("/sticks/left_min_pct").cloned();
         pct.and_then(|v| v.as_i64()).unwrap()
     };
     let start = low();
@@ -480,8 +479,8 @@ fn a_slider_drag_survives_the_render_after_each_move() {
 
 /// A Switch file with a Screenshot output, waiting to go into `XInput` slot 3.
 fn cross_mode_import() -> AppState {
-    let mut s = connected(Mode::XInput);
-    let mut p = s.defaults().get(&Mode::Switch).unwrap().clone();
+    let mut s = connected(XINPUT);
+    let mut p = s.defaults().get(&SWITCH).unwrap().clone();
     "switch-slot-1-index-0".clone_into(&mut p.id);
     "Racing".clone_into(&mut p.name);
     if let Some(m) = p.button_mappings.iter_mut().find(|m| m.source == "r4") {
@@ -492,7 +491,7 @@ fn cross_mode_import() -> AppState {
         path: "m.json".to_owned(),
     });
     let text = crate::files::export_text(&p).unwrap();
-    s.import((Mode::XInput, 3), "profile-switch-slot-1-index-0.json", Ok(text));
+    s.import((XINPUT, 3), "profile-switch-slot-1-index-0.json", Ok(text));
     assert!(s.pending_import.is_some());
     s
 }
@@ -509,7 +508,7 @@ fn imported_with_a_note() {
     let mut s = cross_mode_import();
     s.confirm_import();
     shoot("import-done", &s);
-    s.import((Mode::XInput, 3), "bad.json", Ok("{}".to_owned()));
+    s.import((XINPUT, 3), "bad.json", Ok("{}".to_owned()));
     shoot("import-failed", &s);
 }
 
@@ -526,15 +525,13 @@ fn frame_edges(ui: &AppWindow) -> (usize, usize) {
 
 #[test]
 fn the_drawing_keeps_its_size_from_slot_to_slot() {
-    let mut s = connected(Mode::XInput);
-    let pad =
-        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    let mut s = connected(XINPUT);
+    let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
         trigger: "rp".to_owned(),
         path: "xinput-slot1-macro3-ABCDEFGHIJKLMNO.json".to_owned(),
     });
-    let pad =
-        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 2)).unwrap().pad.as_mut().unwrap();
+    let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 2)).unwrap().pad.as_mut().unwrap();
     pad.button_mappings[0].target = controller_core::description::UNRECOGNISED_OUTPUT.to_owned();
     for width in [1000, 1280, 1600] {
         let mut edges = Vec::new();
@@ -550,9 +547,8 @@ fn the_drawing_keeps_its_size_from_slot_to_slot() {
 
 /// `XInput` slot 1 with edits in every tab and a macro removed, the review shown.
 fn reviewing() -> AppState {
-    let mut s = connected(Mode::XInput);
-    let pad =
-        s.active_mut().unwrap().slots.get_mut(&(Mode::XInput, 1)).unwrap().pad.as_mut().unwrap();
+    let mut s = connected(XINPUT);
+    let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
         trigger: "rp".to_owned(),
         path: "xinput-slot1-macro0-Buttons.json".to_owned(),
@@ -570,7 +566,7 @@ fn reviewing() -> AppState {
 /// Between the click and the review, the footer says the controller is being checked.
 #[test]
 fn footer_while_checking_the_slot() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.set_name("Edited");
     s.begin_review().unwrap();
     s.read_started(PORT);
@@ -586,10 +582,10 @@ fn review_dialog() {
 
 #[test]
 fn review_of_an_empty_slot_with_leftover_macros() {
-    let mut s = connected(Mode::DInput);
+    let mut s = connected(DINPUT);
     s.select(2, 2);
     s.start_from_default();
-    s.set_leftover(PORT, [((Mode::DInput, 3), 2)].into());
+    s.set_leftover(PORT, [((DINPUT, 3), 2)].into());
     s.begin_review().unwrap();
     s.review_read(PORT, true);
     shoot("review-new", &s);
@@ -629,7 +625,7 @@ fn clear_dialog() {
 
 #[test]
 fn clear_dialog_without_body_rows() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.begin_clear();
     shoot("clear-bare", &s);
 }
@@ -641,7 +637,7 @@ fn writing_sheet_and_failure() {
     let job = jobs.remove(0);
     shoot("writing", &s);
     let mut bad = controller_core::model::WriteResult::failure(
-        Mode::XInput,
+        XINPUT,
         job.slot,
         controller_core::ErrorCategory::WriteFailure,
         "Write failed at chunk 12/53. Rollback failed. Original profile saved to the file below.",
@@ -656,7 +652,7 @@ fn writing_sheet_and_failure() {
 /// `XInput` slots 1 and 2 and `DInput` slot 1, each with edits in every tab, with
 /// Write all pressed and the controller read again.
 fn batch_reviewing() -> AppState {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     for (mode, slot) in [(0, 0), (0, 1), (2, 0)] {
         s.select(mode, slot);
         s.set_name("Edited");
@@ -676,14 +672,14 @@ fn batch_reviewing() -> AppState {
 
 #[test]
 fn the_footer_button_names_its_slot() {
-    let ui = window(&connected(Mode::XInput));
+    let ui = window(&connected(XINPUT));
     assert_eq!(ui.get_write_label(), "Write XInput slot 1…");
     save("footer-write-label", &ui);
 }
 
 #[test]
 fn the_sidebar_bar_counts_the_edited_slots() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     let clean = window(&s);
     assert_eq!(clean.get_edited_count(), 0);
     let blank = clean.window().take_snapshot().unwrap();
@@ -697,7 +693,7 @@ fn the_sidebar_bar_counts_the_edited_slots() {
 
     for (mode, slot) in [(0, 1), (0, 2), (2, 0)] {
         s.select(mode, slot);
-        if s.slot(Mode::XInput, 3).pad.is_none() && (mode, slot) == (0, 2) {
+        if s.slot(XINPUT, 3).pad.is_none() && (mode, slot) == (0, 2) {
             s.start_from_default();
         } else {
             s.set_name("Edited");
@@ -722,7 +718,7 @@ fn the_sidebar_bar_counts_the_edited_slots() {
 
 #[test]
 fn the_sidebar_bar_checks_the_controller_first() {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     s.set_name("Edited");
     s.begin_batch().unwrap();
     s.read_started(PORT);
@@ -809,7 +805,7 @@ fn the_batch_failure_dialog_with_a_backup() {
 /// A controller in `XInput` with each of `slots` (mode index, 0-based slot) renamed,
 /// and the window asked to close.
 fn closing(slots: &[(usize, usize)]) -> AppState {
-    let mut s = connected(Mode::XInput);
+    let mut s = connected(XINPUT);
     for (i, &(mode, slot)) in slots.iter().enumerate() {
         s.select(mode, slot);
         s.set_name(&format!("Edit {}", i + 1));
@@ -846,7 +842,7 @@ fn the_close_question_without_write_for_an_unplugged_controller() {
 #[test]
 fn the_close_question_over_two_controllers() {
     let mut s = closing(&[(0, 0), (1, 1), (2, 0)]);
-    s.presence("3-2", Some(Mode::DInput));
+    s.presence("3-2", Some(DINPUT));
     s.read_finished("3-2", Ok(full_read()));
     s.pick_controller(1);
     s.select(2, 1);
@@ -945,7 +941,7 @@ fn copy_from_the_bar(dark: bool) {
     use slint::platform::{PointerEventButton, WindowEvent};
     use slint::{Global as _, LogicalPosition};
     let mut s = new_state();
-    s.presence(PORT, Some(Mode::XInput));
+    s.presence(PORT, Some(XINPUT));
     // Two lines in the bar, as with the holders' names.
     s.read_finished(
         PORT,

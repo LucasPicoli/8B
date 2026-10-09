@@ -130,7 +130,7 @@ pub fn leftover_macros(model: &dyn Model, read: &ProfileReadResult) -> BTreeMap<
 mod tests {
     use super::*;
     use crate::device::ProtocolCodec as _;
-    use crate::devices::pro3::Pro3;
+    use crate::devices::pro3::{Pro3, DINPUT, XINPUT};
     use crate::model::ProfileReadResult;
     use crate::transport::mock::MockDevice;
 
@@ -153,7 +153,7 @@ mod tests {
             raw_blobs: vec![zeroed_blob(), zeroed_blob(), zeroed_blob()],
             ..Default::default()
         });
-        let result = read_macros(&dev, Mode::XInput, Slot::new(1).unwrap());
+        let result = read_macros(&dev, XINPUT, Slot::new(1).unwrap());
         assert!(result.is_err(), "expected Err for inactive slot");
         let err = result.unwrap_err();
         assert!(matches!(err, Error::Validation(_)), "expected Validation error, got: {err:?}");
@@ -170,17 +170,12 @@ mod tests {
                 raw_blobs: vec![zeroed_blob(), zeroed_blob(), bank],
                 ..Default::default()
             })
-            .with_macro_stream(
-                Mode::DInput,
-                Slot::new(1).unwrap(),
-                MacroSlot::new(3).unwrap(),
-                stream,
-            );
-        let result = read_macros(&dev, Mode::DInput, Slot::new(1).unwrap()).unwrap();
+            .with_macro_stream(DINPUT, Slot::new(1).unwrap(), MacroSlot::new(3).unwrap(), stream);
+        let result = read_macros(&dev, DINPUT, Slot::new(1).unwrap()).unwrap();
         assert_eq!(result.macros.len(), 1, "the empty descriptors are skipped");
         let m = &result.macros[0];
         assert_eq!((m.name.as_str(), m.trigger.as_str()), ("mx_d14", "r4"));
-        assert_eq!((m.mode, m.macro_slot, m.repeat_count), (Mode::DInput, Some(3), 1));
+        assert_eq!((m.mode, m.macro_slot, m.repeat_count), (DINPUT, Some(3), 1));
         assert_eq!(m.steps.len(), 256);
         assert_eq!((m.steps[0].duration_ms, m.steps[0].left_stick_x), (10, 0x7F));
         assert_eq!((m.steps[1].left_stick_x, m.steps[1].left_stick_y), (0x80, 0x7E));
@@ -193,7 +188,7 @@ mod tests {
             raw_blobs: vec![active_slot1_blob(), zeroed_blob(), zeroed_blob()],
             ..Default::default()
         });
-        let result = read_macros(&dev, Mode::XInput, Slot::new(1).unwrap());
+        let result = read_macros(&dev, XINPUT, Slot::new(1).unwrap());
         assert!(result.is_ok(), "expected Ok, got: {result:?}");
         assert!(result.unwrap().macros.is_empty(), "expected empty macro list");
     }
@@ -214,14 +209,9 @@ mod tests {
                 raw_blobs: vec![meta, zeroed_blob(), zeroed_blob()],
                 ..Default::default()
             })
-            .with_macro_stream(
-                Mode::XInput,
-                Slot::new(1).unwrap(),
-                MacroSlot::new(0).unwrap(),
-                stream,
-            );
+            .with_macro_stream(XINPUT, Slot::new(1).unwrap(), MacroSlot::new(0).unwrap(), stream);
 
-        let result = read_macros(&dev, Mode::XInput, Slot::new(1).unwrap()).unwrap();
+        let result = read_macros(&dev, XINPUT, Slot::new(1).unwrap()).unwrap();
         assert_eq!(result.macros.len(), 1, "expected exactly one macro");
         assert_eq!(result.macros[0].name, "GoldenMac");
         assert_eq!(result.macros[0].steps.len(), 3);
@@ -233,17 +223,17 @@ mod tests {
         let summary = |slot: u8, id: &str| crate::model::CanonicalProfileSummary {
             id: id.to_owned(),
             name: String::new(),
-            mode: Mode::XInput,
+            mode: XINPUT,
             source_slot: slot,
             source_profile_index: slot - 1,
-            canonical: Pro3.default_profile(Mode::XInput),
+            canonical: Pro3.default_profile(XINPUT),
         };
         let mut read = ProfileReadResult {
             profiles: vec![summary(1, ""), summary(2, "")],
             raw_blobs: vec![meta, zeroed_blob(), zeroed_blob()],
         };
         let found = leftover_macros(&Pro3, &read);
-        assert_eq!(found.get(&(Mode::XInput, 1)), Some(&1), "slot 1 holds the fixture macro");
+        assert_eq!(found.get(&(XINPUT, 1)), Some(&1), "slot 1 holds the fixture macro");
         assert_eq!(found.len(), 1, "slot 2 holds none");
         read.profiles[0].id = "xinput-slot-1-index-0".to_owned();
         assert!(leftover_macros(&Pro3, &read).is_empty(), "an active slot is not a leftover");

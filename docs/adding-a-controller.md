@@ -50,6 +50,31 @@ For the smallest complete model, read
 about 200 lines of code and 100 of tests, and its description sits in
 `crates/controller-core/controllers/test-pad/`.
 
+## Modes
+
+The `modes` list of the description names every mode of the model, in display order.
+Each entry has an `id`, a `label` and the mode's `extra_outputs`:
+
+```json
+{ "id": "xinput", "label": "XInput", "extra_outputs": [] }
+```
+
+The `id` is 1 to 15 lowercase letters, digits, `-` or `_`. Profiles, the command
+line (`-m xinput`), config ports and settings tabs use it. The app shows the
+`label`. A model may have one mode or several, and its ids need not match another
+model's. The test pad has a single mode, `standard`.
+
+The codec gets the mode as a `Mode` value. To branch on it, give the driver one
+constant per mode, as `devices/pro3/mod.rs` does:
+
+```rust
+pub const XINPUT: Mode = Mode::from_static("xinput");
+```
+
+A constant can be a `match` pattern. Add a `_` arm that refuses the mode, because
+the type holds any id. Test that each constant reads back whole, as
+`pro3_mode_constants_match_its_description` does.
+
 ## Settings tabs
 
 The `settings` list of the description makes the tabs after Buttons, in the app and
@@ -115,7 +140,7 @@ Each `config_ports` entry in `description.json` has these fields:
 | Field | Meaning |
 | --- | --- |
 | `usb` | `vendor` and `product`, written as `"0x2dc8"` |
-| `mode` | The current mode this USB id stands for: `xinput`, `switch` or `dinput` |
+| `mode` | The current mode this USB id stands for, one of the ids in `modes` |
 | `interface` | USB interface number whose hidraw node carries the config reports |
 | `framing` | `plain`, `wrapped` for a Nintendo-style id, or `length` for a pad such as the Pro 2 that puts a length byte after the `81` (see `protocol/framing.rs`) |
 | `write_via` | Optional. A mode to flip to before a write, when this mode takes no writes in place |
@@ -184,7 +209,8 @@ The model supplies:
 3. The codec: `map_profile`, `compile_profile`, the macro functions, and the rest of
    `ProtocolCodec`.
 4. The per-mode `ControllerSpec` values: `slot_select_value`, `macro_gamepad_mode`,
-   `mode_flip_command`, `mode_close_command`.
+   `mode_flip_command`, `mode_close_command`. The first two refuse a mode the model
+   does not have.
 5. The counts in the description: `slot_count` (3 on the Pro 3) and
    `macro_slot_count` (4).
 
@@ -197,9 +223,7 @@ The transport, the read and write services and the app pick the model from the
 registry, and the test pad runs through all of them. These places still assume the
 Pro 3:
 
-1. `Mode` is a fixed enum of `XInput`, `Switch` and `DInput` in
-   [`model/ids.rs`](../crates/controller-core/src/model/ids.rs). A model with another
-   mode adds a variant there, with its label and its lowercase name. `MacroSlot`
+1. `MacroSlot` in [`model/ids.rs`](../crates/controller-core/src/model/ids.rs)
    accepts 0 to 3, the Pro 3's four macro slots.
 2. Two models that share a USB id must also share its interface and framing.
    Detection opens the node of the first model that lists the id before the model id

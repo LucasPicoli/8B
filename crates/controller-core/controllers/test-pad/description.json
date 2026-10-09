@@ -10,15 +10,15 @@
         "vendor": "0x2dc8",
         "product": "0x7e57"
       },
-      "mode": "dinput",
+      "mode": "standard",
       "interface": 0,
       "framing": "plain"
     }
   ],
   "modes": [
     {
-      "id": "dinput",
-      "trigger_kind": "analog",
+      "id": "standard",
+      "label": "Standard",
       "extra_outputs": []
     }
   ],
@@ -42,7 +42,7 @@
     {
       "id": "a",
       "labels": {
-        "dinput": "A"
+        "standard": "A"
       },
       "can_be_remapped": true,
       "can_be_output": true
@@ -50,7 +50,7 @@
     {
       "id": "b",
       "labels": {
-        "dinput": "B"
+        "standard": "B"
       },
       "can_be_remapped": true,
       "can_be_output": true
@@ -58,7 +58,7 @@
     {
       "id": "start",
       "labels": {
-        "dinput": "Start"
+        "standard": "Start"
       },
       "can_be_remapped": false,
       "can_be_output": true
