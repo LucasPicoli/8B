@@ -100,7 +100,11 @@ Sticks tab of the Pro 3 holds `/sticks/left_min_pct`. A tab looks like this:
 ```
 
 A slider with a `high` end edits a range, such as a dead zone. `unit` follows the
-value, such as `%`. Without one, the value shows as `3 of 5`. A frame's `flags` are
+value, such as `%`. Without one, the value shows as `3 of 5`. A number that picks one
+of a few choices names them in `labels`, one per value from `min` to `max`, and the
+app shows the name: `"labels": ["Pulse", "Wave", "Burst"]` with `min` 1 and `max` 3
+shows `Wave` for 2. Settings are whole numbers and flags only. A colour, for example,
+is three sliders from 0 to 255. A frame's `flags` are
 check boxes, and a flag's `excludes` names the flags that may not be on with it: the
 app turns them off, and a patch is refused. A tab with `modes` shows in those modes
 only, which is how the Pro 3 has one Triggers tab for analog modes and another for

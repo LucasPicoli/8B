@@ -70,14 +70,15 @@ fn number(json: &Value, pointer: &str) -> Option<i64> {
     json.pointer(pointer).and_then(Value::as_i64)
 }
 
-/// `low`, or `low` to `high`, with the slider's unit. A single value with no unit shows
-/// as `<low> of <max>`.
+/// `low`, or `low` to `high`, with the slider's unit. A single value shows its label
+/// when the field names its values, and otherwise, with no unit, as `<low> of <max>`.
 fn shown_value(slider: &described::Slider, low: i64, high: Option<i64>) -> String {
     let unit = &slider.unit;
-    match high {
-        Some(high) => format!("{low} to {high}{unit}"),
-        None if unit.is_empty() => format!("{low} of {}", slider.low.max),
-        None => format!("{low}{unit}"),
+    match (high, slider.low.label(low)) {
+        (Some(high), _) => format!("{low} to {high}{unit}"),
+        (None, Some(label)) => label.to_owned(),
+        (None, None) if unit.is_empty() => format!("{low} of {}", slider.low.max),
+        (None, None) => format!("{low}{unit}"),
     }
 }
 
@@ -210,6 +211,21 @@ mod tests {
 
     fn sticks(s: &AppState) -> Sticks {
         Settings::of(s.slot(XINPUT, 1).shown().unwrap()).unwrap().sticks
+    }
+
+    #[test]
+    fn a_named_value_shows_its_name() {
+        let slider = |labels: serde_json::Value| -> described::Slider {
+            serde_json::from_value(serde_json::json!({
+                "label": "Rumble effect",
+                "low": { "field": "/rumble/effect", "min": 1, "max": 3, "labels": labels },
+            }))
+            .unwrap()
+        };
+        let named = slider(serde_json::json!(["Pulse", "Wave", "Burst"]));
+        assert_eq!(shown_value(&named, 2, None), "Wave");
+        assert_eq!(shown_value(&named, 9, None), "9 of 3", "a value past the names");
+        assert_eq!(shown_value(&slider(serde_json::json!([])), 2, None), "2 of 3");
     }
 
     #[test]

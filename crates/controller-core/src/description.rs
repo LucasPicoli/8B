@@ -121,6 +121,10 @@ pub struct NumberField {
     pub min: i32,
     /// Largest allowed value.
     pub max: i32,
+    /// A name for each value from `min` to `max`, such as `Off`, `Pulse` and `Wave` for
+    /// a choice. Empty means the value shows as a number.
+    #[serde(default)]
+    pub labels: Vec<String>,
 }
 
 impl NumberField {
@@ -128,6 +132,13 @@ impl NumberField {
     #[must_use]
     pub const fn range(&self) -> LimitRange {
         LimitRange { min: self.min, max: self.max }
+    }
+
+    /// The name of `value`, if the field names its values.
+    #[must_use]
+    pub fn label(&self, value: i64) -> Option<&str> {
+        let index = usize::try_from(value - i64::from(self.min)).ok()?;
+        self.labels.get(index).map(String::as_str)
     }
 }
 
@@ -427,6 +438,13 @@ impl ControllerDescription {
                 if number.min > number.max {
                     return Err(format!("setting '{}' has min above max", number.field));
                 }
+                let values = i64::from(number.max) - i64::from(number.min) + 1;
+                if !number.labels.is_empty() && i64::try_from(number.labels.len()) != Ok(values) {
+                    return Err(format!(
+                        "setting '{}' needs one label per value, {values} in all",
+                        number.field
+                    ));
+                }
                 if !is_settings_pointer(&number.field) || !fields.insert(number.field.as_str()) {
                     return Err(format!(
                         "setting '{}' in {mode} mode is not a new JSON pointer",
@@ -631,7 +649,7 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 18] = [
+        let cases: [fn(&mut Value); 19] = [
             |v| v["settings"][1]["frames"][0]["sliders"][0]["low"]["field"] = json!("/name"),
             |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/mode"),
             |v| v["settings"][1]["modes"] = json!(["dinput"]),
@@ -651,6 +669,9 @@ mod tests {
             |v| v["modes"][1]["id"] = json!("xinput"),
             |v| v["views"][1]["id"] = json!("front"),
             |v| v["views"][1]["svg"] = json!("missing.svg"),
+            |v| {
+                v["settings"][0]["frames"][0]["sliders"][0]["low"]["labels"] = json!(["Off"]);
+            },
             |v| {
                 let port = v["config_ports"][0].clone();
                 let mut second = port;

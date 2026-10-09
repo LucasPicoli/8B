@@ -191,7 +191,12 @@
       "properties": {
         "field": { "type": "string", "pattern": "^/" },
         "min": { "type": "integer" },
-        "max": { "type": "integer" }
+        "max": { "type": "integer" },
+        "labels": {
+          "description": "Optional. A name for each value from min to max, in order, such as Off, Pulse and Wave for a choice. The app shows the name instead of the number.",
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     },
     "Flag": {
