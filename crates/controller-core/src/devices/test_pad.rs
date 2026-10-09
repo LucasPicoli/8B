@@ -98,6 +98,11 @@ impl ControllerSpec for TestPad {
     fn mode_close_command(&self) -> [u8; PACKET_LEN] {
         [0; PACKET_LEN]
     }
+    /// The test pad answers through a mock, the way a pad with another protocol
+    /// brings its own transport.
+    fn transport(&self, _port: &str) -> Option<Box<dyn crate::transport::DeviceIo + Send>> {
+        Some(Box::new(crate::transport::MockDevice::new().with_model(&Self)))
+    }
 }
 
 impl ProtocolCodec for TestPad {

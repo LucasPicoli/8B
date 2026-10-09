@@ -30,7 +30,7 @@ fn changed(a: &[u8], b: &[u8]) -> Vec<usize> {
 #[ignore = "requires attached 8BitDo Pro 3 in DInput mode"]
 #[serial]
 fn dinput_remap_lands_on_slot3_l4_and_reverts() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
     let slot = Slot::new(3).unwrap();

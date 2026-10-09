@@ -42,8 +42,10 @@ The Pro 3 lives in
 | `edit.rs` | Keep, drop and deactivate operations on a blob |
 
 A new model gets its own folder next to `pro3/`, and one entry in `MODELS` in
-[`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs). Detection, the udev
-rules and `dev list` read that registry, so nothing else needs the new model's name.
+[`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs). Detection, the
+transport choice, the keepalive rule and `dev list` read that registry. The udev
+access rule does not: a new vendor id needs a line in `UDEV_RULE` (see
+[The udev rule](#the-udev-rule)).
 
 For the smallest complete model, read
 [`devices/test_pad.rs`](../crates/controller-core/src/devices/test_pad.rs). It is
@@ -217,11 +219,34 @@ The model supplies:
 Check the description with the unit test that loads every embedded description. A
 bad file fails with the field and the fault.
 
+## A protocol of its own
+
+A model that does not talk the `81 04` config protocol brings its own transport.
+Implement [`DeviceIo`](../crates/controller-core/src/transport/device_io.rs) in the
+model's folder, and return it from `ControllerSpec::transport`:
+
+```rust
+fn transport(&self, port: &str) -> Option<Box<dyn DeviceIo + Send>> {
+    Some(Box::new(MyPadDevice::at(port)))
+}
+```
+
+The app and the command line open every controller with `devices::open`. It finds the
+controller's USB id in sysfs, takes the first model whose `config_ports` lists that id,
+and uses that model's transport. A model that returns `None`, the default, gets
+`HidrawDevice` and the 8BitDo protocol. The test pad returns a `MockDevice`, and
+`a_model_with_its_own_transport_gets_it_by_its_usb_id` in `devices/mod.rs` checks
+the choice.
+
+The write services still call `DeviceIo` in the 8BitDo order: slot select, write the
+whole blob, apply. A transport without those steps makes slot select and apply do
+nothing, and maps the blob of `blob_size` bytes onto its own reads and writes.
+
 ## What is tied to the Pro 3 today
 
-The transport, the read and write services and the app pick the model from the
-registry, and the test pad runs through all of them. These places still assume the
-Pro 3:
+The transport choice, the read and write services and the app pick the model from the
+registry. The test pad runs through the services and the app on a mock transport,
+never through hidraw. These places still assume the Pro 3:
 
 1. `MacroSlot` in [`model/ids.rs`](../crates/controller-core/src/model/ids.rs)
    accepts 0 to 3, the Pro 3's four macro slots.

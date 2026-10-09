@@ -56,7 +56,7 @@ fn xinput_bank(dev: &HidrawDevice) -> Vec<u8> {
 #[ignore = "writes a macro to XInput slot 1 of an attached 8BitDo Pro 3"]
 #[serial]
 fn put_fixture_macro_on_xinput_slot1() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let slot = Slot::new(1).unwrap();
     let macro_slot = MacroSlot::new(0).unwrap();
     let def = buttons_macro();
@@ -105,7 +105,7 @@ fn put_fixture_macro_on_xinput_slot1() {
 #[ignore = "removes the macro on rp from XInput slot 1 of an attached 8BitDo Pro 3"]
 #[serial]
 fn remove_fixture_macro_on_a_pick() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let before = dev.read_all_profiles().unwrap();
     let mut profile = before.profiles[0].canonical.clone();
     assert!(profile.macro_refs.iter().any(|m| m.trigger == "rp"), "run the put test first");

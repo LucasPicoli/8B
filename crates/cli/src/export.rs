@@ -8,11 +8,11 @@ use std::path::{Path, PathBuf};
 use serde_json::{json, Value};
 
 use controller_core::device::Model;
+use controller_core::devices;
 use controller_core::error::ErrorCategory;
 use controller_core::model::CanonicalProfileSummary;
 use controller_core::orchestrator::profile::detect_and_read_all;
 use controller_core::service::validation::validate_profile;
-use controller_core::transport::{DeviceIo as _, HidrawDevice};
 
 use crate::commands::{emit_json, error_category_label, mode_label};
 
@@ -86,7 +86,8 @@ fn file_entry(model: &dyn Model, profile_id: &str, path: &Path, value: &Value) -
 /// # Returns
 /// Process exit code.
 pub fn run_export(output_dir: &Path, overwrite: bool) -> i32 {
-    let out = HidrawDevice::open().ok().map(|dev| (detect_and_read_all(&dev), dev.model()));
+    let dev = devices::open(None);
+    let out = Some((detect_and_read_all(dev.as_ref()), dev.model()));
     let abs = std::path::absolute(output_dir).unwrap_or_else(|_| output_dir.to_path_buf());
     let mut payload = json!({
         "output_directory": abs.display().to_string(),

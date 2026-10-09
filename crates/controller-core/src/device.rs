@@ -9,6 +9,7 @@ use crate::model::{
 use crate::protocol::framing::Framing;
 use crate::protocol::wire_write::PACKET_LEN;
 use crate::service::validation::ValidationError;
+use crate::transport::DeviceIo;
 
 /// A supported USB (vendor, product) pair. JSON writes each as `"0x2dc8"`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
@@ -73,6 +74,13 @@ pub trait ControllerSpec {
     /// Normal-layout packet that sends a flipped controller back to the mode its
     /// slide switch shows.
     fn mode_close_command(&self) -> [u8; PACKET_LEN];
+    /// The transport for this model's controller on USB port path `port`, such as `8-5`.
+    /// The default, `None`, talks the 8BitDo config protocol over hidraw
+    /// ([`crate::transport::HidrawDevice`]). A model with another protocol returns its
+    /// own [`DeviceIo`], and [`crate::devices::open`] picks it by the USB id it finds.
+    fn transport(&self, _port: &str) -> Option<Box<dyn DeviceIo + Send>> {
+        None
+    }
 }
 
 /// One supported controller model: its protocol bytes and its codec. The registry in

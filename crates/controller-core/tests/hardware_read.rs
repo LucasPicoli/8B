@@ -16,7 +16,7 @@ use serial_test::serial;
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn reads_every_bank_from_the_current_mode() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let read = dev.read_all_profiles().unwrap();
     assert_eq!(read.raw_blobs.len(), MODES.len());
     assert!(read.raw_blobs.iter().all(|b| b.len() == 0x092C));
@@ -29,7 +29,7 @@ fn reads_every_bank_from_the_current_mode() {
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn detects_connected_device() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let rd = dev.detect_readiness().unwrap();
     assert!(rd.supported_device_connected);
     assert!(rd.mode.is_some());

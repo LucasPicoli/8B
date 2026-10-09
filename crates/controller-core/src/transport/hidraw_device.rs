@@ -36,15 +36,11 @@ pub struct HidrawDevice {
 }
 
 impl HidrawDevice {
-    /// Opens a handle to the first attached supported controller.
-    ///
-    /// The node is not opened until an operation is performed. This constructor
-    /// is infallible.
-    ///
-    /// # Errors
-    /// Never returns an error; signature matches trait expectations.
-    pub const fn open() -> Result<Self> {
-        Ok(Self { port: None, model: Mutex::new(None) })
+    /// A handle to the first attached supported controller. Nothing is opened until an
+    /// operation is performed.
+    #[must_use]
+    pub const fn first() -> Self {
+        Self { port: None, model: Mutex::new(None) }
     }
 
     /// A handle to the controller on USB port path `port`, such as `8-5`. Nothing

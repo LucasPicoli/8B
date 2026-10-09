@@ -52,7 +52,6 @@ use std::time::Duration;
 use controller_core::devices;
 use controller_core::model::Mode;
 use controller_core::service::read::leftover_macros;
-use controller_core::transport::{DeviceIo, HidrawDevice};
 use controller_core::Error;
 use log::{info, warn};
 use slint::winit_030::winit::window::UserAttentionType;
@@ -536,7 +535,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (events_tx, events) = mpsc::channel();
     let weak = ui.as_weak();
     let commands = worker::spawn(
-        Box::new(|port: &str| Box::new(HidrawDevice::at(port)) as Box<dyn DeviceIo + Send>),
+        Box::new(|port: &str| devices::open(Some(port))),
         PathBuf::from(worker::SYSFS_USB),
         devices::config_ports(),
         udev::install_rule,

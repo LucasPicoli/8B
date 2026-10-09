@@ -101,7 +101,7 @@ fn profile_json(read: &ProfileReadResult, mode: Mode, slot: u8) -> Value {
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn two_slots_of_one_bank_land_in_one_write() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
     let r = start(&dev, &[XINPUT]);
@@ -135,7 +135,7 @@ fn two_slots_of_one_bank_land_in_one_write() {
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn slots_of_two_banks_land_in_one_session() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
     let r = start(&dev, &[XINPUT, DINPUT]);
@@ -161,7 +161,7 @@ fn slots_of_two_banks_land_in_one_session() {
 #[ignore = "requires attached 8BitDo Pro 3"]
 #[serial]
 fn batch_is_faster_than_one_write_per_slot() {
-    let dev = HidrawDevice::open().unwrap();
+    let dev = HidrawDevice::first();
     let dir = tempfile::tempdir().unwrap();
     let orch = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
     let r = start(&dev, &[XINPUT]);

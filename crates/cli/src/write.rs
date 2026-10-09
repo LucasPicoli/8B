@@ -14,7 +14,7 @@ use controller_core::error::ErrorCategory;
 use controller_core::model::{Mode, Slot, WriteResult};
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::service::ConfirmPolicy;
-use controller_core::transport::{DeviceIo as _, HidrawDevice};
+use controller_core::transport::DeviceIo;
 
 use crate::commands::{emit_json, error_category_label};
 
@@ -86,7 +86,7 @@ fn confirm_policy(force: bool) -> ConfirmPolicy {
 /// # Errors
 /// Returns the pad's error when it names no model and more than one model is built in,
 /// because the rules to check by are then unknown.
-fn write_model(dev: &HidrawDevice) -> controller_core::error::Result<&'static dyn Model> {
+fn write_model(dev: &dyn DeviceIo) -> controller_core::error::Result<&'static dyn Model> {
     dev.model().or_else(|e| match devices::models() {
         [only] => Ok(*only),
         _ => Err(e),
@@ -106,13 +106,11 @@ pub fn run_write(
     extra: &[(&str, &str)],
     op: impl FnOnce(&ProfileWriteOrchestrator<'_>, &ConfirmPolicy) -> WriteResult,
 ) -> i32 {
-    let Ok(dev) = HidrawDevice::open() else {
-        eprintln!("failed to open device");
-        return ErrorCategory::ConnectionFailure.exit_code();
-    };
-    let result = match write_model(&dev) {
+    let dev = devices::open(None);
+    let result = match write_model(dev.as_ref()) {
         Ok(model) => {
-            op(&ProfileWriteOrchestrator::new(&dev, model, Path::new(".")), &confirm_policy(force))
+            let orchestrator = ProfileWriteOrchestrator::new(dev.as_ref(), model, Path::new("."));
+            op(&orchestrator, &confirm_policy(force))
         }
         Err(e) => WriteResult::failure(mode, slot, e.category(), e.to_string()),
     };
