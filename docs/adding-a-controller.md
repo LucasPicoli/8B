@@ -39,7 +39,9 @@ The Pro 3 lives in
 | `tables.rs` | Blob offsets, strides, and the 4-byte button encodings |
 | `profile.rs` | `map_profile` (decode) and `compile_profile` (encode) |
 | `macros.rs` | Macro metadata and step encode and decode |
-| `edit.rs` | Keep, drop and deactivate operations on a blob |
+| `edit.rs` | Keep, drop and deactivate operations on a blob, and the remap name check |
+| `settings.rs` | The sticks, triggers and vibration groups as typed structs, read from and written to the profile's JSON objects |
+| `macro_check.rs` | Macro schema and semantic checks, which only the tests run |
 
 A new model gets its own folder next to `pro3/`, and one entry in `MODELS` in
 [`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs). Detection, the
@@ -49,7 +51,7 @@ access rule does not: a new vendor id needs a line in `UDEV_RULE` (see
 
 For the smallest complete model, read
 [`devices/test_pad.rs`](../crates/controller-core/src/devices/test_pad.rs). It is
-about 200 lines of code and 100 of tests, and its description sits in
+about 190 lines of code and 175 of tests, and its description sits in
 `crates/controller-core/controllers/test-pad/`.
 
 ## Modes
@@ -79,8 +81,8 @@ the type holds any id. Test that each constant reads back whole, as
 
 ## Settings tabs
 
-The `settings` list of the description makes the tabs after Buttons, in the app and
-in the patch checks. Each value is named by a JSON pointer into the profile, so a
+The `settings` list of the description makes the tabs after Buttons in the app, and
+gives the range and `excludes` checks that `set` runs. Each value is named by a JSON pointer into the profile, so a
 Sticks tab of the Pro 3 holds `/sticks/left_min_pct`. A tab looks like this:
 
 ```json
@@ -106,7 +108,7 @@ app shows the name: `"labels": ["Pulse", "Wave", "Burst"]` with `min` 1 and `max
 shows `Wave` for 2. Settings are whole numbers and flags only. A colour, for example,
 is three sliders from 0 to 255. A frame's `flags` are
 check boxes, and a flag's `excludes` names the flags that may not be on with it: the
-app turns them off, and a patch is refused. A tab with `modes` shows in those modes
+app turns them off, and `set` refuses the change. A tab with `modes` shows in those modes
 only, which is how the Pro 3 has one Triggers tab for analog modes and another for
 Switch.
 
@@ -196,7 +198,7 @@ has no device state and no I/O:
 | --- | --- |
 | `wire.rs` | 64-byte request builders (`START_CONFIG`, slot select, profile upload) and the upload reply decoder |
 | `wire_write.rs` | Write, apply and macro erase and write packets, and their reply checks |
-| `framing.rs` | `Plain` and `Wrapped` framing of those packets |
+| `framing.rs` | `Plain`, `Wrapped` and `Length` framing of those packets |
 | `crc16.rs` | CRC-16/MODBUS, which covers each request's payload |
 | `bytes.rs` | Bounds-checked read and write accessors. Use these, never raw indexing |
 | `text.rs` | UTF-16BE profile and macro names |
@@ -213,17 +215,20 @@ The model supplies:
 2. The button map: one 4-byte encoding per output, per mode, and the order of the
    source buttons. The `id` of each button in `description.json` is the name the
    codec uses in `button_mappings`.
-3. The codec: `map_profile`, `compile_profile`, the macro functions, and the rest of
-   `ProtocolCodec`.
+3. The codec: `map_profile`, `compile_profile`, `default_profile`, the macro
+   functions, and the rest of `ProtocolCodec`. The `device` and `kind` of
+   `default_profile` are what validation checks every profile against.
 4. The per-mode `ControllerSpec` values: `slot_select_value`, `macro_gamepad_mode`,
-   `mode_flip_command`, `mode_close_command`. Each refuses a mode the model does not
-   have, and their defaults refuse every mode, so a model sets only the ones its
-   ports use.
+   `mode_flip_command`, `mode_close_command`. `slot_select_value` and
+   `macro_gamepad_mode` refuse a mode the model does not have, and by default they
+   refuse every mode. `mode_flip_command` and `mode_close_command` return `None` by
+   default. A model sets only the ones its ports use.
 5. The counts in the description: `slot_count` (3 on the Pro 3) and
    `macro_slot_count` (4).
 
-Check the description with the unit test that loads every embedded description. A
-bad file fails with the field and the fault.
+Check the description with `cargo test -p controller-core every_registered_description_loads`,
+which loads the description of every model in `MODELS`. A bad file fails with the
+field and the fault.
 
 ## A protocol of its own
 
@@ -244,11 +249,14 @@ and uses that model's transport. A model that returns `None`, the default, gets
 `a_model_with_its_own_transport_gets_it_by_its_usb_id` in `devices/mod.rs` checks
 the choice.
 
-`DeviceIo` has 8 methods. The write services call them in the 8BitDo order: slot
-select, write the whole blob, apply. A transport without those steps makes slot
-select and apply do nothing, and maps the blob of `blob_size` bytes onto its own
-reads and writes. The 8BitDo macro and patch commands are methods of `HidrawDevice`
-only, so a transport of its own does not implement them.
+`DeviceIo` has 10 methods. All but `current_mode` are required. The write services
+call them in the 8BitDo order: begin the write, slot select, write the whole blob,
+apply, end the write. A transport without those steps makes slot select and apply do
+nothing, returns `Ok(None)` from `begin_write` and `Ok(())` from `end_write`, and maps
+the blob of `blob_size` bytes onto its own reads and writes. The 8BitDo macro write
+and erase, the patch write and the status query are methods of `HidrawDevice` only, so
+a transport of its own does not implement them. It still implements
+`read_macro_stream`.
 
 The app takes the current mode from the USB id of the config port. A pad that changes
 mode without changing its USB id lists one port and answers `DeviceIo::current_mode`.
@@ -274,6 +282,9 @@ never through hidraw. These places still assume the Pro 3:
 3. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
    `0x0123`. TheJayMann's Pro 2 scripts send a zero CRC and the parameter `0x15`, so
    a Pro 2 port needs both to come from the model.
+4. Before the first read, the app shows the first model in `MODELS`, so the Pro 3
+   stays first in the registry.
+5. The command-line tool is named `8bitdo-pro-3`, and its help text names the Pro 3.
 
 ## Prove the port is correct
 
@@ -313,11 +324,16 @@ A port is correct when the bytes match, not when the code looks right.
 
    Every model shares the guard in
    [`tests/support/hw.rs`](../crates/controller-core/tests/support/hw.rs):
-   - `hw::pad(&Model)` finds an attached pad that answers as that model, and panics
+   - `hw::pad(&Pro3)` finds an attached pad that answers as that model, and panics
      before any write when there is none. A test never writes one model's blobs to
      another pad.
-   - `hw::seed(&dev, &Model, fill)` writes what `fill` makes of each bank, and returns
-     a guard that puts the banks back byte for byte when the test ends, pass or fail.
+   - `hw::seed(&dev, &Pro3, fill)` calls `fill(mode, bank)` for each bank, writes the
+     bytes it returns, and returns a guard that puts the banks back byte for byte when
+     the test ends, pass or fail.
+
+   A model's `main.rs` pulls the guard in with
+   `#[cfg(feature = "hardware")] #[path = "../support/hw.rs"] mod hw;`, as
+   `tests/pro3/main.rs` does.
 
    The Pro 3's `seed.rs` fills every slot with the fixture profiles, so its tests run
    on any Pro 3, even one with every slot empty. A new model writes its own `seed.rs`

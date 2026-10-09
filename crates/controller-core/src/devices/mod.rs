@@ -106,6 +106,13 @@ mod tests {
     }
 
     #[test]
+    fn every_registered_description_loads() {
+        for model in models() {
+            model.description().unwrap();
+        }
+    }
+
+    #[test]
     fn a_model_with_its_own_transport_gets_it_by_its_usb_id() {
         let dir = sysfs();
         let models: [&'static dyn Model; 2] = [&Pro3, &TestPad];

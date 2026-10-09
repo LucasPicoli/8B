@@ -123,7 +123,7 @@ cargo test -p controller-core
 ```
 
 A load error names the file and the fault, for example
-`'front.svg': fill '#ff0000' is not a view colour`.
+`controller description: 'front.svg': fill '#ff0000' is not a view colour`.
 
 The loader cannot tell whether a hotspot covers the right part of the drawing.
 Copy `pro3_hotspots_sit_on_their_buttons` from

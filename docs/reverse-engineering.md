@@ -183,8 +183,9 @@ Change one setting at a time and compare the bytes before and after.
    8b dev diff before.blob after.blob
    ```
 
-   Each line is one run of changed bytes: the offset, the length, the old bytes and
-   the new bytes. One change in the app should move one small run, plus a checksum
+   Each line before the last is one run of changed bytes: the offset, the length, the
+   old bytes and the new bytes. The last line counts the runs. When the files differ in
+   size, a first line says so and compares only the shorter length. One change in the app should move one small run, plus a checksum
    if the format has one.
 
 Repeat this for each setting, each button and each mode. Record each result as a

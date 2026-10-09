@@ -2,13 +2,12 @@
 
 ## 1. Purpose and Provenance
 
-These fixtures are produced by `controller-core`'s encoders
-(`compile_profile` for remap profiles, `encode_macro_steps` and
-`encode_macro_metadata` for macros). Each `.blob` and `.steps.bin` is
-the device-native byte representation; the corresponding `.json` is the
-canonical decoded (human-readable) form. Both are verified by round-trip
-tests in `crates/controller-core/tests/pro3/fixture_profiles.rs` and
-`fixture_macros.rs`.
+The fixtures in `remap/` and `macros/` are produced by `controller-core`'s
+encoders (`compile_profile` for remap profiles, `encode_macro_steps` for macro
+step streams). A remap `.profile.json` is written by hand, and its `.blob` is
+compiled from it. A macro `.json` is the decoded form of its `.steps.bin`. Both are
+verified by round-trip tests in `crates/controller-core/tests/pro3/fixture_profiles.rs`
+and `fixture_macros.rs`.
 
 To regenerate after changing an encoder, run:
 
@@ -20,7 +19,18 @@ cargo test -p controller-core --test pro3 fixture_macros::regenerate -- --ignore
 Independent validation is done by loading the device-native bytes into a
 gamepad configurator (see Section 2).
 
-One fixture does not come from the encoders. `dinput-official.blob` is a full
+The files at the top of `fixtures/pro3/` do not come from the encoders.
+
+`xinput.blob` and `switch.blob` are bank reads from a real Pro 3.
+`golden_profile_decode.rs` decodes them and compares the result to
+`xinput-slot1.profile.json`, `xinput-slot2.profile.json` and
+`switch-slot1.profile.json`.
+
+`macro-meta.blob` is a real 2348-byte profile blob that
+`golden_macro_decode.rs` scans for macro descriptors. `macro-sample.steps.bin` is a
+32-byte step stream, and `macro-sample.json` is its decoded form.
+
+`dinput-official.blob` is a full
 `DInput` write by the official 8BitDo app, all three slots active, captured
 over USB with the payload read at wire byte 18. Its face buttons hold the `XInput`
 encodings, so in `DInput` they decode as A and B swapped, and X and Y swapped.
@@ -56,8 +66,8 @@ with the Switch table, which no `DInput` capture has confirmed.
 
 ### Remap profiles
 
-1. Flash `remap/<mode>-slot<N>.profile.blob` into profile slot `N`.
-   - Use the write path when available, or your existing flashing tool.
+1. Write the profile into slot `N`:
+   `8bitdo-pro-3 upload --mode <mode> --slot <N> --file remap/<mode>-slot<N>.profile.json`.
 2. Open the configurator and switch to profile slot `N`.
 3. Confirm every button shows the mapping listed in the table below.
 
@@ -80,10 +90,10 @@ Control-name to configurator mapping reference:
 | `home/guide`     | Guide / Home                           |
 | `turbo`          | Turbo (8BitDo-specific)                |
 | `screenshot`     | Capture / Screenshot (Switch only)     |
-| `lp`             | Back paddle P1                         |
-| `rp`             | Back paddle P2                         |
-| `l4`             | Back paddle P3                         |
-| `r4`             | Back paddle P4                         |
+| `lp`             | Back paddle PL                         |
+| `rp`             | Back paddle PR                         |
+| `l4`             | Back paddle L4                         |
+| `r4`             | Back paddle R4                         |
 | `disabled`       | -- / None / Disabled                   |
 
 **Note on Switch face buttons:** Switch mode uses an inverted face-button
@@ -500,11 +510,12 @@ Filename stems encode slot metadata: `<x|s>-s<profileslot>-m<macroslot>-<name>`.
 
 **Note on Switch trigger values (l2/r2):** Switch mode stores trigger state
 as a single bit in the keys bitmap, not as a separate analog byte. The
-encoder reconstructs this as trigger value 255 (full deflection) in the
-canonical JSON. This reconstructed value of 255 is authoritative — it is
-not the literal 0–255 analog input. `l2` and `r2` are purely analog on
-this device; they are never available as digital step-button actions in
-macros (which is why the digital-button macros do not use them).
+decoder reconstructs this as trigger value 255 (full deflection) in the
+canonical JSON. This reconstructed value of 255 is authoritative. It is
+not the literal 0–255 analog input. `l2` and `r2` pass validation as step
+buttons, but their bits are the trigger bits, so they decode as trigger
+values, never as button names. The digital-button macros leave them out
+for that reason.
 
 ---
 
@@ -512,7 +523,7 @@ macros (which is why the digital-button macros do not use them).
 
 **Files:** `macros/x-s1-m0-buttons.json` + `.steps.bin`  
 **Mode:** xinput | **Profile slot:** 1 | **Macro slot:** 0  
-**Trigger:** `rp` (back paddle P2)  
+**Trigger:** `rp` (back paddle PR)  
 **Repeat:** count=1, interval=0 ms
 
 | Step | Duration | Buttons pressed          | Axes |
@@ -554,7 +565,7 @@ macros (which is why the digital-button macros do not use them).
 
 **Files:** `macros/x-s3-m2-sticks-triggers.json` + `.steps.bin`  
 **Mode:** xinput | **Profile slot:** 3 | **Macro slot:** 2  
-**Trigger:** `r4` (back paddle P4)  
+**Trigger:** `r4` (back paddle R4)  
 **Repeat:** count=1, interval=0 ms
 
 | Step | Duration | Buttons pressed | Left stick    | Right stick | Triggers (L/R) |
@@ -573,7 +584,8 @@ macros (which is why the digital-button macros do not use them).
 
 **Note:** Switch stores triggers as a single bit in the keys bitmap; the
 reconstructed trigger value 255 in the JSON is canonical, not a literal
-analog input. `l2`/`r2` are analog-only and cannot be digital step buttons.
+analog input. `l2`/`r2` step buttons decode as trigger values, never as
+button names.
 
 | Step | Duration | Buttons pressed | Triggers (L/R) |
 |------|----------|-----------------|-----------------|
@@ -604,8 +616,8 @@ analog input. `l2`/`r2` are analog-only and cannot be digital step buttons.
 
 **Note:** Step 2 includes a reconstructed trigger value of 255 because
 Switch encodes trigger activation as a bit in the keys bitmap. The JSON
-value 255 is canonical. `l2`/`r2` are analog-only and are never digital
-step buttons.
+value 255 is canonical. `l2`/`r2` step buttons decode as trigger values,
+never as button names.
 
 | Step | Duration | Buttons pressed | Left stick    | Triggers (L/R) |
 |------|----------|-----------------|---------------|-----------------|
