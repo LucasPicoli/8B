@@ -1,5 +1,6 @@
 //! Device I/O abstraction (`DeviceIo`) with real and mock implementations.
 pub mod device_io;
+pub mod feature;
 pub mod hidraw_device;
 mod hidraw_write;
 pub mod mock;

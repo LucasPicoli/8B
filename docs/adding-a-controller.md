@@ -245,6 +245,11 @@ select and apply do nothing, and maps the blob of `blob_size` bytes onto its own
 reads and writes. The 8BitDo macro and patch commands are methods of `HidrawDevice`
 only, so a transport of its own does not implement them.
 
+A pad that talks through HID feature reports can use `get_feature` and `set_feature`
+in [`transport/feature.rs`](../crates/controller-core/src/transport/feature.rs) on its
+hidraw node. They are the `HIDIOCGFEATURE` and `HIDIOCSFEATURE` ioctls, and the only
+`unsafe` code in the workspace, so a driver needs none of its own.
+
 ## What is tied to the Pro 3 today
 
 The transport choice, the read and write services and the app pick the model from the
