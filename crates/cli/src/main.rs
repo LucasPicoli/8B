@@ -19,6 +19,7 @@ use std::path::PathBuf;
 use clap::{ArgAction, Args, Parser, Subcommand};
 
 use commands::{run_detect, run_dump, run_read, run_read_macro};
+use controller_core::devices;
 use controller_core::model::{Mode, Slot};
 use export::run_export;
 use write::{run_upload, run_write};
@@ -86,7 +87,7 @@ enum DevCommand {
 #[derive(Debug, Args)]
 struct Target {
     /// Target mode, by the id the controller's description gives it, such as xinput.
-    #[arg(short, long)]
+    #[arg(short, long, value_parser = parse_mode)]
     mode: Mode,
     /// Target slot, from 1.
     #[arg(short, long, value_parser = parse_slot)]
@@ -108,9 +109,28 @@ fn parse_change(s: &str) -> Result<(String, serde_json::Value), String> {
     Ok((pointer.to_owned(), value))
 }
 
-/// Parses a 1-based slot for clap.
+/// Parses a mode that a built-in model declares, so a typo is a usage error before any
+/// device access. The model of the attached pad checks it again.
+fn parse_mode(s: &str) -> Result<Mode, String> {
+    let mut known: Vec<Mode> = Vec::new();
+    for mode in devices::descriptions().flat_map(|d| d.modes.iter().map(|m| m.id)) {
+        if !known.contains(&mode) {
+            known.push(mode);
+        }
+    }
+    known.iter().copied().find(|m| m.as_str() == s).ok_or_else(|| {
+        let ids: Vec<&str> = known.iter().map(Mode::as_str).collect();
+        format!("unknown mode '{s}' (one of {})", ids.join(", "))
+    })
+}
+
+/// Parses a 1-based slot for clap, up to the largest slot count of a built-in model.
+/// The model of the attached pad checks it against its own count again.
 fn parse_slot(s: &str) -> Result<Slot, String> {
-    s.parse::<u8>().map_err(|e| e.to_string()).and_then(|n| Slot::new(n).map_err(|e| e.to_string()))
+    let most = devices::descriptions().map(|d| d.slot_count).max().unwrap_or(0);
+    s.parse::<u8>()
+        .map_err(|e| e.to_string())
+        .and_then(|n| Slot::new(n).and_then(|slot| slot.check(most)).map_err(|e| e.to_string()))
 }
 
 /// Available CLI subcommands.
@@ -143,9 +163,11 @@ enum Commands {
     #[command(name = "read-macro")]
     ReadMacro {
         /// Mode, by the id the controller's description gives it, such as xinput.
+        #[arg(value_parser = parse_mode)]
         mode: Mode,
         /// Profile slot, from 1.
-        slot: u8,
+        #[arg(value_parser = parse_slot)]
+        slot: Slot,
         /// Optional directory to write per-macro JSON files.
         #[arg(long = "output-dir")]
         output_dir: Option<String>,
@@ -216,7 +238,7 @@ fn main() {
         Commands::Export { output_dir, overwrite } => run_export(&output_dir, overwrite),
         Commands::Dump { output_dir } => run_dump(&output_dir),
         Commands::ReadMacro { mode, slot, output_dir } => {
-            run_read_macro(mode, slot, output_dir.as_deref())
+            run_read_macro(mode, slot.get(), output_dir.as_deref())
         }
         Commands::Dev(DevCommand::List { descriptors }) => dev::run_list(descriptors),
         Commands::Dev(DevCommand::Send { node, bytes, pad, wait, matching }) => {
@@ -231,17 +253,21 @@ fn main() {
         Commands::Dev(DevCommand::Diff { a, b }) => dev::run_diff(&a, &b),
         Commands::Upload { target: t, file } => run_upload(&file, t.mode, t.slot, t.force),
         Commands::Deactivate { target: t } => {
-            run_write(t.force, &[], |o, p| o.deactivate_slot(t.mode, t.slot, p))
+            run_write(t.mode, t.slot, t.force, &[], |o, p| o.deactivate_slot(t.mode, t.slot, p))
         }
-        Commands::Remap { target: t, source, output } => {
-            run_write(t.force, &[("source", &source), ("target", &output)], |o, p| {
-                o.remap_button(t.mode, t.slot, &source, &output, p)
-            })
-        }
+        Commands::Remap { target: t, source, output } => run_write(
+            t.mode,
+            t.slot,
+            t.force,
+            &[("source", &source), ("target", &output)],
+            |o, p| o.remap_button(t.mode, t.slot, &source, &output, p),
+        ),
         Commands::Set { target: t, changes } => {
             let changes: Vec<(&str, serde_json::Value)> =
                 changes.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
-            run_write(t.force, &[], |o, p| o.patch_settings(t.mode, t.slot, &changes, p))
+            run_write(t.mode, t.slot, t.force, &[], |o, p| {
+                o.patch_settings(t.mode, t.slot, &changes, p)
+            })
         }
     };
 
@@ -264,6 +290,28 @@ mod tests {
         assert!(parse_change("/a=loud").is_err());
         let cli = Cli::parse_from(["8b", "set", "-m", "xinput", "-s", "1", "/a=1", "/b=false"]);
         assert!(matches!(cli.command, Commands::Set { changes, .. } if changes.len() == 2));
+    }
+
+    #[test]
+    fn a_mode_or_slot_no_model_has_is_a_usage_error() {
+        assert!(parse_mode("xinput").is_ok());
+        assert_eq!(
+            parse_mode("foo"),
+            Err("unknown mode 'foo' (one of xinput, switch, dinput)".to_owned())
+        );
+        assert!(parse_slot("3").is_ok());
+        for bad in ["0", "4", "x"] {
+            assert!(parse_slot(bad).is_err(), "{bad}");
+        }
+        for args in [
+            ["8b", "deactivate", "-m", "foo", "-s", "1"],
+            ["8b", "deactivate", "-m", "xinput", "-s", "4"],
+        ] {
+            let code = Cli::try_parse_from(args).err().map(|e| e.exit_code());
+            assert_eq!(code, Some(2), "{args:?}");
+        }
+        assert!(Cli::try_parse_from(["8b", "read-macro", "foo", "1"]).is_err());
+        assert!(Cli::try_parse_from(["8b", "read-macro", "xinput", "4"]).is_err());
     }
 
     #[test]

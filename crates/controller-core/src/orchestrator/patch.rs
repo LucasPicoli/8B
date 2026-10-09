@@ -46,8 +46,14 @@ fn check_changes(
     Ok(())
 }
 
-/// Writes each change into `profile`, then refuses a flag turned on together with one
-/// it excludes.
+/// The settings group of a JSON pointer: `sticks` for `/sticks/left_min_pct`.
+fn group(field: &str) -> &str {
+    field.trim_start_matches('/').split('/').next().unwrap_or(field)
+}
+
+/// Writes each change into `profile`, then refuses a flag that is on together with one
+/// it excludes, in every group a change touches. A clash the slot already held counts
+/// too, so a patch never writes one back.
 fn apply_changes(
     description: &ControllerDescription,
     mode: Mode,
@@ -63,7 +69,11 @@ fn apply_changes(
         value.clone_into(slot);
     }
     let on = |field: &str| json.pointer(field).and_then(Value::as_bool) == Some(true);
-    for (field, _) in changes.iter().filter(|(f, _)| on(f)) {
+    let touched = |field: &str| changes.iter().any(|(f, _)| group(f) == group(field));
+    // The changed flags first, so the message names the one this patch turned on.
+    let patched = changes.iter().map(|(f, _)| *f);
+    let held = description.flags(mode).map(|f| f.field.as_str()).filter(|f| touched(f));
+    for field in patched.chain(held).filter(|f| on(f)) {
         let clashes: Vec<&str> =
             description.excluded_by(mode, field).into_iter().filter(|f| on(f)).map(name).collect();
         let Some((last, rest)) = clashes.split_last() else { continue };

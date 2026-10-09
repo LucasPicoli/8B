@@ -8,6 +8,8 @@ use std::path::Path;
 
 use serde_json::{json, Value};
 
+use controller_core::device::Model;
+use controller_core::devices;
 use controller_core::error::ErrorCategory;
 use controller_core::model::{Mode, Slot, WriteResult};
 use controller_core::orchestrator::ProfileWriteOrchestrator;
@@ -77,13 +79,29 @@ fn confirm_policy(force: bool) -> ConfirmPolicy {
     }))
 }
 
-/// Runs `op` against the attached controller and prints the result.
+/// The model to write with: the one the pad names, or the only built-in model when the
+/// pad cannot be asked. The second keeps the checks that need no device, such as a range
+/// or a profile schema, ahead of the device error.
+///
+/// # Errors
+/// Returns the pad's error when it names no model and more than one model is built in,
+/// because the rules to check by are then unknown.
+fn write_model(dev: &HidrawDevice) -> controller_core::error::Result<&'static dyn Model> {
+    dev.model().or_else(|e| match devices::models() {
+        [only] => Ok(*only),
+        _ => Err(e),
+    })
+}
+
+/// Runs `op` against the attached controller on `slot` of `mode` and prints the result.
 ///
 /// A failed rollback saves its backup file in the current directory.
 ///
 /// # Returns
 /// Process exit code.
 pub fn run_write(
+    mode: Mode,
+    slot: Slot,
     force: bool,
     extra: &[(&str, &str)],
     op: impl FnOnce(&ProfileWriteOrchestrator<'_>, &ConfirmPolicy) -> WriteResult,
@@ -92,15 +110,12 @@ pub fn run_write(
         eprintln!("failed to open device");
         return ErrorCategory::ConnectionFailure.exit_code();
     };
-    let model = match dev.model() {
-        Ok(model) => model,
-        Err(e) => {
-            eprintln!("{e}");
-            return e.category().exit_code();
+    let result = match write_model(&dev) {
+        Ok(model) => {
+            op(&ProfileWriteOrchestrator::new(&dev, model, Path::new(".")), &confirm_policy(force))
         }
+        Err(e) => WriteResult::failure(mode, slot, e.category(), e.to_string()),
     };
-    let orchestrator = ProfileWriteOrchestrator::new(&dev, model, Path::new("."));
-    let result = op(&orchestrator, &confirm_policy(force));
     let (payload, code) = build_write_payload(&result, extra);
     emit_json(&payload);
     code
@@ -120,9 +135,9 @@ pub fn run_upload(file: &Path, mode: Mode, slot: Slot, force: bool) -> i32 {
                 .map_err(|e| format!("File {} is not JSON: {e}", file.display()))
         });
     match profile {
-        Ok(profile) => {
-            run_write(force, &[], |o, policy| o.upload_profile(&profile, mode, slot, policy))
-        }
+        Ok(profile) => run_write(mode, slot, force, &[], |o, policy| {
+            o.upload_profile(&profile, mode, slot, policy)
+        }),
         Err(message) => {
             eprintln!("{message}");
             let r = WriteResult::failure(mode, slot, ErrorCategory::ValidationFailure, message);

@@ -2,6 +2,8 @@ lint:
     cargo fmt --check
     cargo clippy --all-targets --all-features -- -D warnings
     cargo test
+    # Alone, so a test that needs a feature only another crate turns on fails here.
+    cargo test -p controller-core
 
 hw:
     cargo test --features hardware -- --ignored

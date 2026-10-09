@@ -250,6 +250,25 @@ mod tests {
     }
 
     #[test]
+    fn a_read_that_finds_another_model_stops_the_write() {
+        let pro3_bank = Pro3.compile_profile(&Pro3.default_profile(XINPUT), slot(1), &[], &[]);
+        let blobs = vec![pro3_bank.unwrap(), Vec::new(), Vec::new()];
+        let dev = MockDevice::new()
+            .with_model(&TestPad)
+            .with_profiles(ProfileReadResult { raw_blobs: blobs, ..Default::default() });
+        let orchestrator = ProfileWriteOrchestrator::new(&dev, &Pro3, Path::new("."));
+        let mut profile = Pro3.default_profile(XINPUT);
+        profile.id = "mine".to_owned();
+        profile.name = "Mine".to_owned();
+        let json = serde_json::to_value(profile).unwrap();
+        let r = orchestrator.upload_profile(&json, XINPUT, slot(3), &ConfirmPolicy::Force);
+        assert!(!r.success);
+        assert!(r.message.contains("now a Test Pad"), "{}", r.message);
+        let ops: Vec<_> = dev.calls().iter().map(MockCall::op).collect();
+        assert_eq!(ops, [], "nothing went out after the read");
+    }
+
+    #[test]
     fn the_description_loads_and_the_model_id_finds_it() {
         let d = TestPad.description().unwrap();
         assert_eq!((d.modes.len(), d.slot_count, d.macro_slot_count), (1, 2, 0));

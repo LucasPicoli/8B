@@ -219,18 +219,6 @@ fn upload_into_an_empty_slot_runs_the_full_pipeline() {
 }
 
 #[test]
-fn a_read_that_finds_another_model_stops_the_write() {
-    use controller_core::devices::test_pad::TestPad;
-    let dev = device(XINPUT, &base_blob(XINPUT)).with_model(&TestPad);
-    let dir = tempfile::tempdir().unwrap();
-    let json = fixture("xinput-slot2");
-    let r = orch(&dev, dir.path()).upload_profile(&json, XINPUT, slot(3), &ConfirmPolicy::Force);
-    assert_failed(&r, ErrorCategory::ValidationFailure);
-    assert!(r.message.contains("now a Test Pad"), "{}", r.message);
-    assert_eq!(ops(&dev), [], "nothing went out after the read");
-}
-
-#[test]
 fn upload_rejects_bad_input_before_touching_the_device() {
     let dev = MockDevice::new(); // a readback would fail with ConnectionFailure
     let dir = tempfile::tempdir().unwrap();
@@ -547,6 +535,31 @@ fn patch_settings_rules_run_before_any_write() {
     assert_failed(&r, ErrorCategory::ValidationFailure);
     assert!(r.message.contains("swap_sticks"), "{}", r.message);
     assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
+}
+
+#[test]
+fn patch_settings_refuses_a_clash_the_slot_already_holds() {
+    let dir = tempfile::tempdir().unwrap();
+    let f = ConfirmPolicy::Force;
+    let mut profile: CanonicalProfile = serde_json::from_value(fixture("xinput-slot1")).unwrap();
+    let sticks = profile.settings.get_mut("sticks").unwrap();
+    sticks["swap_dpad_with_left_stick"] = true.into();
+    sticks["invert_left_x"] = true.into();
+    let base = base_blob(XINPUT);
+    let clash = Pro3.compile_profile_keep_macros(&profile, slot(1), &base).unwrap();
+    let dev = device(XINPUT, &clash);
+
+    let set = [("/sticks/left_min_pct", 10.into())];
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &f);
+    assert_failed(&r, ErrorCategory::ValidationFailure);
+    assert!(r.message.contains("swap_dpad_with_left_stick"), "{}", r.message);
+    assert_eq!(writes(&dev), Vec::<Vec<u8>>::new());
+
+    // A patch of another group leaves the sticks as they are.
+    let dev = device(XINPUT, &clash);
+    let set = [("/vibration/left_level", 1.into())];
+    let r = orch(&dev, dir.path()).patch_settings(XINPUT, slot(1), &set, &f);
+    assert!(r.success, "{}", r.message);
 }
 
 #[test]
