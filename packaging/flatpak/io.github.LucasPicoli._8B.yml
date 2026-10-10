@@ -10,8 +10,7 @@ finish-args:
   # Only --device=all exposes /dev/hidraw*; no portal covers it.
   - --device=all
   - --socket=wayland
-  # Not fallback-x11: it hides X11 under Wayland, and Copy then reaches no clipboard.
-  - --socket=x11
+  - --socket=fallback-x11
   - --share=ipc
   - --device=dri
 
