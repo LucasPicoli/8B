@@ -41,6 +41,21 @@ pub fn pad(model: &'static dyn Model) -> HidrawDevice {
     panic!("no {} is attached; found: {seen:?}", wanted.short_name);
 }
 
+/// The header byte the pad fills in itself (`cur_slot`). A write sends back what it read,
+/// and the pad still answers its own value, so no comparison of two reads may include it.
+const PAD_OWNED_BYTE: usize = 0x12;
+
+/// Whether two reads of one bank hold the same bytes, apart from the pad's own `cur_slot`.
+pub fn same_bank(a: &[u8], b: &[u8]) -> bool {
+    a.len() == b.len()
+        && a.iter().zip(b).enumerate().all(|(i, (x, y))| i == PAD_OWNED_BYTE || x == y)
+}
+
+/// Whether two reads of every bank agree under [`same_bank`].
+fn same_banks(a: &[Vec<u8>], b: &[Vec<u8>]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(x, y)| same_bank(x, y))
+}
+
 /// The banks of a pad as a test found them and as it seeded them.
 pub struct Banks<'a> {
     dev: &'a HidrawDevice,
@@ -69,7 +84,7 @@ fn write_bank(dev: &HidrawDevice, mode: Mode, blob: &[u8]) {
 fn put(dev: &HidrawDevice, modes: &[Mode], target: &ProfileReadResult) {
     let now = dev.read_all_profiles().unwrap();
     for ((mode, held), want) in modes.iter().zip(&now.raw_blobs).zip(&target.raw_blobs) {
-        if held != want {
+        if !same_bank(held, want) {
             write_bank(dev, *mode, want);
         }
     }
@@ -108,7 +123,7 @@ impl Drop for Banks<'_> {
             self.dev.read_all_profiles().unwrap().raw_blobs
         });
         match std::panic::catch_unwind(restore) {
-            Ok(now) if now == self.original.raw_blobs => {}
+            Ok(now) if same_banks(&now, &self.original.raw_blobs) => {}
             // A panic in a drop that runs for a panic aborts the run: only report it.
             _ if failing => eprintln!("the banks could not be put back; restore them from a dump"),
             Ok(_) => panic!("the banks differ from how the test found them"),
