@@ -53,9 +53,9 @@ impl Default for MacroStep {
 /// intentionally does not derive `Serialize`/`Deserialize`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MacroDefinition {
-    /// Display name (1–15 chars).
+    /// Display name (1–16 chars for the Pro 3).
     pub name: String,
-    /// Mode (`xinput` or `switch`).
+    /// Mode (`xinput`, `switch` or `dinput`).
     pub mode: Mode,
     /// Canonical trigger name.
     pub trigger: String,

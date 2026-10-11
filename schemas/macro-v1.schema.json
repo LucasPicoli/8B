@@ -23,12 +23,12 @@
     },
     "mode": {
       "type": "string",
-      "enum": ["xinput", "switch"]
+      "enum": ["xinput", "switch", "dinput"]
     },
     "name": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 15
+      "maxLength": 16
     },
     "trigger": {
       "$ref": "#/$defs/MacroTrigger"

@@ -50,6 +50,12 @@ face then presses as itself. Each back paddle holds its own code (its macro `key
 little-endian), not `00 00 00 00`, and Switch turbo holds Screenshot. Every slot
 must decode to the default profile, and its button map must recompile unchanged.
 
+`dinput-macro-name16.descriptor.bin` is one 52-byte macro descriptor from a `DInput`
+macro write by the official 8BitDo app, captured over USB with the payload read at wire
+byte 18 (blob offset `0x0694`). The macro is named `macro1dinputTEST`: 16 units, the
+whole 32-byte name field, with no terminator. `gamepad_mode` is `1`, and `max_steps` is
+199. `golden_macro_encode.rs` encodes the same macro and compares all 52 bytes.
+
 `dinput-macro.blob` is a `DInput` bank read from a real Pro 3, with a macro on `r4`
 in macro slot 3 of every slot. `dinput-macro.steps.bin` is that macro's step stream,
 read back from slot 1: 256 steps of 10 ms that sweep all four stick axes by one

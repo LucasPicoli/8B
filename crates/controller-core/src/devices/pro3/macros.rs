@@ -204,15 +204,6 @@ fn trigger_key_map(name: &str) -> Result<u32> {
         .ok_or_else(|| Error::Validation(format!("unknown macro trigger: {name}")))
 }
 
-/// Maps a [`Mode`] to the `gamepad_mode` descriptor byte.
-fn macro_mode_byte(mode: Mode) -> u8 {
-    if mode == XINPUT {
-        tables::MACRO_GAMEPAD_MODE_XINPUT
-    } else {
-        0
-    }
-}
-
 /// Encodes `steps` into the padded wire step stream.
 ///
 /// Each step is encoded as a 10-byte `record_content_t` (all fields LE16).
@@ -276,8 +267,9 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
 /// canonical offsets.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `def.trigger` is unknown or if
-/// `def.steps.len()` overflows `u16`, or if the `macro_slot` offset overflows `u16`.
+/// Returns [`Error::Validation`] if `def.mode` is not a Pro 3 mode, if `def.trigger`
+/// is unknown, if `def.steps.len()` overflows `u16`, or if the `macro_slot` offset
+/// overflows `u16`.
 pub fn encode_macro_metadata(def: &MacroDefinition, macro_slot: MacroSlot) -> Result<Vec<u8>> {
     let mut out = vec![0u8; tables::MACRO_DESCRIPTOR_SIZE];
 
@@ -285,9 +277,10 @@ pub fn encode_macro_metadata(def: &MacroDefinition, macro_slot: MacroSlot) -> Re
     let name_bytes = encode_utf16be_name(&def.name, tables::MACRO_NAME_BYTES);
     put_slice(&mut out, 0, &name_bytes)?;
 
-    // [32] gamepad_mode; [33] stays 0.
+    // [32] gamepad_mode, the same byte the macro commands carry; [33] stays 0.
+    let mode_byte = super::mode_byte(def.mode)?;
     out.get_mut(tables::MACRO_MODE_OFFSET)
-        .map(|b| *b = macro_mode_byte(def.mode))
+        .map(|b| *b = mode_byte)
         .ok_or_else(|| Error::Decode("macro descriptor too small for mode byte".into()))?;
 
     // [34..36] max_steps LE16.

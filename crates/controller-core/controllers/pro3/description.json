@@ -86,7 +86,7 @@
     },
     "macro_name_length": {
       "min": 1,
-      "max": 15
+      "max": 16
     },
     "macro_steps": {
       "min": 1,

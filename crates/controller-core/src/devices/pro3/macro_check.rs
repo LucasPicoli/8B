@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 use serde_json::Value;
 
 use super::tables;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
 /// Button names valid as macro triggers but NOT as step actions.
@@ -26,11 +26,13 @@ pub fn validate_macro(macro_json: &Value) -> Result<Vec<ValidationError>> {
     if !schema.is_empty() {
         return Ok(schema);
     }
-    Ok(semantic_errors(macro_json))
+    let max_name = usize::try_from(super::description()?.limits.macro_name_length.max)
+        .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
+    Ok(semantic_errors(macro_json, max_name))
 }
 
 /// Accumulates every semantic error.
-fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
+fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // 1. Trigger eligibility — must map to a non-zero key_map.
@@ -42,13 +44,14 @@ fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
         });
     }
 
-    // 2. Name length — 1..=15 UTF-16 code units (mirrors QString::size()).
+    // 2. Name length — 1..=`max_name` UTF-16 code units, the unit the descriptor stores.
+    // The schema counts code points, so only this check sees a surrogate pair as two.
     let name = macro_json.get("name").and_then(Value::as_str).unwrap_or_default();
     let name_len = name.encode_utf16().count();
-    if name.is_empty() || name_len > 15 {
+    if name.is_empty() || name_len > max_name {
         errors.push(ValidationError {
             path: "/name".to_owned(),
-            reason: format!("Name must be 1-15 characters (got {name_len})."),
+            reason: format!("Name must be 1-{max_name} characters (got {name_len})."),
         });
     }
 

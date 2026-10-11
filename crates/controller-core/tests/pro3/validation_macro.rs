@@ -73,7 +73,7 @@ fn paddle_buttons_in_step_fail_schema() {
 #[test]
 fn name_too_long_fails() {
     let mut m = make_valid_macro();
-    m["name"] = json!("1234567890123456"); // 16 chars
+    m["name"] = json!("12345678901234567"); // 17 chars
     assert_ne!(validate_macro(&m).unwrap(), []);
 }
 
@@ -89,6 +89,29 @@ fn repeat_count_zero_fails() {
     let mut m = make_valid_macro();
     m["repeat"] = json!({ "count": 0, "interval_ms": 0 });
     assert_ne!(validate_macro(&m).unwrap(), []);
+}
+
+#[test]
+fn dinput_mode_passes_validation() {
+    let mut m = make_valid_macro();
+    m["mode"] = json!("dinput");
+    assert_eq!(validate_macro(&m).unwrap(), []);
+}
+
+#[test]
+fn name_of_16_units_passes_validation() {
+    let mut m = make_valid_macro();
+    m["name"] = json!("macro1dinputTEST");
+    assert_eq!(validate_macro(&m).unwrap(), []);
+}
+
+#[test]
+fn name_limit_counts_utf16_units_not_code_points() {
+    // 9 code points pass the schema, but each takes two units: 18 > 16.
+    let mut m = make_valid_macro();
+    m["name"] = json!("😀".repeat(9));
+    let errors = validate_macro(&m).unwrap();
+    assert!(errors.iter().any(|e| e.path == "/name" && e.reason.contains("1-16")));
 }
 
 // --- Genuinely-semantic (passes schema; exact message significant) ----------

@@ -1,8 +1,8 @@
 //! Golden + round-trip tests for the Pro 3 macro encoder.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use controller_core::device::ProtocolCodec;
-use controller_core::devices::pro3::{Pro3, SWITCH, XINPUT};
+use controller_core::device::{ControllerSpec, ProtocolCodec};
+use controller_core::devices::pro3::{Pro3, DINPUT, SWITCH, XINPUT};
 use controller_core::model::{MacroDefinition, MacroSlot, MacroStep};
 
 const SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET: usize = 0x0694; // slot1 macro0 in macro-meta.blob
@@ -108,4 +108,41 @@ fn macro_metadata_round_trips_through_decoder() {
     assert_eq!(metas[0].repeat_count, 3);
     assert_eq!(metas[0].interval_ms, 100);
     assert_eq!(metas[0].macro_slot, Some(0));
+}
+
+#[test]
+fn macro_metadata_is_byte_exact_against_dinput_descriptor_with_16_unit_name() {
+    // `dinput-macro-name16.descriptor.bin`: a 199-step `r4` macro in `DInput`, named with
+    // all 16 units the 32-byte name field holds, so no terminator follows.
+    let golden = std::fs::read("../../fixtures/pro3/dinput-macro-name16.descriptor.bin").unwrap();
+    let def = MacroDefinition {
+        name: "macro1dinputTEST".into(),
+        mode: DINPUT,
+        trigger: "r4".into(),
+        repeat_count: 1,
+        interval_ms: 0,
+        steps: vec![MacroStep::default(); 199],
+        macro_slot: Some(0),
+    };
+    let encoded = Pro3.encode_macro_metadata(&def, MacroSlot::new(0).unwrap()).unwrap();
+    assert_eq!(encoded, golden);
+    assert_eq!(encoded[32], 1, "DInput gamepad_mode byte");
+}
+
+#[test]
+fn macro_metadata_mode_byte_follows_the_model() {
+    for (mode, byte) in [(SWITCH, 0), (DINPUT, 1), (XINPUT, 3)] {
+        let def = MacroDefinition {
+            name: "m".into(),
+            mode,
+            trigger: "l1".into(),
+            repeat_count: 1,
+            interval_ms: 0,
+            steps: vec![MacroStep::default()],
+            macro_slot: Some(0),
+        };
+        let d = Pro3.encode_macro_metadata(&def, MacroSlot::new(0).unwrap()).unwrap();
+        assert_eq!(d[32], Pro3.macro_gamepad_mode(mode).unwrap());
+        assert_eq!(d[32], byte);
+    }
 }
