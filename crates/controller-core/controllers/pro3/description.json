@@ -59,7 +59,7 @@
     {
       "id": "dinput",
       "label": "DInput",
-      "trigger_kind": "on_off",
+      "trigger_kind": "analog",
       "extra_outputs": [
         {
           "id": "rp output",

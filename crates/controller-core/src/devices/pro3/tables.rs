@@ -473,7 +473,7 @@ pub const STEP_RIGHT_JOY_OFFSET: usize = 8;
 
 /// Mask preserving the 14 button bits (clears the L2/R2 bits 14–15).
 pub const STEP_BUTTON_BITS_MASK: u16 = 0x3FFF;
-/// `keys` bit flagging L2 pressed (bit 14). Switch and `DInput` use it alone; `XInput` reads it
+/// `keys` bit flagging L2 pressed (bit 14). Switch uses it alone; `XInput` and `DInput` read it
 /// when `trigger_value` holds 0.
 pub const STEP_SWITCH_L2_MASK: u16 = 0x4000;
 /// `keys` bit flagging R2 pressed (bit 15), read like [`STEP_SWITCH_L2_MASK`].

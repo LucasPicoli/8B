@@ -114,16 +114,16 @@ const fn gamepad_byte_to_mode(byte: u8) -> Mode {
 /// Decodes `count` × 10-byte step records from a raw step stream.
 ///
 /// Each record is `ms_time` LE16, `keys` LE16, `trigger_value` LE16, `left_joy`
-/// LE16 (`(Y<<8)|X`), `right_joy` LE16. L2/R2 decode is mode-aware: in `XInput`
-/// they come from `trigger_value` (`(L2<<8)|R2`), and a trigger whose value is 0 reads
-/// 255 when its `keys` bit (14 for L2, 15 for R2) is set; in the other modes they are
-/// the `keys` bits 14 to 15 (0 or 255). The top two `keys` bits never reach the buttons.
+/// LE16 (`(Y<<8)|X`), `right_joy` LE16. L2/R2 decode is mode-aware: in `XInput` and
+/// `DInput` they come from `trigger_value` (`(L2<<8)|R2`), and a trigger whose value is 0
+/// reads 255 when its `keys` bit (14 for L2, 15 for R2) is set; in Switch they are the
+/// `keys` bits 14 to 15 (0 or 255). The top two `keys` bits never reach the buttons.
 ///
 /// # Errors
 /// Returns [`crate::Error::Decode`] only via the bounds-checked readers; a
 /// record that does not fully fit terminates the walk.
 pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec<MacroStep>> {
-    let is_xinput = mode == XINPUT;
+    let analog = mode != SWITCH;
     let mut result = Vec::with_capacity(count);
 
     for i in 0..count {
@@ -140,14 +140,14 @@ pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec
 
         let l2_bit = if keys & tables::STEP_SWITCH_L2_MASK != 0 { 255 } else { 0 };
         let r2_bit = if keys & tables::STEP_SWITCH_R2_MASK != 0 { 255 } else { 0 };
-        let (trigger_left, trigger_right) = if is_xinput {
-            // XInput: trigger_value = (L2 << 8) | R2. A zero there falls back to the
-            // keys bit, which is where the vendor app writes both triggers.
+        let (trigger_left, trigger_right) = if analog {
+            // XInput and DInput: trigger_value = (L2 << 8) | R2. A zero there falls back
+            // to the keys bit, which is where the vendor app writes both triggers.
             let left = u8::try_from((trigger_value >> 8) & 0xFF).unwrap_or(0);
             let right = u8::try_from(trigger_value & 0xFF).unwrap_or(0);
             (if left == 0 { l2_bit } else { left }, if right == 0 { r2_bit } else { right })
         } else {
-            // Switch and DInput: L2/R2 are keys bits 14–15 (full press or released).
+            // Switch: L2/R2 are keys bits 14–15 (full press or released).
             (l2_bit, r2_bit)
         };
         // Clear bits 14–15 before decoding button names (both modes).
@@ -223,7 +223,7 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
     let padded_len = if raw_len % 32 == 0 { raw_len } else { (raw_len / 32 + 1) * 32 };
     let mut out = vec![0u8; padded_len];
 
-    let is_xinput = mode == XINPUT;
+    let analog = mode != SWITCH;
 
     for (i, step) in steps.iter().enumerate() {
         let base = i * tables::MACRO_STEP_RECORD_SIZE;
@@ -235,8 +235,8 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
         }
 
         // Mode-specific L2/R2 routing.
-        let trigger_value: u16 = if is_xinput {
-            // XInput: trigger_value carries (L2<<8)|R2; clear bits 14–15 in keys.
+        let trigger_value: u16 = if analog {
+            // XInput and DInput: trigger_value carries (L2<<8)|R2; clear bits 14–15 in keys.
             keys &= tables::STEP_BUTTON_BITS_MASK;
             (u16::from(step.trigger_left) << 8) | u16::from(step.trigger_right)
         } else {

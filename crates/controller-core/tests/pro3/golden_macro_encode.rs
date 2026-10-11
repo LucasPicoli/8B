@@ -146,3 +146,20 @@ fn macro_metadata_mode_byte_follows_the_model() {
         assert_eq!(d[32], byte);
     }
 }
+
+#[test]
+fn dinput_encodes_analog_trigger_value_with_key_bits_clear() {
+    // dinput-analog-triggers.steps.bin is the stream `hardware_macro_probe` case `dtrig`
+    // wrote; the pad played it as ABS_BRAKE 128 and ABS_GAS 64.
+    let golden = std::fs::read("../../fixtures/pro3/dinput-analog-triggers.steps.bin").unwrap();
+    let steps = vec![
+        MacroStep {
+            duration_ms: 500,
+            trigger_left: 128,
+            trigger_right: 64,
+            ..MacroStep::default()
+        },
+        MacroStep::default(),
+    ];
+    assert_eq!(Pro3.encode_macro_steps(&steps, DINPUT).unwrap(), golden);
+}

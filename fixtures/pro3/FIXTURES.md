@@ -62,6 +62,12 @@ the triggers in `keys`, not in `trigger_value`: the first step is R2 as `keys` `
 second is L2 as `0x4000`, `trigger_value` 0 in both, sticks centred. `golden_macro_decode.rs`
 decodes them as R2 255 and L2 255.
 
+`dinput-analog-triggers.steps.bin` is the 32-byte step stream that `hardware_macro_probe`
+case `dtrig` wrote to a real Pro 3 in `DInput`: a 500 ms step with `trigger_value` L2 128,
+R2 64 and `keys` bits 14 and 15 clear, then a release step, zero-padded. The pad played it as
+`ABS_BRAKE` 128 and `ABS_GAS` 64. `golden_macro_encode.rs` encodes it and
+`golden_macro_decode.rs` decodes it.
+
 `dinput-macro.blob` is a `DInput` bank read from a real Pro 3, with a macro on `r4`
 in macro slot 3 of every slot. `dinput-macro.steps.bin` is that macro's step stream,
 read back from slot 1: 256 steps of 10 ms that sweep all four stick axes by one
