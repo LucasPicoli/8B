@@ -36,6 +36,8 @@ mod hardware_macro;
 #[cfg(feature = "hardware")]
 mod hardware_macro_play;
 #[cfg(feature = "hardware")]
+mod hardware_macro_probe;
+#[cfg(feature = "hardware")]
 mod hardware_read;
 #[cfg(feature = "hardware")]
 mod hardware_write;
