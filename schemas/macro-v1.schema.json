@@ -47,12 +47,12 @@
   },
   "$defs": {
     "MacroTrigger": {
-      "description": "A button id whose can_start_macro flag is set in the controller description. The app checks that, not this schema.",
+      "description": "A button id whose can_start_macro flag is set in the controller description. The app narrows this to those ids before it validates; the schema file alone accepts any name.",
       "type": "string",
       "minLength": 1
     },
     "StepButton": {
-      "description": "A button id whose can_be_in_macro_step flag is set in the controller description. The app checks that, not this schema.",
+      "description": "A button id whose can_be_in_macro_step flag is set in the controller description. The app narrows this to those ids before it validates; the schema file alone accepts any name.",
       "type": "string",
       "minLength": 1
     },

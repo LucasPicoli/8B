@@ -11,6 +11,7 @@ use std::sync::OnceLock;
 use jsonschema::Validator;
 use serde_json::Value;
 
+use crate::description::{Button, ControllerDescription};
 use crate::error::{Error, Result};
 
 pub use profile::{validate_all_profiles, validate_profile};
@@ -51,14 +52,33 @@ const MACRO_SCHEMA_JSON: &str = include_str!("../../../../../schemas/macro-v1.sc
 // Used by profile_validator().
 const PROFILE_SCHEMA_JSON: &str = include_str!("../../../../../schemas/profile-v1.schema.json");
 
-/// Lazily compiles the macro schema validator (process-wide, once).
+/// Compiles the macro schema for `description`: the schema file accepts any non-empty
+/// button name, and this fills the trigger and step button lists from the flags
+/// `can_start_macro` and `can_be_in_macro_step`.
+///
+/// Compiled on each call: only macro validation uses it, and that is rare.
 ///
 /// # Errors
-/// Returns [`Error::Decode`] if the embedded schema fails to parse or compile
-/// (a build-time invariant; never expected at runtime).
-pub(crate) fn macro_validator() -> Result<&'static Validator> {
-    static V: OnceLock<std::result::Result<Validator, String>> = OnceLock::new();
-    compiled(&V, MACRO_SCHEMA_JSON, "macro")
+/// Returns [`Error::Decode`] if the embedded schema fails to parse or compile, or if
+/// the description has no button for one of the two lists.
+pub(crate) fn macro_validator(description: &ControllerDescription) -> Result<Validator> {
+    let mut schema: Value = serde_json::from_str(MACRO_SCHEMA_JSON)
+        .map_err(|e| Error::Decode(format!("macro schema compile failed: {e}")))?;
+    let names = |pick: fn(&Button) -> bool| -> Value {
+        description.buttons.iter().filter(|b| pick(b)).map(|b| b.id.as_str()).collect()
+    };
+    for (def, list) in [
+        ("MacroTrigger", names(|b| b.can_start_macro)),
+        ("StepButton", names(|b| b.can_be_in_macro_step)),
+    ] {
+        if let Some(def) =
+            schema.pointer_mut(&format!("/$defs/{def}")).and_then(Value::as_object_mut)
+        {
+            def.insert("enum".to_owned(), list);
+        }
+    }
+    jsonschema::draft202012::new(&schema)
+        .map_err(|e| Error::Decode(format!("macro schema compile failed: {e}")))
 }
 
 /// Lazily compiles the profile schema validator (process-wide, once).
@@ -113,32 +133,32 @@ mod tests {
     fn both_embedded_schemas_compile() {
         // Guards the fancy-regex lookahead pattern + internal-$ref resolution
         // without the file/http resolvers (default-features = false).
-        assert!(macro_validator().is_ok());
+        assert!(macro_validator(crate::devices::pro3::description().unwrap()).is_ok());
         assert!(profile_validator().is_ok());
     }
 
     #[test]
     fn schema_errors_empty_for_valid_macro() {
-        let v = macro_validator().unwrap();
+        let v = macro_validator(crate::devices::pro3::description().unwrap()).unwrap();
         let macro_json = json!({
             "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
             "name": "TestMacro", "trigger": "rp",
             "repeat": { "count": 1, "interval_ms": 0 },
             "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["bottom face"], "release": [] } } } ]
         });
-        assert_eq!(schema_errors(v, &macro_json), []);
+        assert_eq!(schema_errors(&v, &macro_json), []);
     }
 
     #[test]
-    fn schema_errors_reports_press_path_for_empty_step_button() {
-        let v = macro_validator().unwrap();
+    fn schema_errors_reports_press_path_for_invalid_step_button() {
+        let v = macro_validator(crate::devices::pro3::description().unwrap()).unwrap();
         let macro_json = json!({
             "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
             "name": "TestMacro", "trigger": "rp",
             "repeat": { "count": 1, "interval_ms": 0 },
-            "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": [""], "release": [] } } } ]
+            "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["turbo"], "release": [] } } } ]
         });
-        let errors = schema_errors(v, &macro_json);
+        let errors = schema_errors(&v, &macro_json);
         assert_ne!(errors, []);
         assert!(errors.iter().any(|e| e.path.contains("press")));
     }

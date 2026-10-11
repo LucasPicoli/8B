@@ -46,6 +46,29 @@ fn valid_macro_passes_validation() {
 // --- Schema-caught failures ------------------------------------------------
 
 #[test]
+fn an_unknown_trigger_or_step_button_fails_at_its_path() {
+    let mut m = make_valid_macro();
+    m["trigger"] = json!("nope");
+    let paths: Vec<_> = validate_macro(&m).unwrap().into_iter().map(|e| e.path).collect();
+    assert_eq!(paths, ["/trigger"]);
+
+    let m = set_step_buttons(make_valid_macro(), 0, json!(["nope"]), json!(["l4"]));
+    let paths: Vec<_> = validate_macro(&m).unwrap().into_iter().map(|e| e.path).collect();
+    assert_eq!(paths, ["/steps/0/actions/buttons/press/0", "/steps/0/actions/buttons/release/0"]);
+}
+
+#[test]
+fn the_flags_of_the_description_decide_which_buttons_pass() {
+    let mut description = Pro3.description().unwrap().clone();
+    let m = set_step_buttons(make_valid_macro(), 0, json!(["l4"]), json!([]));
+    assert_ne!(macro_check::validate_macro(&description, &m).unwrap(), []);
+    for b in &mut description.buttons {
+        b.can_be_in_macro_step |= b.id == "l4";
+    }
+    assert_eq!(macro_check::validate_macro(&description, &m).unwrap(), []);
+}
+
+#[test]
 fn zero_steps_fails_schema() {
     let mut m = make_valid_macro();
     m["steps"] = json!([]);

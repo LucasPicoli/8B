@@ -268,6 +268,22 @@ mod tests {
         assert_eq!(sorted(flagged(|b| b.can_be_in_macro_step)), sorted(steps.collect()));
     }
 
+    /// The profile schema keeps its own list of macro triggers.
+    #[test]
+    fn pro3_profile_schema_triggers_match_the_flags() {
+        let profile: Value =
+            serde_json::from_str(include_str!("../../../../../schemas/profile-v1.schema.json"))
+                .unwrap();
+        let listed = profile.pointer("/$defs/MacroTrigger/enum").unwrap().as_array().unwrap();
+        let mut listed: Vec<&str> = listed.iter().map(|v| v.as_str().unwrap()).collect();
+        let buttons = &Pro3.description().unwrap().buttons;
+        let mut flagged: Vec<&str> =
+            buttons.iter().filter(|b| b.can_start_macro).map(|b| b.id.as_str()).collect();
+        listed.sort_unstable();
+        flagged.sort_unstable();
+        assert_eq!(listed, flagged);
+    }
+
     #[test]
     fn pro3_hotspots_sit_on_their_buttons() {
         let views = &Pro3.description().unwrap().views;

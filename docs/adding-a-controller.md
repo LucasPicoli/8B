@@ -236,9 +236,9 @@ The model supplies:
 6. The macro buttons, if the model has macro slots: set `can_start_macro` on each
    button that may start a macro and `can_be_in_macro_step` on each button that may
    appear in a macro step. Both default to `false`, are the same in every mode, and
-   `macro_slot_count` above 0 needs at least one button with each. The macro
-   validation reads them, so a new model needs no code for this. The Pro 3 has 21
-   and 16, and a test pins them to its codec tables.
+   `macro_slot_count` above 0 needs at least one button with each. Macro validation
+   builds its button lists from them. The Pro 3 has 21 and 16, and a test pins them
+   to its codec tables.
 
 Check the description with `cargo test -p controller-core every_registered_description_loads`,
 which loads the description of every model in `MODELS`. A bad file fails with the

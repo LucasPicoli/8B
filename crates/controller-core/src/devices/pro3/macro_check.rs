@@ -9,48 +9,35 @@ use crate::description::ControllerDescription;
 use crate::error::{Error, Result};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
-/// Validates a canonical macro JSON object (schema first, then semantics). The trigger
-/// and step buttons are checked against the `can_start_macro` and `can_be_in_macro_step`
-/// flags of `description`.
+/// Validates a canonical macro JSON object (schema first, then semantics). The schema
+/// phase takes its trigger and step button lists from the `can_start_macro` and
+/// `can_be_in_macro_step` flags of `description`.
 ///
 /// Returns an empty `Vec` iff the macro is valid. Schema failures short-circuit
 /// (the semantic phase does not run); semantic failures accumulate.
 ///
 /// # Errors
 /// Returns [`Error::Decode`](crate::error::Error::Decode) only if the embedded
-/// macro schema fails to compile (a build-time invariant; never expected at
-/// runtime).
+/// macro schema fails to compile, which includes a description with no button
+/// that can start a macro or no button that can be in a step.
 pub fn validate_macro(
     description: &ControllerDescription,
     macro_json: &Value,
 ) -> Result<Vec<ValidationError>> {
-    let schema = schema_errors(macro_validator()?, macro_json);
+    let schema = schema_errors(&macro_validator(description)?, macro_json);
     if !schema.is_empty() {
         return Ok(schema);
     }
     let max_name = usize::try_from(description.limits.macro_name_length.max)
         .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
-    Ok(semantic_errors(description, macro_json, max_name))
+    Ok(semantic_errors(macro_json, max_name))
 }
 
 /// Accumulates every semantic error.
-fn semantic_errors(
-    description: &ControllerDescription,
-    macro_json: &Value,
-    max_name: usize,
-) -> Vec<ValidationError> {
+fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
-    // 1. Trigger eligibility — the button must be a macro trigger button.
-    let trigger = macro_json.get("trigger").and_then(Value::as_str).unwrap_or_default();
-    if !description.button(trigger).is_some_and(|b| b.can_start_macro) {
-        errors.push(ValidationError {
-            path: "/trigger".to_owned(),
-            reason: format!("'{trigger}' is not a valid macro trigger."),
-        });
-    }
-
-    // 2. Name length — 1..=`max_name` UTF-16 code units, the unit the descriptor stores.
+    // 1. Name length — 1..=`max_name` UTF-16 code units, the unit the descriptor stores.
     // The schema counts code points, so only this check sees a surrogate pair as two.
     let name = macro_json.get("name").and_then(Value::as_str).unwrap_or_default();
     let name_len = name.encode_utf16().count();
@@ -61,7 +48,7 @@ fn semantic_errors(
         });
     }
 
-    // 3. repeat.count >= 1.
+    // 2. repeat.count >= 1.
     let count = macro_json
         .get("repeat")
         .and_then(|r| r.get("count"))
@@ -74,28 +61,14 @@ fn semantic_errors(
         });
     }
 
-    // 4. Per-step checks.
+    // 3. Per-step checks.
     if let Some(steps) = macro_json.get("steps").and_then(Value::as_array) {
         for (i, step) in steps.iter().enumerate() {
             let buttons = step.get("actions").and_then(|a| a.get("buttons"));
             let press = buttons.and_then(|b| b.get("press")).and_then(Value::as_array);
             let release = buttons.and_then(|b| b.get("release")).and_then(Value::as_array);
 
-            // 4a/4b. Invalid step-action buttons in press / release.
-            for (kind, arr) in [("press", press), ("release", release)] {
-                let Some(arr) = arr else { continue };
-                for (j, btn) in arr.iter().enumerate() {
-                    let btn = btn.as_str().unwrap_or_default();
-                    if !description.button(btn).is_some_and(|b| b.can_be_in_macro_step) {
-                        errors.push(ValidationError {
-                            path: format!("/steps/{i}/actions/buttons/{kind}/{j}"),
-                            reason: format!("Step {i}: '{btn}' is not a valid step-action button."),
-                        });
-                    }
-                }
-            }
-
-            // 4c. A button cannot appear in both press and release.
+            // 3a. A button cannot appear in both press and release.
             let press_set: BTreeSet<&str> =
                 press.into_iter().flatten().filter_map(Value::as_str).collect();
             for btn in release.into_iter().flatten().filter_map(Value::as_str) {
