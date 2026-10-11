@@ -18,12 +18,16 @@ use crate::service::{
 };
 use crate::transport::device_io::DeviceIo;
 
-/// What a build step decided.
-pub(super) enum Plan {
-    /// Write this blob.
-    Write(Vec<u8>),
+/// What a build step decided. `T` is what the write stage takes, a bank blob unless
+/// the operation writes more than the bank.
+pub(super) enum Plan<T = Vec<u8>> {
+    /// Write this.
+    Write(T),
     /// Nothing to write. The operation succeeds with this message.
     Nothing(String),
+    /// The confirm policy declined. The operation fails with this message, and no
+    /// error category.
+    Declined(String),
 }
 
 /// Message for the user from an error, without the "validation failed:" prefix.
@@ -152,6 +156,21 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         done: &str,
         build: impl FnOnce(&ReadbackResult) -> Result<Plan>,
     ) -> WriteResult {
+        self.run_job(mode, slot, policy, build, |rb, blob| {
+            self.write(mode, slot, &rb.backup_blob, rb.slot_active, &blob, done)
+        })
+    }
+
+    /// [`Self::run`] with its own write stage: `write` sends what `build` planned, between
+    /// the flip and the flip back.
+    pub(super) fn run_job<T>(
+        &self,
+        mode: Mode,
+        slot: Slot,
+        policy: &ConfirmPolicy,
+        build: impl FnOnce(&ReadbackResult) -> Result<Plan<T>>,
+        write: impl FnOnce(&ReadbackResult, T) -> WriteResult,
+    ) -> WriteResult {
         let fail = |category, message: String| WriteResult::failure(mode, slot, category, message);
 
         if let Err(e) = self.check_slot(slot).and_then(|()| self.check_mode(mode)) {
@@ -166,9 +185,10 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         if !rb.proceed {
             return fail(ErrorCategory::None, rb.message);
         }
-        let blob = match build(&rb) {
-            Ok(Plan::Write(blob)) => blob,
+        let planned = match build(&rb) {
+            Ok(Plan::Write(planned)) => planned,
             Ok(Plan::Nothing(message)) => return WriteResult::success(mode, slot, message),
+            Ok(Plan::Declined(message)) => return fail(ErrorCategory::None, message),
             Err(e) => return failure_from(mode, slot, &e),
         };
 
@@ -176,7 +196,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             Ok(back_to) => back_to,
             Err(e) => return failure_from(mode, slot, &e),
         };
-        let mut result = self.write(mode, slot, &rb.backup_blob, rb.slot_active, &blob, done);
+        let mut result = write(&rb, planned);
         if let Some(back_to) = back_to {
             if let Err(e) = self.dev.end_write(back_to) {
                 result.message = format!(

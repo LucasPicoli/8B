@@ -4,6 +4,7 @@
 //! perform no I/O. Macro-ref file-existence resolution is deferred to the
 //! orchestrator layer.
 
+pub mod macros;
 pub mod profile;
 
 use std::sync::OnceLock;
@@ -14,6 +15,7 @@ use serde_json::Value;
 use crate::description::{Button, ControllerDescription};
 use crate::error::{Error, Result};
 
+pub use macros::validate_macro;
 pub use profile::{validate_all_profiles, validate_profile};
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.
@@ -52,16 +54,20 @@ const MACRO_SCHEMA_JSON: &str = include_str!("../../../../../schemas/macro-v1.sc
 // Used by profile_validator().
 const PROFILE_SCHEMA_JSON: &str = include_str!("../../../../../schemas/profile-v1.schema.json");
 
-/// Compiles the macro schema for `description`: the schema file accepts any non-empty
-/// button name, and this fills the trigger and step button lists from the flags
-/// `can_start_macro` and `can_be_in_macro_step`.
+/// Compiles the macro schema for `description` and the profile `device` string of its
+/// model: the schema file accepts any non-empty button name, and this fills the trigger
+/// and step button lists from the flags `can_start_macro` and `can_be_in_macro_step`,
+/// and pins `device` to `device`.
 ///
 /// Compiled on each call: only macro validation uses it, and that is rare.
 ///
 /// # Errors
 /// Returns [`Error::Decode`] if the embedded schema fails to parse or compile, or if
 /// the description has no button for one of the two lists.
-pub(crate) fn macro_validator(description: &ControllerDescription) -> Result<Validator> {
+pub(crate) fn macro_validator(
+    description: &ControllerDescription,
+    device: &str,
+) -> Result<Validator> {
     let mut schema: Value = serde_json::from_str(MACRO_SCHEMA_JSON)
         .map_err(|e| Error::Decode(format!("macro schema compile failed: {e}")))?;
     let names = |pick: fn(&Button) -> bool| -> Value {
@@ -76,6 +82,9 @@ pub(crate) fn macro_validator(description: &ControllerDescription) -> Result<Val
         {
             def.insert("enum".to_owned(), list);
         }
+    }
+    if let Some(field) = schema.pointer_mut("/properties/device").and_then(Value::as_object_mut) {
+        field.insert("const".to_owned(), Value::from(device));
     }
     jsonschema::draft202012::new(&schema)
         .map_err(|e| Error::Decode(format!("macro schema compile failed: {e}")))
@@ -133,13 +142,16 @@ mod tests {
     fn both_embedded_schemas_compile() {
         // Guards the fancy-regex lookahead pattern + internal-$ref resolution
         // without the file/http resolvers (default-features = false).
-        assert!(macro_validator(crate::devices::pro3::description().unwrap()).is_ok());
+        assert!(
+            macro_validator(crate::devices::pro3::description().unwrap(), "8bitdo-pro3").is_ok()
+        );
         assert!(profile_validator().is_ok());
     }
 
     #[test]
     fn schema_errors_empty_for_valid_macro() {
-        let v = macro_validator(crate::devices::pro3::description().unwrap()).unwrap();
+        let v =
+            macro_validator(crate::devices::pro3::description().unwrap(), "8bitdo-pro3").unwrap();
         let macro_json = json!({
             "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
             "name": "TestMacro", "trigger": "rp",
@@ -151,7 +163,8 @@ mod tests {
 
     #[test]
     fn schema_errors_reports_press_path_for_invalid_step_button() {
-        let v = macro_validator(crate::devices::pro3::description().unwrap()).unwrap();
+        let v =
+            macro_validator(crate::devices::pro3::description().unwrap(), "8bitdo-pro3").unwrap();
         let macro_json = json!({
             "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
             "name": "TestMacro", "trigger": "rp",

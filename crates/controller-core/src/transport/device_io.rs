@@ -94,4 +94,20 @@ pub trait DeviceIo {
     /// # Errors
     /// Same as [`Self::send_slot_select`].
     fn send_apply(&self, mode: Mode) -> Result<()>;
+
+    /// Erases the flash page of one macro slot, then writes `stream`, the padded step
+    /// data, in 32-byte chunks, each ACK-checked. The erase comes first, so a shorter
+    /// macro leaves nothing of a longer one.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Write`] if `stream` is empty, not a multiple of 32 bytes or
+    /// longer than one page, or (with the failed chunk index) on a transfer failure or a
+    /// rejected response. Returns a connection error if the device cannot be opened.
+    fn write_macro_stream(
+        &self,
+        mode: Mode,
+        profile_slot: Slot,
+        macro_slot: MacroSlot,
+        stream: &[u8],
+    ) -> Result<()>;
 }

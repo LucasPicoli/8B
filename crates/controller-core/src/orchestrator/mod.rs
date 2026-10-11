@@ -2,6 +2,7 @@
 //! into reusable pipelines.
 
 pub mod batch;
+pub mod macros;
 pub mod patch;
 pub mod profile;
 pub mod write;

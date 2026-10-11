@@ -219,6 +219,21 @@ pub trait ProtocolCodec {
     /// Returns [`crate::Error::Validation`] if `blob` is not a full profile blob.
     fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>>;
 
+    /// Returns `blob` with macro slot `macro_slot` of `slot` holding `def`'s descriptor,
+    /// or empty when `def` is `None`. The slot's other macros stay byte for byte, and the
+    /// blob's checksum is sealed again. The step page is not part of the blob.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Validation`] if `blob` is not a full profile blob, the
+    /// model has no macros, or `def` cannot be encoded.
+    fn set_macro(
+        &self,
+        blob: &[u8],
+        slot: Slot,
+        macro_slot: MacroSlot,
+        def: Option<&MacroDefinition>,
+    ) -> Result<Vec<u8>>;
+
     /// Returns `base_blob` with `slot` deactivated. Macros and other slots stay as read.
     ///
     /// # Errors

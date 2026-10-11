@@ -6,11 +6,11 @@
 //! mode byte, unknown trigger key maps and the unmodelled descriptor bytes do not survive),
 //! so [`compile_profile_keep_macros`] copies the descriptor bytes verbatim instead.
 
-use super::macros::decode_macro_metadata;
+use super::macros::{decode_macro_metadata, encode_macro_metadata};
 use super::profile::{compile_profile, seal_crc};
 use super::tables;
 use crate::error::{Error, Result};
-use crate::model::{CanonicalProfile, Mode, Slot};
+use crate::model::{CanonicalProfile, MacroDefinition, MacroSlot, Mode, Slot};
 use crate::protocol::bytes::{put_slice, take};
 
 /// Size of the descriptor region of one Section-4 slot record (4 descriptors of 52 bytes).
@@ -77,6 +77,37 @@ pub fn drop_macros(blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u
     Ok(out)
 }
 
+/// Returns `blob` with macro slot `macro_slot` of `slot` holding `def`, or zeroed when
+/// `def` is `None`. The other three descriptors and the rest of the blob stay as read,
+/// and the CRC is resealed.
+///
+/// # Errors
+/// Returns [`Error::Validation`] if `blob` is not 2348 bytes or `def` cannot be encoded.
+pub fn set_macro(
+    blob: &[u8],
+    slot: Slot,
+    macro_slot: MacroSlot,
+    def: Option<&MacroDefinition>,
+) -> Result<Vec<u8>> {
+    if blob.len() != tables::EXPECTED_PROFILE_SIZE {
+        return Err(Error::Validation(format!(
+            "blob must be {} bytes to set a macro, got {}",
+            tables::EXPECTED_PROFILE_SIZE,
+            blob.len()
+        )));
+    }
+    let descriptor = match def {
+        Some(def) => encode_macro_metadata(def, macro_slot)?,
+        None => vec![0; tables::MACRO_DESCRIPTOR_SIZE],
+    };
+    let at = descriptor_region_offset(slot)?
+        + usize::from(macro_slot.get()) * tables::MACRO_DESCRIPTOR_SIZE;
+    let mut out = blob.to_vec();
+    put_slice(&mut out, at, &descriptor)?;
+    seal_crc(&mut out)?;
+    Ok(out)
+}
+
 /// Clears the active-slot flag of `slot` in `base_blob` and reseals the CRC.
 ///
 /// Everything else stays as read, macros included.
@@ -111,9 +142,103 @@ pub fn validate_remap(mode: Mode, source: &str, target: &str) -> Result<()> {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::devices::pro3::{DINPUT, SWITCH, XINPUT};
+    use crate::model::MacroStep;
+
+    /// Where the CRC sits in a blob.
+    const CRC: std::ops::Range<usize> = 0x0C..0x10;
+
+    fn macro_def(name: &str, trigger: &str, steps: usize) -> MacroDefinition {
+        MacroDefinition {
+            name: name.into(),
+            mode: XINPUT,
+            trigger: trigger.into(),
+            repeat_count: 2,
+            interval_ms: 5,
+            steps: vec![MacroStep::default(); steps],
+            macro_slot: None,
+        }
+    }
+
+    fn descriptor(blob: &[u8], slot: Slot, index: u8) -> &[u8] {
+        let at = descriptor_region_offset(slot).unwrap()
+            + usize::from(index) * tables::MACRO_DESCRIPTOR_SIZE;
+        &blob[at..at + tables::MACRO_DESCRIPTOR_SIZE]
+    }
+
+    /// Every byte index where `a` and `b` differ, the CRC left out.
+    fn changed(a: &[u8], b: &[u8]) -> Vec<usize> {
+        (0..a.len()).filter(|&i| a[i] != b[i] && !CRC.contains(&i)).collect()
+    }
+
+    fn sealed(blob: &[u8]) -> bool {
+        let mut copy = blob.to_vec();
+        seal_crc(&mut copy).unwrap();
+        copy == blob
+    }
+
+    #[test]
+    fn a_put_writes_one_descriptor_and_keeps_the_other_three() {
+        let slot = Slot::new(2).unwrap();
+        let profile = super::super::profile::default_profile(XINPUT);
+        let others = [macro_def("A", "l1", 3), macro_def("B", "r1", 4), macro_def("D", "l2", 5)];
+        let mut base = compile_profile(&profile, slot, &[], &others).unwrap();
+        // Move the third macro to macro slot 3, so macro slot 2 is the free one.
+        let third = descriptor(&base, slot, 2).to_vec();
+        base = set_macro(&base, slot, MacroSlot::new(2).unwrap(), None).unwrap();
+        let at = descriptor_region_offset(slot).unwrap() + 3 * tables::MACRO_DESCRIPTOR_SIZE;
+        put_slice(&mut base, at, &third).unwrap();
+        seal_crc(&mut base).unwrap();
+
+        let new = macro_def("New", "r4", 7);
+        let m2 = MacroSlot::new(2).unwrap();
+        let out = set_macro(&base, slot, m2, Some(&new)).unwrap();
+        assert_eq!(descriptor(&out, slot, 2), encode_macro_metadata(&new, m2).unwrap());
+        for i in [0, 1, 3] {
+            assert_eq!(descriptor(&out, slot, i), descriptor(&base, slot, i), "macro slot {i}");
+        }
+        let at = descriptor_region_offset(slot).unwrap() + 2 * tables::MACRO_DESCRIPTOR_SIZE;
+        assert!(changed(&base, &out).iter().all(|i| (at..at + 52).contains(i)));
+        assert!(sealed(&out));
+    }
+
+    #[test]
+    fn a_delete_zeroes_one_descriptor_and_nothing_else() {
+        let slot = Slot::new(1).unwrap();
+        let profile = super::super::profile::default_profile(XINPUT);
+        let base = compile_profile(&profile, slot, &[], &[macro_def("A", "l1", 3)]).unwrap();
+        let out = set_macro(&base, slot, MacroSlot::new(0).unwrap(), None).unwrap();
+        assert_eq!(descriptor(&out, slot, 0), [0; tables::MACRO_DESCRIPTOR_SIZE]);
+        assert_eq!(
+            changed(&base, &out).len(),
+            descriptor(&base, slot, 0).iter().filter(|&&b| b != 0).count()
+        );
+        assert_eq!(decode_macro_metadata(&out, slot).unwrap(), []);
+        assert!(sealed(&out));
+        assert!(set_macro(&base[1..], slot, MacroSlot::new(0).unwrap(), None).is_err());
+    }
+
+    /// `dinput-macro.blob` holds the official app's `r4` macro in macro slot 3 of every
+    /// slot. Deleting it and putting back what the decoder reads gives the same bank.
+    #[test]
+    fn a_delete_and_a_put_of_the_read_macro_give_back_the_golden_bank() {
+        let golden = std::fs::read("../../fixtures/pro3/dinput-macro.blob").unwrap();
+        let (slot, m3) = (Slot::new(1).unwrap(), MacroSlot::new(3).unwrap());
+        let read = decode_macro_metadata(&golden, slot).unwrap();
+        let def = read.iter().find(|d| d.macro_slot == Some(3)).unwrap();
+        assert_eq!(def.mode, DINPUT);
+
+        let deleted = set_macro(&golden, slot, m3, None).unwrap();
+        assert_eq!(descriptor(&deleted, slot, 3), [0; tables::MACRO_DESCRIPTOR_SIZE]);
+        for n in 2..=3 {
+            let other = Slot::new(n).unwrap();
+            assert_eq!(descriptor(&deleted, other, 3), descriptor(&golden, other, 3));
+        }
+        assert_eq!(set_macro(&deleted, slot, m3, Some(def)).unwrap(), golden);
+    }
 
     #[test]
     fn remap_rules() {

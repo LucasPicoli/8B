@@ -1,7 +1,6 @@
 //! 8BitDo Pro 3 controller backend.
 
 pub mod edit;
-pub mod macro_check;
 pub mod macros;
 pub mod profile;
 pub mod settings;
@@ -198,6 +197,16 @@ impl ProtocolCodec for Pro3 {
 
     fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
         edit::drop_macros(blob, slot, triggers)
+    }
+
+    fn set_macro(
+        &self,
+        blob: &[u8],
+        slot: Slot,
+        macro_slot: MacroSlot,
+        def: Option<&MacroDefinition>,
+    ) -> Result<Vec<u8>> {
+        edit::set_macro(blob, slot, macro_slot, def)
     }
 
     fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {

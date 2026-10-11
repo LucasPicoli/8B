@@ -3,7 +3,7 @@
 //! `regenerate` test (ignored) writes committed `.json` + `.steps.bin`.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use controller_core::device::{ControllerSpec, ProtocolCodec};
+use controller_core::device::ProtocolCodec;
 use controller_core::devices::pro3::macros::macro_to_canonical_json;
 use controller_core::devices::pro3::{Pro3, SWITCH, XINPUT};
 use controller_core::model::{MacroDefinition, MacroSlot, MacroStep};
@@ -252,10 +252,7 @@ fn every_macro_fixture_passes_validation() {
         let json: serde_json::Value =
             serde_json::from_slice(&std::fs::read(format!("{DIR}/{}.json", f.stem)).unwrap())
                 .unwrap();
-        let description = Pro3.description().unwrap();
-        let errors =
-            controller_core::devices::pro3::macro_check::validate_macro(description, &json)
-                .unwrap();
+        let errors = controller_core::service::validation::validate_macro(&Pro3, &json).unwrap();
         assert!(errors.is_empty(), "{}: {:?}", f.stem, errors);
     }
 }

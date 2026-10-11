@@ -1,17 +1,19 @@
-//! Pro 3 macro validation (schema + semantic). The app reads macros but never imports
-//! one, so only the tests run it.
+//! Macro validation (schema + semantic), for any model with macro slots.
 
 use std::collections::BTreeSet;
 
 use serde_json::Value;
 
 use crate::description::ControllerDescription;
+use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
-/// Validates a canonical macro JSON object (schema first, then semantics). The schema
-/// phase takes its trigger and step button lists from the `can_start_macro` and
-/// `can_be_in_macro_step` flags of `description`.
+/// Validates a canonical macro JSON object for `model` (schema first, then semantics).
+///
+/// The schema phase takes its trigger and step button lists from the `can_start_macro`
+/// and `can_be_in_macro_step` flags of the model's description, and its `device` from
+/// the model's profiles.
 ///
 /// Returns an empty `Vec` iff the macro is valid. A controller with no macro slots
 /// accepts no macro: that is one error at `/`. Schema failures short-circuit (the
@@ -19,10 +21,21 @@ use crate::service::validation::{macro_validator, schema_errors, ValidationError
 ///
 /// # Errors
 /// Returns [`Error::Decode`](crate::error::Error::Decode) only if the embedded
-/// macro schema fails to compile (a build-time invariant; never expected at
-/// runtime).
-pub fn validate_macro(
+/// macro schema fails to compile or the embedded description is malformed (build-time
+/// invariants; never expected at runtime).
+pub fn validate_macro(model: &dyn Model, macro_json: &Value) -> Result<Vec<ValidationError>> {
+    let description = model.description()?;
+    let device = description
+        .modes
+        .first()
+        .map_or_else(String::new, |mode| model.default_profile(mode.id).device);
+    check(description, &device, macro_json)
+}
+
+/// [`validate_macro`] against `description` and `device`.
+fn check(
     description: &ControllerDescription,
+    device: &str,
     macro_json: &Value,
 ) -> Result<Vec<ValidationError>> {
     if description.macro_slot_count == 0 {
@@ -31,7 +44,7 @@ pub fn validate_macro(
             reason: format!("{} has no macro slots.", description.display_name),
         }]);
     }
-    let schema = schema_errors(&macro_validator(description)?, macro_json);
+    let schema = schema_errors(&macro_validator(description, device)?, macro_json);
     if !schema.is_empty() {
         return Ok(schema);
     }
@@ -90,4 +103,40 @@ fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> 
     }
 
     errors
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::devices::test_pad::TestPad;
+
+    fn a_macro() -> Value {
+        json!({
+            "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
+            "name": "TestMacro", "trigger": "rp",
+            "repeat": { "count": 1, "interval_ms": 0 },
+            "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["l4"], "release": [] } } } ]
+        })
+    }
+
+    #[test]
+    fn a_controller_without_macro_slots_accepts_no_macro() {
+        let errors = validate_macro(&TestPad, &a_macro()).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].path, "/");
+        assert!(errors[0].reason.contains("no macro slots"), "{}", errors[0].reason);
+    }
+
+    #[test]
+    fn the_flags_of_the_description_decide_which_buttons_pass() {
+        let mut description = crate::devices::pro3::description().unwrap().clone();
+        assert_ne!(check(&description, "8bitdo-pro3", &a_macro()).unwrap(), []);
+        for b in &mut description.buttons {
+            b.can_be_in_macro_step |= b.id == "l4";
+        }
+        assert_eq!(check(&description, "8bitdo-pro3", &a_macro()).unwrap(), []);
+    }
 }

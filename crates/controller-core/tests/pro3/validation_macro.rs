@@ -1,14 +1,13 @@
 //! Pro 3 macro validation: semantic rules and the macro schema.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use controller_core::device::ControllerSpec;
-use controller_core::devices::pro3::{macro_check, Pro3};
+use controller_core::devices::pro3::Pro3;
 use controller_core::service::validation::ValidationError;
 use serde_json::{json, Value};
 
 /// Validates against the Pro 3 description.
 fn validate_macro(macro_json: &Value) -> controller_core::Result<Vec<ValidationError>> {
-    macro_check::validate_macro(Pro3.description()?, macro_json)
+    controller_core::service::validation::validate_macro(&Pro3, macro_json)
 }
 
 /// Minimal valid macro JSON.
@@ -58,24 +57,11 @@ fn an_unknown_trigger_or_step_button_fails_at_its_path() {
 }
 
 #[test]
-fn a_controller_without_macro_slots_accepts_no_macro() {
-    let mut description = Pro3.description().unwrap().clone();
-    description.macro_slot_count = 0;
-    let errors = macro_check::validate_macro(&description, &make_valid_macro()).unwrap();
-    assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].path, "/");
-    assert!(errors[0].reason.contains("no macro slots"), "{}", errors[0].reason);
-}
-
-#[test]
-fn the_flags_of_the_description_decide_which_buttons_pass() {
-    let mut description = Pro3.description().unwrap().clone();
-    let m = set_step_buttons(make_valid_macro(), 0, json!(["l4"]), json!([]));
-    assert_ne!(macro_check::validate_macro(&description, &m).unwrap(), []);
-    for b in &mut description.buttons {
-        b.can_be_in_macro_step |= b.id == "l4";
-    }
-    assert_eq!(macro_check::validate_macro(&description, &m).unwrap(), []);
+fn a_macro_for_another_device_fails_at_device() {
+    let mut m = make_valid_macro();
+    m["device"] = json!("8bitdo-ultimate");
+    let paths: Vec<_> = validate_macro(&m).unwrap().into_iter().map(|e| e.path).collect();
+    assert_eq!(paths, ["/device"]);
 }
 
 #[test]

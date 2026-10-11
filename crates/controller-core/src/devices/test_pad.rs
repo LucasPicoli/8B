@@ -173,6 +173,16 @@ impl ProtocolCodec for TestPad {
         Ok(blob.to_vec())
     }
 
+    fn set_macro(
+        &self,
+        _: &[u8],
+        _: Slot,
+        _: MacroSlot,
+        _: Option<&MacroDefinition>,
+    ) -> Result<Vec<u8>> {
+        Err(Error::Validation("the test pad has no macros".to_owned()))
+    }
+
     fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
         let mut blob = base_blob.to_vec();
         put_slice(&mut blob, slot_index(slot)? * MARKER_STRIDE, &[0; MARKER_STRIDE])?;

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::error::{Error, ErrorCategory, Result};
-use crate::model::{Mode, Slot, WriteResult};
+use crate::model::{MacroSlot, Mode, Slot, WriteResult};
 use crate::transport::device_io::DeviceIo;
 
 /// Where a failed write stopped.
@@ -34,7 +34,8 @@ impl FailedWrite {
         }
     }
 
-    fn prefix(self) -> String {
+    /// The first sentence of a failure message: where the write stopped.
+    pub(crate) fn prefix(self) -> String {
         match self.chunk {
             Some(i) if self.total_chunks > 0 => {
                 format!("Write failed at chunk {}/{}.", i + 1, self.total_chunks)
@@ -107,12 +108,38 @@ pub fn save_backup(mode: Mode, slot: Slot, blob: &[u8], dir: &Path) -> Result<Pa
     if blob.is_empty() {
         return Err(Error::Validation("backup blob is empty".to_owned()));
     }
+    save_new(dir, &format!("backup-{mode}-slot-{}", slot.get()), "bin", blob)
+}
+
+/// Saves `macro_json`, a macro file, as
+/// `backup-<mode>-slot-<N>-macro-<M>-<YYYYMMDD-HHMMSS>.json` (UTC) in `dir`. A failed
+/// macro write that cannot put the old steps back keeps them here.
+///
+/// Never overwrites an existing file.
+///
+/// # Errors
+/// Returns [`Error::Io`] if the file cannot be created or written (including a name
+/// collision).
+pub fn save_macro_backup(
+    mode: Mode,
+    slot: Slot,
+    macro_slot: MacroSlot,
+    macro_json: &serde_json::Value,
+    dir: &Path,
+) -> Result<PathBuf> {
+    let text = serde_json::to_vec_pretty(macro_json)
+        .map_err(|e| Error::Io(format!("the macro backup cannot be written: {e}")))?;
+    let stem = format!("backup-{mode}-slot-{}-macro-{}", slot.get(), macro_slot.get());
+    save_new(dir, &stem, "json", &text)
+}
+
+/// Writes `bytes` to a new file `<stem>-<YYYYMMDD-HHMMSS>.<ext>` (UTC) in `dir`.
+fn save_new(dir: &Path, stem: &str, ext: &str, bytes: &[u8]) -> Result<PathBuf> {
     let secs = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-    let name = format!("backup-{mode}-slot-{}-{}.bin", slot.get(), utc_stamp(secs));
-    let path = dir.join(name);
+    let path = dir.join(format!("{stem}-{}.{ext}", utc_stamp(secs)));
     let io = |e: std::io::Error| Error::Io(format!("{}: {e}", path.display()));
     let mut file = OpenOptions::new().write(true).create_new(true).open(&path).map_err(io)?;
-    file.write_all(blob).and_then(|()| file.sync_all()).map_err(io)?;
+    file.write_all(bytes).and_then(|()| file.sync_all()).map_err(io)?;
     Ok(path)
 }
 

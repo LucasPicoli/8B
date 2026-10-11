@@ -8,7 +8,7 @@ use crate::devices::models;
 use crate::error::{Error, Result};
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 use crate::transport::device_io::DeviceIo;
-use crate::transport::write_input::check_profile_blob;
+use crate::transport::write_input::{check_macro_stream, check_profile_blob};
 
 /// The write operations a [`MockDevice`] can record and fail.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -23,6 +23,8 @@ pub enum MockOp {
     SlotSelect,
     /// [`DeviceIo::send_apply`].
     Apply,
+    /// [`DeviceIo::write_macro_stream`].
+    WriteMacroStream,
 }
 
 /// One write call a [`MockDevice`] received, with its arguments.
@@ -43,6 +45,17 @@ pub enum MockCall {
     SlotSelect(Mode),
     /// [`DeviceIo::send_apply`].
     Apply(Mode),
+    /// [`DeviceIo::write_macro_stream`].
+    WriteMacroStream {
+        /// Target mode.
+        mode: Mode,
+        /// The profile slot the macro belongs to.
+        profile_slot: Slot,
+        /// The macro slot whose page was erased and written.
+        macro_slot: MacroSlot,
+        /// The stream that was sent.
+        stream: Vec<u8>,
+    },
 }
 
 impl MockCall {
@@ -55,6 +68,7 @@ impl MockCall {
             Self::WriteFullProfile { .. } => MockOp::WriteFullProfile,
             Self::SlotSelect(_) => MockOp::SlotSelect,
             Self::Apply(_) => MockOp::Apply,
+            Self::WriteMacroStream { .. } => MockOp::WriteMacroStream,
         }
     }
 }
@@ -69,12 +83,14 @@ struct WriteLog {
 ///
 /// Reads return what was configured, after any failures queued with
 /// [`MockDevice::fail_next_read`]. Writes are recorded in order and succeed unless
-/// [`MockDevice::fail_nth`] says otherwise. The mock does not model device state.
+/// [`MockDevice::fail_nth`] says otherwise. The mock does not model device state unless
+/// [`MockDevice::keeping_writes`] asks it to.
 #[derive(Default)]
 pub struct MockDevice {
     model: Option<&'static dyn Model>,
-    profiles: Option<ProfileReadResult>,
-    macro_streams: HashMap<(Mode, u8, u8), Vec<u8>>,
+    profiles: Mutex<Option<ProfileReadResult>>,
+    macro_streams: Mutex<HashMap<(Mode, u8, u8), Vec<u8>>>,
+    keeps_writes: bool,
     readiness: Option<DeviceReadiness>,
     flip_back_to: Option<Mode>,
     current_mode: Option<Mode>,
@@ -108,20 +124,28 @@ impl MockDevice {
     /// Configures what [`DeviceIo::read_all_profiles`] returns.
     #[must_use]
     pub fn with_profiles(mut self, result: ProfileReadResult) -> Self {
-        self.profiles = Some(result);
+        self.profiles = Mutex::new(Some(result));
         self
     }
 
     /// Configures the macro step stream for a (mode, profile slot, macro slot).
     #[must_use]
     pub fn with_macro_stream(
-        mut self,
+        self,
         mode: Mode,
         profile_slot: Slot,
         macro_slot: MacroSlot,
         stream: Vec<u8>,
     ) -> Self {
-        self.macro_streams.insert((mode, profile_slot.get(), macro_slot.get()), stream);
+        lock(&self.macro_streams).insert((mode, profile_slot.get(), macro_slot.get()), stream);
+        self
+    }
+
+    /// Makes each write that succeeds change what later reads return, as a pad does: a
+    /// profile blob replaces its mode's bank, and a macro stream replaces its page.
+    #[must_use]
+    pub const fn keeping_writes(mut self) -> Self {
+        self.keeps_writes = true;
         self
     }
 
@@ -144,7 +168,7 @@ impl MockDevice {
     /// come back in the order they were added.
     #[must_use]
     pub fn fail_next_read(self, error: Error) -> Self {
-        self.read_failures.lock().unwrap_or_else(PoisonError::into_inner).push(error);
+        lock(&self.read_failures).push(error);
         self
     }
 
@@ -162,7 +186,21 @@ impl MockDevice {
     }
 
     fn log(&self) -> MutexGuard<'_, WriteLog> {
-        self.writes.lock().unwrap_or_else(PoisonError::into_inner)
+        lock(&self.writes)
+    }
+
+    /// Puts `blob` in `mode`'s bank of the configured read, when writes are kept.
+    fn keep_bank(&self, mode: Mode, blob: &[u8]) -> Result<()> {
+        if !self.keeps_writes {
+            return Ok(());
+        }
+        let index = self.model()?.description()?.modes.iter().position(|m| m.id == mode);
+        if let Some(bank) =
+            lock(&self.profiles).as_mut().zip(index).and_then(|(read, i)| read.raw_blobs.get_mut(i))
+        {
+            blob.clone_into(bank);
+        }
+        Ok(())
     }
 
     /// Records `call`, then fails it if a failure was scripted for this occurrence.
@@ -181,12 +219,12 @@ impl DeviceIo for MockDevice {
     }
 
     fn read_all_profiles(&self) -> Result<ProfileReadResult> {
-        let mut failures = self.read_failures.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut failures = lock(&self.read_failures);
         if !failures.is_empty() {
             return Err(failures.remove(0));
         }
         drop(failures);
-        self.profiles.clone().ok_or(Error::NoDevice)
+        lock(&self.profiles).clone().ok_or(Error::NoDevice)
     }
 
     fn read_macro_stream(
@@ -196,7 +234,7 @@ impl DeviceIo for MockDevice {
         macro_slot: MacroSlot,
         _step_count: usize,
     ) -> Result<Vec<u8>> {
-        self.macro_streams
+        lock(&self.macro_streams)
             .get(&(mode, profile_slot.get(), macro_slot.get()))
             .cloned()
             .ok_or(Error::NoDevice)
@@ -221,7 +259,8 @@ impl DeviceIo for MockDevice {
 
     fn write_full_profile(&self, mode: Mode, blob: &[u8]) -> Result<()> {
         check_profile_blob(blob, self.model()?.blob_size())?;
-        self.record(MockCall::WriteFullProfile { mode, blob: blob.to_vec() })
+        self.record(MockCall::WriteFullProfile { mode, blob: blob.to_vec() })?;
+        self.keep_bank(mode, blob)
     }
 
     fn send_slot_select(&self, mode: Mode) -> Result<()> {
@@ -231,6 +270,33 @@ impl DeviceIo for MockDevice {
     fn send_apply(&self, mode: Mode) -> Result<()> {
         self.record(MockCall::Apply(mode))
     }
+
+    fn write_macro_stream(
+        &self,
+        mode: Mode,
+        profile_slot: Slot,
+        macro_slot: MacroSlot,
+        stream: &[u8],
+    ) -> Result<()> {
+        check_macro_stream(stream, macro_slot)?;
+        let stream = stream.to_vec();
+        self.record(MockCall::WriteMacroStream {
+            mode,
+            profile_slot,
+            macro_slot,
+            stream: stream.clone(),
+        })?;
+        if self.keeps_writes {
+            lock(&self.macro_streams).insert((mode, profile_slot.get(), macro_slot.get()), stream);
+        }
+        Ok(())
+    }
+}
+
+/// Locks `m`, taking the data of a poisoned lock: a test that panicked holding it has
+/// already failed.
+fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+    m.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 #[cfg(test)]

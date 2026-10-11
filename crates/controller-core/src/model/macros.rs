@@ -1,8 +1,10 @@
 //! Canonical macro model matching `schemas/macro-v1.schema.json`.
 
+use serde::Deserialize as _;
 use serde_json::{json, Map, Value};
 
 use super::ids::Mode;
+use crate::error::{Error, Result};
 
 /// The repeat count that plays a macro until its trigger button is pressed again.
 pub const REPEAT_CONTINUOUS: u32 = u32::MAX;
@@ -166,6 +168,101 @@ fn step_to_json(step: &MacroStep) -> Value {
     })
 }
 
+/// The parts of a macro file that [`macro_from_json`] reads.
+#[derive(serde::Deserialize)]
+struct MacroFile {
+    #[serde(default)]
+    name: String,
+    mode: Mode,
+    trigger: String,
+    repeat: RepeatFile,
+    steps: Vec<StepFile>,
+}
+
+#[derive(serde::Deserialize)]
+struct RepeatFile {
+    count: u32,
+    interval_ms: u32,
+}
+
+#[derive(serde::Deserialize)]
+struct StepFile {
+    duration_ms: u16,
+    actions: ActionsFile,
+}
+
+#[derive(serde::Deserialize, Default)]
+#[serde(default)]
+struct ActionsFile {
+    buttons: ButtonsFile,
+    left_stick: Option<StickFile>,
+    right_stick: Option<StickFile>,
+    triggers: Option<TriggersFile>,
+}
+
+#[derive(serde::Deserialize, Default)]
+#[serde(default)]
+struct ButtonsFile {
+    press: Vec<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct StickFile {
+    x: u8,
+    y: u8,
+}
+
+#[derive(serde::Deserialize)]
+struct TriggersFile {
+    left: u8,
+    right: u8,
+}
+
+/// Reads canonical macro JSON into a [`MacroDefinition`], the reverse of
+/// [`macro_to_json`].
+///
+/// A step's `press` list is the set of buttons held during it, as
+/// the pad stores a step. `macro_slot` is `None`: the caller names the slot.
+///
+/// Run the validator first. This only reads the shape, and checks no button name.
+///
+/// # Errors
+/// Returns [`Error::Validation`] if `json` does not have the macro file shape.
+pub fn macro_from_json(json: &Value) -> Result<MacroDefinition> {
+    let file = MacroFile::deserialize(json)
+        .map_err(|e| Error::Validation(format!("This is not a macro: {e}.")))?;
+    let stick = |s: Option<StickFile>| s.map_or((STICK_CENTER, STICK_CENTER), |s| (s.x, s.y));
+    let steps = file
+        .steps
+        .into_iter()
+        .map(|step| {
+            let a = step.actions;
+            let (left_stick_x, left_stick_y) = stick(a.left_stick);
+            let (right_stick_x, right_stick_y) = stick(a.right_stick);
+            let (trigger_left, trigger_right) = a.triggers.map_or((0, 0), |t| (t.left, t.right));
+            MacroStep {
+                duration_ms: step.duration_ms,
+                pressed_buttons: a.buttons.press,
+                left_stick_x,
+                left_stick_y,
+                right_stick_x,
+                right_stick_y,
+                trigger_left,
+                trigger_right,
+            }
+        })
+        .collect();
+    Ok(MacroDefinition {
+        name: file.name,
+        mode: file.mode,
+        trigger: file.trigger,
+        repeat_count: file.repeat.count,
+        interval_ms: file.repeat.interval_ms,
+        steps,
+        macro_slot: None,
+    })
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -187,5 +284,30 @@ mod tests {
         assert_eq!(parse_macro_file_name(&path), Some((2, "My-macro_1")));
         assert_eq!(parse_macro_file_name("m.json"), None);
         assert_eq!(parse_macro_file_name("xinput-slot1-macroX-a.json"), None);
+    }
+
+    #[test]
+    fn a_macro_reads_back_from_its_json() {
+        let def = MacroDefinition {
+            name: "Mix".into(),
+            mode: XINPUT,
+            trigger: "r4".into(),
+            repeat_count: REPEAT_CONTINUOUS,
+            interval_ms: 40,
+            steps: vec![
+                MacroStep {
+                    duration_ms: 30,
+                    pressed_buttons: vec!["bottom face".into(), "l1".into()],
+                    left_stick_x: 0,
+                    right_stick_y: 255,
+                    trigger_left: 128,
+                    ..MacroStep::default()
+                },
+                MacroStep::default(),
+            ],
+            macro_slot: None,
+        };
+        assert_eq!(macro_from_json(&macro_to_json(&def, "8bitdo-pro3")).unwrap(), def);
+        assert!(macro_from_json(&json!({ "name": "x" })).is_err());
     }
 }

@@ -39,9 +39,8 @@ The Pro 3 lives in
 | `tables.rs` | Blob offsets, strides, and the 4-byte button encodings |
 | `profile.rs` | `map_profile` (decode) and `compile_profile` (encode) |
 | `macros.rs` | Macro metadata and step encode and decode |
-| `edit.rs` | Keep, drop and deactivate operations on a blob, and the remap name check |
+| `edit.rs` | Keep, drop, set-macro and deactivate operations on a blob, and the remap name check |
 | `settings.rs` | The sticks, triggers and vibration groups as typed structs, read from and written to the profile's JSON objects |
-| `macro_check.rs` | Macro schema and semantic checks, which only the tests run |
 
 A new model gets its own folder next to `pro3/`, and one entry in `MODELS` in
 [`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs). Detection, the
@@ -271,14 +270,16 @@ and uses that model's transport. A model that returns `None`, the default, gets
 `a_model_with_its_own_transport_gets_it_by_its_usb_id` in `devices/mod.rs` checks
 the choice.
 
-`DeviceIo` has 10 methods. All but `current_mode` are required. The write services
+`DeviceIo` has 11 methods. All but `current_mode` are required. The write services
 call them in the 8BitDo order: begin the write, slot select, write the whole blob,
 apply, end the write. A transport without those steps makes slot select and apply do
 nothing, returns `Ok(None)` from `begin_write` and `Ok(())` from `end_write`, and maps
-the blob of `blob_size` bytes onto its own reads and writes. The 8BitDo macro write
-and erase, the patch write and the status query are methods of `HidrawDevice` only, so
-a transport of its own does not implement them. It still implements
-`read_macro_stream`.
+the blob of `blob_size` bytes onto its own reads and writes. A macro put sends the
+bank, apply, then `write_macro_stream` (erase the macro's page, then write its steps),
+then apply. A model without macro slots never gets the call: the put is refused before any
+write. The
+lone 8BitDo erase, the patch write and the status query are methods of `HidrawDevice`
+only, so a transport of its own does not implement them.
 
 The app takes the current mode from the USB id of the config port. A pad that changes
 mode without changing its USB id lists one port and answers `DeviceIo::current_mode`.
