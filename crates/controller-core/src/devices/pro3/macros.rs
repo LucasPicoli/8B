@@ -115,8 +115,9 @@ const fn gamepad_byte_to_mode(byte: u8) -> Mode {
 ///
 /// Each record is `ms_time` LE16, `keys` LE16, `trigger_value` LE16, `left_joy`
 /// LE16 (`(Y<<8)|X`), `right_joy` LE16. L2/R2 decode is mode-aware: in `XInput`
-/// they come from `trigger_value` (`(L2<<8)|R2`) and the top two `keys` bits are
-/// cleared; in Switch they are the `keys` bits 14 to 15 (0 or 255).
+/// they come from `trigger_value` (`(L2<<8)|R2`), and a trigger whose value is 0 reads
+/// 255 when its `keys` bit (14 for L2, 15 for R2) is set; in the other modes they are
+/// the `keys` bits 14 to 15 (0 or 255). The top two `keys` bits never reach the buttons.
 ///
 /// # Errors
 /// Returns [`crate::Error::Decode`] only via the bounds-checked readers; a
@@ -137,16 +138,17 @@ pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec
         let mut keys = read_u16_le(record, tables::STEP_KEYS_OFFSET)?;
         let trigger_value = read_u16_le(record, tables::STEP_TRIGGER_VALUE_OFFSET)?;
 
+        let l2_bit = if keys & tables::STEP_SWITCH_L2_MASK != 0 { 255 } else { 0 };
+        let r2_bit = if keys & tables::STEP_SWITCH_R2_MASK != 0 { 255 } else { 0 };
         let (trigger_left, trigger_right) = if is_xinput {
-            // XInput: trigger_value = (L2 << 8) | R2.
+            // XInput: trigger_value = (L2 << 8) | R2. A zero there falls back to the
+            // keys bit, which is where the vendor app writes both triggers.
             let left = u8::try_from((trigger_value >> 8) & 0xFF).unwrap_or(0);
             let right = u8::try_from(trigger_value & 0xFF).unwrap_or(0);
-            (left, right)
+            (if left == 0 { l2_bit } else { left }, if right == 0 { r2_bit } else { right })
         } else {
-            // Switch: L2/R2 are keys bits 14–15 (full press or released).
-            let left = if keys & tables::STEP_SWITCH_L2_MASK != 0 { 255 } else { 0 };
-            let right = if keys & tables::STEP_SWITCH_R2_MASK != 0 { 255 } else { 0 };
-            (left, right)
+            // Switch and DInput: L2/R2 are keys bits 14–15 (full press or released).
+            (l2_bit, r2_bit)
         };
         // Clear bits 14–15 before decoding button names (both modes).
         keys &= tables::STEP_BUTTON_BITS_MASK;

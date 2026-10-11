@@ -70,3 +70,20 @@ fn profile_read_fills_macro_refs_from_section4() {
     assert_eq!(dinput.len(), 1, "every mode reads its descriptors");
     assert_eq!(dinput[0].path, "dinput-slot1-macro0-GoldenMac.json");
 }
+
+#[test]
+fn xinput_decodes_vendor_trigger_key_bits() {
+    let stream = std::fs::read("../../fixtures/pro3/xinput-vendor-triggers.steps.bin").unwrap();
+    let steps = Pro3.decode_macro_steps(&stream, 2, XINPUT).unwrap();
+    assert_eq!((steps[0].trigger_left, steps[0].trigger_right), (0, 255), "R2 from keys bit 15");
+    assert_eq!((steps[1].trigger_left, steps[1].trigger_right), (255, 0), "L2 from keys bit 14");
+    assert!(steps.iter().all(|s| s.pressed_buttons.is_empty()));
+}
+
+#[test]
+fn xinput_trigger_value_wins_over_key_bits() {
+    // keys 0xC000 (L2 and R2 bits), trigger_value (L2 128, R2 0): L2 keeps 128, R2 reads 255.
+    let record = [0x0A, 0x00, 0x00, 0xC0, 0x00, 0x80, 0x7F, 0x7F, 0x7F, 0x7F];
+    let steps = Pro3.decode_macro_steps(&record, 1, XINPUT).unwrap();
+    assert_eq!((steps[0].trigger_left, steps[0].trigger_right), (128, 255));
+}

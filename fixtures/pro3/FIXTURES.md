@@ -56,6 +56,12 @@ byte 18 (blob offset `0x0694`). The macro is named `macro1dinputTEST`: 16 units,
 whole 32-byte name field, with no terminator. `gamepad_mode` is `1`, and `max_steps` is
 199. `golden_macro_encode.rs` encodes the same macro and compares all 52 bytes.
 
+`xinput-vendor-triggers.steps.bin` is two 10-byte steps from an `XInput` macro write by the
+official 8BitDo app, captured over USB with the payload read at wire byte 18. The app puts
+the triggers in `keys`, not in `trigger_value`: the first step is R2 as `keys` `0x8000`, the
+second is L2 as `0x4000`, `trigger_value` 0 in both, sticks centred. `golden_macro_decode.rs`
+decodes them as R2 255 and L2 255.
+
 `dinput-macro.blob` is a `DInput` bank read from a real Pro 3, with a macro on `r4`
 in macro slot 3 of every slot. `dinput-macro.steps.bin` is that macro's step stream,
 read back from slot 1: 256 steps of 10 ms that sweep all four stick axes by one
