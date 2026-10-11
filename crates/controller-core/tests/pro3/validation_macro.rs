@@ -58,6 +58,16 @@ fn an_unknown_trigger_or_step_button_fails_at_its_path() {
 }
 
 #[test]
+fn a_controller_without_macro_slots_accepts_no_macro() {
+    let mut description = Pro3.description().unwrap().clone();
+    description.macro_slot_count = 0;
+    let errors = macro_check::validate_macro(&description, &make_valid_macro()).unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].path, "/");
+    assert!(errors[0].reason.contains("no macro slots"), "{}", errors[0].reason);
+}
+
+#[test]
 fn the_flags_of_the_description_decide_which_buttons_pass() {
     let mut description = Pro3.description().unwrap().clone();
     let m = set_step_buttons(make_valid_macro(), 0, json!(["l4"]), json!([]));

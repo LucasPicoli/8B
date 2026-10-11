@@ -13,17 +13,24 @@ use crate::service::validation::{macro_validator, schema_errors, ValidationError
 /// phase takes its trigger and step button lists from the `can_start_macro` and
 /// `can_be_in_macro_step` flags of `description`.
 ///
-/// Returns an empty `Vec` iff the macro is valid. Schema failures short-circuit
-/// (the semantic phase does not run); semantic failures accumulate.
+/// Returns an empty `Vec` iff the macro is valid. A controller with no macro slots
+/// accepts no macro: that is one error at `/`. Schema failures short-circuit (the
+/// semantic phase does not run); semantic failures accumulate.
 ///
 /// # Errors
 /// Returns [`Error::Decode`](crate::error::Error::Decode) only if the embedded
-/// macro schema fails to compile, which includes a description with no button
-/// that can start a macro or no button that can be in a step.
+/// macro schema fails to compile (a build-time invariant; never expected at
+/// runtime).
 pub fn validate_macro(
     description: &ControllerDescription,
     macro_json: &Value,
 ) -> Result<Vec<ValidationError>> {
+    if description.macro_slot_count == 0 {
+        return Ok(vec![ValidationError {
+            path: "/".to_owned(),
+            reason: format!("{} has no macro slots.", description.display_name),
+        }]);
+    }
     let schema = schema_errors(&macro_validator(description)?, macro_json);
     if !schema.is_empty() {
         return Ok(schema);
