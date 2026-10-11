@@ -214,6 +214,7 @@ impl Limits {
 /// One physical button.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
+#[allow(clippy::struct_excessive_bools)]
 pub struct Button {
     /// Canonical position name, as in `button_mappings.source` and `.target`. Never shown.
     pub id: String,
@@ -224,6 +225,14 @@ pub struct Button {
     /// This button's press may be the output of another button. A button can
     /// always map back to itself.
     pub can_be_output: bool,
+    /// Pressing this button may start a macro (a macro trigger button). The same in
+    /// every mode.
+    #[serde(default)]
+    pub can_start_macro: bool,
+    /// This button's press and release may appear in a macro step (a step button). The
+    /// same in every mode.
+    #[serde(default)]
+    pub can_be_in_macro_step: bool,
 }
 
 impl ControllerDescription {
@@ -400,6 +409,7 @@ impl ControllerDescription {
                 return Err(format!("button '{}' needs one label per listed mode", button.id));
             }
         }
+        self.check_macro_buttons()?;
         for mode in &self.modes {
             let mut outputs = BTreeSet::new();
             for output in &mode.extra_outputs {
@@ -416,6 +426,21 @@ impl ControllerDescription {
             }
         }
         self.check_views(&ids)
+    }
+
+    /// Macro button flags need macro slots, and macro slots need both flags somewhere.
+    fn check_macro_buttons(&self) -> std::result::Result<(), String> {
+        let starts = self.buttons.iter().any(|b| b.can_start_macro);
+        let in_step = self.buttons.iter().any(|b| b.can_be_in_macro_step);
+        if self.macro_slot_count == 0 && (starts || in_step) {
+            return Err("macro button flags need macro_slot_count above 0".to_owned());
+        }
+        if self.macro_slot_count > 0 && !(starts && in_step) {
+            return Err("a controller with macros needs a button that can start a macro \
+                        and a button that can be in a macro step"
+                .to_owned());
+        }
+        Ok(())
     }
 
     /// Every tab names listed modes and shows once per mode. Every setting is a new JSON
@@ -576,7 +601,8 @@ mod tests {
             ],
             "buttons": [
                 { "id": "a", "labels": { "xinput": "A", "switch": "B" },
-                  "can_be_remapped": true, "can_be_output": true },
+                  "can_be_remapped": true, "can_be_output": true,
+                  "can_start_macro": true, "can_be_in_macro_step": true },
                 { "id": "home", "labels": { "xinput": "Home", "switch": "Home" },
                   "can_be_remapped": false, "can_be_output": true },
                 { "id": "paddle", "labels": { "xinput": "P", "switch": "P" },
@@ -649,7 +675,7 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 19] = [
+        let cases: [fn(&mut Value); 22] = [
             |v| v["settings"][1]["frames"][0]["sliders"][0]["low"]["field"] = json!("/name"),
             |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/mode"),
             |v| v["settings"][1]["modes"] = json!(["dinput"]),
@@ -664,6 +690,9 @@ mod tests {
                 v["buttons"][0]["labels"].as_object_mut().unwrap().remove("switch");
             },
             |v| v["limits"]["macro_steps"] = json!({ "min": 2, "max": 1 }),
+            |v| v["macro_slot_count"] = json!(0),
+            |v| v["buttons"][0]["can_start_macro"] = json!(false),
+            |v| v["buttons"][0]["can_be_in_macro_step"] = json!(false),
             |v| v["config_ports"][0]["mode"] = json!("dinput"),
             |v| v["modes"][1]["extra_outputs"][0]["id"] = json!("a"),
             |v| v["modes"][1]["id"] = json!("xinput"),

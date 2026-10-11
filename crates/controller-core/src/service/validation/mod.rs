@@ -130,13 +130,13 @@ mod tests {
     }
 
     #[test]
-    fn schema_errors_reports_press_path_for_invalid_step_button() {
+    fn schema_errors_reports_press_path_for_empty_step_button() {
         let v = macro_validator().unwrap();
         let macro_json = json!({
             "version": 1, "device": "8bitdo-pro3", "mode": "xinput",
             "name": "TestMacro", "trigger": "rp",
             "repeat": { "count": 1, "interval_ms": 0 },
-            "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["turbo"], "release": [] } } } ]
+            "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": [""], "release": [] } } } ]
         });
         let errors = schema_errors(v, &macro_json);
         assert_ne!(errors, []);

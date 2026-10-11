@@ -102,7 +102,9 @@
         "dinput": "B"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "bottom face",
@@ -112,7 +114,9 @@
         "dinput": "A"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "top face",
@@ -122,7 +126,9 @@
         "dinput": "Y"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "left face",
@@ -132,7 +138,9 @@
         "dinput": "X"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "l1",
@@ -142,7 +150,9 @@
         "dinput": "L1"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "r1",
@@ -152,7 +162,9 @@
         "dinput": "R1"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "l2",
@@ -162,7 +174,9 @@
         "dinput": "L2"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "r2",
@@ -172,7 +186,9 @@
         "dinput": "R2"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "l3",
@@ -182,7 +198,9 @@
         "dinput": "L3"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "r3",
@@ -192,7 +210,9 @@
         "dinput": "R3"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "select/back",
@@ -202,7 +222,9 @@
         "dinput": "Select"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "start/menu",
@@ -212,7 +234,9 @@
         "dinput": "Start"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "turbo",
@@ -222,7 +246,9 @@
         "dinput": "Turbo"
       },
       "can_be_remapped": true,
-      "can_be_output": false
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false
     },
     {
       "id": "home/guide",
@@ -232,7 +258,9 @@
         "dinput": "Home"
       },
       "can_be_remapped": false,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": false
     },
     {
       "id": "d-pad up",
@@ -242,7 +270,9 @@
         "dinput": "D-pad up"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "d-pad down",
@@ -252,7 +282,9 @@
         "dinput": "D-pad down"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "d-pad left",
@@ -262,7 +294,9 @@
         "dinput": "D-pad left"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "d-pad right",
@@ -272,7 +306,9 @@
         "dinput": "D-pad right"
       },
       "can_be_remapped": true,
-      "can_be_output": true
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true
     },
     {
       "id": "rp",
@@ -282,7 +318,9 @@
         "dinput": "PR"
       },
       "can_be_remapped": true,
-      "can_be_output": false
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false
     },
     {
       "id": "lp",
@@ -292,7 +330,9 @@
         "dinput": "PL"
       },
       "can_be_remapped": true,
-      "can_be_output": false
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false
     },
     {
       "id": "l4",
@@ -302,7 +342,9 @@
         "dinput": "L4"
       },
       "can_be_remapped": true,
-      "can_be_output": false
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false
     },
     {
       "id": "r4",
@@ -312,7 +354,9 @@
         "dinput": "R4"
       },
       "can_be_remapped": true,
-      "can_be_output": false
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false
     }
   ],
   "settings": [

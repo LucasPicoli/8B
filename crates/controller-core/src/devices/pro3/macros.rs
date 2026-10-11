@@ -358,4 +358,14 @@ mod tests {
         assert_eq!(steps[0].trigger_right, 0);
         assert_eq!(steps[0].pressed_buttons, Vec::<String>::new());
     }
+
+    #[test]
+    fn a_button_without_a_bit_is_an_error_not_a_panic() {
+        let step =
+            |name: &str| MacroStep { pressed_buttons: vec![name.into()], ..Default::default() };
+        for name in ["l4", "turbo", "home/guide", "nope"] {
+            assert!(matches!(encode_macro_steps(&[step(name)], XINPUT), Err(Error::Validation(_))));
+        }
+        assert!(matches!(trigger_key_map("home/guide"), Err(Error::Validation(_))));
+    }
 }

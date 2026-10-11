@@ -5,14 +5,13 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use super::tables;
+use crate::description::ControllerDescription;
 use crate::error::{Error, Result};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
-/// Button names valid as macro triggers but NOT as step actions.
-const INVALID_STEP_BUTTONS: [&str; 6] = ["turbo", "lp", "rp", "l4", "r4", "home/guide"];
-
-/// Validates a canonical macro JSON object (schema first, then semantics).
+/// Validates a canonical macro JSON object (schema first, then semantics). The trigger
+/// and step buttons are checked against the `can_start_macro` and `can_be_in_macro_step`
+/// flags of `description`.
 ///
 /// Returns an empty `Vec` iff the macro is valid. Schema failures short-circuit
 /// (the semantic phase does not run); semantic failures accumulate.
@@ -21,23 +20,30 @@ const INVALID_STEP_BUTTONS: [&str; 6] = ["turbo", "lp", "rp", "l4", "r4", "home/
 /// Returns [`Error::Decode`](crate::error::Error::Decode) only if the embedded
 /// macro schema fails to compile (a build-time invariant; never expected at
 /// runtime).
-pub fn validate_macro(macro_json: &Value) -> Result<Vec<ValidationError>> {
+pub fn validate_macro(
+    description: &ControllerDescription,
+    macro_json: &Value,
+) -> Result<Vec<ValidationError>> {
     let schema = schema_errors(macro_validator()?, macro_json);
     if !schema.is_empty() {
         return Ok(schema);
     }
-    let max_name = usize::try_from(super::description()?.limits.macro_name_length.max)
+    let max_name = usize::try_from(description.limits.macro_name_length.max)
         .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
-    Ok(semantic_errors(macro_json, max_name))
+    Ok(semantic_errors(description, macro_json, max_name))
 }
 
 /// Accumulates every semantic error.
-fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> {
+fn semantic_errors(
+    description: &ControllerDescription,
+    macro_json: &Value,
+    max_name: usize,
+) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
-    // 1. Trigger eligibility — must map to a non-zero key_map.
+    // 1. Trigger eligibility — the button must be a macro trigger button.
     let trigger = macro_json.get("trigger").and_then(Value::as_str).unwrap_or_default();
-    if !tables::TRIGGERS.iter().any(|t| t.name == trigger && t.key_map != 0) {
+    if !description.button(trigger).is_some_and(|b| b.can_start_macro) {
         errors.push(ValidationError {
             path: "/trigger".to_owned(),
             reason: format!("'{trigger}' is not a valid macro trigger."),
@@ -80,7 +86,7 @@ fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> 
                 let Some(arr) = arr else { continue };
                 for (j, btn) in arr.iter().enumerate() {
                     let btn = btn.as_str().unwrap_or_default();
-                    if INVALID_STEP_BUTTONS.contains(&btn) {
+                    if !description.button(btn).is_some_and(|b| b.can_be_in_macro_step) {
                         errors.push(ValidationError {
                             path: format!("/steps/{i}/actions/buttons/{kind}/{j}"),
                             reason: format!("Step {i}: '{btn}' is not a valid step-action button."),

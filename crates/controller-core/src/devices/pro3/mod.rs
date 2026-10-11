@@ -253,6 +253,22 @@ mod tests {
     }
 
     #[test]
+    fn pro3_macro_flags_match_the_codec_tables() {
+        let buttons = &Pro3.description().unwrap().buttons;
+        let flagged = |pick: fn(&crate::description::Button) -> bool| -> Vec<&str> {
+            buttons.iter().filter(|b| pick(b)).map(|b| b.id.as_str()).collect()
+        };
+        let sorted = |mut v: Vec<&'static str>| {
+            v.sort_unstable();
+            v
+        };
+        let triggers = tables::TRIGGERS.iter().filter(|t| t.key_map != 0).map(|t| t.name);
+        let steps = tables::STEP_BUTTONS.iter().filter(|s| s.mask != 0).map(|s| s.name);
+        assert_eq!(sorted(flagged(|b| b.can_start_macro)), sorted(triggers.collect()));
+        assert_eq!(sorted(flagged(|b| b.can_be_in_macro_step)), sorted(steps.collect()));
+    }
+
+    #[test]
     fn pro3_hotspots_sit_on_their_buttons() {
         let views = &Pro3.description().unwrap().views;
         let hit = |view: usize, x: f64, y: f64| -> Vec<&str> {

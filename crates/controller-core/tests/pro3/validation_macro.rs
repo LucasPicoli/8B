@@ -1,8 +1,15 @@
 //! Pro 3 macro validation: semantic rules and the macro schema.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
-use controller_core::devices::pro3::macro_check::validate_macro;
+use controller_core::device::ControllerSpec;
+use controller_core::devices::pro3::{macro_check, Pro3};
+use controller_core::service::validation::ValidationError;
 use serde_json::{json, Value};
+
+/// Validates against the Pro 3 description.
+fn validate_macro(macro_json: &Value) -> controller_core::Result<Vec<ValidationError>> {
+    macro_check::validate_macro(Pro3.description()?, macro_json)
+}
 
 /// Minimal valid macro JSON.
 fn make_valid_macro() -> Value {
@@ -168,11 +175,11 @@ fn duplicate_button_in_press_fails_schema() {
 
 #[test]
 fn schema_failure_short_circuits_semantics() {
-    // Schema-invalid (unknown macro trigger) AND seeded with a press/release overlap
+    // Schema-invalid (empty macro trigger) AND seeded with a press/release overlap
     // that the semantic phase WOULD flag if it ran. Schema short-circuits, so the
     // semantic overlap message must be absent.
     let mut m = make_valid_macro();
-    m["trigger"] = json!("home/guide"); // not in the macro-trigger enum -> schema rejects
+    m["trigger"] = json!(""); // a name needs 1+ characters -> schema rejects
     let m = set_step_buttons(m, 0, json!(["bottom face"]), json!(["bottom face"]));
     let errors = validate_macro(&m).unwrap();
     assert_ne!(errors, []);

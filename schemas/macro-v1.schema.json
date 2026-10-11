@@ -47,51 +47,14 @@
   },
   "$defs": {
     "MacroTrigger": {
+      "description": "A button id whose can_start_macro flag is set in the controller description. The app checks that, not this schema.",
       "type": "string",
-      "enum": [
-        "right face",
-        "bottom face",
-        "top face",
-        "left face",
-        "l1",
-        "r1",
-        "l2",
-        "r2",
-        "l3",
-        "r3",
-        "select/back",
-        "start/menu",
-        "turbo",
-        "d-pad up",
-        "d-pad down",
-        "d-pad left",
-        "d-pad right",
-        "rp",
-        "lp",
-        "l4",
-        "r4"
-      ]
+      "minLength": 1
     },
     "StepButton": {
+      "description": "A button id whose can_be_in_macro_step flag is set in the controller description. The app checks that, not this schema.",
       "type": "string",
-      "enum": [
-        "right face",
-        "bottom face",
-        "top face",
-        "left face",
-        "l1",
-        "r1",
-        "l2",
-        "r2",
-        "l3",
-        "r3",
-        "select/back",
-        "start/menu",
-        "d-pad up",
-        "d-pad down",
-        "d-pad left",
-        "d-pad right"
-      ]
+      "minLength": 1
     },
     "Repeat": {
       "type": "object",
