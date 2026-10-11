@@ -46,14 +46,43 @@
     "slot_count": { "type": "integer", "minimum": 1, "maximum": 255 },
     "macro_slot_count": { "type": "integer", "minimum": 0, "maximum": 255 },
     "limits": {
-      "description": "Name and macro length ranges. They must equal the profile and macro schemas. The ranges of settings sit on each setting.",
+      "description": "Name lengths and the macro limits the editor offers. They must fit the profile and macro schemas and the model's codec. The ranges of settings sit on each setting.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["profile_name_length", "macro_name_length", "macro_steps"],
+      "required": [
+        "profile_name_length",
+        "macro_name_length",
+        "macro_steps",
+        "macro_step_ms",
+        "macro_repeat_count",
+        "macro_interval_ms",
+        "glide_step_ms"
+      ],
       "properties": {
         "profile_name_length": { "$ref": "#/$defs/Range" },
         "macro_name_length": { "$ref": "#/$defs/Range" },
-        "macro_steps": { "$ref": "#/$defs/Range" }
+        "macro_steps": {
+          "description": "Steps in one macro, as the pad stores them, after glides become short steps.",
+          "$ref": "#/$defs/Range"
+        },
+        "macro_step_ms": {
+          "description": "Length of one macro step in milliseconds.",
+          "$ref": "#/$defs/Range"
+        },
+        "macro_repeat_count": {
+          "description": "Plays per trigger press. The editor also offers continuous, which plays until the next press.",
+          "$ref": "#/$defs/Range"
+        },
+        "macro_interval_ms": {
+          "description": "Pause between two plays in milliseconds.",
+          "$ref": "#/$defs/Range"
+        },
+        "glide_step_ms": {
+          "description": "Length of each short step a stick or trigger glide becomes on write, in milliseconds.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
       }
     },
     "settings": {
@@ -124,13 +153,18 @@
     "Mode": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "extra_outputs"],
+      "required": ["id", "label", "trigger_kind", "extra_outputs"],
       "properties": {
         "id": { "$ref": "#/$defs/ModeId" },
         "label": {
           "description": "Name shown to the user, such as XInput.",
           "type": "string",
           "minLength": 1
+        },
+        "trigger_kind": {
+          "description": "How the triggers read in this mode, and so in a macro step. analog: a pressure from 0 to 255. on_off: pressed or released.",
+          "type": "string",
+          "enum": ["analog", "on_off"]
         },
         "extra_outputs": {
           "description": "Outputs beyond the buttons and 'disabled', which every mode has.",

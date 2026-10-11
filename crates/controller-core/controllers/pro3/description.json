@@ -42,11 +42,13 @@
     {
       "id": "xinput",
       "label": "XInput",
+      "trigger_kind": "analog",
       "extra_outputs": []
     },
     {
       "id": "switch",
       "label": "Switch",
+      "trigger_kind": "on_off",
       "extra_outputs": [
         {
           "id": "screenshot",
@@ -57,6 +59,7 @@
     {
       "id": "dinput",
       "label": "DInput",
+      "trigger_kind": "on_off",
       "extra_outputs": [
         {
           "id": "rp output",
@@ -90,8 +93,21 @@
     },
     "macro_steps": {
       "min": 1,
-      "max": 255
-    }
+      "max": 408
+    },
+    "macro_step_ms": {
+      "min": 0,
+      "max": 65535
+    },
+    "macro_repeat_count": {
+      "min": 1,
+      "max": 99
+    },
+    "macro_interval_ms": {
+      "min": 0,
+      "max": 65535
+    },
+    "glide_step_ms": 20
   },
   "buttons": [
     {

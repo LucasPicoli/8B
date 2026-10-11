@@ -343,10 +343,19 @@ mod tests {
             pair(l.macro_name_length),
             range(&macro_, &format!("{props}/name"), "minLength", "maxLength")
         );
+        let steps = range(&macro_, &format!("{props}/steps"), "minItems", "minItems");
+        assert_eq!(l.macro_steps.min, steps.0, "the step cap is the pad's, not the schema's");
         assert_eq!(
-            pair(l.macro_steps),
-            range(&macro_, &format!("{props}/steps"), "minItems", "maxItems")
+            pair(l.macro_step_ms),
+            range(&macro_, &format!("{defs}/Step/properties/duration_ms"), "minimum", "maximum")
         );
+        assert_eq!(
+            pair(l.macro_interval_ms),
+            range(&macro_, &format!("{defs}/Repeat/properties/interval_ms"), "minimum", "maximum")
+        );
+        let count = format!("{defs}/Repeat/properties/count");
+        let count = range(&macro_, &count, "minimum", "minimum");
+        assert_eq!(l.macro_repeat_count.min, count.0, "the schema also holds continuous");
         let d = Pro3.description().unwrap();
         let field = |mode, pointer: &str| pair(d.number(mode, pointer).unwrap().range());
         for side in ["left", "right"] {
@@ -374,6 +383,42 @@ mod tests {
             let at = format!("{defs}/TriggersSwitch/properties/{side}_threshold_pct");
             let point = field(SWITCH, &format!("/triggers/{side}_threshold_pct"));
             assert_eq!(point, range(&profile, &at, "minimum", "maximum"));
+        }
+    }
+
+    /// The macro limits fit the step and descriptor fields, and each mode's trigger kind
+    /// is what the codec keeps of a half-pressed trigger.
+    #[test]
+    fn pro3_macro_limits_match_the_codec() {
+        use crate::description::TriggerKind;
+        use crate::model::{MacroStep, REPEAT_CONTINUOUS};
+        use crate::protocol::wire_write::MACRO_PAGE_LEN;
+
+        let d = Pro3.description().unwrap();
+        let l = d.limits;
+        assert_eq!((l.macro_step_ms.min, l.macro_step_ms.max), (0, i32::from(u16::MAX)));
+        assert_eq!((l.macro_interval_ms.min, l.macro_interval_ms.max), (0, i32::from(u16::MAX)));
+        assert_eq!((l.macro_repeat_count.min, l.macro_repeat_count.max), (1, 99));
+        assert!(u32::try_from(l.macro_repeat_count.max).unwrap() < REPEAT_CONTINUOUS);
+        assert!((1..=l.macro_step_ms.max).contains(&i32::from(l.glide_step_ms)));
+
+        // 408 is the pad's cap: at 409 the steps fill the page and XInput and DInput
+        // play a stray trigger at the end (`hardware_macro_probe`, case `count`).
+        let longest = vec![MacroStep::default(); usize::try_from(l.macro_steps.max).unwrap()];
+        for mode in MODES {
+            let stream = Pro3.encode_macro_steps(&longest, mode).unwrap();
+            assert!(stream.len() <= usize::from(MACRO_PAGE_LEN), "{mode}: steps overflow the page");
+        }
+        assert!(u16::try_from(l.macro_steps.max).is_ok(), "max_steps is a u16");
+
+        let half = MacroStep { trigger_left: 128, trigger_right: 64, ..MacroStep::default() };
+        for mode in MODES {
+            let stream = Pro3.encode_macro_steps(std::slice::from_ref(&half), mode).unwrap();
+            let back = Pro3.decode_macro_steps(&stream, 1, mode).unwrap();
+            let kept = back.first().map(|s| (s.trigger_left, s.trigger_right));
+            let kind =
+                if kept == Some((128, 64)) { TriggerKind::Analog } else { TriggerKind::OnOff };
+            assert_eq!(d.mode(mode).unwrap().trigger_kind, kind, "{mode}");
         }
     }
 

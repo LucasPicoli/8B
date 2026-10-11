@@ -4,6 +4,9 @@ use serde_json::{json, Map, Value};
 
 use super::ids::Mode;
 
+/// The repeat count that plays a macro until its trigger button is pressed again.
+pub const REPEAT_CONTINUOUS: u32 = u32::MAX;
+
 /// A single macro step, in memory.
 ///
 /// Canonical macro JSON (per `schemas/macro-v1.schema.json`, with its nested
@@ -59,7 +62,7 @@ pub struct MacroDefinition {
     pub mode: Mode,
     /// Canonical trigger name.
     pub trigger: String,
-    /// Repeat count (`0xFFFF_FFFF` = continuous).
+    /// Repeat count, or [`REPEAT_CONTINUOUS`].
     pub repeat_count: u32,
     /// Interval between repeats (ms).
     pub interval_ms: u32,

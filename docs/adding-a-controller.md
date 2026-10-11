@@ -56,11 +56,14 @@ about 190 lines of code and 175 of tests, and its description sits in
 ## Modes
 
 The `modes` list of the description names every mode of the model, in display order.
-Each entry has an `id`, a `label` and the mode's `extra_outputs`:
+Each entry has an `id`, a `label`, a `trigger_kind` and the mode's `extra_outputs`:
 
 ```json
-{ "id": "xinput", "label": "XInput", "extra_outputs": [] }
+{ "id": "xinput", "label": "XInput", "trigger_kind": "analog", "extra_outputs": [] }
 ```
+
+`trigger_kind` is `analog` when the triggers read a pressure from 0 to 255 in this
+mode, and `on_off` when they read pressed or released. A macro step follows it.
 
 The `id` is 1 to 15 lowercase letters, digits, `-` or `_`. Profiles, the command
 line (`-m xinput`), config ports and settings tabs use it. The app shows the
@@ -232,7 +235,12 @@ The model supplies:
    refuse every mode. `mode_flip_command` and `mode_close_command` return `None` by
    default. A model sets only the ones its ports use.
 5. The counts in the description: `slot_count` (3 on the Pro 3) and
-   `macro_slot_count` (4).
+   `macro_slot_count` (4). The macro `limits`: `macro_steps` (1 to 408 on the
+   Pro 3), `macro_step_ms` (0 to 65535), `macro_repeat_count` (1 to 99, plus
+   continuous), `macro_interval_ms` (0 to 65535) and `glide_step_ms` (20). The
+   editor reads them, and a test pins them to the codec, as
+   `pro3_macro_limits_match_the_codec` does. A model with no macro slots still lists
+   them; the test pad gives each the narrowest range.
 6. The macro buttons, if the model has macro slots: set `can_start_macro` on each
    button that may start a macro and `can_be_in_macro_step` on each button that may
    appear in a macro step. Both default to `false`, are the same in every mode, and

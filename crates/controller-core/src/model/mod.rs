@@ -5,7 +5,7 @@ pub mod outcome;
 pub mod profile;
 
 pub use ids::{MacroSlot, Mode, Slot};
-pub use macros::{MacroDefinition, MacroStep};
+pub use macros::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
 pub use outcome::{DeviceReadiness, WriteResult};
 pub use profile::{
     ButtonMapping, CanonicalProfile, CanonicalProfileSummary, MacroRef, ProfileReadResult,

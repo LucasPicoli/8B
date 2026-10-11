@@ -163,8 +163,20 @@ pub struct ModeDescription {
     pub id: Mode,
     /// Name shown to the user, such as `XInput`.
     pub label: String,
+    /// How the triggers read in this mode, and so in a macro step.
+    pub trigger_kind: TriggerKind,
     /// Outputs a button may map to in this mode beyond the buttons and [`DISABLED_OUTPUT`].
     pub extra_outputs: Vec<ExtraOutput>,
+}
+
+/// How a mode's triggers read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerKind {
+    /// A pressure from 0 to 255.
+    Analog,
+    /// Pressed or released. A macro step stores 255 or 0.
+    OnOff,
 }
 
 /// A mode-specific output that is not a button press.
@@ -187,8 +199,9 @@ pub struct LimitRange {
     pub max: i32,
 }
 
-/// Length ranges of names and macros. A unit test pins them to the profile and macro
-/// schemas. The ranges of settings sit on their [`NumberField`]s.
+/// Name lengths and macro limits the editor offers. Each model's tests pin them to its
+/// codec and to the profile and macro schemas. The ranges of settings sit on their
+/// [`NumberField`]s.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limits {
@@ -196,17 +209,31 @@ pub struct Limits {
     pub profile_name_length: LimitRange,
     /// Macro name length in characters.
     pub macro_name_length: LimitRange,
-    /// Number of steps in one macro.
+    /// Number of steps in one macro, as the pad stores them.
     pub macro_steps: LimitRange,
+    /// Length of one macro step in milliseconds.
+    pub macro_step_ms: LimitRange,
+    /// Number of plays per trigger press. The editor also offers
+    /// [`REPEAT_CONTINUOUS`](crate::model::REPEAT_CONTINUOUS), which plays until the
+    /// next press.
+    pub macro_repeat_count: LimitRange,
+    /// Pause between two plays in milliseconds.
+    pub macro_interval_ms: LimitRange,
+    /// Length of each short step a stick or trigger glide becomes on write, in
+    /// milliseconds.
+    pub glide_step_ms: u16,
 }
 
 impl Limits {
     /// Every range with its field name.
-    const fn named(&self) -> [(&'static str, LimitRange); 3] {
+    const fn named(&self) -> [(&'static str, LimitRange); 6] {
         [
             ("profile_name_length", self.profile_name_length),
             ("macro_name_length", self.macro_name_length),
             ("macro_steps", self.macro_steps),
+            ("macro_step_ms", self.macro_step_ms),
+            ("macro_repeat_count", self.macro_repeat_count),
+            ("macro_interval_ms", self.macro_interval_ms),
         ]
     }
 }
@@ -399,6 +426,9 @@ impl ControllerDescription {
         if let Some((name, _)) = self.limits.named().into_iter().find(|(_, r)| r.min > r.max) {
             return Err(format!("limit '{name}' has min above max"));
         }
+        if self.limits.glide_step_ms == 0 {
+            return Err("limit 'glide_step_ms' must be above 0".to_owned());
+        }
         self.check_settings(&modes)?;
         let mut ids = BTreeSet::new();
         for button in &self.buttons {
@@ -576,14 +606,19 @@ mod tests {
                   "mode": "xinput", "interface": 2, "framing": "plain" }
             ],
             "modes": [
-                { "id": "xinput", "label": "XInput", "extra_outputs": [] },
-                { "id": "switch", "label": "Switch",
+                { "id": "xinput", "label": "XInput", "trigger_kind": "analog",
+                  "extra_outputs": [] },
+                { "id": "switch", "label": "Switch", "trigger_kind": "on_off",
                   "extra_outputs": [{ "id": "screenshot", "label": "Screenshot" }] }
             ],
             "slot_count": 3,
             "macro_slot_count": 4,
             "limits": {
-                "profile_name_length": range, "macro_name_length": range, "macro_steps": range
+                "profile_name_length": range, "macro_name_length": range, "macro_steps": range,
+                "macro_step_ms": { "min": 0, "max": 65535 },
+                "macro_repeat_count": { "min": 1, "max": 99 },
+                "macro_interval_ms": { "min": 0, "max": 65535 },
+                "glide_step_ms": 20
             },
             "settings": [
                 { "id": "sticks", "label": "Sticks", "lead": "L",
@@ -663,6 +698,8 @@ mod tests {
         let tabs = |m| d.pages(m).map(|p| p.id.as_str()).collect::<Vec<_>>();
         assert_eq!(tabs(XINPUT), ["sticks"]);
         assert_eq!(tabs(SWITCH), ["sticks", "triggers"]);
+        assert_eq!(d.mode(XINPUT).map(|m| m.trigger_kind), Some(TriggerKind::Analog));
+        assert_eq!(d.mode(SWITCH).map(|m| m.trigger_kind), Some(TriggerKind::OnOff));
         assert_eq!(
             d.number(SWITCH, "/t").map(NumberField::range),
             Some(LimitRange { min: 0, max: 9 })
@@ -675,7 +712,7 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 22] = [
+        let cases: [fn(&mut Value); 25] = [
             |v| v["settings"][1]["frames"][0]["sliders"][0]["low"]["field"] = json!("/name"),
             |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/mode"),
             |v| v["settings"][1]["modes"] = json!(["dinput"]),
@@ -690,6 +727,9 @@ mod tests {
                 v["buttons"][0]["labels"].as_object_mut().unwrap().remove("switch");
             },
             |v| v["limits"]["macro_steps"] = json!({ "min": 2, "max": 1 }),
+            |v| v["limits"]["macro_repeat_count"] = json!({ "min": 99, "max": 1 }),
+            |v| v["limits"]["glide_step_ms"] = json!(0),
+            |v| v["modes"][0]["trigger_kind"] = json!("pressure"),
             |v| v["macro_slot_count"] = json!(0),
             |v| v["buttons"][0]["can_start_macro"] = json!(false),
             |v| v["buttons"][0]["can_be_in_macro_step"] = json!(false),
