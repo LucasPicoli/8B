@@ -7,6 +7,7 @@ pub mod error;
 pub use error::{Error, ErrorCategory, Result};
 
 pub mod convert;
+pub mod convert_macro;
 pub mod description;
 pub mod detect;
 pub mod device;

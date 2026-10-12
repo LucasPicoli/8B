@@ -319,7 +319,7 @@ fn output<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
 /// another macro of the slot, or one with another output than in `default`, the mode's
 /// default profile. A back paddle's own output reads `disabled` there, and its macro
 /// plays.
-fn bank_refusal(
+pub(crate) fn bank_refusal(
     button: &str,
     others: &[MacroDefinition],
     profile: &CanonicalProfile,
