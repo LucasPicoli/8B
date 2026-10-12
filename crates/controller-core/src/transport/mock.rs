@@ -7,7 +7,7 @@ use crate::device::Model;
 use crate::devices::models;
 use crate::error::{Error, Result};
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
-use crate::transport::device_io::DeviceIo;
+use crate::transport::device_io::{DeviceIo, MacroStream};
 use crate::transport::write_input::{check_macro_stream, check_profile_blob};
 
 /// The write operations a [`MockDevice`] can record and fail.
@@ -227,17 +227,19 @@ impl DeviceIo for MockDevice {
         lock(&self.profiles).clone().ok_or(Error::NoDevice)
     }
 
-    fn read_macro_stream(
-        &self,
-        mode: Mode,
-        profile_slot: Slot,
-        macro_slot: MacroSlot,
-        _step_count: usize,
-    ) -> Result<Vec<u8>> {
-        lock(&self.macro_streams)
-            .get(&(mode, profile_slot.get(), macro_slot.get()))
-            .cloned()
-            .ok_or(Error::NoDevice)
+    fn read_macro_streams(&self, streams: &[MacroStream]) -> Result<Vec<Vec<u8>>> {
+        let held = lock(&self.macro_streams);
+        streams
+            .iter()
+            .map(|s| {
+                if s.step_count == 0 {
+                    return Ok(Vec::new());
+                }
+                held.get(&(s.mode, s.profile_slot.get(), s.macro_slot.get()))
+                    .cloned()
+                    .ok_or(Error::NoDevice)
+            })
+            .collect()
     }
 
     fn detect_readiness(&self) -> Result<DeviceReadiness> {

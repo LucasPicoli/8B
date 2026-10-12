@@ -3,8 +3,8 @@
 //! macro, and deletes a macro in macro slot 2, all through `ProfileWriteOrchestrator`.
 //! After each write only the target descriptor and the CRC of that bank change, the
 //! other banks stay byte-identical (the pad's own `cur_slot` byte left out), and the
-//! neighbour's steps still read back. The banks and the macro pages it wrote end as they
-//! began. Run with:
+//! neighbour's steps still read back. Then one session reads the three neighbours. The
+//! banks and the macro pages it wrote end as they began. Run with:
 //!   `cargo test -p controller-core --features hardware --test pro3 hardware_macro_write -- --ignored`
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::indexing_slicing)]
 
@@ -16,7 +16,7 @@ use controller_core::model::macros::macro_to_json;
 use controller_core::model::{MacroDefinition, MacroSlot, MacroStep, Mode, Slot};
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::service::ConfirmPolicy;
-use controller_core::transport::{DeviceIo, HidrawDevice};
+use controller_core::transport::{DeviceIo, HidrawDevice, MacroStream};
 use serial_test::serial;
 
 use crate::hw::same_bank;
@@ -165,6 +165,21 @@ fn put_replace_and_delete_a_macro_in_every_mode() {
         let r = orchestrator.delete_macro(mode, slot(), macro_slot(TARGET), &ConfirmPolicy::Force);
         assert!(r.success, "{mode} delete: {}", r.message);
         check(&dev, &before, bank, mode, None);
+    }
+    // One session reads a neighbour in each bank, with no slot select between them.
+    let streams: Vec<MacroStream> = MODES
+        .iter()
+        .map(|&mode| MacroStream {
+            mode,
+            profile_slot: slot(),
+            macro_slot: macro_slot(NEIGHBOUR),
+            step_count: neighbour(mode).steps.len(),
+        })
+        .collect();
+    for (stream, bytes) in streams.iter().zip(dev.read_macro_streams(&streams).unwrap()) {
+        let n = neighbour(stream.mode);
+        let got = Pro3.decode_macro_steps(&bytes, n.steps.len(), stream.mode).unwrap();
+        assert_eq!(got, n.steps, "{}: bank-wide read", stream.mode);
     }
     restore_pages(&dev, &pages);
     drop(seed);

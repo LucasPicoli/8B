@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::model::{MacroDefinition, MacroSlot, Mode, ProfileReadResult, Slot};
-use crate::transport::device_io::DeviceIo;
+use crate::transport::device_io::{DeviceIo, MacroStream};
 
 /// The result of a successful [`read_macros`] call.
 #[derive(Debug, Clone)]
@@ -88,28 +88,23 @@ pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result
         return Ok(MacroReadResult { macros: Vec::new() });
     }
 
-    // 6. Read step stream for each active macro and decode.
-    let mut macros = Vec::with_capacity(metadata.len());
-
-    for mut def in metadata {
+    // 6. Read the step streams of every macro in one session, then decode.
+    let mut streams = Vec::with_capacity(metadata.len());
+    for def in &metadata {
+        let macro_slot = MacroSlot::new(
+            def.macro_slot
+                .ok_or_else(|| Error::Decode("macro descriptor missing slot index".into()))?,
+        )?;
+        streams.push(MacroStream { mode, profile_slot, macro_slot, step_count: def.steps.len() });
+    }
+    let read = dev.read_macro_streams(&streams)?;
+    let mut macros = metadata;
+    for (def, stream) in macros.iter_mut().zip(read) {
         let step_count = def.steps.len();
-
-        if step_count > 0 {
-            let ms = MacroSlot::new(
-                def.macro_slot
-                    .ok_or_else(|| Error::Decode("macro descriptor missing slot index".into()))?,
-            )?;
-            let stream = dev.read_macro_stream(mode, profile_slot, ms, step_count)?;
-            if !stream.is_empty() {
-                def.steps = codec.decode_macro_steps(&stream, step_count, def.mode)?;
-            }
-            // An empty stream keeps metadata-only steps; a read error propagates via
-            // `?` above.
-        } else {
-            def.steps.clear();
+        // An empty stream keeps metadata-only steps.
+        if !stream.is_empty() {
+            def.steps = codec.decode_macro_steps(&stream, step_count, def.mode)?;
         }
-
-        macros.push(def);
     }
 
     Ok(MacroReadResult { macros })

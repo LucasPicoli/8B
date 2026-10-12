@@ -4,6 +4,19 @@ use crate::device::Model;
 use crate::error::Result;
 use crate::model::{DeviceReadiness, MacroSlot, Mode, ProfileReadResult, Slot};
 
+/// Where one macro's step stream sits, and how many steps to read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MacroStream {
+    /// The bank the macro belongs to.
+    pub mode: Mode,
+    /// The profile slot that holds the macro.
+    pub profile_slot: Slot,
+    /// The macro slot, which picks the flash page.
+    pub macro_slot: MacroSlot,
+    /// The steps to read, from the macro's descriptor.
+    pub step_count: usize,
+}
+
 /// Device read and write operations.
 ///
 /// Every write method opens its own USB session and releases it before returning,
@@ -34,17 +47,27 @@ pub trait DeviceIo {
     /// Returns a connection/timeout/decode error on failure.
     fn read_all_profiles(&self) -> Result<ProfileReadResult>;
 
-    /// Reads a raw macro step stream from flash.
+    /// Reads the raw step streams of several macros from flash, in one session, in the
+    /// order asked. The macros may sit in any bank. The read leaves gamepad input on.
     ///
     /// # Errors
     /// Returns a connection/timeout error on failure.
+    fn read_macro_streams(&self, streams: &[MacroStream]) -> Result<Vec<Vec<u8>>>;
+
+    /// Reads the raw step stream of one macro from flash.
+    ///
+    /// # Errors
+    /// Same as [`Self::read_macro_streams`].
     fn read_macro_stream(
         &self,
         mode: Mode,
         profile_slot: Slot,
         macro_slot: MacroSlot,
         step_count: usize,
-    ) -> Result<Vec<u8>>;
+    ) -> Result<Vec<u8>> {
+        let stream = MacroStream { mode, profile_slot, macro_slot, step_count };
+        Ok(self.read_macro_streams(&[stream])?.into_iter().next().unwrap_or_default())
+    }
 
     /// Probes device readiness (presence + active slot marker).
     ///

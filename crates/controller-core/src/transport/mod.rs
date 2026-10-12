@@ -9,6 +9,6 @@ mod session;
 pub mod udev;
 pub mod write_input;
 
-pub use device_io::DeviceIo;
+pub use device_io::{DeviceIo, MacroStream};
 pub use hidraw_device::HidrawDevice;
 pub use mock::MockDevice;

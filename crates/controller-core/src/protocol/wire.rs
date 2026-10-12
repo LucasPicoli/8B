@@ -107,8 +107,8 @@ pub fn decode_upload_response(
 /// Builds a `QUERY_STATUS` (`CMD 0x07`) packet.
 ///
 /// **Warning:** sending this command disrupts HID/joydev reports until the device
-/// is physically reconnected. Use only in the macro-read "app-style" session;
-/// never send it in the profile-read path.
+/// is physically reconnected, unless the input stream is resumed after it. No read
+/// path sends it outside a session's own pause.
 #[must_use]
 pub const fn build_query_status() -> [u8; PACKET_LEN] {
     let mut p = [0u8; PACKET_LEN];

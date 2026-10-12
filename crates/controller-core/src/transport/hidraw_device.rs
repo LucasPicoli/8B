@@ -12,16 +12,19 @@ use crate::model::{
     RawProfilePayload, Slot,
 };
 use crate::protocol::wire::{
-    build_query_status, build_read_macro_packet, build_slot_select, build_upload_packet,
-    decode_read_macro_response, decode_upload_response,
+    build_read_macro_packet, build_slot_select, build_upload_packet, decode_read_macro_response,
+    decode_upload_response,
 };
 use crate::protocol::wire_write::MACRO_PAGE_LEN;
 use crate::transport::hidraw_write;
 use crate::transport::session::{Session, Target, READ_TIMEOUT};
 use crate::transport::write_input::PROFILE_CHUNK as UPLOAD_CHUNK;
+use crate::transport::MacroStream;
 
 const MACRO_CHUNK: u16 = 32;
 const MACRO_ERASE_LEN: u16 = MACRO_PAGE_LEN;
+/// Bytes per macro step on the wire.
+const STEP_LEN: usize = 10;
 
 /// Real transport over hidraw, in every current mode.
 ///
@@ -134,6 +137,31 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
     Ok(blob)
 }
 
+/// Reads one macro's step stream in 32-byte chunks.
+fn read_stream_chunks(session: &mut Session, stream: &MacroStream) -> Result<Vec<u8>> {
+    // Wire protocol uses 0-based profile slot.
+    let ps = stream.profile_slot.get() - 1;
+    let gamepad_mode = session.model()?.macro_gamepad_mode(stream.mode)?;
+    let data_bytes = stream.step_count * STEP_LEN;
+    let total_len = u16::try_from(data_bytes).map_err(|_| {
+        Error::Decode(format!("{} macro steps overflow 16 bits", stream.step_count))
+    })?;
+    let flash_base = u16::from(stream.macro_slot.get()) * MACRO_ERASE_LEN;
+    let mut result = Vec::with_capacity(data_bytes);
+    for chunk_idx in 0..data_bytes.div_ceil(usize::from(MACRO_CHUNK)) {
+        #[allow(clippy::cast_possible_truncation)]
+        let chunk_offset = flash_base + (chunk_idx as u16) * MACRO_CHUNK;
+        #[allow(clippy::cast_possible_truncation)]
+        let chunk_size = (data_bytes - chunk_idx * usize::from(MACRO_CHUNK))
+            .min(usize::from(MACRO_CHUNK)) as u16;
+        let pkt = build_read_macro_packet(ps, gamepad_mode, chunk_offset, total_len, chunk_size);
+        let resp = session.send_recv(&pkt)?;
+        result.extend_from_slice(&decode_read_macro_response(&resp, chunk_offset, total_len)?);
+    }
+    result.truncate(data_bytes);
+    Ok(result)
+}
+
 /// Selects the bank of the current mode, so the session leaves the pad as a replug would.
 ///
 /// A slot select moves the pad to that bank and to the slot its `cur_slot` names, and
@@ -219,73 +247,23 @@ impl crate::transport::DeviceIo for HidrawDevice {
         Ok(ProfileReadResult { profiles, raw_blobs })
     }
 
-    /// Reads a raw macro step stream from device flash.
+    /// Reads every stream in one session: `START_CONFIG`, then the chunk reads.
     ///
-    /// Primes the session with `START_CONFIG` → `QUERY_STATUS` → `SLOT_SELECT` →
-    /// 53-chunk upload loop → `QUERY_STATUS` (the "app-style" read session required
-    /// by firmware for macro readback), then reads `chunk_count` macro chunks.
-    ///
-    /// **Hardware gap:** the connected device has no macros and this path sends
-    /// `QUERY_STATUS` (disrupting joydev). This method is implemented and unit-tested
-    /// at the wire-builder level but is not covered by a hardware integration test
-    /// in this task. See the task brief for details.
+    /// Each read packet names its profile slot and the bank's macro mode byte, so no
+    /// slot select, bank read or `QUERY_STATUS` comes first, and the pad stays on its
+    /// bank. Proven on a Pro 3 in every mode position: the same bytes as a read primed
+    /// with those packets, with gamepad input still working after it. The session's
+    /// pause costs about 0.5 s, then a 32-byte chunk takes 4 to 17 ms by mode.
     ///
     /// # Errors
     /// Returns [`Error::NoDevice`], [`Error::Usb`], [`Error::Timeout`], or
     /// [`Error::Decode`] on failure.
-    fn read_macro_stream(
-        &self,
-        mode: Mode,
-        profile_slot: Slot,
-        macro_slot: MacroSlot,
-        step_count: usize,
-    ) -> Result<Vec<u8>> {
-        if step_count == 0 {
-            return Ok(Vec::new());
+    fn read_macro_streams(&self, streams: &[MacroStream]) -> Result<Vec<Vec<u8>>> {
+        if streams.iter().all(|s| s.step_count == 0) {
+            return Ok(vec![Vec::new(); streams.len()]);
         }
-
-        // Wire protocol uses 0-based profile slot.
-        let ps = profile_slot.get() - 1;
-        let macro_slot_idx = macro_slot.get();
-
-        #[allow(clippy::cast_possible_truncation)]
-        let total_len = (step_count * 10) as u16;
-        let data_bytes = step_count * 10;
-        let flash_base = u16::from(macro_slot_idx) * MACRO_ERASE_LEN;
-        let chunk_count = data_bytes.div_ceil(usize::from(MACRO_CHUNK));
-
-        // Prime: `START_CONFIG` (sent by the session) → `QUERY_STATUS` → `SLOT_SELECT`
-        // → upload×53 → `QUERY_STATUS`
         let mut session = self.read_session()?;
-        let macro_gamepad_mode = session.model()?.macro_gamepad_mode(mode)?;
-        let slot_select = session.model()?.slot_select_value(mode)?;
-        let _ = session.send_recv(&build_query_status())?;
-        let _ = session.send_recv(&build_slot_select(slot_select))?;
-        let _ = read_blob_chunks(&mut session)?;
-        let _ = session.send_recv(&build_query_status())?;
-
-        let mut result = Vec::with_capacity(data_bytes);
-        for chunk_idx in 0..chunk_count {
-            #[allow(clippy::cast_possible_truncation)]
-            let chunk_offset = flash_base + (chunk_idx as u16) * MACRO_CHUNK;
-            #[allow(clippy::cast_possible_truncation)]
-            let chunk_size = (data_bytes - chunk_idx * usize::from(MACRO_CHUNK))
-                .min(usize::from(MACRO_CHUNK)) as u16;
-            let pkt = build_read_macro_packet(
-                ps,
-                macro_gamepad_mode,
-                chunk_offset,
-                total_len,
-                chunk_size,
-            );
-            let resp = session.send_recv(&pkt)?;
-            let chunk = decode_read_macro_response(&resp, chunk_offset, total_len)?;
-            result.extend_from_slice(&chunk);
-        }
-
-        select_current_bank(&mut session)?;
-        result.truncate(data_bytes);
-        Ok(result)
+        streams.iter().map(|s| read_stream_chunks(&mut session, s)).collect()
     }
 
     /// Probes device readiness: sysfs scan followed by a live active-slot check.
