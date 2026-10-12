@@ -13,6 +13,7 @@ pub(crate) mod commands;
 pub(crate) mod dev;
 pub(crate) mod export;
 pub(crate) mod macros;
+pub(crate) mod upload;
 pub(crate) mod write;
 
 use std::path::PathBuf;
@@ -25,7 +26,8 @@ use controller_core::devices;
 use controller_core::model::{MacroSlot, Mode, Slot};
 use export::run_export;
 use macros::{run_delete_macro, run_write_macro, MacroWrite};
-use write::{run_upload, run_write};
+use upload::{run_upload, Upload};
+use write::run_write;
 
 /// 8BitDo Pro 3 CLI.
 ///
@@ -202,13 +204,20 @@ enum Commands {
         output_dir: Option<String>,
     },
 
-    /// Write a canonical profile JSON file into a slot. Keeps the slot's macros.
+    /// Write a canonical profile JSON file into a slot. Keeps the slot's macros, unless
+    /// --with-macros is given.
     Upload {
         #[command(flatten)]
         target: Target,
         /// Path to the canonical profile JSON.
         #[arg(short, long)]
         file: PathBuf,
+        /// Replace the slot's macros with the `macro-v1` files the profile's `macro_refs`
+        /// name, read from the profile's folder, in the same write. Each file goes in the
+        /// macro slot its name gives (`<mode>-slot<N>-macro<M>-<name>.json`), and the
+        /// other macro slots are emptied. An empty `macro_refs` clears them all.
+        #[arg(long)]
+        with_macros: bool,
     },
 
     /// Write a `macro-v1` file into a macro slot of an occupied slot. The slot's other
@@ -317,7 +326,9 @@ fn main() {
             })
         }
         Commands::Dev(DevCommand::Diff { a, b }) => dev::run_diff(&a, &b),
-        Commands::Upload { target: t, file } => run_upload(&file, t.mode, t.slot, t.force),
+        Commands::Upload { target: t, file, with_macros } => {
+            run_upload(&Upload { file: &file, mode: t.mode, slot: t.slot, with_macros }, t.force)
+        }
         Commands::WriteMacro { target: t, macro_slot, convert, file } => run_write_macro(
             &MacroWrite { file: &file, mode: t.mode, slot: t.slot, macro_slot, convert },
             t.force,

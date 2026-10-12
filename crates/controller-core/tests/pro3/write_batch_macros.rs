@@ -204,3 +204,36 @@ fn a_lost_old_macro_is_named_in_the_result() {
     assert_eq!(r[0].macro_backup_paths.len(), 1);
     assert!(r[0].message.contains(&r[0].macro_backup_paths[0]), "{}", r[0].message);
 }
+
+#[test]
+fn a_profile_over_an_occupied_slot_asks_once_and_names_the_macros_it_loses() {
+    use std::sync::{Arc, Mutex};
+    let dev = pad();
+    let asked = Arc::new(Mutex::new(Vec::new()));
+    let seen = Arc::clone(&asked);
+    let policy = ConfirmPolicy::Ask(Box::new(move |w| {
+        seen.lock().unwrap().push(w.to_owned());
+        true
+    }));
+    let delete = MacroEdit::Delete { macro_slot: macro_slot(1) };
+    let edits =
+        vec![put(0, def("New", XINPUT, "l1", 3)), delete, put(2, def("Add", XINPUT, "r4", 2))];
+    let dir = tempfile::tempdir().unwrap();
+    let r = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path())
+        .write_slots(&[job(XINPUT, 1, Some(profile(XINPUT)), edits)], &policy);
+    assert!(r[0].success, "{}", r[0].message);
+    let asked = asked.lock().unwrap().clone();
+    assert_eq!(asked.len(), 1, "{asked:?}");
+    assert!(asked[0].contains("'Old' in macro slot 0"), "{}", asked[0]);
+    assert!(asked[0].contains("'Keep' in macro slot 1"), "{}", asked[0]);
+
+    // Without --force the refusal names them too, and nothing goes out.
+    let dev = pad();
+    let edits = vec![MacroEdit::Delete { macro_slot: macro_slot(0) }];
+    let r = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path())
+        .write_slots(&[job(XINPUT, 1, Some(profile(XINPUT)), edits)], &ConfirmPolicy::Abort);
+    assert!(!r[0].success);
+    assert!(r[0].message.contains("'Old' in macro slot 0"), "{}", r[0].message);
+    assert!(!r[0].message.contains("'Keep'"), "{}", r[0].message);
+    assert!(!ops(&dev).contains(&MockOp::WriteFullProfile));
+}

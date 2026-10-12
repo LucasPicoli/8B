@@ -17,6 +17,7 @@ use crate::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, Mode, RawProfilePayload, Slot, WriteResult,
 };
 use crate::protocol::wire_write::MACRO_CHUNK_LEN;
+use crate::service::readback::confirm_slot_losing;
 use crate::service::validation::validate_macro;
 use crate::service::{ConfirmPolicy, ReadbackResult};
 
@@ -233,6 +234,42 @@ impl ProfileWriteOrchestrator<'_> {
             }
             .to_owned(),
         ))
+    }
+
+    /// Applies `policy` to the slot of `job` in `backup`, as [`crate::service::confirm_slot`] does. The
+    /// warning of a job that brings a profile names the macros its edits replace or
+    /// remove, so that one prompt covers them.
+    pub(super) fn confirm(
+        &self,
+        backup: &[u8],
+        job: &WriteJob,
+        policy: &ConfirmPolicy,
+    ) -> Result<ReadbackResult> {
+        let losing = self.losing(backup, job)?;
+        confirm_slot_losing(self.model, backup, job.mode, job.slot, policy, &losing)
+    }
+
+    /// The note an upload job adds to the overwrite warning of its slot in `backup`: the
+    /// macros its edits replace or remove. Empty for a job that keeps the slot's profile,
+    /// whose edits ask one by one, and for an empty slot.
+    fn losing(&self, backup: &[u8], job: &WriteJob) -> Result<String> {
+        let WriteOp::Upload { profile: Some(_), macro_edits, .. } = &job.op else {
+            return Ok(String::new());
+        };
+        if macro_edits.is_empty() || !self.model.slot_active(backup, job.slot)? {
+            return Ok(String::new());
+        }
+        let edited = |m: Option<u8>| macro_edits.iter().any(|e| Some(e.macro_slot().get()) == m);
+        let lost: Vec<String> = self
+            .model
+            .decode_macro_metadata(backup, job.slot)?
+            .iter()
+            .filter(|h| edited(h.macro_slot))
+            .map(|h| {
+                format!("the macro '{}' in macro slot {}", h.name, h.macro_slot.unwrap_or_default())
+            })
+            .collect();
+        Ok(if lost.is_empty() { String::new() } else { format!(" It loses {}.", lost.join(", ")) })
     }
 
     /// Validates `def`, a macro a caller built, as [`Self::check_macro`] validates a file.

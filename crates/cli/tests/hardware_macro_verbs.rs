@@ -5,7 +5,10 @@
 //! through `--convert`, deletes it, and deletes the empty macro slot again. After each
 //! verb the other banks are byte-identical, the written bank is the one before with
 //! only the target macro changed, and the neighbour's steps still read back. The banks
-//! and the two pages it wrote end as they began. Run with:
+//! and the two pages it wrote end as they began.
+//!
+//! A second test exports the pad, wipes slot 2's macros and puts them back with
+//! `upload --with-macros` from the export: every bank reads as before. Run with:
 //!   `cargo test -p cli --features hardware --test hardware_macro_verbs -- --ignored`
 #![cfg(feature = "hardware")]
 #![allow(unreachable_pub, clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
@@ -227,6 +230,77 @@ fn write_macro_and_delete_macro_in_every_mode() {
             before.iter().zip(banks()).all(|(a, b)| same_bank(a, &b)),
             "{mode}: empty delete wrote"
         );
+    }
+    drop(pages);
+    drop(seed);
+}
+
+/// The profile file `export` wrote into `dir` for slot 2 of `mode`.
+fn exported_profile(dir: &Path, mode: Mode) -> String {
+    let prefix = format!("profile-{mode}-slot-{SLOT}-");
+    let entry = std::fs::read_dir(dir)
+        .unwrap()
+        .map(|e| e.unwrap().path())
+        .find(|p| p.file_name().unwrap().to_string_lossy().starts_with(&prefix))
+        .unwrap();
+    entry.to_string_lossy().into_owned()
+}
+
+#[test]
+#[ignore = "deletes and uploads the macros of slot 2 in every mode of an attached 8BitDo Pro 3"]
+fn upload_with_macros_puts_an_export_back_in_every_mode() {
+    let dev = seed::pad();
+    let pages = save_pages(&dev);
+    let seed = seed::seed(&dev);
+    let dir = tempfile::tempdir().unwrap();
+    let banks = || dev.read_all_profiles().unwrap().raw_blobs;
+    let ok = |args: &[&str]| {
+        let (code, json) = cli(args);
+        assert_eq!(code, 0, "{args:?}: {json}");
+        json
+    };
+    let macros: Vec<(Mode, [MacroDefinition; 2])> = MODES
+        .iter()
+        .map(|&mode| {
+            (mode, [macro_def(mode, "Neighbour", "l1", 3), macro_def(mode, "Subject", "r4", 6)])
+        })
+        .collect();
+    for (mode, defs) in &macros {
+        let target = ["-m", mode.as_str(), "-s", SLOT];
+        for (m, def) in [NEIGHBOUR, TARGET].iter().zip(defs) {
+            let path = file(dir.path(), def);
+            let args = ["--macro-slot", &m.to_string(), "--force", "-f", &path];
+            ok(&[&["write-macro"][..], &target, &args].concat());
+        }
+        for m in ["2", "3"] {
+            ok(&[&["delete-macro"][..], &target, &["--macro-slot", m, "--force"]].concat());
+        }
+    }
+    let export = dir.path().join("export");
+    let export_dir = export.to_string_lossy().into_owned();
+    ok(&["export", "-o", &export_dir]);
+    let before = banks();
+
+    for (mode, defs) in &macros {
+        let target = ["-m", mode.as_str(), "-s", SLOT];
+        for m in [NEIGHBOUR, TARGET] {
+            let args = ["--macro-slot", &m.to_string(), "--force"];
+            ok(&[&["delete-macro"][..], &target, &args].concat());
+        }
+        let profile = exported_profile(&export, *mode);
+        let args = ["-f", &profile, "--with-macros", "--force"];
+        let json = ok(&[&["upload"][..], &target, &args].concat());
+        assert_eq!(json["macro_count"], 2, "{mode}: {json}");
+        for (m, def) in [NEIGHBOUR, TARGET].iter().zip(defs) {
+            let n = def.steps.len();
+            let stream = dev.read_macro_stream(*mode, slot(), macro_slot(*m), n).unwrap();
+            let steps = Pro3.decode_macro_steps(&stream, n, *mode).unwrap();
+            assert_eq!(steps, def.steps, "{mode}: macro slot {m} steps");
+        }
+    }
+    let after = banks();
+    for (i, (was, is)) in before.iter().zip(&after).enumerate() {
+        assert!(same_bank(was, is), "bank {i} differs from the export");
     }
     drop(pages);
     drop(seed);

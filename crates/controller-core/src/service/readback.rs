@@ -92,6 +92,22 @@ pub fn confirm_slot(
     slot: Slot,
     policy: &ConfirmPolicy,
 ) -> Result<ReadbackResult> {
+    confirm_slot_losing(model, blob, mode, slot, policy, "")
+}
+
+/// [`confirm_slot`] with `losing` after the warning of an occupied slot, such as the
+/// macros the write takes off it.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if the slot's marker cannot be read from `blob`.
+pub(crate) fn confirm_slot_losing(
+    model: &dyn Model,
+    blob: &[u8],
+    mode: Mode,
+    slot: Slot,
+    policy: &ConfirmPolicy,
+    losing: &str,
+) -> Result<ReadbackResult> {
     let n = slot.get();
     let slot_active = model.slot_active(blob, slot)?;
     let result = |proceed: bool, message: String| ReadbackResult {
@@ -107,7 +123,7 @@ pub fn confirm_slot(
             format!("Slot {n} in {mode} mode is empty. Proceeding with write."),
         ));
     }
-    let warning = format!("Slot {n} in {mode} mode already contains an active profile.");
+    let warning = format!("Slot {n} in {mode} mode already contains an active profile.{losing}");
     Ok(match policy {
         ConfirmPolicy::Force => result(
             true,

@@ -1,4 +1,4 @@
-//! Write verbs: upload, deactivate, remap and set, and the parts the macro verbs share.
+//! Write verbs: deactivate, remap and set, and the parts upload and the macro verbs share.
 //!
 //! Each handler builds a [`ProfileWriteOrchestrator`] over the attached controller and
 //! prints its [`WriteResult`] as JSON.
@@ -126,33 +126,6 @@ pub fn orchestrate(
     match write_model(dev) {
         Ok(model) => op(&ProfileWriteOrchestrator::new(dev, model, Path::new(".")), model),
         Err(e) => WriteResult::failure(mode, slot, e.category(), e.to_string()),
-    }
-}
-
-/// Runs the `upload` command: writes the profile JSON at `file` into `slot` of `mode`.
-///
-/// A missing, unreadable or non-JSON file is a validation failure, and nothing is sent.
-///
-/// # Returns
-/// Process exit code.
-pub fn run_upload(file: &Path, mode: Mode, slot: Slot, force: bool) -> i32 {
-    let profile = std::fs::read_to_string(file)
-        .map_err(|e| format!("Cannot read file {}: {e}", file.display()))
-        .and_then(|text| {
-            serde_json::from_str::<Value>(&text)
-                .map_err(|e| format!("File {} is not JSON: {e}", file.display()))
-        });
-    match profile {
-        Ok(profile) => run_write(mode, slot, force, &[], |o, policy| {
-            o.upload_profile(&profile, mode, slot, policy)
-        }),
-        Err(message) => {
-            eprintln!("{message}");
-            let r = WriteResult::failure(mode, slot, ErrorCategory::ValidationFailure, message);
-            let (payload, code) = build_write_payload(&r, &[]);
-            emit_json(&payload);
-            code
-        }
     }
 }
 

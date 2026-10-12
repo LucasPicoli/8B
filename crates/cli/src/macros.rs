@@ -172,7 +172,7 @@ fn plan(
 ///
 /// # Errors
 /// [`Error::Validation`] when the file cannot be read or is not JSON, so nothing is sent.
-fn read_json(file: &Path) -> Result<Value, Error> {
+pub fn read_json(file: &Path) -> Result<Value, Error> {
     let text = std::fs::read_to_string(file)
         .map_err(|e| Error::Validation(format!("Cannot read file {}: {e}", file.display())))?;
     serde_json::from_str(&text)
@@ -180,7 +180,7 @@ fn read_json(file: &Path) -> Result<Value, Error> {
 }
 
 /// The write payload of `r` with the fields of `extra` added, and its exit code.
-fn with_fields(r: &WriteResult, extra: Value) -> (Value, i32) {
+pub fn with_fields(r: &WriteResult, extra: Value) -> (Value, i32) {
     let (mut payload, code) = build_write_payload(r, &[]);
     if let (Some(map), Value::Object(extra)) = (payload.as_object_mut(), extra) {
         map.extend(extra);
@@ -190,7 +190,7 @@ fn with_fields(r: &WriteResult, extra: Value) -> (Value, i32) {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
-mod tests {
+pub mod tests {
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, SWITCH, XINPUT};
     use controller_core::model::{
@@ -200,12 +200,12 @@ mod tests {
 
     use super::*;
 
-    fn slot1() -> Slot {
+    pub fn slot1() -> Slot {
         Slot::new(1).unwrap()
     }
 
     /// A 2-step macro for `mode` in `macro_slot` that `trigger` starts.
-    fn def(name: &str, mode: Mode, trigger: &str, macro_slot: u8) -> MacroDefinition {
+    pub fn def(name: &str, mode: Mode, trigger: &str, macro_slot: u8) -> MacroDefinition {
         let step = |t| MacroStep {
             duration_ms: 40,
             pressed_buttons: vec!["bottom face".to_owned()],
@@ -226,7 +226,7 @@ mod tests {
 
     /// A pad whose `XInput` slot 1 holds a profile with `held` macros, in macro slots 0
     /// up, started by `l1`, `r1`, `l4` and `r4`. It keeps what it is sent.
-    fn pad(held: u8) -> MockDevice {
+    pub fn pad(held: u8) -> MockDevice {
         let triggers = ["l1", "r1", "l4", "r4"];
         let macros: Vec<MacroDefinition> = (0..held)
             .map(|m| def(&format!("Held{m}"), XINPUT, triggers[usize::from(m)], m))
@@ -285,7 +285,7 @@ mod tests {
     }
 
     /// The macro slots of the pages `dev` was sent.
-    fn pages(dev: &MockDevice) -> Vec<u8> {
+    pub fn pages(dev: &MockDevice) -> Vec<u8> {
         dev.calls()
             .iter()
             .filter_map(|c| match c {
@@ -295,7 +295,7 @@ mod tests {
             .collect()
     }
 
-    fn wrote_nothing(dev: &MockDevice) -> bool {
+    pub fn wrote_nothing(dev: &MockDevice) -> bool {
         !dev.calls().iter().any(|c| matches!(c, MockCall::WriteFullProfile { .. }))
     }
 

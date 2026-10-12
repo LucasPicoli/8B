@@ -18,7 +18,7 @@ use super::write::{
 };
 use crate::error::{Error, ErrorCategory, Result};
 use crate::model::{CanonicalProfile, MacroDefinition, MacroSlot, Mode, Slot, WriteResult};
-use crate::service::{bank_of, confirm_slot, ConfirmPolicy, ReadbackResult};
+use crate::service::{bank_of, ConfirmPolicy, ReadbackResult};
 
 /// What a write does to its slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -222,8 +222,7 @@ impl ProfileWriteOrchestrator<'_> {
             // A job that keeps the slot's profile overwrites none, so only its macros ask.
             let keeps_profile = matches!(job.op, WriteOp::Upload { profile: None, .. });
             let slot_policy = if keeps_profile { &ConfirmPolicy::Force } else { policy };
-            let rb = confirm_slot(self.model, &bank.backup, job.mode, job.slot, slot_policy)
-                .map_err(|e| fail(job, &e))?;
+            let rb = self.confirm(&bank.backup, job, slot_policy).map_err(|e| fail(job, &e))?;
             if !rb.proceed {
                 return Err(WriteResult::failure(
                     job.mode,
@@ -296,7 +295,10 @@ impl ProfileWriteOrchestrator<'_> {
             bank.blob = self.model.drop_macros(&bank.blob, job.slot, drop_macros)?;
             bank.dirty = true;
         }
-        match self.plan_macros(bank, job, rb, carries_profile, policy)? {
+        // The overwrite prompt of an occupied slot named the macros it loses.
+        let macro_policy =
+            if carries_profile && rb.slot_active { &ConfirmPolicy::Force } else { policy };
+        match self.plan_macros(bank, job, rb, carries_profile, macro_policy)? {
             Plan::Declined(message) => return Ok(Plan::Declined(message)),
             Plan::Write(message) | Plan::Nothing(message)
                 if !carries_profile && !message.is_empty() =>
