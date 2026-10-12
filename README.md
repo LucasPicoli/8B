@@ -65,7 +65,10 @@ just flatpak         # build the Flatpak bundle into packaging/flatpak/out/
 
 `just appimage` needs [`just`](https://github.com/casey/just) (`cargo install just`, or your distro's package) and either `podman` or `docker`. `just flatpak` needs `flatpak-builder`, `uv` and `jq`.
 
-A command-line tool, `8bitdo-pro-3`, lives in `crates/cli`.
+A command-line tool, `8bitdo-pro-3`, lives in `crates/cli`. It reads with `detect`,
+`read`, `export`, `dump` and `read-macro`, and writes with `upload`, `deactivate`,
+`remap`, `set`, `write-macro` and `delete-macro`. Run `8bitdo-pro-3 help <verb>` for
+each verb's flags and exit codes.
 
 ## Contributing
 

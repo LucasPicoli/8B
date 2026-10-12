@@ -1,4 +1,4 @@
-//! Write verbs: upload, deactivate, remap and set.
+//! Write verbs: upload, deactivate, remap and set, and the parts the macro verbs share.
 //!
 //! Each handler builds a [`ProfileWriteOrchestrator`] over the attached controller and
 //! prints its [`WriteResult`] as JSON.
@@ -63,7 +63,7 @@ pub fn build_write_payload(r: &WriteResult, extra: &[(&str, &str)]) -> (Value, i
 }
 
 /// `--force` overwrites. Otherwise a terminal asks, and piped stdin refuses.
-fn confirm_policy(force: bool) -> ConfirmPolicy {
+pub fn confirm_policy(force: bool) -> ConfirmPolicy {
     if force {
         return ConfirmPolicy::Force;
     }
@@ -95,8 +95,6 @@ fn write_model(dev: &dyn DeviceIo) -> controller_core::error::Result<&'static dy
 
 /// Runs `op` against the attached controller on `slot` of `mode` and prints the result.
 ///
-/// A failed rollback saves its backup file in the current directory.
-///
 /// # Returns
 /// Process exit code.
 pub fn run_write(
@@ -107,16 +105,28 @@ pub fn run_write(
     op: impl FnOnce(&ProfileWriteOrchestrator<'_>, &ConfirmPolicy) -> WriteResult,
 ) -> i32 {
     let dev = devices::open(None);
-    let result = match write_model(dev.as_ref()) {
-        Ok(model) => {
-            let orchestrator = ProfileWriteOrchestrator::new(dev.as_ref(), model, Path::new("."));
-            op(&orchestrator, &confirm_policy(force))
-        }
-        Err(e) => WriteResult::failure(mode, slot, e.category(), e.to_string()),
-    };
+    let policy = confirm_policy(force);
+    let result = orchestrate(dev.as_ref(), mode, slot, |o, _| op(o, &policy));
     let (payload, code) = build_write_payload(&result, extra);
     emit_json(&payload);
     code
+}
+
+/// Runs `op` with an orchestrator over `dev` and the model it writes with. A failed
+/// rollback saves its backup file in the current directory.
+///
+/// # Returns
+/// The result of `op`, or a failure on `slot` of `mode` when `dev` names no model.
+pub fn orchestrate(
+    dev: &dyn DeviceIo,
+    mode: Mode,
+    slot: Slot,
+    op: impl FnOnce(&ProfileWriteOrchestrator<'_>, &'static dyn Model) -> WriteResult,
+) -> WriteResult {
+    match write_model(dev) {
+        Ok(model) => op(&ProfileWriteOrchestrator::new(dev, model, Path::new(".")), model),
+        Err(e) => WriteResult::failure(mode, slot, e.category(), e.to_string()),
+    }
 }
 
 /// Runs the `upload` command: writes the profile JSON at `file` into `slot` of `mode`.

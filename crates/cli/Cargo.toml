@@ -6,6 +6,9 @@ rust-version.workspace = true
 license.workspace = true
 description = "Command-line interface for the 8BitDo Pro 3."
 
+[features]
+hardware = []          # gates real-device integration tests
+
 [[bin]]
 name = "8bitdo-pro-3"
 path = "src/main.rs"

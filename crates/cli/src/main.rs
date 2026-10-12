@@ -1,8 +1,8 @@
 //! CLI entry point for the 8BitDo Pro 3 configuration tool.
 //!
 //! Subcommands: `detect` (alias `readiness`), `read`,
-//! `export`, `dump`, `read-macro`, and the write verbs `upload`, `deactivate`, `remap`
-//! and `set`. The `dev` group adds tools for
+//! `export`, `dump`, `read-macro`, the write verbs `upload`, `deactivate`, `remap`
+//! and `set`, and the macro write verbs `write-macro` and `delete-macro`. The `dev` group adds tools for
 //! reverse engineering a controller the app does not support yet.
 //!
 //! Binary crates cannot expose a public API; suppress the lint that fires for
@@ -12,6 +12,7 @@
 pub(crate) mod commands;
 pub(crate) mod dev;
 pub(crate) mod export;
+pub(crate) mod macros;
 pub(crate) mod write;
 
 use std::path::PathBuf;
@@ -21,8 +22,9 @@ use clap::{ArgAction, Args, CommandFactory as _, Parser, Subcommand};
 
 use commands::{run_detect, run_dump, run_read, run_read_macro};
 use controller_core::devices;
-use controller_core::model::{Mode, Slot};
+use controller_core::model::{MacroSlot, Mode, Slot};
 use export::run_export;
+use macros::{run_delete_macro, run_write_macro, MacroWrite};
 use write::{run_upload, run_write};
 
 /// 8BitDo Pro 3 CLI.
@@ -30,10 +32,10 @@ use write::{run_upload, run_write};
 /// Exit codes:
 ///   0  Success
 ///   1  Connection failure (no device or USB error)
-///   2  Usage error (invalid arguments), or a write to an occupied slot that
-///      upload or deactivate refused without --force
+///   2  Usage error (invalid arguments), a write to an occupied slot or macro
+///      slot refused without --force, or a write-macro with every macro slot full
 ///   3  Timeout (device disconnected mid-transfer)
-///   4  Validation failure (profile schema/semantic check failed)
+///   4  Validation failure (profile or macro schema/semantic check failed)
 ///   5  Export failure (could not write files to disk, or a file exists and
 ///      --overwrite is off)
 ///   6  Write failure (profile write to device failed)
@@ -95,8 +97,8 @@ struct Target {
     /// Target slot, from 1.
     #[arg(short, long, value_parser = parse_slot)]
     slot: Slot,
-    /// Overwrite an occupied slot without asking. Only upload and deactivate ask: set
-    /// and remap edit the profile the slot holds.
+    /// Overwrite an occupied slot or macro slot without asking. Only upload, deactivate,
+    /// write-macro and delete-macro ask: set and remap edit the profile the slot holds.
     #[arg(long)]
     force: bool,
 }
@@ -144,6 +146,18 @@ fn parse_slot(s: &str) -> Result<Slot, String> {
     s.parse::<u8>()
         .map_err(|e| e.to_string())
         .and_then(|n| Slot::new(n).and_then(|slot| slot.check(most)).map_err(|e| e.to_string()))
+}
+
+/// Parses a 0-based macro slot for clap, below the largest macro slot count of a
+/// built-in model. The model of the attached pad checks it against its own count again.
+fn parse_macro_slot(s: &str) -> Result<MacroSlot, String> {
+    let count = devices::descriptions().map(|d| d.macro_slot_count).max().unwrap_or(0);
+    let n = s.parse::<u8>().map_err(|e| e.to_string())?;
+    match count.checked_sub(1) {
+        Some(last) if n <= last => MacroSlot::new(n).map_err(|e| e.to_string()),
+        Some(last) => Err(format!("macro slot {n} out of range (0 to {last})")),
+        None => Err("no supported controller has macro slots".to_owned()),
+    }
 }
 
 /// Available CLI subcommands.
@@ -195,6 +209,37 @@ enum Commands {
         /// Path to the canonical profile JSON.
         #[arg(short, long)]
         file: PathBuf,
+    },
+
+    /// Write a `macro-v1` file into a macro slot of an occupied slot. The slot's other
+    /// macros and its profile stay as they are.
+    ///
+    /// Example: `write-macro -m xinput -s 1 -f xinput-slot1-macro0-Dash.json`.
+    #[command(name = "write-macro")]
+    WriteMacro {
+        #[command(flatten)]
+        target: Target,
+        /// Macro slot, from 0. Omitted, the first free one; exit 2 when none is free.
+        #[arg(long, value_parser = parse_macro_slot)]
+        macro_slot: Option<MacroSlot>,
+        /// Convert a macro made for another mode. Each button that cannot start it in
+        /// the target slot, and each trigger glide an on/off mode cannot play, is dropped
+        /// and listed under `dropped`. Without it, another mode's macro is exit 4.
+        #[arg(long)]
+        convert: bool,
+        /// Path to the `macro-v1` JSON.
+        #[arg(short, long)]
+        file: PathBuf,
+    },
+
+    /// Delete the macro in a macro slot. An empty macro slot is exit 0 with no write.
+    #[command(name = "delete-macro")]
+    DeleteMacro {
+        #[command(flatten)]
+        target: Target,
+        /// Macro slot, from 0.
+        #[arg(long, value_parser = parse_macro_slot)]
+        macro_slot: MacroSlot,
     },
 
     /// Clear a slot.
@@ -273,6 +318,13 @@ fn main() {
         }
         Commands::Dev(DevCommand::Diff { a, b }) => dev::run_diff(&a, &b),
         Commands::Upload { target: t, file } => run_upload(&file, t.mode, t.slot, t.force),
+        Commands::WriteMacro { target: t, macro_slot, convert, file } => run_write_macro(
+            &MacroWrite { file: &file, mode: t.mode, slot: t.slot, macro_slot, convert },
+            t.force,
+        ),
+        Commands::DeleteMacro { target: t, macro_slot } => {
+            run_delete_macro(t.mode, t.slot, macro_slot, t.force)
+        }
         Commands::Deactivate { target: t } => {
             run_write(t.mode, t.slot, t.force, &[], |o, p| o.deactivate_slot(t.mode, t.slot, p))
         }
@@ -342,6 +394,53 @@ mod tests {
         }
         assert!(Cli::try_parse_from(["8b", "read-macro", "foo", "1"]).is_err());
         assert!(Cli::try_parse_from(["8b", "read-macro", "xinput", "4"]).is_err());
+    }
+
+    #[test]
+    fn macro_verbs_take_a_target_and_a_macro_slot() {
+        let cli = Cli::parse_from(["8b", "write-macro", "-m", "dinput", "-s", "2", "-f", "m.json"]);
+        assert!(matches!(
+            cli.command,
+            Commands::WriteMacro { macro_slot: None, convert: false, .. }
+        ));
+        let cli = Cli::parse_from([
+            "8b",
+            "write-macro",
+            "-m",
+            "xinput",
+            "-s",
+            "1",
+            "--macro-slot",
+            "3",
+            "--convert",
+            "--force",
+            "-f",
+            "m.json",
+        ]);
+        assert!(matches!(
+            cli.command,
+            Commands::WriteMacro { macro_slot: Some(m), convert: true, target: Target { force: true, .. }, .. }
+                if m.get() == 3
+        ));
+        let cli =
+            Cli::parse_from(["8b", "delete-macro", "-m", "switch", "-s", "3", "--macro-slot", "0"]);
+        assert!(
+            matches!(cli.command, Commands::DeleteMacro { macro_slot, .. } if macro_slot.get() == 0)
+        );
+
+        assert!(parse_macro_slot("0").is_ok());
+        assert_eq!(parse_macro_slot("4"), Err("macro slot 4 out of range (0 to 3)".to_owned()));
+        for args in [
+            &["8b", "delete-macro", "-m", "xinput", "-s", "1"][..],
+            &["8b", "delete-macro", "-m", "xinput", "-s", "1", "--macro-slot", "4"],
+            &["8b", "delete-macro", "-m", "foo", "-s", "1", "--macro-slot", "0"],
+            &["8b", "write-macro", "-m", "xinput", "-s", "4", "-f", "m.json"],
+            &["8b", "write-macro", "-m", "xinput", "-s", "1", "--macro-slot", "x", "-f", "m"],
+            &["8b", "write-macro", "-m", "xinput", "-s", "1"],
+        ] {
+            let code = Cli::try_parse_from(args).err().map(|e| e.exit_code());
+            assert_eq!(code, Some(2), "{args:?}");
+        }
     }
 
     #[test]
