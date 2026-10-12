@@ -23,11 +23,11 @@ use crate::hw::same_bank;
 use crate::seed;
 
 /// The profile slot the test writes macros into.
-const SLOT: u8 = 2;
+pub const SLOT: u8 = 2;
 /// The macro slot of the neighbour that must survive every write.
-const NEIGHBOUR: u8 = 0;
+pub const NEIGHBOUR: u8 = 0;
 /// The macro slot the test puts, replaces and deletes.
-const TARGET: u8 = 2;
+pub const TARGET: u8 = 2;
 /// Section 4 starts here; each slot's record is 216 bytes with an 8-byte header.
 const SECTION4: usize = 0x068C;
 const SLOT_STRIDE: usize = 216;
@@ -42,16 +42,16 @@ const CUR_SLOT: usize = 0x12;
 const STEP_LEN: usize = 10;
 const CHUNK_LEN: usize = 32;
 
-fn slot() -> Slot {
+pub fn slot() -> Slot {
     Slot::new(SLOT).unwrap()
 }
 
-fn macro_slot(n: u8) -> MacroSlot {
+pub fn macro_slot(n: u8) -> MacroSlot {
     MacroSlot::new(n).unwrap()
 }
 
 /// Where the descriptor of macro slot `m` of [`SLOT`] sits in a bank.
-fn descriptor(m: u8) -> Range<usize> {
+pub fn descriptor(m: u8) -> Range<usize> {
     let at = SECTION4
         + (usize::from(SLOT) - 1) * SLOT_STRIDE
         + SLOT_HEADER
@@ -75,7 +75,7 @@ fn steps(n: u8) -> Vec<MacroStep> {
     out
 }
 
-fn macro_def(mode: Mode, name: &str, trigger: &str, n: u8) -> MacroDefinition {
+pub fn macro_def(mode: Mode, name: &str, trigger: &str, n: u8) -> MacroDefinition {
     MacroDefinition {
         name: name.into(),
         mode,
@@ -88,7 +88,7 @@ fn macro_def(mode: Mode, name: &str, trigger: &str, n: u8) -> MacroDefinition {
     }
 }
 
-fn neighbour(mode: Mode) -> MacroDefinition {
+pub fn neighbour(mode: Mode) -> MacroDefinition {
     macro_def(mode, "Neighbour", "l1", 3)
 }
 
@@ -99,7 +99,7 @@ const fn page_span(steps: usize) -> usize {
 
 /// The written span of each page the test writes that a macro of the pad uses now, so
 /// it can go back after the test.
-fn saved_pages(dev: &HidrawDevice) -> Vec<(Mode, u8, Vec<u8>)> {
+pub fn saved_pages(dev: &HidrawDevice) -> Vec<(Mode, u8, Vec<u8>)> {
     let read = dev.read_all_profiles().unwrap();
     let mut pages = Vec::new();
     for (mode, bank) in MODES.iter().zip(&read.raw_blobs) {
@@ -118,7 +118,7 @@ fn saved_pages(dev: &HidrawDevice) -> Vec<(Mode, u8, Vec<u8>)> {
     pages
 }
 
-fn restore_pages(dev: &HidrawDevice, pages: &[(Mode, u8, Vec<u8>)]) {
+pub fn restore_pages(dev: &HidrawDevice, pages: &[(Mode, u8, Vec<u8>)]) {
     let back_to = dev.begin_write().unwrap();
     let sent = (|| {
         for (mode, m, page) in pages {

@@ -704,8 +704,9 @@ mod tests {
             mode: XINPUT,
             slot: Slot::new(1).unwrap(),
             op: WriteOp::Upload {
-                profile: serde_json::from_str(&text).unwrap(),
+                profile: Some(serde_json::from_str(&text).unwrap()),
                 drop_macros: vec![],
+                macro_edits: vec![],
             },
         }
     }

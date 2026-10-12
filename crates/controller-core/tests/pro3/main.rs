@@ -21,6 +21,7 @@ mod golden_profile_decode;
 mod validation_macro;
 mod validation_profile;
 mod write_batch;
+mod write_batch_macros;
 mod write_macro;
 mod write_orchestrator;
 
@@ -32,6 +33,8 @@ mod seed;
 
 #[cfg(feature = "hardware")]
 mod hardware_batch;
+#[cfg(feature = "hardware")]
+mod hardware_batch_macro;
 #[cfg(feature = "hardware")]
 mod hardware_macro;
 #[cfg(feature = "hardware")]

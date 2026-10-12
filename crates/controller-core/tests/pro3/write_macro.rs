@@ -354,7 +354,11 @@ fn a_failed_stream_rewrite_empties_the_macro_slot_and_saves_the_old_macro() {
     );
     let r = put(&dev, 0, &ConfirmPolicy::Force, dir.path());
     assert!(!r.success && r.rollback_attempted && !r.rollback_succeeded);
-    assert!(r.message.contains("so macro slot 0 is now empty"), "{}", r.message);
+    assert!(
+        r.message.contains("macro slot 0 of slot 1 could not be written back, so it is now empty"),
+        "{}",
+        r.message
+    );
 
     let emptied = Pro3.set_macro(&bank(), slot(1), macro_slot(0), None).unwrap();
     let mut calls = put_calls(0);
@@ -370,6 +374,7 @@ fn a_failed_stream_rewrite_empties_the_macro_slot_and_saves_the_old_macro() {
     assert_eq!(names(&dev), [(Some(1), "Keep".into())]);
 
     let saved = std::fs::read_dir(dir.path()).unwrap().next().unwrap().unwrap().path();
+    assert_eq!(r.macro_backup_paths, [saved.display().to_string()]);
     assert!(r.message.contains(&saved.display().to_string()), "{}", r.message);
     let name = saved.file_name().unwrap().to_string_lossy().into_owned();
     assert!(name.starts_with("backup-xinput-slot-1-macro-0-"), "{name}");

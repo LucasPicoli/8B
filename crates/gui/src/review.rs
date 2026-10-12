@@ -189,8 +189,9 @@ impl AppState {
             mode: slot.0,
             slot: ProfileSlot::new(slot.1).ok()?,
             op: WriteOp::Upload {
-                profile: serde_json::to_value(&profile).ok()?,
+                profile: Some(serde_json::to_value(&profile).ok()?),
                 drop_macros: removed,
+                macro_edits: Vec::new(),
             },
         })
     }
@@ -649,7 +650,9 @@ mod tests {
         let (port, mut jobs) = s.confirm_review().unwrap();
         let job = jobs.remove(0);
         assert_eq!(port, PORT);
-        let WriteOp::Upload { profile, drop_macros } = &job.op else { panic!("an upload") };
+        let WriteOp::Upload { profile: Some(profile), drop_macros, .. } = &job.op else {
+            panic!("an upload")
+        };
         assert_eq!(drop_macros, &["rp"], "the macro whose button got another output goes");
         assert_eq!(profile["macro_refs"], serde_json::json!([]));
         assert_eq!(profile["name"], "Mine");
@@ -669,7 +672,7 @@ mod tests {
         s.select(2, 2);
         s.start_from_default();
         let job = s.upload_job((DINPUT, 3)).unwrap();
-        let WriteOp::Upload { profile, .. } = job.op else { panic!("an upload") };
+        let WriteOp::Upload { profile: Some(profile), .. } = job.op else { panic!("an upload") };
         assert_eq!(profile["id"], "dinput-slot-3-index-2");
         let info = s.review_info((DINPUT, 3));
         assert!(info.is_new && info.changes.row_count() == 0);

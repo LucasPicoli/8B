@@ -50,6 +50,9 @@ pub struct WriteResult {
     pub rollback_succeeded: bool,
     /// Where the pre-write backup was saved, when rollback failed and saving worked.
     pub backup_file_path: Option<String>,
+    /// Where the old macros were saved, when a failed macro write could not put their
+    /// steps back.
+    pub macro_backup_paths: Vec<String>,
 }
 
 impl WriteResult {
@@ -66,6 +69,7 @@ impl WriteResult {
             rollback_attempted: false,
             rollback_succeeded: false,
             backup_file_path: None,
+            macro_backup_paths: Vec::new(),
         }
     }
 
@@ -87,6 +91,7 @@ impl WriteResult {
             rollback_attempted: false,
             rollback_succeeded: false,
             backup_file_path: None,
+            macro_backup_paths: Vec::new(),
         }
     }
 }

@@ -37,8 +37,9 @@ fn rename(r: &Banks<'_>, mode: Mode, slot: u8, name: &str) -> WriteJob {
         mode,
         slot: Slot::new(slot).unwrap(),
         op: WriteOp::Upload {
-            profile: serde_json::to_value(&profile).unwrap(),
+            profile: Some(serde_json::to_value(&profile).unwrap()),
             drop_macros: Vec::new(),
+            macro_edits: Vec::new(),
         },
     }
 }
@@ -124,7 +125,7 @@ fn batch_is_faster_than_one_write_per_slot() {
 
     let t = Instant::now();
     for job in &jobs {
-        let WriteOp::Upload { profile, .. } = &job.op else { panic!("an upload") };
+        let WriteOp::Upload { profile: Some(profile), .. } = &job.op else { panic!("an upload") };
         let res = orch.upload_profile(profile, job.mode, job.slot, &ConfirmPolicy::Force);
         assert!(res.success, "{}", res.message);
     }

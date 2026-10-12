@@ -3,10 +3,11 @@
 
 pub mod batch;
 pub mod macros;
+mod pages;
 pub mod patch;
 pub mod profile;
 pub mod write;
 
-pub use batch::{WriteJob, WriteOp};
+pub use batch::{MacroEdit, WriteJob, WriteOp};
 
 pub use write::ProfileWriteOrchestrator;

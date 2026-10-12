@@ -57,7 +57,12 @@ fn upload(mode: Mode, n: u8, name: &str) -> WriteJob {
         fixture(&format!("{}-slot1", if mode == SWITCH { "switch" } else { "xinput" }));
     profile["name"] = json!(name);
     profile["macro_refs"] = json!([]);
-    WriteJob { mode, slot: slot(n), op: WriteOp::Upload { profile, drop_macros: Vec::new() } }
+    let op = WriteOp::Upload {
+        profile: Some(profile),
+        drop_macros: Vec::new(),
+        macro_edits: Vec::new(),
+    };
+    WriteJob { mode, slot: slot(n), op }
 }
 
 fn clear(mode: Mode, n: u8) -> WriteJob {
@@ -118,7 +123,7 @@ fn slots_of_one_mode_go_out_in_one_write() {
 #[test]
 fn a_batch_of_one_writes_what_the_single_upload_writes() {
     let job = upload(XINPUT, 2, "Solo");
-    let WriteOp::Upload { profile, .. } = &job.op else { panic!("an upload") };
+    let WriteOp::Upload { profile: Some(profile), .. } = &job.op else { panic!("an upload") };
     let dir = tempfile::tempdir().unwrap();
 
     let single = device();
@@ -192,7 +197,7 @@ fn an_invalid_job_stops_the_batch_before_anything_is_sent() {
     let dev = device();
     let dir = tempfile::tempdir().unwrap();
     let mut bad = upload(SWITCH, 3, "Bad");
-    if let WriteOp::Upload { profile, .. } = &mut bad.op {
+    if let WriteOp::Upload { profile: Some(profile), .. } = &mut bad.op {
         profile["sticks"]["left_max_pct"] = json!(500);
     }
     let jobs = [upload(XINPUT, 3, "Fine"), bad];

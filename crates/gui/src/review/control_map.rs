@@ -93,7 +93,8 @@ fn leaves(json: &Value, at: &str, out: &mut BTreeMap<String, Value>) {
 /// The pointer of the one field that differs between the slot's profile and the
 /// upload of its edits. Panics, naming `key`, when none or several differ.
 fn written_field(s: &AppState, slot: (Mode, u8), key: &str) -> String {
-    let Some(WriteOp::Upload { profile, .. }) = s.upload_job(slot).map(|j| j.op) else {
+    let Some(WriteOp::Upload { profile: Some(profile), .. }) = s.upload_job(slot).map(|j| j.op)
+    else {
         panic!("{key}: no upload");
     };
     let mut pad = serde_json::to_value(s.slot(slot.0, slot.1).pad.unwrap()).unwrap();

@@ -5,27 +5,66 @@
 //! time. [`ProfileWriteOrchestrator::write_slots`] reads once, folds every slot into its
 //! mode's bank, then sends each changed bank once: flip once, then slot select, write and
 //! apply per bank, then flip back once.
+//!
+//! A job may also change the slot's macros. Its bank carries the new descriptors, and
+//! each put's step page follows the bank (see [`super::pages`]). One job is one
+//! rollback unit with its bank.
 
 use serde_json::Value;
 
-use super::write::{check_upload, failure_from, with_ignored, ProfileWriteOrchestrator, UPLOADED};
-use crate::error::{Error, ErrorCategory};
-use crate::model::{Mode, Slot, WriteResult};
-use crate::service::{bank_of, confirm_slot, ConfirmPolicy};
+use super::pages::Page;
+use super::write::{
+    check_upload, failure_from, with_ignored, Plan, ProfileWriteOrchestrator, UPLOADED,
+};
+use crate::error::{Error, ErrorCategory, Result};
+use crate::model::{CanonicalProfile, MacroDefinition, MacroSlot, Mode, Slot, WriteResult};
+use crate::service::{bank_of, confirm_slot, ConfirmPolicy, ReadbackResult};
 
 /// What a write does to its slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WriteOp {
-    /// Put this profile in the slot. The slot keeps the macros it has, and the buttons
-    /// in `drop_macros` no longer start any of them.
+    /// Put this profile in the slot. The slot keeps the macros it has, except for the
+    /// changes in `macro_edits`, and the buttons in `drop_macros` no longer start any of
+    /// them.
     Upload {
-        /// The profile, as the profile schema holds it, with no `macro_refs`.
-        profile: Value,
+        /// The profile, as the profile schema holds it, with no `macro_refs`. `None`
+        /// keeps the profile the slot holds, and the slot must hold one.
+        profile: Option<Value>,
         /// The buttons to take off the slot's macros, each one that got another output.
         drop_macros: Vec<String>,
+        /// The changes to the slot's macros, at most one per macro slot. A put needs a
+        /// profile in the slot, held already or carried by this job.
+        macro_edits: Vec<MacroEdit>,
     },
     /// Empty the slot. Its macros stay stored.
     Clear,
+}
+
+/// One change to one macro slot of a slot.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MacroEdit {
+    /// Create or replace the macro in `macro_slot`.
+    Put {
+        /// The macro slot.
+        macro_slot: MacroSlot,
+        /// The macro, for the job's mode.
+        definition: MacroDefinition,
+    },
+    /// Remove the macro in `macro_slot`. Only its descriptor is zeroed.
+    Delete {
+        /// The macro slot.
+        macro_slot: MacroSlot,
+    },
+}
+
+impl MacroEdit {
+    /// The macro slot the edit changes.
+    #[must_use]
+    pub const fn macro_slot(&self) -> MacroSlot {
+        match self {
+            Self::Put { macro_slot, .. } | Self::Delete { macro_slot } => *macro_slot,
+        }
+    }
 }
 
 /// One write to one slot.
@@ -40,27 +79,34 @@ pub struct WriteJob {
 }
 
 /// One mode's bank while a batch builds it.
-struct Bank {
-    mode: Mode,
+pub(super) struct Bank {
+    pub(super) mode: Mode,
     /// The bank as read, kept for the rollback.
-    backup: Vec<u8>,
+    pub(super) backup: Vec<u8>,
     /// The bank with the batch's slots in it.
-    blob: Vec<u8>,
+    pub(super) blob: Vec<u8>,
     /// The slot of the job that opened the bank. It names the bank in a failure.
-    first: Slot,
+    pub(super) first: Slot,
     /// A target slot held a profile, so a failed write is rolled back.
-    was_active: bool,
+    pub(super) was_active: bool,
     /// Some job changes the bank. A bank without changes is not written.
-    dirty: bool,
+    pub(super) dirty: bool,
+    /// The step pages of the bank's puts, written after the bank.
+    pub(super) pages: Vec<Page>,
+    /// The slots whose macros changed, which the read-back checks.
+    pub(super) macro_slots: Vec<Slot>,
     /// How the write of the bank went. `None` until it was tried.
-    result: Option<WriteResult>,
+    pub(super) result: Option<WriteResult>,
 }
 
 /// The message and profile id of a job that succeeds.
-struct Outcome {
+pub(super) struct Outcome {
     message: String,
     profile_id: String,
 }
+
+/// Message of a job with nothing to write.
+const NOTHING: &str = "Nothing to write.";
 
 /// Messages of a batch that failed before any write, or stopped after one failed.
 const NOT_WRITTEN: &str = "Not written: an earlier slot failed.";
@@ -95,11 +141,12 @@ impl ProfileWriteOrchestrator<'_> {
                 let result = if stopped {
                     WriteResult::failure(bank.mode, bank.first, ErrorCategory::None, NOT_WRITTEN)
                 } else {
-                    self.write(bank.mode, bank.first, &bank.backup, bank.was_active, &bank.blob, "")
+                    self.write_bank(bank)
                 };
                 stopped = !result.success;
                 bank.result = Some(result);
             }
+            self.read_back(&mut banks);
             let mut results = collect(jobs, &banks, outcomes);
             if let Some(back_to) = back_to {
                 if let Err(e) = self.dev.end_write(back_to) {
@@ -134,7 +181,9 @@ impl ProfileWriteOrchestrator<'_> {
         };
         let Some(head) = jobs.first() else { return Ok((Vec::new(), Vec::new())) };
         for job in jobs {
-            self.check_slot(job.slot).map_err(|e| fail(job, &e))?;
+            self.check_slot(job.slot)
+                .and_then(|()| self.check_mode(job.mode))
+                .map_err(|e| fail(job, &e))?;
         }
         let read = self.dev.read_all_profiles().map_err(|e| fail(head, &e))?;
         self.check_model().map_err(|e| fail(head, &e))?;
@@ -146,10 +195,10 @@ impl ProfileWriteOrchestrator<'_> {
                 return Err(fail(job, &e));
             }
             let parsed = match &job.op {
-                WriteOp::Upload { profile, .. } => {
+                WriteOp::Upload { profile: Some(profile), .. } => {
                     Some(check_upload(self.model, profile, job.mode).map_err(|e| fail(job, &e))?)
                 }
-                WriteOp::Clear => None,
+                _ => None,
             };
             if !banks.iter().any(|b| b.mode == job.mode) {
                 let backup =
@@ -161,6 +210,8 @@ impl ProfileWriteOrchestrator<'_> {
                     first: job.slot,
                     was_active: false,
                     dirty: false,
+                    pages: Vec::new(),
+                    macro_slots: Vec::new(),
                     result: None,
                 });
             }
@@ -168,7 +219,10 @@ impl ProfileWriteOrchestrator<'_> {
                 .iter_mut()
                 .find(|b| b.mode == job.mode)
                 .ok_or_else(|| fail(job, &Error::Usb("the bank went missing".to_owned())))?;
-            let rb = confirm_slot(self.model, &bank.backup, job.mode, job.slot, policy)
+            // A job that keeps the slot's profile overwrites none, so only its macros ask.
+            let keeps_profile = matches!(job.op, WriteOp::Upload { profile: None, .. });
+            let slot_policy = if keeps_profile { &ConfirmPolicy::Force } else { policy };
+            let rb = confirm_slot(self.model, &bank.backup, job.mode, job.slot, slot_policy)
                 .map_err(|e| fail(job, &e))?;
             if !rb.proceed {
                 return Err(WriteResult::failure(
@@ -179,18 +233,20 @@ impl ProfileWriteOrchestrator<'_> {
                 ));
             }
             bank.was_active |= rb.slot_active;
-            outcomes.push(match (&job.op, parsed) {
-                (WriteOp::Upload { drop_macros, .. }, Some(parsed)) => {
-                    bank.blob = self
-                        .build_upload(&parsed, job.slot, drop_macros, &bank.blob, rb.slot_active)
-                        .map_err(|e| fail(job, &e))?;
-                    bank.dirty = true;
-                    Outcome {
-                        message: with_ignored(UPLOADED.to_owned(), parsed.macro_refs.len()),
-                        profile_id: parsed.id,
+            outcomes.push(match &job.op {
+                WriteOp::Upload { .. } => {
+                    match self
+                        .plan_upload(bank, job, parsed, &rb, policy)
+                        .map_err(|e| fail(job, &e))?
+                    {
+                        Plan::Write(outcome) => outcome,
+                        Plan::Nothing(message) | Plan::Declined(message) => {
+                            let none = ErrorCategory::None;
+                            return Err(WriteResult::failure(job.mode, job.slot, none, message));
+                        }
                     }
                 }
-                _ if !rb.slot_active => Outcome {
+                WriteOp::Clear if !rb.slot_active => Outcome {
                     message: format!(
                         "Slot {} in {} mode is already empty.",
                         job.slot.get(),
@@ -198,7 +254,7 @@ impl ProfileWriteOrchestrator<'_> {
                     ),
                     profile_id: String::new(),
                 },
-                _ => {
+                WriteOp::Clear => {
                     bank.blob = self
                         .model
                         .deactivate_profile(&bank.blob, job.slot)
@@ -209,6 +265,47 @@ impl ProfileWriteOrchestrator<'_> {
             });
         }
         Ok((banks, outcomes))
+    }
+
+    /// Builds an upload job into `bank`: its profile or the slot's with `drop_macros`,
+    /// then its macro edits. `parsed` is its profile, checked. Returns the job's outcome,
+    /// or `Declined` with the message of a macro the policy keeps.
+    fn plan_upload(
+        &self,
+        bank: &mut Bank,
+        job: &WriteJob,
+        parsed: Option<CanonicalProfile>,
+        rb: &ReadbackResult,
+        policy: &ConfirmPolicy,
+    ) -> Result<Plan<Outcome>> {
+        let WriteOp::Upload { drop_macros, .. } = &job.op else {
+            return Ok(Plan::Write(Outcome {
+                message: NOTHING.to_owned(),
+                profile_id: String::new(),
+            }));
+        };
+        let carries_profile = parsed.is_some();
+        let mut outcome = Outcome { message: NOTHING.to_owned(), profile_id: String::new() };
+        if let Some(parsed) = parsed {
+            bank.blob =
+                self.build_upload(&parsed, job.slot, drop_macros, &bank.blob, rb.slot_active)?;
+            bank.dirty = true;
+            outcome.message = with_ignored(UPLOADED.to_owned(), parsed.macro_refs.len());
+            outcome.profile_id = parsed.id;
+        } else if rb.slot_active && !drop_macros.is_empty() {
+            bank.blob = self.model.drop_macros(&bank.blob, job.slot, drop_macros)?;
+            bank.dirty = true;
+        }
+        match self.plan_macros(bank, job, rb, carries_profile, policy)? {
+            Plan::Declined(message) => return Ok(Plan::Declined(message)),
+            Plan::Write(message) | Plan::Nothing(message)
+                if !carries_profile && !message.is_empty() =>
+            {
+                outcome.message = message;
+            }
+            _ => {}
+        }
+        Ok(Plan::Write(outcome))
     }
 }
 
