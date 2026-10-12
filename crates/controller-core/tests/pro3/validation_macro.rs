@@ -224,3 +224,90 @@ fn schema_failure_short_circuits_semantics() {
     assert_ne!(errors, []);
     assert!(errors.iter().all(|e| !e.reason.contains("appears in both press and release")));
 }
+
+// --- Glides -----------------------------------------------------------------
+
+/// Two steps: the first glides `controls`, from stick 0 / trigger 0 to `end`.
+fn a_glide(mode: &str, controls: &Value, end: &Value) -> Value {
+    let mut m = make_valid_macro();
+    m["mode"] = mode.into();
+    m["steps"] = json!([
+        { "duration_ms": 100, "glide": controls, "actions": { "left_stick": { "x": 0, "y": 127 } } },
+        { "duration_ms": 0, "actions": end }
+    ]);
+    m
+}
+
+#[test]
+fn a_glide_to_a_different_value_passes() {
+    let end =
+        json!({ "left_stick": { "x": 255, "y": 127 }, "triggers": { "left": 0, "right": 90 } });
+    let m = a_glide("xinput", &json!(["left_stick", "right_trigger"]), &end);
+    assert_eq!(validate_macro(&m).unwrap(), []);
+}
+
+#[test]
+fn a_glide_needs_a_next_step_and_a_value_that_moves() {
+    let end = json!({ "left_stick": { "x": 255, "y": 127 } });
+    let mut last = a_glide("xinput", &json!([]), &end);
+    last["steps"][1]["glide"] = json!(["left_stick"]);
+    let errors = validate_macro(&last).unwrap();
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].path, "/steps/1/glide");
+    assert!(errors[0].reason.contains("no next step"), "{}", errors[0].reason);
+
+    let same = a_glide(
+        "xinput",
+        &json!(["left_stick", "right_stick"]),
+        &json!({ "left_stick": { "x": 0, "y": 127 } }),
+    );
+    let errors = validate_macro(&same).unwrap();
+    assert_eq!(errors.len(), 2, "{errors:?}");
+    assert!(errors[0].reason.contains("left_stick has the same value"), "{}", errors[0].reason);
+    assert!(errors[1].reason.contains("right_stick has the same value"), "{}", errors[1].reason);
+}
+
+#[test]
+fn a_trigger_cannot_glide_in_an_on_off_mode() {
+    let end = json!({ "triggers": { "left": 255, "right": 0 } });
+    let m = a_glide("switch", &json!(["left_trigger"]), &end);
+    let errors = validate_macro(&m).unwrap();
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert!(errors[0].reason.contains("cannot glide in Switch mode"), "{}", errors[0].reason);
+    assert_eq!(validate_macro(&a_glide("xinput", &json!(["left_trigger"]), &end)).unwrap(), []);
+}
+
+#[test]
+fn an_unknown_glide_control_or_a_repeat_fails_the_schema() {
+    let end = json!({ "left_stick": { "x": 255, "y": 127 } });
+    assert_ne!(validate_macro(&a_glide("xinput", &json!(["dpad"]), &end)).unwrap(), []);
+    assert_ne!(
+        validate_macro(&a_glide("xinput", &json!(["left_stick", "left_stick"]), &end)).unwrap(),
+        []
+    );
+}
+
+#[test]
+fn the_step_count_includes_the_steps_a_glide_becomes() {
+    let plain = || json!({ "duration_ms": 1, "actions": {} });
+    let mut m = make_valid_macro();
+    m["steps"] = json!(vec![plain(); 408]);
+    assert_eq!(validate_macro(&m).unwrap(), [], "408 steps fit");
+    m["steps"] = json!(vec![plain(); 409]);
+    let errors = validate_macro(&m).unwrap();
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].path, "/steps");
+    assert_eq!(errors[0].reason, "The macro has 409 steps; the Pro 3 holds at most 408.");
+
+    // 398 plain steps, a 200 ms glide of 10 short steps, then its end step: 409.
+    let mut steps = vec![plain(); 398];
+    steps.push(json!({ "duration_ms": 200, "glide": ["left_stick"], "actions": { "left_stick": { "x": 0, "y": 127 } } }));
+    steps.push(json!({ "duration_ms": 0, "actions": { "left_stick": { "x": 200, "y": 127 } } }));
+    m["steps"] = json!(steps);
+    let errors = validate_macro(&m).unwrap();
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(
+        errors[0].reason,
+        "With its glides, this macro needs 409 steps on the controller, and the controller holds 408."
+    );
+}

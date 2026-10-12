@@ -1,5 +1,7 @@
 //! Canonical macro model matching `schemas/macro-v1.schema.json`.
 
+use std::collections::BTreeSet;
+
 use serde::Deserialize as _;
 use serde_json::{json, Map, Value};
 
@@ -8,6 +10,33 @@ use crate::error::{Error, Result};
 
 /// The repeat count that plays a macro until its trigger button is pressed again.
 pub const REPEAT_CONTINUOUS: u32 = u32::MAX;
+
+/// A stick or an analog trigger that a step can glide, see [`MacroStep::glide`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum GlideControl {
+    /// Both axes of the left stick.
+    LeftStick,
+    /// Both axes of the right stick.
+    RightStick,
+    /// L2.
+    LeftTrigger,
+    /// R2.
+    RightTrigger,
+}
+
+impl GlideControl {
+    /// The name in macro JSON.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::LeftStick => "left_stick",
+            Self::RightStick => "right_stick",
+            Self::LeftTrigger => "left_trigger",
+            Self::RightTrigger => "right_trigger",
+        }
+    }
+}
 
 /// A single macro step, in memory.
 ///
@@ -33,6 +62,10 @@ pub struct MacroStep {
     pub trigger_left: u8,
     /// R2 analog (0–255).
     pub trigger_right: u8,
+    /// The controls that move in a straight line from this step's values to the next
+    /// step's. The pad holds fixed values, so [`super::glide::expand`] turns a gliding
+    /// step into short steps on write and [`super::glide::fold`] turns them back on read.
+    pub glide: BTreeSet<GlideControl>,
 }
 
 impl Default for MacroStep {
@@ -46,6 +79,7 @@ impl Default for MacroStep {
             right_stick_y: 127,
             trigger_left: 0,
             trigger_right: 0,
+            glide: BTreeSet::new(),
         }
     }
 }
@@ -115,7 +149,7 @@ pub const STICK_CENTER: u8 = 127;
 /// ALWAYS emitted (with `press`+`release` arrays; the wire format only tracks
 /// the currently-pressed set, so `release` is always empty); `left_stick`,
 /// `right_stick` and `triggers` are OMITTED when at their defaults (stick
-/// `127/127`, triggers `0/0`).
+/// `127/127`, triggers `0/0`), and `glide` is omitted when empty.
 #[must_use]
 pub fn macro_to_json(def: &MacroDefinition, device: &str) -> Value {
     let steps: Vec<Value> = def.steps.iter().map(step_to_json).collect();
@@ -167,10 +201,13 @@ fn step_to_json(step: &MacroStep) -> Value {
         );
     }
 
-    json!({
-        "duration_ms": step.duration_ms,
-        "actions": Value::Object(actions),
-    })
+    let mut json = Map::new();
+    json.insert("duration_ms".to_owned(), step.duration_ms.into());
+    json.insert("actions".to_owned(), Value::Object(actions));
+    if !step.glide.is_empty() {
+        json.insert("glide".to_owned(), step.glide.iter().map(|g| g.as_str()).collect());
+    }
+    Value::Object(json)
 }
 
 /// The parts of a macro file that [`macro_from_json`] reads.
@@ -196,6 +233,8 @@ struct RepeatFile {
 struct StepFile {
     duration_ms: u16,
     actions: ActionsFile,
+    #[serde(default)]
+    glide: BTreeSet<GlideControl>,
 }
 
 #[derive(serde::Deserialize, Default)]
@@ -270,6 +309,7 @@ pub fn macro_from_json(json: &Value) -> Result<MacroDefinition> {
                 right_stick_y,
                 trigger_left,
                 trigger_right,
+                glide: step.glide,
             }
         })
         .collect();

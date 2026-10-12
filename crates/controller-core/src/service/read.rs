@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use crate::device::Model;
 use crate::error::{Error, Result};
+use crate::model::glide::fold;
 use crate::model::{MacroDefinition, MacroSlot, Mode, ProfileReadResult, Slot};
 use crate::transport::device_io::{DeviceIo, MacroStream};
 
@@ -54,7 +55,7 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 /// 3. Verify the blob is the model's blob size.
 /// 4. Check that `profile_slot` is active; inactive slot → `Err`.
 /// 5. Decode macro metadata descriptors from Section 4.
-/// 6. For each descriptor, read the step stream and decode it.
+/// 6. For each descriptor, read the step stream, decode it and fold its glides.
 ///
 /// # Errors
 /// - [`Error::Validation`] if the slot is past the model's slot count or inactive.
@@ -98,12 +99,14 @@ pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result
         streams.push(MacroStream { mode, profile_slot, macro_slot, step_count: def.steps.len() });
     }
     let read = dev.read_macro_streams(&streams)?;
+    let glide_step_ms = codec.description()?.limits.glide_step_ms;
     let mut macros = metadata;
     for (def, stream) in macros.iter_mut().zip(read) {
         let step_count = def.steps.len();
         // An empty stream keeps metadata-only steps.
         if !stream.is_empty() {
             def.steps = codec.decode_macro_steps(&stream, step_count, def.mode)?;
+            *def = fold(def, glide_step_ms);
         }
     }
 
@@ -125,7 +128,8 @@ pub(crate) fn blob_for_mode<'r>(
 /// A macro and the mode and profile slot that hold it.
 pub type MacroAt = ((Mode, u8), MacroDefinition);
 
-/// Reads the step streams of `macros` in one session and decodes each into its macro.
+/// Reads the step streams of `macros` in one session and decodes each into its macro,
+/// with the runs of short steps folded back into glides.
 ///
 /// Each macro is a summary from [`macro_summaries`]: its placeholder `steps` count the
 /// steps to read.
@@ -150,12 +154,13 @@ pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<
         })
         .collect::<Result<Vec<_>>>()?;
     let model = dev.model()?;
+    let glide_step_ms = model.description()?.limits.glide_step_ms;
     dev.read_macro_streams(&streams)?
         .into_iter()
         .zip(macros)
         .map(|(stream, (at, mut def))| {
             def.steps = model.decode_macro_steps(&stream, def.steps.len(), def.mode)?;
-            Ok((at, def))
+            Ok((at, fold(&def, glide_step_ms)))
         })
         .collect()
 }

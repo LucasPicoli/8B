@@ -7,6 +7,8 @@
 //! [`crate::protocol::bytes`] accessors so the decoder is panic-free even on
 //! truncated or corrupted input.
 
+use std::collections::BTreeSet;
+
 use serde_json::Value;
 
 use crate::devices::pro3::{tables, DINPUT, SWITCH, XINPUT};
@@ -176,6 +178,7 @@ pub fn decode_macro_steps(stream: &[u8], count: usize, mode: Mode) -> Result<Vec
             right_stick_y,
             trigger_left,
             trigger_right,
+            glide: BTreeSet::new(),
         });
     }
 

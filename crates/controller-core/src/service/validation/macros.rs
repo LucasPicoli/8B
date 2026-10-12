@@ -4,9 +4,12 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use crate::description::ControllerDescription;
+use crate::description::{ControllerDescription, TriggerKind};
 use crate::device::Model;
 use crate::error::{Error, Result};
+use crate::model::glide::{axes, expanded_len};
+use crate::model::macros::macro_from_json;
+use crate::model::{GlideControl, MacroDefinition};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
 /// Validates a canonical macro JSON object for `model` (schema first, then semantics).
@@ -50,7 +53,58 @@ fn check(
     }
     let max_name = usize::try_from(description.limits.macro_name_length.max)
         .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
-    Ok(semantic_errors(macro_json, max_name))
+    let mut errors = semantic_errors(macro_json, max_name);
+    errors.extend(glide_errors(description, &macro_from_json(macro_json)?));
+    Ok(errors)
+}
+
+/// The glide errors of `def`, and the error when its expanded steps do not fit the
+/// controller. `def` passed the schema.
+fn glide_errors(
+    description: &ControllerDescription,
+    def: &MacroDefinition,
+) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+    let on_off = description.mode(def.mode).is_some_and(|m| m.trigger_kind == TriggerKind::OnOff);
+    let mode = description.mode_label(def.mode);
+    let steps = def.steps.iter().zip(def.steps.iter().skip(1).map(Some).chain([None]));
+    for (i, (step, next)) in steps.enumerate() {
+        let mut error = |reason: String| {
+            errors.push(ValidationError { path: format!("/steps/{i}/glide"), reason });
+        };
+        for &control in &step.glide {
+            let name = control.as_str();
+            let is_trigger =
+                matches!(control, GlideControl::LeftTrigger | GlideControl::RightTrigger);
+            match next {
+                None => error(format!("Step {i}: {name} cannot glide, there is no next step.")),
+                _ if is_trigger && on_off => error(format!(
+                    "Step {i}: {name} cannot glide in {mode} mode, its triggers are on or off."
+                )),
+                Some(next) if axes(step, control) == axes(next, control) => {
+                    error(format!("Step {i}: {name} has the same value in the next step."));
+                }
+                _ => {}
+            }
+        }
+    }
+    let limits = &description.limits;
+    let max = usize::try_from(limits.macro_steps.max).unwrap_or_default();
+    let needed = expanded_len(&def.steps, limits.glide_step_ms);
+    if needed > max {
+        let reason = if needed == def.steps.len() {
+            format!(
+                "The macro has {needed} steps; the {} holds at most {max}.",
+                description.short_name
+            )
+        } else {
+            format!(
+                "With its glides, this macro needs {needed} steps on the controller, and the controller holds {max}."
+            )
+        };
+        errors.push(ValidationError { path: "/steps".to_owned(), reason });
+    }
+    errors
 }
 
 /// Accumulates every semantic error.

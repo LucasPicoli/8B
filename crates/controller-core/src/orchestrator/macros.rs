@@ -11,6 +11,7 @@ use super::batch::{Bank, MacroEdit, WriteJob, WriteOp};
 use super::pages::{OldMacro, Page};
 use super::write::{failure_from, Plan, ProfileWriteOrchestrator};
 use crate::error::{Error, ErrorCategory, Result};
+use crate::model::glide::{expand, fold};
 use crate::model::macros::{macro_from_json, macro_to_json};
 use crate::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, Mode, RawProfilePayload, Slot, WriteResult,
@@ -104,15 +105,6 @@ impl ProfileWriteOrchestrator<'_> {
                 def.mode
             )));
         }
-        let description = self.model.description()?;
-        let max = description.limits.macro_steps.max;
-        if usize::try_from(max).is_ok_and(|max| def.steps.len() > max) {
-            return Err(Error::Validation(format!(
-                "The macro has {} steps; the {} holds at most {max}.",
-                def.steps.len(),
-                description.short_name
-            )));
-        }
         Ok(def)
     }
 
@@ -168,6 +160,7 @@ impl ProfileWriteOrchestrator<'_> {
             Vec::new()
         };
         let held_in = |m: MacroSlot| held.iter().find(|h| h.macro_slot == Some(m.get()));
+        let step_ms = self.model.description()?.limits.glide_step_ms;
         let mut blob = bank.blob.clone();
         let mut changed = false;
         for (i, edit) in edits.iter().enumerate() {
@@ -191,7 +184,7 @@ impl ProfileWriteOrchestrator<'_> {
                             old.name
                         )
                     });
-                    (warning, "overwrite", Some(definition))
+                    (warning, "overwrite", Some(expand(definition, step_ms)))
                 }
                 (MacroEdit::Delete { .. }, None) => continue,
                 (MacroEdit::Delete { .. }, Some(old)) => {
@@ -207,7 +200,7 @@ impl ProfileWriteOrchestrator<'_> {
             if let Some(declined) = warning.and_then(|w| declined(policy, &w, action)) {
                 return Ok(Plan::Declined(declined));
             }
-            blob = self.model.set_macro(&blob, slot, m, def)?;
+            blob = self.model.set_macro(&blob, slot, m, def.as_ref())?;
             changed = true;
         }
         if !changed {
@@ -220,18 +213,13 @@ impl ProfileWriteOrchestrator<'_> {
         for edit in edits {
             let MacroEdit::Put { macro_slot, definition } = edit else { continue };
             self.check_bank(&blob, mode, slot, *macro_slot, definition)?;
-            let stream = self.model.encode_macro_steps(&definition.steps, mode)?;
+            let steps = expand(definition, step_ms).steps;
+            let stream = self.model.encode_macro_steps(&steps, mode)?;
             let old = match held_in(*macro_slot) {
                 Some(old) => self.back_up_steps(mode, slot, *macro_slot, old.clone())?,
                 None => None,
             };
-            pages.push(Page {
-                slot,
-                macro_slot: *macro_slot,
-                stream,
-                steps: definition.steps.len(),
-                old,
-            });
+            pages.push(Page { slot, macro_slot: *macro_slot, stream, steps: steps.len(), old });
         }
         bank.blob = blob;
         bank.pages.extend(pages);
@@ -306,6 +294,7 @@ impl ProfileWriteOrchestrator<'_> {
             .read_macro_stream(mode, slot, macro_slot, steps)
             .map_err(|e| Error::Usb(format!("The old macro could not be read first: {e}")))?;
         held.steps = self.model.decode_macro_steps(&stream, steps, mode)?;
+        let held = fold(&held, self.model.description()?.limits.glide_step_ms);
         stream.resize(stream.len().div_ceil(MACRO_CHUNK_LEN) * MACRO_CHUNK_LEN, 0);
         Ok(Some(OldMacro { def: held, stream }))
     }

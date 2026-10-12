@@ -51,7 +51,6 @@
     "steps": {
       "type": "array",
       "minItems": 1,
-      "maxItems": 255,
       "items": {
         "$ref": "#/$defs/Step"
       }
@@ -97,6 +96,14 @@
         },
         "actions": {
           "$ref": "#/$defs/Actions"
+        },
+        "glide": {
+          "description": "The controls that move in a straight line from this step's value to the next step's value. Writing a macro turns the step into short steps.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": ["left_stick", "right_stick", "left_trigger", "right_trigger"]
+          }
         }
       }
     },

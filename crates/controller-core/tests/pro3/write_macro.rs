@@ -10,9 +10,11 @@ use controller_core::devices::pro3::{Pro3, XINPUT};
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::macros::{macro_from_json, macro_to_json};
 use controller_core::model::{
-    ButtonMapping, MacroDefinition, MacroSlot, MacroStep, ProfileReadResult, Slot, WriteResult,
+    ButtonMapping, GlideControl, MacroDefinition, MacroSlot, MacroStep, ProfileReadResult, Slot,
+    WriteResult,
 };
 use controller_core::orchestrator::ProfileWriteOrchestrator;
+use controller_core::service::read::read_macros;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
 use controller_core::transport::DeviceIo;
@@ -167,6 +169,46 @@ fn a_put_into_a_free_macro_slot_writes_bank_then_page_and_keeps_the_others() {
 }
 
 #[test]
+fn a_glide_goes_to_the_pad_as_short_steps_and_a_read_folds_it_back() {
+    let keep = Pro3.encode_macro_steps(&steps(2), XINPUT).unwrap();
+    let dev = pad().with_macro_stream(XINPUT, slot(1), macro_slot(1), keep);
+    let dir = tempfile::tempdir().unwrap();
+    let mut glide = def("Glide", "r4", 0);
+    glide.steps = vec![
+        MacroStep {
+            duration_ms: 60,
+            glide: [GlideControl::LeftStick].into(),
+            left_stick_x: 0,
+            ..MacroStep::default()
+        },
+        MacroStep { left_stick_x: 90, ..MacroStep::default() },
+    ];
+    let json = macro_to_json(&glide, "8bitdo-pro3");
+    let orchestrator = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
+    let r = orchestrator.put_macro(&json, XINPUT, slot(1), macro_slot(2), &ConfirmPolicy::Force);
+    assert!(r.success, "{}", r.message);
+
+    let short: Vec<MacroStep> = [0, 30, 60, 90]
+        .map(|x| MacroStep {
+            duration_ms: if x == 90 { 0 } else { 20 },
+            left_stick_x: x,
+            ..MacroStep::default()
+        })
+        .into();
+    let page = MockCall::WriteMacroStream {
+        mode: XINPUT,
+        profile_slot: slot(1),
+        macro_slot: macro_slot(2),
+        stream: Pro3.encode_macro_steps(&short, XINPUT).unwrap(),
+    };
+    assert!(dev.calls().contains(&page), "the pad gets 4 short steps");
+
+    let read = read_macros(&dev, XINPUT, slot(1)).unwrap().macros;
+    let got = read.iter().find(|m| m.macro_slot == Some(2)).unwrap();
+    assert_eq!(got.steps, glide.steps, "3 short steps fold back into one glide");
+}
+
+#[test]
 fn a_replace_asks_the_policy_and_only_then_writes() {
     let (dev, dir) = (pad(), tempfile::tempdir().unwrap());
     let r = put(&dev, 0, &ConfirmPolicy::Abort, dir.path());
@@ -200,8 +242,13 @@ fn nothing_is_sent_for_an_empty_profile_slot_or_a_bad_macro() {
     let long = macro_to_json(&def("Long", "r4", 0), "8bitdo-pro3");
     let mut long = long;
     long["steps"] = vec![new_macro()["steps"][0].clone(); 409].into();
-    // The schema's own step cap refuses it first, until glides drop that cap.
-    assert!(!to(&long, 1).success);
+    let r = to(&long, 1);
+    assert!(!r.success);
+    assert!(
+        r.message.contains("The macro has 409 steps; the Pro 3 holds at most 408."),
+        "{}",
+        r.message
+    );
     assert_eq!(dev.calls(), []);
 }
 
@@ -380,7 +427,13 @@ fn a_failed_stream_rewrite_empties_the_macro_slot_and_saves_the_old_macro() {
     assert!(name.starts_with("backup-xinput-slot-1-macro-0-"), "{name}");
     let json: Value = serde_json::from_slice(&std::fs::read(&saved).unwrap()).unwrap();
     let back = macro_from_json(&json).unwrap();
-    assert_eq!((back.name.as_str(), back.steps), ("Old", old().steps));
+    // The old macro's even ramp of 5 plain steps is saved as the glide it folds into.
+    let glide = MacroStep {
+        duration_ms: 80,
+        glide: [GlideControl::LeftStick].into(),
+        ..old().steps[0].clone()
+    };
+    assert_eq!((back.name.as_str(), back.steps), ("Old", vec![glide, old().steps[4].clone()]));
 }
 
 #[test]
