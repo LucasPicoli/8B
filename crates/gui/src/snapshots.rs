@@ -652,6 +652,7 @@ fn review_footer_stays_on_screen_in_a_small_window() {
         .map(|i| Change { what: format!("Button {i}").into(), from: "A".into(), to: "B".into() })
         .collect();
     info.changes = Rc::new(slint::VecModel::from(long)).into();
+    info.total = 30;
     ui.set_review(info);
     save("review-small-window", &ui);
 
