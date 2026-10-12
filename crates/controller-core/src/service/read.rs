@@ -122,6 +122,44 @@ pub(crate) fn blob_for_mode<'r>(
     read.raw_blobs.get(index)
 }
 
+/// A macro and the mode and profile slot that hold it.
+pub type MacroAt = ((Mode, u8), MacroDefinition);
+
+/// Reads the step streams of `macros` in one session and decodes each into its macro.
+///
+/// Each macro is a summary from [`macro_summaries`]: its placeholder `steps` count the
+/// steps to read.
+///
+/// # Errors
+/// - [`Error::Decode`] if a summary has no macro slot or a stream does not decode.
+/// - [`Error::Validation`] if a profile or macro slot is out of range.
+/// - Any [`Error`] from [`DeviceIo::read_macro_streams`].
+pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<MacroAt>> {
+    let streams = macros
+        .iter()
+        .map(|&((mode, slot), ref def)| {
+            let macro_slot = def
+                .macro_slot
+                .ok_or_else(|| Error::Decode("macro descriptor missing slot index".into()))?;
+            Ok(MacroStream {
+                mode,
+                profile_slot: Slot::new(slot)?,
+                macro_slot: MacroSlot::new(macro_slot)?,
+                step_count: def.steps.len(),
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let model = dev.model()?;
+    dev.read_macro_streams(&streams)?
+        .into_iter()
+        .zip(macros)
+        .map(|(stream, (at, mut def))| {
+            def.steps = model.decode_macro_steps(&stream, def.steps.len(), def.mode)?;
+            Ok((at, def))
+        })
+        .collect()
+}
+
 /// The macro descriptors of every slot of a full read, empty slots included.
 ///
 /// Each slot's macros are in macro-slot order. Their `steps` are placeholders, one per

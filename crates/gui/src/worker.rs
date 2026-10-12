@@ -11,10 +11,9 @@ use std::time::{Duration, Instant};
 
 use controller_core::detect::{config_hidraw, scan_sysfs_all};
 use controller_core::device::{ConfigPort, Model};
-use controller_core::model::{
-    MacroDefinition, MacroSlot, Mode, ProfileReadResult, Slot, WriteResult,
-};
-use controller_core::transport::{DeviceIo, MacroStream};
+use controller_core::model::{Mode, ProfileReadResult, WriteResult};
+use controller_core::service::read::read_macro_steps;
+use controller_core::transport::DeviceIo;
 use controller_core::Error;
 use log::warn;
 
@@ -65,8 +64,7 @@ pub enum Command {
     InstallUdevRule,
 }
 
-/// A macro and the mode and 1-based slot that hold it.
-pub type MacroAt = ((Mode, u8), MacroDefinition);
+pub use controller_core::service::read::MacroAt;
 
 /// A read that failed, retry included.
 #[derive(Debug)]
@@ -220,7 +218,7 @@ fn run(
             }
             Ok(Command::ReadMacroSteps(port, macros)) => {
                 let dev = devices.entry(port.clone()).or_insert_with(|| open(&port));
-                match read_steps(dev.as_ref(), macros) {
+                match read_macro_steps(dev.as_ref(), macros) {
                     // Gone mid-read, as for a read of every bank.
                     Err(Error::Disconnected) => {
                         presence.entry(port.clone()).or_default().forget();
@@ -299,34 +297,6 @@ fn read_with_retry(dev: &dyn DeviceIo) -> Result<ProfileReadResult, Error> {
     }
 }
 
-/// Reads the steps of `macros` in one session and decodes them, each by the mode its
-/// descriptor names.
-fn read_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<MacroAt>, Error> {
-    let streams = macros
-        .iter()
-        .map(|&((mode, slot), ref def)| {
-            let macro_slot = def
-                .macro_slot
-                .ok_or_else(|| Error::Decode("macro descriptor missing slot index".into()))?;
-            Ok(MacroStream {
-                mode,
-                profile_slot: Slot::new(slot)?,
-                macro_slot: MacroSlot::new(macro_slot)?,
-                step_count: def.steps.len(),
-            })
-        })
-        .collect::<Result<Vec<_>, Error>>()?;
-    let model = dev.model()?;
-    dev.read_macro_streams(&streams)?
-        .into_iter()
-        .zip(macros)
-        .map(|(stream, (at, mut def))| {
-            def.steps = model.decode_macro_steps(&stream, def.steps.len(), def.mode)?;
-            Ok((at, def))
-        })
-        .collect()
-}
-
 /// Turns raw polls of one port into presence changes, reported once
 /// [`SETTLE_POLLS`] polls in a row agree. Starts as "absent", so a missing
 /// controller reports nothing.
@@ -375,7 +345,7 @@ mod tests {
 
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, XINPUT};
-    use controller_core::model::Slot;
+    use controller_core::model::{MacroDefinition, MacroSlot, Slot};
     use controller_core::transport::mock::MockOp;
     use controller_core::transport::MockDevice;
 

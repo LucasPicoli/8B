@@ -156,7 +156,8 @@ enum Commands {
     /// Read all profiles from the device and report them as JSON.
     Read,
 
-    /// Save every profile of every mode as canonical JSON (re-uploadable).
+    /// Save every profile of every mode as canonical JSON (re-uploadable), and each of
+    /// its macros as a `macro-v1` file beside it, under the path its `macro_refs` holds.
     Export {
         /// Output directory.
         #[arg(short, long, default_value = "exports")]
