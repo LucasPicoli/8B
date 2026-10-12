@@ -13,7 +13,7 @@ use serde_json::Value;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
 use crate::batch::{render_batch, Batch};
-use crate::buttons::{current, output_label};
+use crate::buttons::{current, held_current, output_text};
 use crate::controllers::Controller;
 use crate::settings::pages_of;
 use crate::state::{AppState, Notice, SlotState};
@@ -332,10 +332,18 @@ impl AppState {
             out.push(change("Name", &quote(&pad.name), &quote(&edited.name)));
         }
         for b in &d.buttons {
-            let (from, to) = (current(pad, &b.id), current(edited, &b.id));
+            let (Some(from), Some(to)) = (held_current(&state, &b.id), current(&state, &b.id))
+            else {
+                continue;
+            };
             if from != to {
                 let label = b.labels.get(&mode).map_or(b.id.as_str(), String::as_str);
-                out.push(change(label, &output_label(d, mode, &from), &output_label(d, mode, &to)));
+                let (held, shown) = (state.held_macros(), state.shown_macros());
+                out.push(change(
+                    label,
+                    &output_text(d, mode, &held, &from),
+                    &output_text(d, mode, &shown, &to),
+                ));
             }
         }
         for page in pages_of(self, slot) {
@@ -556,7 +564,7 @@ mod tests {
         let list = lines(&s.change_list((XINPUT, 1)));
         assert_eq!(list[0], "Name | “XInput” -> “Mine”");
         assert!(list.contains(&"RB | RB -> Disabled".to_owned()), "{list:?}");
-        assert!(list.contains(&"PR | Macro 1 (Buttons) -> B".to_owned()), "{list:?}");
+        assert!(list.contains(&"PR | Buttons (Macro 1) -> B".to_owned()), "{list:?}");
         assert!(
             list.contains(&"Left stick · Dead zone | 20 to 80% -> 12 to 80%".to_owned()),
             "{list:?}"

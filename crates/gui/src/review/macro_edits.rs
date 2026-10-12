@@ -6,6 +6,7 @@ use controller_core::orchestrator::MacroEdit;
 use slint::SharedString;
 
 use crate::buttons::output_label;
+use crate::macros::title;
 use crate::state::{AppState, SlotState};
 
 /// One macro slot of a slot, before and after the write.
@@ -30,11 +31,15 @@ impl MacroChange {
 
 impl SlotState {
     /// The buttons that leave their macro because the edited profile gives them another
-    /// output.
-    pub(super) fn dropped_buttons(&self) -> Vec<String> {
+    /// output. A button the edited macros start is not one of them.
+    pub(crate) fn dropped_buttons(&self) -> Vec<String> {
         let Some(edited) = &self.edited else { return Vec::new() };
-        let kept: Vec<&String> =
-            edited.macro_refs.iter().flat_map(|m| &m.trigger_buttons).collect();
+        let kept: Vec<&String> = edited
+            .macro_refs
+            .iter()
+            .flat_map(|m| &m.trigger_buttons)
+            .chain(self.edited_macros.iter().flatten().flat_map(|m| &m.trigger_buttons))
+            .collect();
         self.pad
             .iter()
             .flat_map(|p| &p.macro_refs)
@@ -106,16 +111,6 @@ impl SlotState {
     /// Whether the write replaces or removes a macro the controller holds.
     pub(crate) fn touches_held_macro(&self) -> bool {
         self.macro_changes().iter().any(MacroChange::touches_held)
-    }
-}
-
-/// "Jump (Macro 2)", or "Macro 2" for a macro with no name.
-fn title(def: &MacroDefinition, slot: u8) -> String {
-    let n = u16::from(slot) + 1;
-    if def.name.is_empty() {
-        format!("Macro {n}")
-    } else {
-        format!("{} (Macro {n})", def.name)
     }
 }
 

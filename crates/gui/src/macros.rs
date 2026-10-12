@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use controller_core::model::{MacroDefinition, MacroStep, Mode};
 
+use crate::buttons::target;
 use crate::state::{AppState, SlotState};
 
 /// A macro the controller holds: its descriptor, and its steps once read.
@@ -17,11 +18,52 @@ pub struct PadMacro {
     pub loaded: bool,
 }
 
+/// The start of the output id the picker gives a button that starts a macro. The rest
+/// is the macro slot, 0-based.
+const MACRO_OUTPUT: &str = "macro:";
+
+/// The output id of the macro in macro slot `slot`.
+#[must_use]
+pub fn macro_output(slot: u8) -> String {
+    format!("{MACRO_OUTPUT}{slot}")
+}
+
+/// The macro slot of output id `id`, when it names a macro.
+#[must_use]
+pub fn macro_number(id: &str) -> Option<u8> {
+    id.strip_prefix(MACRO_OUTPUT)?.parse().ok()
+}
+
+/// "Jump (Macro 2)", or "Macro 2" for a macro with no name.
+#[must_use]
+pub fn title(def: &MacroDefinition, slot: u8) -> String {
+    let n = u16::from(slot) + 1;
+    if def.name.is_empty() {
+        format!("Macro {n}")
+    } else {
+        format!("{} (Macro {n})", def.name)
+    }
+}
+
+/// The title of the macro in macro slot `slot` among `defs`, or "Macro n" when none
+/// holds that slot.
+#[must_use]
+pub fn label(defs: &[&MacroDefinition], slot: u8) -> String {
+    defs.iter()
+        .find(|d| d.macro_slot == Some(slot))
+        .map_or_else(|| format!("Macro {}", u16::from(slot) + 1), |d| title(d, slot))
+}
+
 /// What a descriptor holds of `def`: `def` with each step a placeholder. Two macros
 /// with equal descriptors read back the same until a step read tells them apart.
 #[must_use]
 pub fn descriptor(def: &MacroDefinition) -> MacroDefinition {
     MacroDefinition { steps: vec![MacroStep::default(); def.steps.len()], ..def.clone() }
+}
+
+/// The macro slot of the first of `macros` that `button` starts.
+fn started_by(macros: &[&MacroDefinition], button: &str) -> Option<u8> {
+    macros.iter().find(|m| m.trigger_buttons.iter().any(|b| b == button)).and_then(|m| m.macro_slot)
 }
 
 /// The descriptors of `macros`, in order.
@@ -58,6 +100,54 @@ impl SlotState {
             })
             .collect();
         changed
+    }
+
+    /// The macros whose names and macro slots the slot shows: the edited ones, else the
+    /// controller's.
+    #[must_use]
+    pub fn shown_macros(&self) -> Vec<&MacroDefinition> {
+        self.edited_macros
+            .as_ref()
+            .map_or_else(|| self.held_macros(), |edited| edited.iter().collect())
+    }
+
+    /// The macros the controller holds in the slot.
+    #[must_use]
+    pub fn held_macros(&self) -> Vec<&MacroDefinition> {
+        self.pad_macros.iter().map(|m| &m.def).collect()
+    }
+
+    /// The macro slot of the macro `button` starts in the slot as shown. The edited
+    /// macros hold it when there are any; else the controller's, minus the buttons the
+    /// edited profile took off.
+    #[must_use]
+    pub fn macro_started_by(&self, button: &str) -> Option<u8> {
+        if self.edited_macros.is_none() && self.dropped_buttons().iter().any(|b| b == button) {
+            return None;
+        }
+        started_by(&self.shown_macros(), button)
+    }
+
+    /// The macro slot of the macro `button` starts on the controller.
+    #[must_use]
+    pub fn held_macro_started_by(&self, button: &str) -> Option<u8> {
+        started_by(&self.held_macros(), button)
+    }
+
+    /// Whether a button starts another macro than it does on the controller.
+    pub(crate) fn starters_changed(&self) -> bool {
+        let buttons = self.shown_macros().into_iter().chain(self.held_macros());
+        buttons
+            .flat_map(|m| &m.trigger_buttons)
+            .any(|b| self.macro_started_by(b) != self.held_macro_started_by(b))
+    }
+
+    /// Whether the slot's macros can be edited now: it has a profile on screen, and
+    /// the steps of its macros are read, as an edit copies them.
+    #[must_use]
+    pub fn macros_editable(&self) -> bool {
+        self.shown().is_some()
+            && (self.edited_macros.is_some() || self.pad_macros.iter().all(|m| m.loaded))
     }
 
     /// Takes the edited macros of `from`, a slot of an unplugged controller, when it
@@ -120,10 +210,55 @@ impl AppState {
         }
     }
 
+    /// Moves `button` into the macro in macro slot `macro_slot` of the selected slot, out
+    /// of the one it started, and gives it the output it has in the mode's default
+    /// profile, because a button that starts a macro keeps that output. Does nothing when
+    /// the button cannot start a macro, no such macro is there, or the steps of the
+    /// slot's macros are still being read.
+    pub fn join_macro(&mut self, button: &str, macro_slot: u8) {
+        let Some((mode, number)) = self.selected_slot() else { return };
+        let slot = self.slot(mode, number);
+        let startable = self.description().button(button).is_some_and(|b| b.can_start_macro);
+        let held = slot.shown_macros().iter().any(|m| m.macro_slot == Some(macro_slot));
+        if !(startable && held && slot.macros_editable()) {
+            return;
+        }
+        let itself = self
+            .defaults()
+            .get(&mode)
+            .map_or_else(|| button.to_owned(), |p| target(p, button).to_owned());
+        let order: Vec<String> = self.description().buttons.iter().map(|b| b.id.clone()).collect();
+        self.set_output(button, &itself);
+        self.edit_macros(|macros| {
+            for m in macros.iter_mut() {
+                m.trigger_buttons.retain(|b| b != button);
+                if m.macro_slot == Some(macro_slot) {
+                    m.trigger_buttons.push(button.to_owned());
+                    m.trigger_buttons.sort_by_key(|b| order.iter().position(|o| o == b));
+                }
+            }
+        });
+    }
+
+    /// Takes `buttons` off every macro of the selected slot's edits: the profile's
+    /// references, and the edited macros when there are any. The controller's macros
+    /// stay as they are until the write.
+    pub(crate) fn leave_macros(&mut self, buttons: &[String]) {
+        self.edit(|p| {
+            for m in &mut p.macro_refs {
+                m.trigger_buttons.retain(|b| !buttons.contains(b));
+            }
+        });
+        if let Some(edited) = self.selected_mut().and_then(|s| s.edited_macros.as_mut()) {
+            for m in edited {
+                m.trigger_buttons.retain(|b| !buttons.contains(b));
+            }
+        }
+    }
+
     /// Applies `change` to the selected slot's edited macros. The first change copies
     /// the macros the controller holds, so it waits for their steps. An empty slot
     /// with no profile staged has no macros to change.
-    #[cfg_attr(not(test), expect(dead_code, reason = "the Macros tab's editor calls it"))]
     pub fn edit_macros(&mut self, change: impl FnOnce(&mut Vec<MacroDefinition>)) {
         let Some(slot) = self.selected_mut() else { return };
         if slot.shown().is_none() {
@@ -132,7 +267,12 @@ impl AppState {
         let macros = match &slot.edited_macros {
             Some(edited) => edited.clone(),
             None if slot.pad_macros.iter().all(|m| m.loaded) => {
-                slot.pad_macros.iter().map(|m| m.def.clone()).collect()
+                let dropped = slot.dropped_buttons();
+                let mut macros: Vec<_> = slot.pad_macros.iter().map(|m| m.def.clone()).collect();
+                for m in &mut macros {
+                    m.trigger_buttons.retain(|b| !dropped.contains(b));
+                }
+                macros
             }
             None => return,
         };

@@ -12,7 +12,7 @@ use controller_core::model::{ButtonMapping, CanonicalProfile, MacroDefinition, M
 
 use crate::controllers::Controller;
 use crate::files::PendingImport;
-use crate::macros::PadMacro;
+use crate::macros::{macro_number, PadMacro};
 use crate::review::WriteState;
 use crate::worker::Command;
 
@@ -86,6 +86,7 @@ impl SlotState {
     pub fn dirty(&self, description: &ControllerDescription, mode: Mode) -> Dirty {
         let json = |p: &CanonicalProfile| serde_json::to_value(p).unwrap_or_default();
         let macros = self.macros_unsaved();
+        let starters = self.starters_changed();
         let (pad, edited) = match (&self.pad, &self.edited) {
             (_, None) => return Dirty { macros, ..Dirty::default() },
             (None, Some(_)) => {
@@ -98,7 +99,8 @@ impl SlotState {
         let changed = |field: &str| old.pointer(field) != new.pointer(field);
         Dirty {
             buttons: pad.button_mappings != edited.button_mappings
-                || pad.macro_refs != edited.macro_refs,
+                || pad.macro_refs != edited.macro_refs
+                || starters,
             tabs: description
                 .pages(mode)
                 .filter(|p| p.fields().any(changed))
@@ -395,16 +397,18 @@ impl AppState {
 
     /// Gives `button` the output `target` in the selected slot, and takes it off the
     /// macro it starts, because the controller sends a button's macro in place of its
-    /// output. The macro stays, with no button if that was its last. An unrecognised output is read-only: a button can leave it, never go
-    /// back to it.
+    /// output. The macro stays, with no button if that was its last. A macro output
+    /// ([`crate::macros::macro_output`]) moves the button into that macro instead. An
+    /// unrecognised output is read-only: a button can leave it, never go back to it.
     pub fn set_output(&mut self, button: &str, target: &str) {
+        if let Some(macro_slot) = macro_number(target) {
+            return self.join_macro(button, macro_slot);
+        }
         if target == UNRECOGNISED_OUTPUT {
             return;
         }
+        self.leave_macros(&[button.to_owned()]);
         self.edit(|p| {
-            for m in &mut p.macro_refs {
-                m.trigger_buttons.retain(|b| b != button);
-            }
             let mapping = ButtonMapping { source: button.to_owned(), target: target.to_owned() };
             match p.button_mappings.iter_mut().find(|m| m.source == button) {
                 Some(m) => *m = mapping,

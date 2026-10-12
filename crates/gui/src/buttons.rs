@@ -4,32 +4,38 @@
 use std::rc::Rc;
 
 use controller_core::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT};
-use controller_core::model::macros::parse_macro_file_name;
-use controller_core::model::{CanonicalProfile, Mode};
+use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use controller_core::view::{VIEW_FILL_COLOR, VIEW_LINE_COLOR};
 use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedString, VecModel};
 
-use crate::state::AppState;
+use crate::macros::{label, macro_number, macro_output};
+use crate::state::{AppState, SlotState};
 use crate::ui::{AppWindow, MapRow, PadView, Section, Spot, Theme};
-
-/// The start of the output id the picker gives a button that runs a macro. The rest
-/// is the macro's `path` from `macro_refs`.
-const MACRO_OUTPUT: &str = "macro:";
 
 /// The output `target` of `button` in `profile`. A button with no entry keeps its
 /// own press.
-fn target<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
+pub fn target<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
     profile.button_mappings.iter().find(|m| m.source == button).map_or(button, |m| &m.target)
 }
 
-/// What `button` sends in `profile`: its macro when it starts one, because the
-/// controller then sends the macro only, else its output `target`.
-pub fn current(profile: &CanonicalProfile, button: &str) -> String {
-    profile
-        .macro_refs
-        .iter()
-        .find(|m| m.trigger_buttons.iter().any(|b| b == button))
-        .map_or_else(|| target(profile, button).to_owned(), |m| format!("{MACRO_OUTPUT}{}", m.path))
+/// What `button` sends in `slot` as shown: its macro when it starts one, because the
+/// controller then sends the macro only, else its output `target`. `None` for an
+/// empty slot.
+pub fn current(slot: &SlotState, button: &str) -> Option<String> {
+    let profile = slot.shown()?;
+    Some(
+        slot.macro_started_by(button)
+            .map_or_else(|| target(profile, button).to_owned(), macro_output),
+    )
+}
+
+/// What `button` sends in `slot` on the controller. `None` for an empty slot.
+pub fn held_current(slot: &SlotState, button: &str) -> Option<String> {
+    let profile = slot.pad.as_ref()?;
+    Some(
+        slot.held_macro_started_by(button)
+            .map_or_else(|| target(profile, button).to_owned(), macro_output),
+    )
 }
 
 /// The name shown for output `id` in `mode`.
@@ -37,9 +43,8 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
     if let Some(label) = description.button(id).and_then(|b| b.labels.get(&mode)) {
         return label.clone();
     }
-    if let Some(path) = id.strip_prefix(MACRO_OUTPUT) {
-        return parse_macro_file_name(path)
-            .map_or_else(|| "Macro".to_owned(), |(m, name)| format!("Macro {} ({name})", m + 1));
+    if let Some(n) = macro_number(id) {
+        return label(&[], n);
     }
     match id {
         DISABLED_OUTPUT => "Disabled".to_owned(),
@@ -51,19 +56,39 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
     }
 }
 
-/// The outputs the picker offers `button` in `mode`, as (id, label): every button
-/// that can be an output, then the mode's extra outputs, then Disabled. The
-/// button's default output and its `current` one come first when missing, so
-/// Turbo can go back to Turbo and an unrecognised entry shows as Unknown.
+/// Like [`output_label`], and a macro output reads as its macro among `macros`, with
+/// its name.
+pub fn output_text(
+    description: &ControllerDescription,
+    mode: Mode,
+    macros: &[&MacroDefinition],
+    id: &str,
+) -> String {
+    macro_number(id).map_or_else(|| output_label(description, mode, id), |n| label(macros, n))
+}
+
+/// The outputs the picker offers `button` in `mode`, as (id, label): each macro of the
+/// selected slot when the button can start one, then every button that can be an
+/// output, then the mode's extra outputs, then Disabled. The button's default output
+/// and its `current` one come first when missing, so Turbo can go back to Turbo and an
+/// unrecognised entry shows as Unknown. A macro whose steps are still being read waits
+/// to be offered, as picking it would copy them.
 #[must_use]
 pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec<(String, String)> {
     let description = state.description();
     let extras = description.mode(mode).map(|m| m.extra_outputs.as_slice()).unwrap_or_default();
-    let mut list: Vec<String> = description
-        .buttons
-        .iter()
-        .filter(|b| b.can_be_output)
-        .map(|b| b.id.clone())
+    let empty = SlotState::default();
+    let slot = state.selected_slot().and_then(|k| state.active()?.slots.get(&k)).unwrap_or(&empty);
+    let macros = slot.shown_macros();
+    let offered =
+        description.button(button).is_some_and(|b| b.can_start_macro) && slot.macros_editable();
+    let mut slots: Vec<u8> =
+        macros.iter().filter_map(|m| m.macro_slot).filter(|_| offered).collect();
+    slots.sort_unstable();
+    let mut list: Vec<String> = slots
+        .into_iter()
+        .map(macro_output)
+        .chain(description.buttons.iter().filter(|b| b.can_be_output).map(|b| b.id.clone()))
         .chain(extras.iter().map(|o| o.id.clone()))
         .chain([DISABLED_OUTPUT.to_owned()])
         .collect();
@@ -73,10 +98,7 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
             list.insert(0, id.to_owned());
         }
     }
-    list.into_iter()
-        .map(|id| (output_label(description, mode, &id), id))
-        .map(|(l, i)| (i, l))
-        .collect()
+    list.into_iter().map(|id| (id.clone(), output_text(description, mode, &macros, &id))).collect()
 }
 
 /// The button of table row `row` and the output at `choice` in its picker, or
@@ -85,8 +107,7 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
 pub fn picked_output(state: &AppState, row: usize, choice: usize) -> Option<(String, String)> {
     let (mode, number) = state.selected_slot()?;
     let button = state.description().buttons.get(row)?;
-    let slot = state.slot(mode, number);
-    let current = current(slot.shown()?, &button.id);
+    let current = current(&state.slot(mode, number), &button.id)?;
     let (output, _) = choices(state, mode, &button.id, &current).into_iter().nth(choice)?;
     (output != current).then(|| (button.id.clone(), output))
 }
@@ -120,13 +141,15 @@ fn remapped(state: &AppState, mode: Mode, button: &str, current: &str) -> bool {
 pub fn rows(state: &AppState) -> Vec<MapRow> {
     let Some((mode, number)) = state.selected_slot() else { return Vec::new() };
     let slot = state.slot(mode, number);
-    let Some(shown) = slot.shown() else { return Vec::new() };
+    if slot.shown().is_none() {
+        return Vec::new();
+    }
     state
         .description()
         .buttons
         .iter()
         .map(|b| {
-            let current = current(shown, &b.id);
+            let current = current(&slot, &b.id).unwrap_or_default();
             let list = choices(state, mode, &b.id, &current);
             MapRow {
                 label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
@@ -140,7 +163,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                 fixed: !b.can_be_remapped,
                 remapped: b.can_be_remapped && remapped(state, mode, &b.id, &current),
                 unknown: current == UNRECOGNISED_OUTPUT,
-                changed: slot.pad.as_ref().is_some_and(|p| self::current(p, &b.id) != current),
+                changed: held_current(&slot, &b.id).is_some_and(|held| held != current),
             }
         })
         .collect()
@@ -153,7 +176,9 @@ pub fn spots(state: &AppState) -> Vec<Spot> {
     let description = state.description();
     let Some((mode, number)) = state.selected_slot() else { return Vec::new() };
     let slot = state.slot(mode, number);
-    let Some(shown) = slot.shown() else { return Vec::new() };
+    if slot.shown().is_none() {
+        return Vec::new();
+    }
     let mut out = Vec::new();
     for (vi, view) in (0_i32..).zip(&description.views) {
         for h in &view.hotspots {
@@ -161,10 +186,10 @@ pub fn spots(state: &AppState) -> Vec<Spot> {
                 continue;
             };
             let fixed = description.buttons.get(row).is_some_and(|b| !b.can_be_remapped);
-            let current = current(shown, &h.button);
+            let current = current(&slot, &h.button).unwrap_or_default();
             let mapped = !fixed && remapped(state, mode, &h.button, &current);
-            let pending = slot.pad.as_ref().is_some_and(|p| self::current(p, &h.button) != current);
-            let output = output_label(description, mode, &current).into();
+            let pending = held_current(&slot, &h.button).is_some_and(|held| held != current);
+            let output = output_text(description, mode, &slot.shown_macros(), &current).into();
             #[allow(clippy::cast_possible_truncation)]
             let [x0, y0, x1, y1] = h.bounds().map(|v| v as f32);
             out.push(Spot {
@@ -254,11 +279,12 @@ pub fn render_buttons(state: &AppState, ui: &AppWindow) {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::state::tests::{connected as read, description};
+    use crate::state::tests::{connected as read, description, hold_macros, macro_def};
 
+    use crate::writes::WriteOp;
     use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
 
     fn ids(list: &[(String, String)]) -> Vec<&str> {
@@ -344,45 +370,160 @@ mod tests {
             trigger_buttons: vec!["rp".to_owned()],
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
         });
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(0, "Buttons", &["rp"], 1)]);
         s
+    }
+
+    /// The row of button `id`.
+    fn row_of(s: &AppState, id: &str) -> usize {
+        s.description().buttons.iter().position(|b| b.id == id).unwrap()
+    }
+
+    /// The label of the output the picker shows for `id` now.
+    fn shown(s: &AppState, id: &str) -> String {
+        let row = &rows(s)[row_of(s, id)];
+        row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap().to_string()
     }
 
     #[test]
     fn a_button_with_a_macro_shows_the_macro_as_its_output() {
         let s = with_macro();
-        let at = s.description().buttons.iter().position(|b| b.id == "rp").unwrap();
+        let at = row_of(&s, "rp");
         let row = &rows(&s)[at];
         assert_eq!(row.output, 0, "the macro comes first");
-        assert_eq!(row.outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
+        assert_eq!(row.outputs.row_data(0).unwrap(), "Buttons (Macro 1)");
         assert!(row.remapped && !row.changed);
         let spot = spots(&s).into_iter().find(|p| p.row == i32::try_from(at).unwrap()).unwrap();
         assert!(spot.mapped && !spot.pending);
-        assert_eq!(spot.output, "Macro 1 (Buttons)");
+        assert_eq!(spot.output, "Buttons (Macro 1)");
         assert_eq!(picked_output(&s, at, 0), None, "the macro is already in use");
+    }
+
+    #[test]
+    fn a_macro_without_a_name_is_just_its_number() {
+        let mut s = read(XINPUT);
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(2, "", &[], 1)]);
+        let list = choices(&s, XINPUT, "r1", "r1");
+        assert_eq!(list[0], ("macro:2".to_owned(), "Macro 3".to_owned()));
+        let d = description();
+        assert_eq!(output_label(d, XINPUT, "macro:2"), "Macro 3");
+    }
+
+    #[test]
+    fn the_picker_lists_each_macro_slot_that_holds_one_first_and_only_for_buttons_that_start_one() {
+        let mut s = read(XINPUT);
+        hold_macros(
+            &mut s,
+            (XINPUT, 1),
+            &[macro_def(0, "Jump", &["rp"], 2), macro_def(2, "Dash", &[], 1)],
+        );
+        let list = choices(&s, XINPUT, "r1", "r1");
+        assert_eq!(
+            &list[..2],
+            [
+                ("macro:0".to_owned(), "Jump (Macro 1)".to_owned()),
+                ("macro:2".to_owned(), "Dash (Macro 3)".to_owned())
+            ],
+            "macro slot 1 is empty and not listed"
+        );
+        assert_eq!(list.len(), 20, "2 macros, 17 output buttons, Disabled");
+        assert!(!ids(&choices(&s, XINPUT, "home/guide", "home/guide"))
+            .iter()
+            .any(|i| i.starts_with("macro:")));
+        // Staged macros count too.
+        s.edit_macros(|m| m.push(macro_def(1, "New", &[], 1)));
+        let ids: Vec<_> = choices(&s, XINPUT, "r1", "r1").into_iter().map(|c| c.0).collect();
+        assert_eq!(&ids[..3], ["macro:0", "macro:1", "macro:2"]);
+    }
+
+    #[test]
+    fn a_macro_whose_steps_are_still_reading_is_not_offered() {
+        let mut s = with_macro();
+        s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad_macros[0].loaded = false;
+        assert!(!ids(&choices(&s, XINPUT, "r1", "r1")).iter().any(|i| i.starts_with("macro:")));
+        assert_eq!(shown(&s, "rp"), "Buttons (Macro 1)", "its own button still shows it");
+        s.set_output("r1", "macro:0");
+        assert!(!s.slot(XINPUT, 1).unsaved(), "a pick before the steps arrive does nothing");
+    }
+
+    #[test]
+    fn a_pick_moves_the_button_into_the_macro_and_out_of_the_one_it_started() {
+        let mut s = read(XINPUT);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.macro_refs.push(controller_core::model::MacroRef {
+            trigger_buttons: vec!["rp".to_owned(), "lp".to_owned()],
+            path: "xinput-slot1-macro0-Jump.json".to_owned(),
+        });
+        hold_macros(
+            &mut s,
+            (XINPUT, 1),
+            &[macro_def(0, "Jump", &["rp", "lp"], 2), macro_def(2, "Dash", &["l4"], 1)],
+        );
+        let at = row_of(&s, "rp");
+        let (button, output) = picked_output(&s, at, 1).unwrap();
+        assert_eq!((button.as_str(), output.as_str()), ("rp", "macro:2"));
+        s.set_output(&button, &output);
+        assert_eq!(shown(&s, "rp"), "Dash (Macro 3)");
+        let slot = s.slot(XINPUT, 1);
+        let edited = slot.edited_macros.clone().unwrap();
+        assert_eq!(edited[0].trigger_buttons, ["lp"]);
+        let mut joined = edited[1].trigger_buttons.clone();
+        joined.sort_by_key(|b| row_of(&s, b));
+        assert_eq!(edited[1].trigger_buttons, joined, "in the description's order");
+        assert_eq!(joined.len(), 2);
+        let target = |id: &str| {
+            slot.shown()
+                .unwrap()
+                .button_mappings
+                .iter()
+                .find(|m| m.source == id)
+                .map(|m| m.target.clone())
+        };
+        assert_eq!(target("rp").as_deref(), Some("disabled"), "a paddle's own output");
+        let dirty = s.slot_dirty(XINPUT, 1);
+        assert!(dirty.buttons && dirty.macros);
+        assert!(rows(&s)[at].changed);
+        let job = s.upload_job((XINPUT, 1)).unwrap();
+        let WriteOp::Upload { drop_macros, macro_edits, .. } = job.op else { panic!("an upload") };
+        assert_eq!((drop_macros.len(), macro_edits.len()), (0, 2), "both macros are written");
+        s.discard();
+        assert_eq!(shown(&s, "rp"), "Jump (Macro 1)");
+    }
+
+    #[test]
+    fn another_output_takes_a_picked_button_off_its_new_macro_again() {
+        let mut s = with_macro();
+        hold_macros(
+            &mut s,
+            (XINPUT, 1),
+            &[macro_def(0, "Buttons", &["rp"], 1), macro_def(1, "Dash", &[], 1)],
+        );
+        s.set_output("r1", "macro:1");
+        s.set_output("r1", "disabled");
+        let edited = s.slot(XINPUT, 1).edited_macros.unwrap();
+        assert!(edited.iter().all(|m| !m.trigger_buttons.contains(&"r1".to_owned())));
+        assert_eq!(shown(&s, "r1"), "Disabled");
+        let job = s.upload_job((XINPUT, 1)).unwrap();
+        let WriteOp::Upload { macro_edits, .. } = job.op else { panic!("an upload") };
+        assert!(macro_edits.is_empty(), "the macros are as the controller holds them");
     }
 
     #[test]
     fn a_pick_takes_the_button_off_its_macro_and_discard_brings_it_back() {
         let mut s = with_macro();
-        let at = s.description().buttons.iter().position(|b| b.id == "rp").unwrap();
+        let at = row_of(&s, "rp");
         let (button, output) = picked_output(&s, at, 1).unwrap();
         assert_eq!((button.as_str(), output.as_str()), ("rp", "right face"));
         s.set_output(&button, &output);
-        let row = &rows(&s)[at];
-        assert_eq!(row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap(), "B");
-        assert!(row.changed);
+        assert_eq!(shown(&s, "rp"), "B");
+        assert!(rows(&s)[at].changed);
         let refs = s.slot(XINPUT, 1).edited.unwrap().macro_refs;
         assert_eq!(refs.len(), 1, "the macro stays");
         assert!(refs[0].trigger_buttons.is_empty(), "with no button");
         assert!(s.slot_dirty(XINPUT, 1).buttons);
         s.discard();
-        assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");
-    }
-
-    #[test]
-    fn a_macro_path_of_another_shape_is_still_a_macro() {
-        let d = description();
-        assert_eq!(output_label(d, XINPUT, "macro:m.json"), "Macro");
+        assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Buttons (Macro 1)");
     }
 
     #[test]

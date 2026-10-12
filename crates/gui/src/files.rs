@@ -14,7 +14,8 @@ use controller_core::service::validation::validate_profile;
 use serde_json::Value;
 use slint::{ModelRc, VecModel};
 
-use crate::buttons::output_label;
+use crate::buttons::{output_label, target};
+use crate::macros::label;
 use crate::render::sentence;
 use crate::state::{AppState, Notice};
 use crate::ui::{AppWindow, Change, ImportWarning};
@@ -148,6 +149,41 @@ impl AppState {
         self.pending_import = None;
     }
 
+    /// Takes each button of the selected slot that starts a macro off it when the import
+    /// gives the button another output than the mode's default, which a macro button
+    /// keeps. Returns the sentence naming each button and its macro, or nothing.
+    fn leave_for_import(&mut self) -> String {
+        let Some((mode, number)) = self.selected_slot() else { return String::new() };
+        let slot = self.slot(mode, number);
+        let (Some(imported), Some(default)) = (slot.edited.as_ref(), self.defaults().get(&mode))
+        else {
+            return String::new();
+        };
+        let d = self.description();
+        let macros = slot.shown_macros();
+        let (buttons, names): (Vec<String>, Vec<String>) = d
+            .buttons
+            .iter()
+            .filter_map(|b| {
+                let n = slot.macro_started_by(&b.id)?;
+                (target(imported, &b.id) != target(default, &b.id)).then(|| {
+                    (
+                        b.id.clone(),
+                        format!("{} left {}", output_label(d, mode, &b.id), label(&macros, n)),
+                    )
+                })
+            })
+            .unzip();
+        if buttons.is_empty() {
+            return String::new();
+        }
+        let them = if buttons.len() == 1 { "it" } else { "them" };
+        let sentence =
+            format!("{} because the file gives {them} another output. ", names.join(", "));
+        self.leave_macros(&buttons);
+        sentence
+    }
+
     /// Puts an import into its slot's edits and shows that slot. The slot keeps its
     /// own id and the macros stored on the controller; the file's are skipped.
     fn apply_import(&mut self, pending: PendingImport) {
@@ -167,6 +203,7 @@ impl AppState {
         if let Some(i) = self.description().modes.iter().position(|m| m.id == mode) {
             self.select(i, usize::from(number).saturating_sub(1));
         }
+        let left = self.leave_for_import();
         let skipped = match skipped_macros {
             0 => String::new(),
             1 => "The file’s macro reference was skipped. The macros stored on the controller stay. ".to_owned(),
@@ -178,7 +215,7 @@ impl AppState {
                 "Imported “{file_name}” into {} slot {number}.",
                 self.description().mode_label(mode)
             ),
-            body: skipped + "Nothing reaches the controller until you write.",
+            body: left + &skipped + "Nothing reaches the controller until you write.",
         });
     }
 }
@@ -264,7 +301,7 @@ mod tests {
     use slint::Model as _;
 
     use super::*;
-    use crate::state::tests::connected;
+    use crate::state::tests::{connected, hold_macros, macro_def};
 
     /// Gives `source` the output `target`.
     fn remap(p: &mut CanonicalProfile, source: &str, target: &str) {
@@ -340,6 +377,46 @@ mod tests {
         assert!(notice.error);
         assert!(notice.body.contains("swap_dpad_with_left_stick cannot be on"), "{}", notice.body);
         assert!(!s.slot(XINPUT, 2).unsaved());
+    }
+
+    #[test]
+    fn an_import_takes_a_macro_button_off_its_macro_when_the_file_gives_it_another_output() {
+        let mut s = connected(XINPUT);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.macro_refs = vec![MacroRef {
+            trigger_buttons: vec!["rp".to_owned(), "lp".to_owned()],
+            path: "xinput-slot1-macro0-Jump.json".to_owned(),
+        }];
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(0, "Jump", &["rp", "lp"], 2)]);
+        // Both paddles are at rest in the file; it remaps one of them.
+        let text = file(&s, XINPUT, 1, |p| remap(p, "rp", "right face"));
+        s.import((XINPUT, 1), "a.json", Ok(text));
+        let slot = s.slot(XINPUT, 1);
+        assert_eq!(slot.macro_started_by("rp"), None);
+        assert_eq!(slot.macro_started_by("lp"), Some(0), "the other paddle keeps the macro");
+        let refs = &slot.edited.as_ref().unwrap().macro_refs;
+        assert_eq!(refs.len(), 1, "the macro stays");
+        assert_eq!(refs[0].trigger_buttons, ["lp"]);
+        let body = s.notice.unwrap().body;
+        assert!(body.starts_with("PR left Jump (Macro 1)"), "{body}");
+    }
+
+    #[test]
+    fn an_import_leaves_a_macro_button_that_keeps_its_own_output_alone() {
+        let mut s = connected(XINPUT);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.macro_refs = vec![MacroRef {
+            trigger_buttons: vec!["rp".to_owned()],
+            path: "xinput-slot1-macro0-Jump.json".to_owned(),
+        }];
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(0, "Jump", &["rp"], 2)]);
+        let text = file(&s, XINPUT, 1, |p| p.name = "Other".to_owned());
+        s.import((XINPUT, 1), "a.json", Ok(text));
+        assert!(s.notice.as_ref().is_some_and(|n| !n.error), "{:?}", s.notice);
+        assert_eq!(s.slot(XINPUT, 1).macro_started_by("rp"), Some(0));
+        assert!(!s.notice.unwrap().body.contains("left"));
     }
 
     #[test]
