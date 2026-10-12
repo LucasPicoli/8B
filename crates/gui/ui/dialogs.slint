@@ -24,10 +24,11 @@ export component Bullet {
 // The file a failed write saved the old profile in, with a Copy button.
 export component BackupFile {
     in property <string> path;
+    in property <string> text: "The old profile is saved in this file:";
     VerticalLayout {
         spacing: 10px;
         Text {
-            text: "The old profile is saved in this file:";
+            text: root.text;
             color: Theme.fg;
         }
         HorizontalLayout {
@@ -48,9 +49,11 @@ export component ReviewDialog inherits DialogShell {
     in property <ReviewInfo> info;
     title: info.is-new
         ? "Write “" + info.name + "” to " + info.slot-title + "?"
-        : "Write " + info.changes.length + (info.changes.length == 1 ? " change" : " changes") + " to " + info.slot-title + "?";
+        : "Write " + info.total + (info.total == 1 ? " change" : " changes") + " to " + info.slot-title + "?";
     subtitle: info.is-new
         ? "The slot is empty. It gets a new profile."
+        : info.keeps-profile
+        ? "The profile “" + info.replaces + "” stays. Only its macros change."
         : "This replaces the profile “" + info.replaces + "” stored on the controller.";
     accept-text: "Write to controller";
     accept-enabled: root.info.problem == "";
@@ -59,7 +62,7 @@ export component ReviewDialog inherits DialogShell {
         color: Theme.negative;
         wrap: word-wrap;
     }
-    if !root.info.is-new: ChangeTable {
+    if !root.info.is-new && root.info.changes.length > 0: ChangeTable {
         model: root.info.changes;
     }
     if root.info.macros-stay > 0: Bullet {
@@ -76,7 +79,9 @@ export component ReviewDialog inherits DialogShell {
             : "The empty slot still holds " + root.info.leftover + " macros. Writing a profile removes them.";
     }
     Bullet {
-        text: "If the write fails, 8B puts the old profile back. If it cannot, it saves the old profile to a file.";
+        text: root.info.total > root.info.changes.length
+            ? "If the write fails, 8B puts the old profile and macros back. If it cannot, it saves them to files."
+            : "If the write fails, 8B puts the old profile back. If it cannot, it saves the old profile to a file.";
     }
     Bullet {
         text: "8B reads the controller again after the write.";
@@ -145,11 +150,15 @@ export component FailedDialog inherits DialogShell {
     subtitle: info.detail;
     cancel-text: "Close";
     accept-text: info.is-clear ? "Try again" : "Write again";
-    extra-text: info.backup-path != "" ? "Open folder" : "";
+    extra-text: info.backup-path != "" || info.macro-backups.length > 0 ? "Open folder" : "";
     extra-icon: Icons.folder;
     diagnostics: true;
     if root.info.backup-path != "": BackupFile {
         path: root.info.backup-path;
+    }
+    for p in root.info.macro-backups: BackupFile {
+        path: p;
+        text: "The old macro is saved in this file:";
     }
     if !root.info.is-clear: Text {
         text: "Your edits are still here, so you can write again.";

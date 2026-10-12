@@ -16,7 +16,7 @@ use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 
 use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
-use crate::state::tests::{connected, full_read, new_state, PORT};
+use crate::state::tests::{connected, full_read, hold_macros, macro_def, new_state, PORT};
 use crate::state::{AppState, Rule};
 use crate::ui::{AppWindow, Change, Diagnostics};
 
@@ -578,6 +578,46 @@ fn footer_while_checking_the_slot() {
 #[test]
 fn review_dialog() {
     shoot("review", &reviewing());
+}
+
+/// `XInput` slot 2 with only its macros edited: one changed, one removed, one added.
+fn macro_edits() -> AppState {
+    let mut s = connected(XINPUT);
+    let held = [macro_def(0, "Jump combo", &["rp", "lp"], 12), macro_def(1, "Dash", &["lp"], 3)];
+    hold_macros(&mut s, (XINPUT, 2), &held);
+    s.select(0, 1);
+    s.edit_macros(|m| {
+        m[0].steps.extend(vec![controller_core::model::MacroStep::default(); 3]);
+        m[0].trigger_buttons.truncate(1);
+        m.remove(1);
+        m.push(macro_def(2, "", &[], 4));
+    });
+    s.begin_review().unwrap();
+    s.review_read(PORT, true);
+    s
+}
+
+#[test]
+fn review_of_macro_edits() {
+    shoot("review-macros", &macro_edits());
+}
+
+#[test]
+fn failure_with_a_saved_macro() {
+    let mut s = macro_edits();
+    let (_, jobs) = s.confirm_review().unwrap();
+    let mut bad = controller_core::model::WriteResult::failure(
+        XINPUT,
+        jobs[0].slot,
+        controller_core::ErrorCategory::WriteFailure,
+        "Write failed. Rollback failed.",
+    );
+    bad.rollback_attempted = true;
+    bad.backup_file_path = Some("/home/x/.local/state/8b/backups/xinput-slot2.bin".to_owned());
+    bad.macro_backup_paths =
+        vec!["/home/x/.local/state/8b/backups/xinput-slot2-macro0-Jump combo.json".to_owned()];
+    s.write_finished(PORT, &[bad], None);
+    shoot("write-failed-macro", &s);
 }
 
 #[test]

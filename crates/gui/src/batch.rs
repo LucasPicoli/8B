@@ -7,10 +7,10 @@ use std::rc::Rc;
 
 use controller_core::description::ControllerDescription;
 use controller_core::model::Mode;
-use slint::{Model as _, ModelRc, VecModel};
+use slint::{ModelRc, VecModel};
 
 use crate::controllers::Controller;
-use crate::review::{count, WriteFailure};
+use crate::review::{count, paths, WriteFailure};
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, BatchInfo, BatchSlot};
 use crate::writes::WriteJob;
@@ -255,19 +255,18 @@ impl AppState {
     }
 
     /// The review of the slots that are still edited. A row starts open for the first
-    /// slot and for each slot whose write removes a macro, so the user never misses
-    /// what a write destroys.
+    /// slot and for each slot whose write removes or replaces a macro, so the user never
+    /// misses what a write destroys.
     fn batch_review_info(&self, flipped: &BTreeSet<Key>) -> BatchInfo {
         let mut info = BatchInfo { stage: STAGE_REVIEW, ..BatchInfo::default() };
         let mut rows = Vec::new();
         for (i, key) in self.edited_slots().into_iter().enumerate() {
             let review = self.review_info(key);
-            let removes = review.macro_changes.row_count() > 0 || review.leftover > 0;
+            let removes = self.slot(key.0, key.1).touches_held_macro() || review.leftover > 0;
             info.any_new |= review.is_new;
             info.any_removed |= removes;
             if !review.is_new {
-                info.total_changes =
-                    info.total_changes.saturating_add(count(review.changes.row_count()));
+                info.total_changes = info.total_changes.saturating_add(review.total);
             }
             rows.push(BatchSlot {
                 title: review.slot_title,
@@ -309,6 +308,7 @@ impl AppState {
                 at: count(*at),
                 detail: failure.detail.as_str().into(),
                 backup_path: failure.backup.as_deref().unwrap_or_default().into(),
+                macro_backups: paths(&failure.macro_backups),
                 ..BatchInfo::default()
             },
             _ => self
@@ -332,10 +332,16 @@ pub fn render_batch(state: &AppState, ui: &AppWindow) {
 mod tests {
     use controller_core::devices::pro3::{DINPUT, XINPUT};
     use controller_core::model::WriteResult;
+    use slint::Model as _;
 
     use super::*;
-    use crate::state::tests::{connected, full_read, PORT};
+    use crate::state::tests::{connected, full_read, hold_macros, macro_def, PORT};
     use crate::writes::WriteOp;
+
+    /// The two macros [`full_read`] gives slot 2, both started by `p1`.
+    fn two_on_p1() -> [controller_core::model::MacroDefinition; 2] {
+        [macro_def(0, "Jump", &["p1"], 0), macro_def(1, "Dash", &["p1"], 0)]
+    }
 
     /// A pad in `XInput` with edits in `XInput` slot 2, `XInput` slot 3 (empty on the
     /// pad, started from default) and `DInput` slot 1, in the order the sidebar lists
@@ -514,6 +520,7 @@ mod tests {
     fn rows_start_open_for_the_first_slot_and_for_a_slot_that_removes_a_macro() {
         let mut s = edited();
         // Slot 2 holds two macros on button p1: giving p1 an output drops them.
+        hold_macros(&mut s, (XINPUT, 2), &two_on_p1());
         s.select(0, 1);
         s.set_output("p1", "disabled");
         s.begin_batch().unwrap();
@@ -537,6 +544,7 @@ mod tests {
         s.select(0, 0);
         s.set_name("One");
         s.select(0, 1);
+        hold_macros(&mut s, (XINPUT, 2), &two_on_p1());
         s.set_output("p1", "disabled");
         s.begin_batch().unwrap();
         s.read_finished(PORT, Ok(full_read()));

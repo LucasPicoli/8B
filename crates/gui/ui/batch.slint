@@ -213,10 +213,10 @@ export component BatchReviewDialog inherits DialogShell {
             : "Each slot keeps the macros it has.";
     }
     Bullet {
-        text: "8B writes one slot at a time and reads each one back.";
+        text: "8B writes the slots of each mode together and reads them back.";
     }
     Bullet {
-        text: "If a slot fails, 8B puts it back and stops. The slots after it are not written.";
+        text: "If a write fails, 8B puts that mode’s slots back and stops. The slots after them are not written.";
     }
 }
 
@@ -253,7 +253,7 @@ export component BatchFailedDialog inherits DialogShell {
     subtitle: info.detail;
     cancel-text: "Close";
     accept-text: m == 1 ? "Write " + failed + " again" : "Write the " + m + " slots again";
-    extra-text: info.backup-path != "" ? "Open folder" : "";
+    extra-text: info.backup-path != "" || info.macro-backups.length > 0 ? "Open folder" : "";
     extra-icon: Icons.folder;
     diagnostics: true;
     Frame {
@@ -268,6 +268,10 @@ export component BatchFailedDialog inherits DialogShell {
     }
     if root.info.backup-path != "": BackupFile {
         path: root.info.backup-path;
+    }
+    for p in root.info.macro-backups: BackupFile {
+        path: p;
+        text: "The old macro is saved in this file:";
     }
     Text {
         text: root.m == 1

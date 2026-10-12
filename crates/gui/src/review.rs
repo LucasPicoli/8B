@@ -7,7 +7,6 @@ use std::rc::Rc;
 
 use controller_core::description::ControllerDescription;
 use controller_core::error::ErrorCategory;
-use controller_core::model::macros::parse_macro_file_name;
 use controller_core::model::profile::canonical_id;
 use controller_core::model::{CanonicalProfile, Mode, Slot as ProfileSlot, WriteResult};
 use serde_json::Value;
@@ -35,6 +34,9 @@ pub struct WriteFailure {
     pub detail: String,
     /// The file the old profile was saved in, when the rollback failed too.
     pub backup: Option<String>,
+    /// The `macro-v1` files the old macros were saved in, when their steps could not be
+    /// put back.
+    pub macro_backups: Vec<String>,
 }
 
 /// Where the write dialogs and the write in flight stand.
@@ -166,32 +168,28 @@ impl AppState {
     }
 
     /// The job that writes the edits of `slot` of the shown controller: the profile
-    /// with its own id and no macro references, and the buttons that no longer start
-    /// their macro because they got another output.
+    /// with its own id and no macro references, or none when only the macros changed;
+    /// the buttons that no longer start their macro because they got another output;
+    /// and the macro edits.
     pub fn upload_job(&self, slot: (Mode, u8)) -> Option<WriteJob> {
         let state = self.slot_at(slot);
-        let mut profile = state.edited.clone()?;
-        let kept: Vec<&String> =
-            profile.macro_refs.iter().flat_map(|m| &m.trigger_buttons).collect();
-        let removed = state
-            .pad
-            .iter()
-            .flat_map(|p| &p.macro_refs)
-            .flat_map(|m| &m.trigger_buttons)
-            .filter(|b| !kept.contains(b))
-            .cloned()
-            .collect();
-        if profile.id.is_empty() {
-            profile.id = canonical_id(slot.0, slot.1, slot.1.checked_sub(1)?);
-        }
-        profile.macro_refs.clear();
+        let profile = match state.edited.clone().filter(|_| state.profile_unsaved()) {
+            Some(mut profile) => {
+                if profile.id.is_empty() {
+                    profile.id = canonical_id(slot.0, slot.1, slot.1.checked_sub(1)?);
+                }
+                profile.macro_refs.clear();
+                Some(serde_json::to_value(&profile).ok()?)
+            }
+            None => None,
+        };
         Some(WriteJob {
             mode: slot.0,
             slot: ProfileSlot::new(slot.1).ok()?,
             op: WriteOp::Upload {
-                profile: Some(serde_json::to_value(&profile).ok()?),
-                drop_macros: removed,
-                macro_edits: Vec::new(),
+                profile,
+                drop_macros: state.dropped_buttons(),
+                macro_edits: state.macro_edits()?,
             },
         })
     }
@@ -282,12 +280,20 @@ impl AppState {
                 job,
                 detail,
                 backup: result.backup_file_path.clone(),
+                macro_backups: result.macro_backup_paths.clone(),
             });
             return;
         }
         if let Some(slot) = self.controller_mut(port).and_then(|c| c.slots.get_mut(&key)) {
             match job.op {
-                WriteOp::Upload { .. } => slot.pad = slot.edited.take(),
+                // A job with only macro edits leaves the profile. The read that
+                // follows gives the macros the controller holds now.
+                WriteOp::Upload { .. } => {
+                    if let Some(edited) = slot.edited.take() {
+                        slot.pad = Some(edited);
+                    }
+                    slot.edited_macros = None;
+                }
                 WriteOp::Clear => *slot = SlotState::default(),
             }
         }
@@ -346,52 +352,22 @@ impl AppState {
         out
     }
 
-    /// One line per macro of `slot` whose trigger buttons the edits change, such as
-    /// "Jump (Macro 2) changed: starts with A, B to A".
-    fn macro_changes(&self, slot: (Mode, u8)) -> Vec<SharedString> {
-        let state = self.slot_at(slot);
-        let (Some(pad), Some(edited)) = (&state.pad, &state.edited) else {
-            return Vec::new();
-        };
-        let label = |ids: &[String]| {
-            if ids.is_empty() {
-                return "No button".to_owned();
-            }
-            let labels: Vec<_> =
-                ids.iter().map(|b| output_label(self.description(), slot.0, b)).collect();
-            labels.join(", ")
-        };
-        pad.macro_refs
-            .iter()
-            .filter_map(|old| {
-                let new = edited.macro_refs.iter().find(|e| e.path == old.path)?;
-                (new.trigger_buttons != old.trigger_buttons).then(|| {
-                    let title = parse_macro_file_name(&old.path).map_or_else(
-                        || "A macro".to_owned(),
-                        |(n, name)| format!("{name} (Macro {})", n + 1),
-                    );
-                    let (from, to) = (label(&old.trigger_buttons), label(&new.trigger_buttons));
-                    format!("{title} changed: starts with {from} to {to}").into()
-                })
-            })
-            .collect()
-    }
-
     /// What the review of `slot` tells the user.
     pub fn review_info(&self, slot: (Mode, u8)) -> ReviewInfo {
         let state = self.slot_at(slot);
-        let kept = state.edited.as_ref().map_or(0, |e| e.macro_refs.len());
         let leftover = self.active().and_then(|c| c.leftover.get(&slot)).copied().unwrap_or(0);
         let changes = self.change_list(slot);
         ReviewInfo {
             shown: true,
             slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
-            name: state.edited.as_ref().map(|e| e.name.as_str()).unwrap_or_default().into(),
+            name: state.shown().map(|e| e.name.as_str()).unwrap_or_default().into(),
             replaces: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
             is_new: state.pad.is_none(),
+            keeps_profile: state.pad.is_some() && !state.profile_unsaved(),
+            total: count(changes.len().saturating_add(state.macros_edited())),
             changes: ModelRc::from(Rc::new(VecModel::from(changes))),
-            macros_stay: count(kept),
-            macro_changes: ModelRc::from(Rc::new(VecModel::from(self.macro_changes(slot)))),
+            macros_stay: count(state.macros_kept()),
+            macro_changes: ModelRc::from(Rc::new(VecModel::from(self.macro_lines(slot)))),
             leftover: count(leftover),
             problem: state
                 .edited
@@ -409,7 +385,7 @@ impl AppState {
             shown: true,
             slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
             name: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
-            macros: count(state.pad.as_ref().map_or(0, |p| p.macro_refs.len())),
+            macros: count(state.pad_macros.len()),
             has_edits: state.unsaved(),
         }
     }
@@ -457,6 +433,12 @@ fn change(what: &str, from: &str, to: &str) -> Change {
     Change { what: what.into(), from: from.into(), to: to.into() }
 }
 
+/// File paths for the window.
+pub fn paths(list: &[String]) -> ModelRc<SharedString> {
+    let list: Vec<SharedString> = list.iter().map(SharedString::from).collect();
+    ModelRc::from(Rc::new(VecModel::from(list)))
+}
+
 /// A count for the window.
 pub fn count(n: usize) -> i32 {
     i32::try_from(n).unwrap_or(i32::MAX)
@@ -484,6 +466,7 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
         .into(),
         detail: f.detail.as_str().into(),
         backup_path: f.backup.as_deref().unwrap_or_default().into(),
+        macro_backups: paths(&f.macro_backups),
         is_clear: f.job.op == WriteOp::Clear,
     });
     ui.set_write_failed(failed.unwrap_or_default());
@@ -514,7 +497,7 @@ mod tests {
     use controller_core::model::MacroRef;
 
     use super::*;
-    use crate::state::tests::{connected, full_read, PORT};
+    use crate::state::tests::{connected, full_read, hold_macros, macro_def, PORT};
 
     /// `XInput` slot 1 with a macro on `rp`, a rename, a remap, a stick range and a flag
     /// edited.
@@ -525,6 +508,7 @@ mod tests {
             trigger_buttons: vec!["rp".to_owned()],
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
         });
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(0, "Buttons", &["rp"], 0)]);
         s.set_name("Mine");
         s.set_output("r1", "disabled");
         s.set_output("rp", "right face");
@@ -594,6 +578,7 @@ mod tests {
             trigger_buttons: vec!["rp".to_owned(), "lp".to_owned()],
             path: "xinput-slot1-macro1-Jump.json".to_owned(),
         });
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(1, "Jump", &["rp", "lp"], 0)]);
         s.set_output("rp", "right face");
         let info = s.review_info((XINPUT, 1));
         assert_eq!(info.macros_stay, 1);
@@ -818,6 +803,8 @@ mod tests {
         assert_eq!(s.review_info((DINPUT, 3)).leftover, 2);
     }
 }
+
+mod macro_edits;
 
 #[cfg(test)]
 mod control_map;

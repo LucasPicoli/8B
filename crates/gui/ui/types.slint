@@ -140,6 +140,10 @@ export struct ReviewInfo {
     replaces: string,
     // The controller holds nothing in the slot.
     is-new: bool,
+    // Only the macros change: the profile the controller holds stays.
+    keeps-profile: bool,
+    // The changes plus the macros the edits add, change or remove.
+    total: int,
     changes: [Change],
     // Macros that stay, "<name> (Macro 1) changed: starts with A to B" lines, and
     // macros an empty slot still holds that the write replaces.
@@ -167,6 +171,8 @@ export struct FailedInfo {
     detail: string,
     // The file the old profile was saved in, or empty.
     backup-path: string,
+    // The files the old macros were saved in.
+    macro-backups: [string],
     is-clear: bool,
 }
 
@@ -196,9 +202,11 @@ export struct BatchInfo {
     total-changes: int,
     any-new: bool,
     any-removed: bool,
-    // Why the write failed, and the file the old profile was saved in, or empty.
+    // Why the write failed, the file the old profile was saved in, or empty, and the
+    // files the old macros were saved in.
     detail: string,
     backup-path: string,
+    macro-backups: [string],
 }
 
 // One edited slot in the close question.

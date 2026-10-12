@@ -444,9 +444,12 @@ impl AppState {
 pub mod tests {
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};
-    use controller_core::model::{CanonicalProfileSummary, ProfileReadResult, RawProfilePayload};
+    use controller_core::model::{
+        CanonicalProfileSummary, MacroDefinition, MacroStep, ProfileReadResult, RawProfilePayload,
+    };
 
     use super::*;
+    use crate::macros::PadMacro;
 
     #[test]
     fn a_send_to_a_stopped_worker_shows_the_stopped_message() {
@@ -693,6 +696,28 @@ pub mod tests {
         s.presence(PORT, Some(mode));
         s.read_finished(PORT, Ok(full_read()));
         s
+    }
+
+    /// A macro of `XInput` in macro slot `slot` (0-based) named `name`, started by
+    /// `buttons`, with `steps` steps of 100 ms each.
+    pub fn macro_def(slot: u8, name: &str, buttons: &[&str], steps: usize) -> MacroDefinition {
+        MacroDefinition {
+            name: name.to_owned(),
+            mode: XINPUT,
+            trigger_buttons: buttons.iter().map(|&b| b.to_owned()).collect(),
+            unknown_trigger_bits: 0,
+            repeat_count: 1,
+            interval_ms: 0,
+            steps: vec![MacroStep { duration_ms: 100, ..MacroStep::default() }; steps],
+            macro_slot: Some(slot),
+        }
+    }
+
+    /// Slot `key` of the controller on [`PORT`] holds `macros`, their steps read.
+    pub fn hold_macros(s: &mut AppState, key: (Mode, u8), macros: &[MacroDefinition]) {
+        let slot = s.controller_mut(PORT).unwrap().slots.get_mut(&key).unwrap();
+        slot.pad_macros =
+            macros.iter().map(|def| PadMacro { def: def.clone(), loaded: true }).collect();
     }
 
     #[test]
