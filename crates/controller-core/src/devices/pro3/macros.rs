@@ -220,7 +220,8 @@ pub(super) fn trigger_key_map(names: &[String]) -> Result<u32> {
 ///
 /// Each step is encoded as a 10-byte `record_content_t` (all fields LE16).
 /// The output is zero-padded to the next 32-byte boundary; empty input
-/// produces an empty `Vec`.
+/// produces an empty `Vec`. A pressed `l2` or `r2` is its trigger pulled fully in every
+/// mode, unless the step gives that trigger a value of its own.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] if any `step.pressed_buttons` entry is unknown.
@@ -247,8 +248,14 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
         // Mode-specific L2/R2 routing.
         let trigger_value: u16 = if analog {
             // XInput and DInput: trigger_value carries (L2<<8)|R2; clear bits 14–15 in keys.
+            // A pressed l2 or r2 with no value of its own is the trigger pulled fully, as the
+            // decoder reads a set bit.
+            let full =
+                |value: u8, mask: u16| if value == 0 && keys & mask != 0 { u8::MAX } else { value };
+            let left = full(step.trigger_left, tables::STEP_SWITCH_L2_MASK);
+            let right = full(step.trigger_right, tables::STEP_SWITCH_R2_MASK);
             keys &= tables::STEP_BUTTON_BITS_MASK;
-            (u16::from(step.trigger_left) << 8) | u16::from(step.trigger_right)
+            (u16::from(left) << 8) | u16::from(right)
         } else {
             // Switch: encode L2/R2 as bits 14–15 in keys; trigger_value unused.
             if step.trigger_left > 0 {
@@ -331,7 +338,7 @@ pub fn macro_to_canonical_json(def: &MacroDefinition) -> Value {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
-    use crate::devices::pro3::{SWITCH, XINPUT};
+    use crate::devices::pro3::{MODES, SWITCH, XINPUT};
 
     #[test]
     fn bitmask_decodes_buttons_in_bit_order() {
@@ -371,6 +378,28 @@ mod tests {
         assert_eq!(steps[0].trigger_left, 255);
         assert_eq!(steps[0].trigger_right, 0);
         assert_eq!(steps[0].pressed_buttons, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_pressed_l2_or_r2_plays_as_a_full_trigger_in_every_mode() {
+        let step = MacroStep {
+            pressed_buttons: vec!["l2".into(), "r2".into(), "bottom face".into()],
+            trigger_right: 64,
+            ..Default::default()
+        };
+        for mode in MODES {
+            let back = decode_macro_steps(
+                &encode_macro_steps(std::slice::from_ref(&step), mode).unwrap(),
+                1,
+                mode,
+            )
+            .unwrap();
+            assert_eq!(back[0].pressed_buttons, vec!["bottom face"], "{mode}");
+            assert_eq!(back[0].trigger_left, 255, "{mode}");
+            // A value the step already holds wins over the pressed button.
+            let right = if mode == SWITCH { 255 } else { 64 };
+            assert_eq!(back[0].trigger_right, right, "{mode}");
+        }
     }
 
     #[test]
