@@ -122,6 +122,26 @@ pub(crate) fn blob_for_mode<'r>(
     read.raw_blobs.get(index)
 }
 
+/// The macro descriptors of every slot of a full read, empty slots included.
+///
+/// Each slot's macros are in macro-slot order. Their `steps` are placeholders, one per
+/// step the descriptor counts; [`DeviceIo::read_macro_streams`] reads the real ones. A
+/// slot with no descriptor, or whose descriptors cannot be decoded, is left out.
+#[must_use]
+pub fn macro_summaries(
+    model: &dyn Model,
+    read: &ProfileReadResult,
+) -> BTreeMap<(Mode, u8), Vec<MacroDefinition>> {
+    read.profiles
+        .iter()
+        .filter_map(|p| {
+            let blob = blob_for_mode(model, read, p.mode)?;
+            let found = model.decode_macro_metadata(blob, Slot::new(p.source_slot).ok()?).ok()?;
+            (!found.is_empty()).then_some(((p.mode, p.source_slot), found))
+        })
+        .collect()
+}
+
 /// The empty slots of a full read that still hold macro descriptors, with how many.
 ///
 /// A slot with no profile keeps the macros it had. The next profile written to it
@@ -129,13 +149,13 @@ pub(crate) fn blob_for_mode<'r>(
 /// is left out.
 #[must_use]
 pub fn leftover_macros(model: &dyn Model, read: &ProfileReadResult) -> BTreeMap<(Mode, u8), usize> {
+    let mut found = macro_summaries(model, read);
     read.profiles
         .iter()
         .filter(|p| p.id.is_empty())
         .filter_map(|p| {
-            let blob = blob_for_mode(model, read, p.mode)?;
-            let found = model.decode_macro_metadata(blob, Slot::new(p.source_slot).ok()?).ok()?;
-            (!found.is_empty()).then_some(((p.mode, p.source_slot), found.len()))
+            let key = (p.mode, p.source_slot);
+            Some((key, found.remove(&key)?.len()))
         })
         .collect()
 }
@@ -255,5 +275,9 @@ mod tests {
         assert_eq!(found.len(), 1, "slot 2 holds none");
         read.profiles[0].id = "xinput-slot-1-index-0".to_owned();
         assert!(leftover_macros(&Pro3, &read).is_empty(), "an active slot is not a leftover");
+        let summaries = macro_summaries(&Pro3, &read);
+        assert_eq!(summaries.len(), 1, "an active slot has its summaries, slot 2 none");
+        let golden = &summaries[&(XINPUT, 1)][0];
+        assert_eq!((golden.name.as_str(), golden.steps.len()), ("GoldenMac", 3));
     }
 }

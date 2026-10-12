@@ -8,10 +8,11 @@ use std::sync::mpsc::Sender;
 use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
 use controller_core::device::Model;
 use controller_core::devices;
-use controller_core::model::{ButtonMapping, CanonicalProfile, Mode};
+use controller_core::model::{ButtonMapping, CanonicalProfile, MacroDefinition, Mode};
 
 use crate::controllers::Controller;
 use crate::files::PendingImport;
+use crate::macros::PadMacro;
 use crate::review::WriteState;
 use crate::worker::Command;
 
@@ -25,6 +26,11 @@ pub struct SlotState {
     pub pad: Option<CanonicalProfile>,
     /// The edited working copy. `None` until the slot is edited.
     pub edited: Option<CanonicalProfile>,
+    /// The macros the controller held at the last read, in macro-slot order. Empty
+    /// for an empty slot, whatever descriptors it keeps.
+    pub pad_macros: Vec<PadMacro>,
+    /// The edited macros. `None` until a macro of the slot is edited.
+    pub edited_macros: Option<Vec<MacroDefinition>>,
 }
 
 /// Which tabs of a slot hold unsaved edits.
@@ -34,6 +40,8 @@ pub struct Dirty {
     pub buttons: bool,
     /// The ids of the settings tabs with an edit.
     pub tabs: BTreeSet<String>,
+    /// The macros.
+    pub macros: bool,
 }
 
 impl Dirty {
@@ -45,10 +53,25 @@ impl Dirty {
 }
 
 impl SlotState {
-    /// Whether the working copy differs from what the controller holds.
+    /// Whether the working copy or the edited macros differ from what the controller
+    /// holds.
     #[must_use]
     pub fn unsaved(&self) -> bool {
+        self.profile_unsaved() || self.macros_unsaved()
+    }
+
+    /// Whether the working copy differs from the profile the controller holds.
+    #[must_use]
+    pub fn profile_unsaved(&self) -> bool {
         self.edited.as_ref().is_some_and(|e| self.pad.as_ref() != Some(e))
+    }
+
+    /// Whether the edited macros differ from the macros the controller holds.
+    #[must_use]
+    pub fn macros_unsaved(&self) -> bool {
+        self.edited_macros
+            .as_ref()
+            .is_some_and(|e| !e.iter().eq(self.pad_macros.iter().map(|m| &m.def)))
     }
 
     /// The profile on screen: the working copy, else what the controller holds.
@@ -62,11 +85,12 @@ impl SlotState {
     #[must_use]
     pub fn dirty(&self, description: &ControllerDescription, mode: Mode) -> Dirty {
         let json = |p: &CanonicalProfile| serde_json::to_value(p).unwrap_or_default();
+        let macros = self.macros_unsaved();
         let (pad, edited) = match (&self.pad, &self.edited) {
-            (_, None) => return Dirty::default(),
+            (_, None) => return Dirty { macros, ..Dirty::default() },
             (None, Some(_)) => {
                 let tabs = description.pages(mode).map(|p| p.id.clone()).collect();
-                return Dirty { buttons: true, tabs };
+                return Dirty { buttons: true, tabs, macros };
             }
             (Some(p), Some(e)) => (p, e),
         };
@@ -80,6 +104,7 @@ impl SlotState {
                 .filter(|p| p.fields().any(changed))
                 .map(|p| p.id.clone())
                 .collect(),
+            macros,
         }
     }
 }
@@ -354,7 +379,7 @@ impl AppState {
     }
 
     /// The selected slot of the picked controller, for a change.
-    fn selected_mut(&mut self) -> Option<&mut SlotState> {
+    pub(crate) fn selected_mut(&mut self) -> Option<&mut SlotState> {
         let key = self.selected_slot()?;
         Some(self.active_mut()?.slots.entry(key).or_default())
     }
@@ -395,10 +420,11 @@ impl AppState {
         self.edit(|p| p.name = name);
     }
 
-    /// Drops the selected slot's working copy.
+    /// Drops the selected slot's working copy and edited macros.
     pub fn discard(&mut self) {
         if let Some(slot) = self.selected_mut() {
             slot.edited = None;
+            slot.edited_macros = None;
         }
     }
 
@@ -716,7 +742,7 @@ pub mod tests {
         assert_eq!((p.name.as_str(), p.mode), (NEW_PROFILE_NAME, SWITCH));
         assert!(slot.unsaved());
         let tabs = ["sticks", "triggers", "vibration"].map(str::to_owned).into();
-        assert_eq!(s.slot_dirty(SWITCH, 3), Dirty { buttons: true, tabs });
+        assert_eq!(s.slot_dirty(SWITCH, 3), Dirty { buttons: true, tabs, macros: false });
         // A second press keeps the edits made since.
         s.set_output("l1", "disabled");
         s.start_from_default();

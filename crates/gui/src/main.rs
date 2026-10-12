@@ -13,6 +13,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod logging;
+mod macros;
 mod plain;
 mod portal;
 mod render;
@@ -51,7 +52,7 @@ use std::time::Duration;
 
 use controller_core::devices;
 use controller_core::model::Mode;
-use controller_core::service::read::leftover_macros;
+use controller_core::service::read::{leftover_macros, macro_summaries};
 use controller_core::Error;
 use log::{info, warn};
 use slint::winit_030::winit::window::UserAttentionType;
@@ -72,6 +73,23 @@ fn read(commands: &Sender<Command>, state: &mut AppState, port: &str) {
     if state.send(commands, Command::ReadAll(port.to_owned())) {
         state.read_started(port);
     }
+}
+
+/// Asks the worker to read the steps of the macros of the controller on `port` that
+/// are still unread. The window stays usable while they load.
+fn read_macro_steps(commands: &Sender<Command>, state: &mut AppState, port: &str) {
+    let unread = state.unread_macros(port);
+    if !unread.is_empty() {
+        state.send(commands, Command::ReadMacroSteps(port.to_owned(), unread));
+    }
+}
+
+/// Why a read failed, as the red bar says it, with the programs that hold the
+/// controller.
+fn read_failure(state: &AppState, error: &Error, holders: &[String]) -> String {
+    let plain = plain::read_failure(error);
+    holders::hint(holders, state.sandboxed)
+        .map_or_else(|| plain.to_owned(), |names| format!("{plain} {names}"))
 }
 
 /// Asks the worker to read every controller that is present.
@@ -96,6 +114,12 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         }
         Event::Read { port, result: Err(f) } => {
             warn!("read from {port} failed: {}; held by {:?}", f.error, f.holders);
+        }
+        Event::MacroSteps { port, result: Ok(read) } => {
+            info!("read the steps of {} macros from {port}", read.len());
+        }
+        Event::MacroSteps { port, result: Err(f) } => {
+            warn!("macro step read from {port} failed: {}; held by {:?}", f.error, f.holders);
         }
         Event::Written { port, results, .. } => {
             for result in results {
@@ -129,19 +153,26 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
         }
         Event::Read { port, result: Ok((model, read)) } => {
             let leftover = leftover_macros(model, &read);
+            let macros = macro_summaries(model, &read);
             state.set_model(&port, model);
             state.read_finished(&port, Ok(read));
             state.set_leftover(&port, leftover);
+            state.set_macros(&port, macros);
+            read_macro_steps(commands, state, &port);
             state.review_read(&port, true);
             let write = state.skip_empty_review();
             send_write(commands, state, write);
         }
         Event::Read { port, result: Err(Failure { error, holders }) } => {
-            let plain = plain::read_failure(&error);
-            let message = holders::hint(&holders, state.sandboxed)
-                .map_or_else(|| plain.to_owned(), |names| format!("{plain} {names}"));
+            let message = read_failure(state, &error, &holders);
             state.read_finished(&port, Err(message));
             state.review_read(&port, false);
+        }
+        Event::MacroSteps { port, result: Ok(read) } => state.steps_read(&port, read),
+        // The red bar's "Try again" reads every bank, then the steps still unread.
+        Event::MacroSteps { port, result: Err(Failure { error, holders }) } => {
+            let message = read_failure(state, &error, &holders);
+            state.read_finished(&port, Err(message));
         }
         // Whatever the outcome, read the slot back: what the controller holds now is
         // what the window should show.

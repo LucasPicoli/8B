@@ -11,8 +11,10 @@ use std::time::{Duration, Instant};
 
 use controller_core::detect::{config_hidraw, scan_sysfs_all};
 use controller_core::device::{ConfigPort, Model};
-use controller_core::model::{Mode, ProfileReadResult, WriteResult};
-use controller_core::transport::DeviceIo;
+use controller_core::model::{
+    MacroDefinition, MacroSlot, Mode, ProfileReadResult, Slot, WriteResult,
+};
+use controller_core::transport::{DeviceIo, MacroStream};
 use controller_core::Error;
 use log::warn;
 
@@ -54,11 +56,17 @@ fn devnum(sysfs_path: &str) -> Option<u16> {
 pub enum Command {
     /// Read every bank of the controller on this USB port path.
     ReadAll(String),
+    /// Read the steps of these macros, each with its mode and 1-based slot, from the
+    /// controller on this USB port path, in one session.
+    ReadMacroSteps(String, Vec<MacroAt>),
     /// Write these slots of the controller on this USB port path, in one session.
     Write(String, Vec<WriteJob>),
     /// Install the udev rule that grants access to the controller.
     InstallUdevRule,
 }
+
+/// A macro and the mode and 1-based slot that hold it.
+pub type MacroAt = ((Mode, u8), MacroDefinition);
 
 /// A read that failed, retry included.
 #[derive(Debug)]
@@ -85,6 +93,14 @@ pub enum Event {
         port: String,
         /// The model the controller named and the read, or why it failed.
         result: Result<(&'static dyn Model, ProfileReadResult), Failure>,
+    },
+    /// The result of [`Command::ReadMacroSteps`] for `port`: the macros with their
+    /// steps, or why the read failed.
+    MacroSteps {
+        /// The USB port path the read went to.
+        port: String,
+        /// The macros of the command with their steps read, or why the read failed.
+        result: Result<Vec<MacroAt>, Failure>,
     },
     /// The result of [`Command::Write`] for `port`.
     Written {
@@ -202,6 +218,21 @@ fn run(
                     }
                 }
             }
+            Ok(Command::ReadMacroSteps(port, macros)) => {
+                let dev = devices.entry(port.clone()).or_insert_with(|| open(&port));
+                match read_steps(dev.as_ref(), macros) {
+                    // Gone mid-read, as for a read of every bank.
+                    Err(Error::Disconnected) => {
+                        presence.entry(port.clone()).or_default().forget();
+                        emit(Event::Presence { port, mode: None });
+                    }
+                    result => {
+                        let result = result
+                            .map_err(|error| Failure { holders: holders_of(site, &port), error });
+                        emit(Event::MacroSteps { port, result });
+                    }
+                }
+            }
             Ok(Command::Write(port, jobs)) => {
                 let dev = devices.entry(port.clone()).or_insert_with(|| open(&port));
                 let results = writes::run(dev.as_ref(), &jobs, site.backup_dir);
@@ -268,6 +299,34 @@ fn read_with_retry(dev: &dyn DeviceIo) -> Result<ProfileReadResult, Error> {
     }
 }
 
+/// Reads the steps of `macros` in one session and decodes them, each by the mode its
+/// descriptor names.
+fn read_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<MacroAt>, Error> {
+    let streams = macros
+        .iter()
+        .map(|&((mode, slot), ref def)| {
+            let macro_slot = def
+                .macro_slot
+                .ok_or_else(|| Error::Decode("macro descriptor missing slot index".into()))?;
+            Ok(MacroStream {
+                mode,
+                profile_slot: Slot::new(slot)?,
+                macro_slot: MacroSlot::new(macro_slot)?,
+                step_count: def.steps.len(),
+            })
+        })
+        .collect::<Result<Vec<_>, Error>>()?;
+    let model = dev.model()?;
+    dev.read_macro_streams(&streams)?
+        .into_iter()
+        .zip(macros)
+        .map(|(stream, (at, mut def))| {
+            def.steps = model.decode_macro_steps(&stream, def.steps.len(), def.mode)?;
+            Ok((at, def))
+        })
+        .collect()
+}
+
 /// Turns raw polls of one port into presence changes, reported once
 /// [`SETTLE_POLLS`] polls in a row agree. Starts as "absent", so a missing
 /// controller reports nothing.
@@ -314,7 +373,7 @@ mod tests {
     use std::sync::Mutex;
     use std::time::Instant;
 
-    use controller_core::device::ControllerSpec as _;
+    use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, XINPUT};
     use controller_core::model::Slot;
     use controller_core::transport::mock::MockOp;
@@ -810,5 +869,43 @@ mod tests {
         assert!(matches!(next(&events), Event::Written { results, .. } if !results[0].success));
         tx.send(Command::ReadAll(PORT.to_owned())).unwrap();
         assert!(matches!(next(&events), Event::Read { result: Ok(_), .. }));
+    }
+
+    /// The fixture macro of slot 1 of `XInput`, as a read's summary gives it.
+    fn fixture_macro() -> MacroAt {
+        let blob = fs::read("../../fixtures/pro3/macro-meta.blob").unwrap();
+        let slot = Slot::new(1).unwrap();
+        let def = Pro3.decode_macro_metadata(&blob, slot).unwrap().remove(0);
+        ((XINPUT, 1), def)
+    }
+
+    #[test]
+    fn macro_steps_are_read_and_decoded_by_their_descriptor() {
+        let stream = fs::read("../../fixtures/pro3/macro-sample.steps.bin").unwrap();
+        let (at, summary) = fixture_macro();
+        let slot = MacroSlot::new(summary.macro_slot.unwrap()).unwrap();
+        let dev = MockDevice::new().with_macro_stream(
+            XINPUT,
+            Slot::new(1).unwrap(),
+            slot,
+            stream.clone(),
+        );
+        let (tx, events, _dir) = writer(dev);
+        tx.send(Command::ReadMacroSteps(PORT.to_owned(), vec![(at, summary.clone())])).unwrap();
+        let Event::MacroSteps { result: Ok(read), .. } = next(&events) else {
+            panic!("expected the steps")
+        };
+        let steps = Pro3.decode_macro_steps(&stream, summary.steps.len(), XINPUT).unwrap();
+        assert_eq!(read, [(at, MacroDefinition { steps, ..summary })]);
+    }
+
+    #[test]
+    fn a_failed_step_read_says_why() {
+        let (tx, events, _dir) = writer(MockDevice::new());
+        tx.send(Command::ReadMacroSteps(PORT.to_owned(), vec![fixture_macro()])).unwrap();
+        assert!(matches!(
+            next(&events),
+            Event::MacroSteps { result: Err(Failure { error: Error::NoDevice, .. }), .. }
+        ));
     }
 }

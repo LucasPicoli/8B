@@ -62,7 +62,7 @@ impl Controller {
             let pad = (!summary.id.is_empty()).then_some(summary.canonical);
             let slot = self.slots.entry(key).or_default();
             if slot.pad != pad {
-                if !slot.unsaved() {
+                if !slot.profile_unsaved() {
                     slot.edited = None;
                 } else if slot.edited != pad {
                     self.changed.entry(key).or_insert(true);
@@ -354,10 +354,15 @@ impl AppState {
                 continue;
             }
             let fresh = c.slots.entry(key).or_default();
-            if ![&slot.pad, &slot.edited].contains(&&fresh.pad) {
+            let macros_changed = fresh.take_macro_edits(&slot);
+            if (slot.profile_unsaved() && ![&slot.pad, &slot.edited].contains(&&fresh.pad))
+                || macros_changed
+            {
                 c.changed.entry(key).or_insert(true);
             }
-            fresh.edited = slot.edited;
+            if slot.profile_unsaved() {
+                fresh.edited = slot.edited;
+            }
         }
     }
 
@@ -402,6 +407,7 @@ impl AppState {
         for (key, keep) in std::mem::take(&mut c.changed) {
             if let (false, Some(slot)) = (keep, c.slots.get_mut(&key)) {
                 slot.edited = None;
+                slot.edited_macros = None;
             }
         }
         self.settle_review();
