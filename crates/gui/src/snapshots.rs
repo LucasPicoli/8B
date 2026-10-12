@@ -603,6 +603,16 @@ fn review_of_macro_edits() {
 }
 
 #[test]
+fn review_of_profile_and_macro_edits() {
+    let mut s = macro_edits();
+    s.cancel_review();
+    s.set_output("r1", "disabled");
+    s.begin_review().unwrap();
+    s.review_read(PORT, true);
+    shoot("review-profile-and-macros", &s);
+}
+
+#[test]
 fn failure_with_a_saved_macro() {
     let mut s = macro_edits();
     let (_, jobs) = s.confirm_review().unwrap();

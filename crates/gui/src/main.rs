@@ -404,6 +404,10 @@ fn wire_writes(
     });
     let c = change.clone();
     ui.on_review_cancelled(move || c(&AppState::cancel_review));
+    let c = change.clone();
+    ui.on_review_section_toggled(move |section| {
+        c(&|s| s.toggle_review_section(usize::try_from(section).unwrap_or(usize::MAX)));
+    });
     let (c, tx) = (change.clone(), commands.clone());
     ui.on_write_all_clicked(move || {
         c(&|s| {

@@ -620,3 +620,123 @@ export component RangeSlider {
         }
     }
 }
+
+// A row whose header opens and closes its body: "Title · detail", then a muted note.
+// The body is the element's children. The Write all review and the review use it.
+export component Disclosure inherits Rectangle {
+    in property <string> title;
+    in property <string> detail;
+    in property <string> note;
+    in property <bool> open;
+    // A row with nothing to show opens to nothing.
+    in property <bool> has-body: true;
+    // The last row has no rule under it.
+    in property <bool> last;
+    callback toggled;
+
+    VerticalLayout {
+        header := Rectangle {
+            min-height: 32px;
+            background: ta.has-hover ? Theme.hover : transparent;
+            accessible-role: button;
+            accessible-label: root.detail != "" ? root.title + ", " + root.detail : root.title;
+            accessible-expandable: true;
+            accessible-expanded: root.open;
+            accessible-action-default => { root.toggled(); }
+
+            fs := FocusScope {
+                focus-on-click: false;
+                key-pressed(e) => {
+                    if (e.text == " " || e.text == Key.Return) {
+                        root.toggled();
+                        return accept;
+                    }
+                    reject
+                }
+            }
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                spacing: 8px;
+                Image {
+                    y: (parent.height - self.height) / 2;
+                    width: 14px;
+                    height: 14px;
+                    source: @image-url("icons/chevron.svg");
+                    colorize: Theme.fg-muted;
+                    transform-rotation: root.open ? 0deg : -90deg;
+                }
+                Text {
+                    text: root.title;
+                    font-weight: 600;
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: root.detail != "" ? " · " + root.detail : "";
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Text {
+                    text: root.note;
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                }
+            }
+            ta := TouchArea {
+                clicked => { root.toggled(); }
+            }
+            // Keyboard focus: the Breeze accent frame.
+            if fs.has-focus: Rectangle {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: parent.height - 4px;
+                border-radius: Theme.radius;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+        }
+        if root.open && root.has-body: Rectangle {
+            height: 1px;
+            background: Theme.line-soft;
+        }
+        // Slint allows no @children under an `if`, so a closed body is cut to nothing.
+        body := Rectangle {
+            visible: root.open && root.has-body;
+            height: self.visible ? self.preferred-height : 0px;
+            clip: true;
+            background: Theme.window;
+            VerticalLayout {
+                @children
+            }
+        }
+        if !root.last: Rectangle {
+            height: 1px;
+            background: Theme.line-soft;
+        }
+    }
+}
+
+// A line of text in a disclosure's body, such as one macro the write changes.
+export component NoteRow inherits Rectangle {
+    in property <string> text;
+    // A rule under the line.
+    in property <bool> rule;
+    min-height: 32px;
+    Text {
+        x: 10px;
+        width: parent.width - 20px;
+        text: root.text;
+        color: Theme.fg;
+        vertical-alignment: center;
+        wrap: word-wrap;
+    }
+    if root.rule: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+}

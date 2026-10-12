@@ -413,6 +413,29 @@ mod tests {
     }
 
     #[test]
+    fn the_macros_section_starts_open_when_it_is_first_or_the_write_destroys_a_macro() {
+        let mut s = held();
+        let open = |s: &AppState| {
+            let info = s.review_info((XINPUT, 2));
+            (info.profile_open, info.macros_open)
+        };
+        s.edit_macros(|m| m.push(macro_def(2, "Spin", &[], 1)));
+        assert!(open(&s).1, "with no profile changes the macros come first");
+        s.set_name("Fast");
+        assert_eq!(open(&s), (true, false), "an added macro destroys nothing");
+        s.toggle_review_section(1);
+        s.toggle_review_section(0);
+        assert_eq!(open(&s), (false, true));
+        s.toggle_review_section(1);
+        s.edit_macros(|m| {
+            m.remove(1);
+        });
+        assert!(open(&s).1, "removing Dash opens it");
+        s.begin_review().unwrap();
+        assert_eq!(open(&s), (true, true), "a new review starts over");
+    }
+
+    #[test]
     fn the_clear_question_counts_every_macro_the_pad_holds() {
         let mut s = held();
         s.begin_clear();

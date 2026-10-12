@@ -1,125 +1,30 @@
 // Write every edited slot: the review, the progress and the failure.
 import { Theme, Spinner } from "look/breeze/widgets.slint";
-import { Icons, DialogShell, ChangeRow, Frame } from "parts.slint";
+import { Icons, DialogShell, ChangeRow, Disclosure, Frame, NoteRow } from "parts.slint";
 import { BatchInfo, BatchSlot } from "types.slint";
 import { Bullet, BackupFile } from "dialogs.slint";
 
 // One slot in the review. The header opens and closes the slot's changes.
-component BatchSlotRow inherits Rectangle {
+component BatchSlotRow inherits Disclosure {
     in property <BatchSlot> slot;
-    // The last row has no rule under it.
-    in property <bool> last;
-    callback toggled;
-    property <bool> has-body: slot.changes.length > 0 || slot.macro-changes.length > 0 || slot.leftover > 0;
-
-    VerticalLayout {
-        header := Rectangle {
-            min-height: 32px;
-            background: ta.has-hover ? Theme.hover : transparent;
-            accessible-role: button;
-            accessible-label: root.slot.title + ", " + root.slot.name;
-            accessible-expandable: true;
-            accessible-expanded: root.slot.open;
-            accessible-action-default => { root.toggled(); }
-
-            fs := FocusScope {
-                focus-on-click: false;
-                key-pressed(e) => {
-                    if (e.text == " " || e.text == Key.Return) {
-                        root.toggled();
-                        return accept;
-                    }
-                    reject
-                }
-            }
-            HorizontalLayout {
-                padding-left: 10px;
-                padding-right: 10px;
-                spacing: 8px;
-                Image {
-                    y: (parent.height - self.height) / 2;
-                    width: 14px;
-                    height: 14px;
-                    source: @image-url("icons/chevron.svg");
-                    colorize: Theme.fg-muted;
-                    transform-rotation: root.slot.open ? 0deg : -90deg;
-                }
-                Text {
-                    text: root.slot.title;
-                    font-weight: 600;
-                    color: Theme.fg;
-                    vertical-alignment: center;
-                }
-                Text {
-                    horizontal-stretch: 1;
-                    text: " · " + root.slot.name;
-                    color: Theme.fg-muted;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
-                Text {
-                    text: root.slot.is-new
-                        ? "New profile"
-                        : root.slot.changes.length == 1 ? "1 change" : root.slot.changes.length + " changes";
-                    color: Theme.fg-muted;
-                    vertical-alignment: center;
-                }
-            }
-            ta := TouchArea {
-                clicked => { root.toggled(); }
-            }
-            // Keyboard focus: the Breeze accent frame.
-            if fs.has-focus: Rectangle {
-                x: 2px;
-                y: 2px;
-                width: parent.width - 4px;
-                height: parent.height - 4px;
-                border-radius: Theme.radius;
-                border-width: 2px;
-                border-color: Theme.accent;
-            }
-        }
-        if root.slot.open && root.has-body: Rectangle {
-            height: 1px;
-            background: Theme.line-soft;
-        }
-        if root.slot.open && root.has-body: Rectangle {
-            background: Theme.window;
-            VerticalLayout {
-                for c[i] in root.slot.changes: ChangeRow {
-                    change: c;
-                    rule: i < root.slot.changes.length - 1 || root.slot.macro-changes.length > 0 || root.slot.leftover > 0;
-                }
-                for r[i] in root.slot.macro-changes: Rectangle {
-                    min-height: 32px;
-                    Text {
-                        x: 10px;
-                        width: parent.width - 20px;
-                        text: r;
-                        color: Theme.fg;
-                        vertical-alignment: center;
-                        wrap: word-wrap;
-                    }
-                }
-                if root.slot.leftover > 0: Rectangle {
-                    min-height: 32px;
-                    Text {
-                        x: 10px;
-                        width: parent.width - 20px;
-                        text: root.slot.leftover == 1
-                            ? "The empty slot still holds 1 macro. Writing a profile removes it."
-                            : "The empty slot still holds " + root.slot.leftover + " macros. Writing a profile removes them.";
-                        color: Theme.fg;
-                        vertical-alignment: center;
-                        wrap: word-wrap;
-                    }
-                }
-            }
-        }
-        if !root.last: Rectangle {
-            height: 1px;
-            background: Theme.line-soft;
-        }
+    title: slot.title;
+    detail: slot.name;
+    note: slot.is-new
+        ? "New profile"
+        : slot.changes.length == 1 ? "1 change" : slot.changes.length + " changes";
+    open: slot.open;
+    has-body: slot.changes.length > 0 || slot.macro-changes.length > 0 || slot.leftover > 0;
+    for c[i] in root.slot.changes: ChangeRow {
+        change: c;
+        rule: i < root.slot.changes.length - 1 || root.slot.macro-changes.length > 0 || root.slot.leftover > 0;
+    }
+    for r[i] in root.slot.macro-changes: NoteRow {
+        text: r;
+    }
+    if root.slot.leftover > 0: NoteRow {
+        text: root.slot.leftover == 1
+            ? "The empty slot still holds 1 macro. Writing a profile removes it."
+            : "The empty slot still holds " + root.slot.leftover + " macros. Writing a profile removes them.";
     }
 }
 

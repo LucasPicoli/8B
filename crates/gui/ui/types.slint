@@ -150,6 +150,9 @@ export struct ReviewInfo {
     macros-stay: int,
     macro-changes: [string],
     leftover: int,
+    // The profile and macro sections show their lines.
+    profile-open: bool,
+    macros-open: bool,
     // Why the profile cannot be written as it is, empty when nothing stops it.
     problem: string,
 }

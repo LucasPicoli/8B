@@ -46,6 +46,9 @@ pub struct WriteState {
     pub reading_for: Option<Target>,
     /// The slot was read again: the review waits for a yes.
     pub review: Option<Target>,
+    /// The review's two sections, profile then macros, that the user opened or closed
+    /// from how they started.
+    pub review_flipped: [bool; 2],
     /// Clear slot was pressed: the question waits for a yes.
     pub clearing: Option<Target>,
     /// The writes the worker is running, and the controller they go to.
@@ -102,6 +105,7 @@ impl AppState {
         let target = self.writable().filter(|(_, slot)| self.slot_at(*slot).unsaved())?;
         let port = target.0.clone();
         self.write.reading_for = Some(target);
+        self.write.review_flipped = [false; 2];
         Some(port)
     }
 
@@ -159,6 +163,13 @@ impl AppState {
             && self.changed_slots().is_empty()
         {
             self.write.review = None;
+        }
+    }
+
+    /// Opens or closes section `section` of the review: 0 the profile, 1 the macros.
+    pub fn toggle_review_section(&mut self, section: usize) {
+        if let Some(flipped) = self.write.review_flipped.get_mut(section) {
+            *flipped = !*flipped;
         }
     }
 
@@ -357,7 +368,15 @@ impl AppState {
         let state = self.slot_at(slot);
         let leftover = self.active().and_then(|c| c.leftover.get(&slot)).copied().unwrap_or(0);
         let changes = self.change_list(slot);
+        let lines = self.macro_lines(slot);
+        // The first section starts open, and the macros whenever the write destroys one,
+        // as the rows of the Write all review do.
+        let [profile_flipped, macros_flipped] = self.write.review_flipped;
+        let macros_first = changes.is_empty();
+        let macros_open = macros_first || state.touches_held_macro() || leftover > 0;
         ReviewInfo {
+            profile_open: !profile_flipped,
+            macros_open: macros_open != macros_flipped,
             shown: true,
             slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
             name: state.shown().map(|e| e.name.as_str()).unwrap_or_default().into(),
@@ -367,7 +386,7 @@ impl AppState {
             total: count(changes.len().saturating_add(state.macros_edited())),
             changes: ModelRc::from(Rc::new(VecModel::from(changes))),
             macros_stay: count(state.macros_kept()),
-            macro_changes: ModelRc::from(Rc::new(VecModel::from(self.macro_lines(slot)))),
+            macro_changes: ModelRc::from(Rc::new(VecModel::from(lines))),
             leftover: count(leftover),
             problem: state
                 .edited

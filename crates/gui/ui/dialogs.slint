@@ -1,6 +1,6 @@
 // Review, clear, cross-mode import, failed write, close with edits.
 import { Theme, Button, ComboBox, LineEdit, Spinner } from "look/breeze/widgets.slint";
-import { Icons, DialogShell, ChangeTable, Frame, CopyButton, MessageBar } from "parts.slint";
+import { Icons, DialogShell, ChangeTable, ChangeRow, Disclosure, Frame, CopyButton, MessageBar, NoteRow } from "parts.slint";
 import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, CloseInfo, CloseSlot } from "types.slint";
 
 export component Bullet {
@@ -47,6 +47,10 @@ export component BackupFile {
 
 export component ReviewDialog inherits DialogShell {
     in property <ReviewInfo> info;
+    // Section 0 is the profile, 1 the macros.
+    callback toggled(int);
+    property <bool> has-profile: info.changes.length > 0;
+    property <int> macro-lines: info.macro-changes.length + (info.leftover > 0 ? 1 : 0);
     title: info.is-new
         ? "Write “" + info.name + "” to " + info.slot-title + "?"
         : "Write " + info.total + (info.total == 1 ? " change" : " changes") + " to " + info.slot-title + "?";
@@ -62,32 +66,41 @@ export component ReviewDialog inherits DialogShell {
         color: Theme.negative;
         wrap: word-wrap;
     }
-    if !root.info.is-new && root.info.changes.length > 0: ChangeTable {
-        model: root.info.changes;
+    if root.has-profile || root.macro-lines > 0: Frame {
+        VerticalLayout {
+            if root.has-profile: Disclosure {
+                title: "Profile";
+                note: root.info.changes.length == 1 ? "1 change" : root.info.changes.length + " changes";
+                open: root.info.profile-open;
+                last: root.macro-lines == 0;
+                toggled => { root.toggled(0); }
+                for c[i] in root.info.changes: ChangeRow {
+                    change: c;
+                    rule: i < root.info.changes.length - 1;
+                }
+            }
+            if root.macro-lines > 0: Disclosure {
+                title: "Macros";
+                note: root.macro-lines == 1 ? "1 change" : root.macro-lines + " changes";
+                open: root.info.macros-open;
+                last: true;
+                toggled => { root.toggled(1); }
+                for r[i] in root.info.macro-changes: NoteRow {
+                    text: r;
+                    rule: i < root.macro-lines - 1;
+                }
+                if root.info.leftover > 0: NoteRow {
+                    text: root.info.leftover == 1
+                        ? "The empty slot still holds 1 macro. Writing a profile removes it."
+                        : "The empty slot still holds " + root.info.leftover + " macros. Writing a profile removes them.";
+                }
+            }
+        }
     }
     if root.info.macros-stay > 0: Bullet {
         text: root.info.macros-stay == 1
             ? "The macro on this slot stays."
             : "The " + root.info.macros-stay + " macros on this slot stay.";
-    }
-    for r in root.info.macro-changes: Bullet {
-        text: r + ".";
-    }
-    if root.info.leftover > 0: Bullet {
-        text: root.info.leftover == 1
-            ? "The empty slot still holds 1 macro. Writing a profile removes it."
-            : "The empty slot still holds " + root.info.leftover + " macros. Writing a profile removes them.";
-    }
-    Bullet {
-        text: root.info.total > root.info.changes.length
-            ? "If the write fails, 8B puts the old profile and macros back. If it cannot, it saves them to files."
-            : "If the write fails, 8B puts the old profile back. If it cannot, it saves the old profile to a file.";
-    }
-    Bullet {
-        text: "8B reads the controller again after the write.";
-    }
-    Bullet {
-        text: "The controller uses the profile while that slot’s light is on.";
     }
 }
 

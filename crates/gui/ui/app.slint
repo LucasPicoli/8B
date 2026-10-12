@@ -165,6 +165,7 @@ export component AppWindow inherits Window {
     callback write-clicked;
     callback review-confirmed;
     callback review-cancelled;
+    callback review-section-toggled(int);
     callback clear-clicked;
     callback clear-confirmed;
     callback clear-cancelled;
@@ -505,6 +506,7 @@ export component AppWindow inherits Window {
         info: root.review;
         accepted => { root.review-confirmed(); }
         cancelled => { root.review-cancelled(); }
+        toggled(i) => { root.review-section-toggled(i); }
     }
 
     if root.clear.shown: ClearDialog {
