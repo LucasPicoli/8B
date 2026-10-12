@@ -813,7 +813,7 @@ fn the_batch_review_opens_and_closes_a_row_on_a_click() {
     let t = Rc::clone(&toggled);
     ui.on_batch_slot_toggled(move |row| t.set(row));
     // The header of the first row, in the card the review centres in the window.
-    click(&ui, 640.0, 216.0);
+    click(&ui, 640.0, 257.0);
     assert_eq!(toggled.get(), 0);
 }
 

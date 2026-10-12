@@ -2,7 +2,7 @@
 import { Theme, Spinner } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeRow, Disclosure, Frame, NoteRow } from "parts.slint";
 import { BatchInfo, BatchSlot } from "types.slint";
-import { Bullet, BackupFile } from "dialogs.slint";
+import { BackupFile } from "dialogs.slint";
 
 // One slot in the review. The header opens and closes the slot's changes.
 component BatchSlotRow inherits Disclosure {
@@ -111,17 +111,6 @@ export component BatchReviewDialog inherits DialogShell {
                 toggled => { root.toggled(i); }
             }
         }
-    }
-    Bullet {
-        text: root.info.any-removed
-            ? "Each slot keeps its macros, except where a line under the slot says otherwise."
-            : "Each slot keeps the macros it has.";
-    }
-    Bullet {
-        text: "8B writes the slots of each mode together and reads them back.";
-    }
-    Bullet {
-        text: "If a write fails, 8B puts that mode’s slots back and stops. The slots after them are not written.";
     }
 }
 

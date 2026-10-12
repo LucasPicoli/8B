@@ -264,7 +264,6 @@ impl AppState {
             let review = self.review_info(key);
             let removes = self.slot(key.0, key.1).touches_held_macro() || review.leftover > 0;
             info.any_new |= review.is_new;
-            info.any_removed |= removes;
             if !review.is_new {
                 info.total_changes = info.total_changes.saturating_add(review.total);
             }
@@ -527,8 +526,6 @@ mod tests {
         s.read_finished(PORT, Ok(full_read()));
         s.review_read(PORT, true);
         let open = |s: &AppState| s.batch_info().slots.iter().map(|r| r.open).collect::<Vec<_>>();
-        let info = s.batch_info();
-        assert!(info.any_removed);
         assert_eq!(open(&s), [true, false, false], "slot 2 is first and removes macros");
 
         // The first row closes on a click, and a second slot opens.
@@ -559,7 +556,6 @@ mod tests {
         let s = reviewing();
         let info = s.batch_info();
         assert!(info.any_new, "XInput slot 3 is new");
-        assert!(!info.any_removed);
         // The two renames; the new slot has no change list.
         assert_eq!(info.total_changes, 2);
         let rows: Vec<_> = info.slots.iter().collect();
