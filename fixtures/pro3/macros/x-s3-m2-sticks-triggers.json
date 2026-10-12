@@ -38,6 +38,6 @@
       "duration_ms": 0
     }
   ],
-  "trigger": "r4",
+  "trigger_buttons": ["r4"],
   "version": 1
 }

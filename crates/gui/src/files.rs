@@ -346,8 +346,10 @@ mod tests {
     fn macro_refs_in_the_file_are_skipped_with_a_note() {
         let mut s = connected(DINPUT);
         let text = file(&s, DINPUT, 1, |p| {
-            p.macro_refs =
-                vec![MacroRef { trigger: "right face".to_owned(), path: "m.json".to_owned() }];
+            p.macro_refs = vec![MacroRef {
+                trigger_buttons: vec!["right face".to_owned()],
+                path: "m.json".to_owned(),
+            }];
         });
         s.import((DINPUT, 3), "m.json", Ok(text));
         let edited = s.slot(DINPUT, 3).edited.unwrap();

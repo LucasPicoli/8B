@@ -110,8 +110,9 @@ pub fn build_read_payload(out: &DetectAndReadResult) -> (Value, i32) {
 /// Builds the read-macro success JSON payload and exit code.
 ///
 /// Emits one `macros` entry per macro slot of the model, `macro_slots` of them (4 on a
-/// Pro 3); each active entry carries `trigger`/`name`/`step_count`/`repeat_count`/
-/// `interval_ms`; inactive entries carry only `macro_slot` and `active: false`.
+/// Pro 3); each active entry carries `trigger_buttons`/`name`/`step_count`/`repeat_count`/
+/// `interval_ms`; inactive entries carry only `macro_slot` and `active: false`. A
+/// `warnings` list names trigger bits that name no button, when a macro has some.
 #[must_use]
 pub fn build_read_macro_ok_payload(
     mode: Mode,
@@ -133,7 +134,7 @@ pub fn build_read_macro_ok_payload(
                     json!({
                         "macro_slot": macro_slot,
                         "active": true,
-                        "trigger": def.trigger,
+                        "trigger_buttons": def.trigger_buttons,
                         "name": def.name,
                         "step_count": def.steps.len(),
                         "repeat_count": def.repeat_count,
@@ -152,6 +153,10 @@ pub fn build_read_macro_ok_payload(
     map.insert("mode".to_owned(), Value::String(mode.to_string()));
     map.insert("slot".to_owned(), Value::Number(slot.into()));
     map.insert("macros".to_owned(), Value::Array(macros));
+    let warnings = res.warnings();
+    if !warnings.is_empty() {
+        map.insert("warnings".to_owned(), json!(warnings));
+    }
     map.insert("message".to_owned(), Value::String(message));
 
     (Value::Object(map), 0)
@@ -454,7 +459,8 @@ mod tests {
         MacroDefinition {
             name: "TestMacro".to_owned(),
             mode: XINPUT,
-            trigger: "l1".to_owned(),
+            trigger_buttons: vec!["l1".to_owned()],
+            unknown_trigger_bits: 0,
             repeat_count: 1,
             interval_ms: 50,
             steps: vec![MacroStep::default(), MacroStep::default(), MacroStep::default()],
@@ -464,21 +470,27 @@ mod tests {
 
     #[test]
     fn read_macro_ok_four_entry_array() {
-        let res = MacroReadResult { macros: vec![make_macro_def(0)] };
+        let mut odd = make_macro_def(2);
+        odd.unknown_trigger_bits = 0x0010_0000;
+        let res = MacroReadResult { macros: vec![make_macro_def(0), odd] };
         let (payload, code) = build_read_macro_ok_payload(XINPUT, 1, &res, 4);
         assert_eq!(code, 0);
+        assert_eq!(
+            payload["warnings"],
+            json!(["Macro slot 2 ('TestMacro') has trigger bits that name no button: 0x00100000."])
+        );
         let macros = payload["macros"].as_array().unwrap();
         assert_eq!(macros.len(), 4, "must always emit 4 macro entries");
         assert_eq!(macros[0]["active"], true);
-        assert_eq!(macros[0]["trigger"], "l1");
+        assert_eq!(macros[0]["trigger_buttons"], json!(["l1"]));
         assert_eq!(macros[0]["name"], "TestMacro");
         assert_eq!(macros[0]["step_count"], 3);
         assert_eq!(macros[1]["active"], false);
-        assert!(macros[1].get("trigger").is_none(), "inactive entry must not have trigger field");
-        assert_eq!(macros[2]["active"], false);
+        assert!(macros[1].get("trigger_buttons").is_none(), "an inactive entry has no buttons");
+        assert_eq!(macros[2]["active"], true);
         assert_eq!(macros[3]["active"], false);
         let msg = payload["message"].as_str().unwrap();
-        assert_eq!(msg, "Read 1 active macro(s) from xinput slot 1");
+        assert_eq!(msg, "Read 2 active macro(s) from xinput slot 1");
     }
 
     // -----------------------------------------------------------------------

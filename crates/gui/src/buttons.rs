@@ -28,7 +28,7 @@ pub fn current(profile: &CanonicalProfile, button: &str) -> String {
     profile
         .macro_refs
         .iter()
-        .find(|m| m.trigger == button)
+        .find(|m| m.trigger_buttons.iter().any(|b| b == button))
         .map_or_else(|| target(profile, button).to_owned(), |m| format!("{MACRO_OUTPUT}{}", m.path))
 }
 
@@ -341,7 +341,7 @@ mod tests {
         let pad =
             s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
         pad.macro_refs.push(controller_core::model::MacroRef {
-            trigger: "rp".to_owned(),
+            trigger_buttons: vec!["rp".to_owned()],
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
         });
         s
@@ -362,7 +362,7 @@ mod tests {
     }
 
     #[test]
-    fn a_pick_removes_the_macro_and_discard_brings_it_back() {
+    fn a_pick_takes_the_button_off_its_macro_and_discard_brings_it_back() {
         let mut s = with_macro();
         let at = s.description().buttons.iter().position(|b| b.id == "rp").unwrap();
         let (button, output) = picked_output(&s, at, 1).unwrap();
@@ -371,7 +371,9 @@ mod tests {
         let row = &rows(&s)[at];
         assert_eq!(row.outputs.row_data(usize::try_from(row.output).unwrap()).unwrap(), "B");
         assert!(row.changed);
-        assert_eq!(s.slot(XINPUT, 1).edited.unwrap().macro_refs, []);
+        let refs = s.slot(XINPUT, 1).edited.unwrap().macro_refs;
+        assert_eq!(refs.len(), 1, "the macro stays");
+        assert!(refs[0].trigger_buttons.is_empty(), "with no button");
         assert!(s.slot_dirty(XINPUT, 1).buttons);
         s.discard();
         assert_eq!(rows(&s)[at].outputs.row_data(0).unwrap(), "Macro 1 (Buttons)");

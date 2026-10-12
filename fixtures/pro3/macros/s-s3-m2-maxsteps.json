@@ -2813,6 +2813,6 @@
       "duration_ms": 10
     }
   ],
-  "trigger": "select/back",
+  "trigger_buttons": ["select/back"],
   "version": 1
 }

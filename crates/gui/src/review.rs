@@ -166,17 +166,20 @@ impl AppState {
     }
 
     /// The job that writes the edits of `slot` of the shown controller: the profile
-    /// with its own id and no macro references, and the macros whose button got
-    /// another output.
+    /// with its own id and no macro references, and the buttons that no longer start
+    /// their macro because they got another output.
     pub fn upload_job(&self, slot: (Mode, u8)) -> Option<WriteJob> {
         let state = self.slot_at(slot);
         let mut profile = state.edited.clone()?;
+        let kept: Vec<&String> =
+            profile.macro_refs.iter().flat_map(|m| &m.trigger_buttons).collect();
         let removed = state
             .pad
             .iter()
             .flat_map(|p| &p.macro_refs)
-            .filter(|m| !profile.macro_refs.iter().any(|e| e.trigger == m.trigger))
-            .map(|m| m.trigger.clone())
+            .flat_map(|m| &m.trigger_buttons)
+            .filter(|b| !kept.contains(b))
+            .cloned()
             .collect();
         if profile.id.is_empty() {
             profile.id = canonical_id(slot.0, slot.1, slot.1.checked_sub(1)?);
@@ -342,25 +345,40 @@ impl AppState {
         out
     }
 
+    /// One line per macro of `slot` whose trigger buttons the edits change, such as
+    /// "Jump (Macro 2) changed: starts with A, B to A".
+    fn macro_changes(&self, slot: (Mode, u8)) -> Vec<SharedString> {
+        let state = self.slot_at(slot);
+        let (Some(pad), Some(edited)) = (&state.pad, &state.edited) else {
+            return Vec::new();
+        };
+        let label = |ids: &[String]| {
+            if ids.is_empty() {
+                return "No button".to_owned();
+            }
+            let labels: Vec<_> =
+                ids.iter().map(|b| output_label(self.description(), slot.0, b)).collect();
+            labels.join(", ")
+        };
+        pad.macro_refs
+            .iter()
+            .filter_map(|old| {
+                let new = edited.macro_refs.iter().find(|e| e.path == old.path)?;
+                (new.trigger_buttons != old.trigger_buttons).then(|| {
+                    let title = parse_macro_file_name(&old.path).map_or_else(
+                        || "A macro".to_owned(),
+                        |(n, name)| format!("{name} (Macro {})", n + 1),
+                    );
+                    let (from, to) = (label(&old.trigger_buttons), label(&new.trigger_buttons));
+                    format!("{title} changed: starts with {from} to {to}").into()
+                })
+            })
+            .collect()
+    }
+
     /// What the review of `slot` tells the user.
     pub fn review_info(&self, slot: (Mode, u8)) -> ReviewInfo {
         let state = self.slot_at(slot);
-        let removed: Vec<SharedString> = state
-            .pad
-            .iter()
-            .flat_map(|p| &p.macro_refs)
-            .filter(|m| {
-                !state.edited.iter().any(|e| e.macro_refs.iter().any(|x| x.trigger == m.trigger))
-            })
-            .map(|m| {
-                parse_macro_file_name(&m.path)
-                    .map_or_else(
-                        || "Removes a macro".to_owned(),
-                        |(n, name)| format!("Removes macro {} ({name})", n + 1),
-                    )
-                    .into()
-            })
-            .collect();
         let kept = state.edited.as_ref().map_or(0, |e| e.macro_refs.len());
         let leftover = self.active().and_then(|c| c.leftover.get(&slot)).copied().unwrap_or(0);
         let changes = self.change_list(slot);
@@ -372,7 +390,7 @@ impl AppState {
             is_new: state.pad.is_none(),
             changes: ModelRc::from(Rc::new(VecModel::from(changes))),
             macros_stay: count(kept),
-            removed: ModelRc::from(Rc::new(VecModel::from(removed))),
+            macro_changes: ModelRc::from(Rc::new(VecModel::from(self.macro_changes(slot)))),
             leftover: count(leftover),
             problem: state
                 .edited
@@ -503,7 +521,7 @@ mod tests {
         let mut s = connected(XINPUT);
         let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap();
         pad.pad.as_mut().unwrap().macro_refs.push(MacroRef {
-            trigger: "rp".to_owned(),
+            trigger_buttons: vec!["rp".to_owned()],
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
         });
         s.set_name("Mine");
@@ -518,7 +536,7 @@ mod tests {
     fn read_with_macro() -> controller_core::model::ProfileReadResult {
         let mut read = full_read();
         read.profiles[0].canonical.macro_refs.push(MacroRef {
-            trigger: "rp".to_owned(),
+            trigger_buttons: vec!["rp".to_owned()],
             path: "xinput-slot1-macro0-Buttons.json".to_owned(),
         });
         read
@@ -561,10 +579,28 @@ mod tests {
         s.review_read(PORT, true);
         assert_eq!(s.review_open().map(|t| t.1), Some((XINPUT, 1)));
         let info = s.review_info((XINPUT, 1));
-        assert!(!info.is_new && info.macros_stay == 0);
+        assert!(!info.is_new && info.macros_stay == 1);
         assert_eq!(info.replaces, "XInput");
-        let removed: Vec<_> = info.removed.iter().collect();
-        assert_eq!(removed, ["Removes macro 1 (Buttons)"]);
+        let changed: Vec<_> = info.macro_changes.iter().collect();
+        assert_eq!(changed, ["Buttons (Macro 1) changed: starts with PR to No button"]);
+    }
+
+    #[test]
+    fn a_remap_takes_one_button_off_a_two_button_macro() {
+        let mut s = connected(XINPUT);
+        let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap();
+        pad.pad.as_mut().unwrap().macro_refs.push(MacroRef {
+            trigger_buttons: vec!["rp".to_owned(), "lp".to_owned()],
+            path: "xinput-slot1-macro1-Jump.json".to_owned(),
+        });
+        s.set_output("rp", "right face");
+        let info = s.review_info((XINPUT, 1));
+        assert_eq!(info.macros_stay, 1);
+        let changed: Vec<_> = info.macro_changes.iter().collect();
+        assert_eq!(changed, ["Jump (Macro 2) changed: starts with PR, PL to PL"]);
+        let job = s.upload_job((XINPUT, 1)).unwrap();
+        let WriteOp::Upload { drop_macros, .. } = job.op else { panic!("an upload") };
+        assert_eq!(drop_macros, ["rp"]);
     }
 
     #[test]

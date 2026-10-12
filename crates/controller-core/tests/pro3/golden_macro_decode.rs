@@ -25,7 +25,8 @@ fn macro_steps_decode_to_golden_json() {
     let def = MacroDefinition {
         name: expected["name"].as_str().unwrap_or("").to_owned(),
         mode: XINPUT,
-        trigger: expected["trigger"].as_str().unwrap().to_owned(),
+        trigger_buttons: serde_json::from_value(expected["trigger_buttons"].clone()).unwrap(),
+        unknown_trigger_bits: 0,
         repeat_count: u32::try_from(expected["repeat"]["count"].as_u64().unwrap()).unwrap(),
         interval_ms: u32::try_from(expected["repeat"]["interval_ms"].as_u64().unwrap()).unwrap(),
         steps,
@@ -41,7 +42,7 @@ fn macro_metadata_decodes_from_section4() {
     assert_eq!(metas.len(), 1);
     let m = &metas[0];
     assert_eq!(m.name, "GoldenMac");
-    assert_eq!(m.trigger, "l1");
+    assert_eq!(m.trigger_buttons, ["l1"]);
     assert_eq!(m.repeat_count, 3);
     assert_eq!(m.interval_ms, 100);
     assert_eq!(m.macro_slot, Some(0));
@@ -62,7 +63,7 @@ fn profile_read_fills_macro_refs_from_section4() {
         Pro3.map_profile(&raw).unwrap().canonical.macro_refs
     };
     let expected = MacroRef {
-        trigger: "l1".to_owned(),
+        trigger_buttons: vec!["l1".to_owned()],
         path: "xinput-slot1-macro0-GoldenMac.json".to_owned(),
     };
     assert_eq!(read(XINPUT), vec![expected]);

@@ -28,13 +28,16 @@ fn bitmask_to_step_button_names(keys: u16) -> Vec<String> {
         .collect()
 }
 
-/// Converts a 32-bit `KeyMap` value to its canonical trigger name, or `""` when
-/// it matches no single-button trigger.
-fn key_map_to_trigger_name(key_map: u32) -> String {
-    tables::TRIGGERS
+/// Splits a 32-bit `KeyMap` value into its trigger button names, in table order, and
+/// the bits that name no button.
+fn key_map_to_trigger_buttons(key_map: u32) -> (Vec<String>, u32) {
+    let names = tables::TRIGGERS
         .iter()
-        .find(|entry| entry.key_map == key_map)
-        .map_or_else(String::new, |entry| entry.name.to_owned())
+        .filter(|entry| key_map & entry.key_map != 0)
+        .map(|entry| entry.name.to_owned())
+        .collect();
+    let known = tables::TRIGGERS.iter().fold(0, |bits, entry| bits | entry.key_map);
+    (names, key_map & !known)
 }
 
 /// Decodes the macro descriptors in Section 4 of a profile blob for `profile_slot`.
@@ -78,7 +81,7 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
         let mode_byte = read_u8(descriptor, tables::MACRO_MODE_OFFSET)?;
         let mode = gamepad_byte_to_mode(mode_byte);
 
-        let trigger = key_map_to_trigger_name(key_map);
+        let (trigger_buttons, unknown_trigger_bits) = key_map_to_trigger_buttons(key_map);
         let repeat_count = read_u32_le(descriptor, tables::MACRO_REPEAT_COUNT_OFFSET)?;
         let interval_ms = read_u32_le(descriptor, tables::MACRO_INTERVAL_MS_OFFSET)?;
 
@@ -88,7 +91,8 @@ pub fn decode_macro_metadata(blob: &[u8], profile_slot: Slot) -> Result<Vec<Macr
         result.push(MacroDefinition {
             name,
             mode,
-            trigger,
+            trigger_buttons,
+            unknown_trigger_bits,
             repeat_count,
             interval_ms,
             // Pre-populate with `max_steps` default entries so callers know how
@@ -194,16 +198,19 @@ fn step_button_mask(name: &str) -> Result<u16> {
         .ok_or_else(|| Error::Validation(format!("unknown step button: {name}")))
 }
 
-/// Returns the 32-bit `KeyMap` value for a canonical trigger name.
+/// Returns the 32-bit `KeyMap` value for a list of trigger buttons: the OR of
+/// their bits, 0 for none.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `name` is not in [`tables::TRIGGERS`].
-fn trigger_key_map(name: &str) -> Result<u32> {
-    tables::TRIGGERS
-        .iter()
-        .find(|e| e.name == name)
-        .map(|e| e.key_map)
-        .ok_or_else(|| Error::Validation(format!("unknown macro trigger: {name}")))
+/// Returns [`Error::Validation`] if a name is not in [`tables::TRIGGERS`].
+pub(super) fn trigger_key_map(names: &[String]) -> Result<u32> {
+    names.iter().try_fold(0, |bits, name| {
+        tables::TRIGGERS
+            .iter()
+            .find(|e| e.name == name)
+            .map(|e| bits | e.key_map)
+            .ok_or_else(|| Error::Validation(format!("unknown macro trigger: {name}")))
+    })
 }
 
 /// Encodes `steps` into the padded wire step stream.
@@ -269,8 +276,8 @@ pub fn encode_macro_steps(steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
 /// canonical offsets.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `def.mode` is not a Pro 3 mode, if `def.trigger`
-/// is unknown, if `def.steps.len()` overflows `u16`, or if the `macro_slot` offset
+/// Returns [`Error::Validation`] if `def.mode` is not a Pro 3 mode, if a trigger button
+/// of `def` is unknown, if `def.steps.len()` overflows `u16`, or if the `macro_slot` offset
 /// overflows `u16`.
 pub fn encode_macro_metadata(def: &MacroDefinition, macro_slot: MacroSlot) -> Result<Vec<u8>> {
     let mut out = vec![0u8; tables::MACRO_DESCRIPTOR_SIZE];
@@ -297,7 +304,7 @@ pub fn encode_macro_metadata(def: &MacroDefinition, macro_slot: MacroSlot) -> Re
     put_u16_le(&mut out, tables::MACRO_OFFSET_FIELD_OFFSET, offset)?;
 
     // [40..44] key_map LE32.
-    let key_map = trigger_key_map(&def.trigger)?;
+    let key_map = trigger_key_map(&def.trigger_buttons)?;
     put_u32_le(&mut out, tables::MACRO_KEY_MAP_OFFSET, key_map)?;
 
     // [44..48] cycles_num LE32.
@@ -331,10 +338,14 @@ mod tests {
     }
 
     #[test]
-    fn key_map_reverses_to_trigger_name() {
-        assert_eq!(key_map_to_trigger_name(0x0000_0400), "l1");
-        assert_eq!(key_map_to_trigger_name(0x4000_0000), "r4");
-        assert_eq!(key_map_to_trigger_name(0xDEAD_BEEF), "");
+    fn key_map_splits_into_trigger_buttons_and_unknown_bits() {
+        let names = |v: &[&str]| v.iter().map(|&s| s.to_owned()).collect::<Vec<_>>();
+        assert_eq!(key_map_to_trigger_buttons(0x0000_0400), (names(&["l1"]), 0));
+        assert_eq!(key_map_to_trigger_buttons(0x4000_0400), (names(&["l1", "r4"]), 0));
+        assert_eq!(key_map_to_trigger_buttons(0), (Vec::new(), 0));
+        assert_eq!(key_map_to_trigger_buttons(0x4010_0000), (names(&["r4"]), 0x0010_0000));
+        assert_eq!(trigger_key_map(&names(&["r4", "l1"])).unwrap(), 0x4000_0400);
+        assert_eq!(trigger_key_map(&[]).unwrap(), 0);
     }
 
     #[test]
@@ -366,6 +377,6 @@ mod tests {
         for name in ["l4", "turbo", "home/guide", "nope"] {
             assert!(matches!(encode_macro_steps(&[step(name)], XINPUT), Err(Error::Validation(_))));
         }
-        assert!(matches!(trigger_key_map("home/guide"), Err(Error::Validation(_))));
+        assert!(matches!(trigger_key_map(&["home/guide".into()]), Err(Error::Validation(_))));
     }
 }

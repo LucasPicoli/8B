@@ -16,12 +16,12 @@ use crate::service::{bank_of, confirm_slot, ConfirmPolicy};
 /// What a write does to its slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WriteOp {
-    /// Put this profile in the slot. The slot keeps the macros it has, except those
-    /// the buttons in `drop_macros` start.
+    /// Put this profile in the slot. The slot keeps the macros it has, and the buttons
+    /// in `drop_macros` no longer start any of them.
     Upload {
         /// The profile, as the profile schema holds it, with no `macro_refs`.
         profile: Value,
-        /// The trigger of each macro to remove.
+        /// The buttons to take off the slot's macros, each one that got another output.
         drop_macros: Vec<String>,
     },
     /// Empty the slot. Its macros stay stored.

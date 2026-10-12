@@ -79,7 +79,8 @@ fn macro_def(mode: Mode, name: &str, trigger: &str, n: u8) -> MacroDefinition {
     MacroDefinition {
         name: name.into(),
         mode,
-        trigger: trigger.into(),
+        trigger_buttons: vec![trigger.into()],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 0,
         steps: steps(n),

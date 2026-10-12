@@ -3,7 +3,7 @@
 
 use controller_core::device::{ControllerSpec, ProtocolCodec};
 use controller_core::devices::pro3::{Pro3, DINPUT, SWITCH, XINPUT};
-use controller_core::model::{MacroDefinition, MacroSlot, MacroStep};
+use controller_core::model::{MacroDefinition, MacroSlot, MacroStep, Slot};
 
 const SECTION4_GOLDENMAC_DESCRIPTOR_OFFSET: usize = 0x0694; // slot1 macro0 in macro-meta.blob
 
@@ -73,7 +73,8 @@ fn macro_metadata_is_byte_exact_against_goldenmac_descriptor() {
     let def = MacroDefinition {
         name: "GoldenMac".into(),
         mode: XINPUT,
-        trigger: "l1".into(),
+        trigger_buttons: vec!["l1".into()],
+        unknown_trigger_bits: 0,
         repeat_count: 3,
         interval_ms: 100,
         steps: vec![MacroStep::default(); 3], // max_steps = 3
@@ -88,7 +89,8 @@ fn macro_metadata_round_trips_through_decoder() {
     let def = MacroDefinition {
         name: "GoldenMac".into(),
         mode: XINPUT,
-        trigger: "l1".into(),
+        trigger_buttons: vec!["l1".into()],
+        unknown_trigger_bits: 0,
         repeat_count: 3,
         interval_ms: 100,
         steps: vec![MacroStep::default(); 3],
@@ -104,7 +106,7 @@ fn macro_metadata_round_trips_through_decoder() {
         Pro3.decode_macro_metadata(&blob, controller_core::model::Slot::new(1).unwrap()).unwrap();
     assert_eq!(metas.len(), 1);
     assert_eq!(metas[0].name, "GoldenMac");
-    assert_eq!(metas[0].trigger, "l1");
+    assert_eq!(metas[0].trigger_buttons, ["l1"]);
     assert_eq!(metas[0].repeat_count, 3);
     assert_eq!(metas[0].interval_ms, 100);
     assert_eq!(metas[0].macro_slot, Some(0));
@@ -118,7 +120,8 @@ fn macro_metadata_is_byte_exact_against_dinput_descriptor_with_16_unit_name() {
     let def = MacroDefinition {
         name: "macro1dinputTEST".into(),
         mode: DINPUT,
-        trigger: "r4".into(),
+        trigger_buttons: vec!["r4".into()],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 0,
         steps: vec![MacroStep::default(); 199],
@@ -129,13 +132,35 @@ fn macro_metadata_is_byte_exact_against_dinput_descriptor_with_16_unit_name() {
     assert_eq!(encoded[32], 1, "DInput gamepad_mode byte");
 }
 
+/// The pad keeps a `key_map` with two trigger bits, `rp` and `lp` (0x06000000), and one
+/// with none, as written. Each case is `dinput-macro.blob` with the `r4` bit of slot 1's
+/// macro slot 3 swapped for it.
+#[test]
+fn trigger_buttons_decode_from_and_encode_to_the_key_map_bits() {
+    let golden = std::fs::read("../../fixtures/pro3/dinput-macro.blob").unwrap();
+    let descriptor = 0x068C + 8 + 3 * 52;
+    let key_map = descriptor + 40;
+    assert_eq!(golden[key_map..key_map + 4], 0x4000_0000u32.to_le_bytes());
+    for (bits, buttons) in [(0x0600_0000u32, vec!["rp", "lp"]), (0, vec![])] {
+        let mut blob = golden.clone();
+        blob[key_map..key_map + 4].copy_from_slice(&bits.to_le_bytes());
+        let read = Pro3.decode_macro_metadata(&blob, Slot::new(1).unwrap()).unwrap();
+        let mut def = read.into_iter().find(|d| d.macro_slot == Some(3)).unwrap();
+        assert_eq!(def.trigger_buttons, buttons, "{bits:#x}");
+        def.trigger_buttons.reverse();
+        let encoded = Pro3.encode_macro_metadata(&def, MacroSlot::new(3).unwrap()).unwrap();
+        assert_eq!(encoded, blob[descriptor..descriptor + 52], "{bits:#x}");
+    }
+}
+
 #[test]
 fn macro_metadata_mode_byte_follows_the_model() {
     for (mode, byte) in [(SWITCH, 0), (DINPUT, 1), (XINPUT, 3)] {
         let def = MacroDefinition {
             name: "m".into(),
             mode,
-            trigger: "l1".into(),
+            trigger_buttons: vec!["l1".into()],
+            unknown_trigger_bits: 0,
             repeat_count: 1,
             interval_ms: 0,
             steps: vec![MacroStep::default()],

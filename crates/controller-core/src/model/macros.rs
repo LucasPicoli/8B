@@ -62,8 +62,12 @@ pub struct MacroDefinition {
     pub name: String,
     /// Mode (`xinput`, `switch` or `dinput`).
     pub mode: Mode,
-    /// Canonical trigger name.
-    pub trigger: String,
+    /// The buttons that start the macro (its macro trigger buttons), in the order of
+    /// the controller description. Empty when no button starts it.
+    pub trigger_buttons: Vec<String>,
+    /// Trigger bits read from the pad that name no button, kept to warn about them.
+    /// They are never written back. Always 0 for a macro that was not read.
+    pub unknown_trigger_bits: u32,
     /// Repeat count, or [`REPEAT_CONTINUOUS`].
     pub repeat_count: u32,
     /// Interval between repeats (ms).
@@ -105,8 +109,9 @@ pub const STICK_CENTER: u8 = 127;
 /// Serializes a [`MacroDefinition`] to canonical macro JSON for `device`, the device
 /// string of the model's profiles.
 ///
-/// Top-level: `version:1, device, mode, name, trigger,
-/// repeat:{count,interval_ms}, steps:[...]`. Per step, `actions.buttons` is
+/// Top-level: `version:1, device, mode, name, trigger_buttons,
+/// repeat:{count,interval_ms}, steps:[...]`. `trigger_buttons` keeps the order of
+/// `def`, which a read gives in the order of the controller description. Per step, `actions.buttons` is
 /// ALWAYS emitted (with `press`+`release` arrays; the wire format only tracks
 /// the currently-pressed set, so `release` is always empty); `left_stick`,
 /// `right_stick` and `triggers` are OMITTED when at their defaults (stick
@@ -120,7 +125,7 @@ pub fn macro_to_json(def: &MacroDefinition, device: &str) -> Value {
         "device": device,
         "mode": def.mode.as_str(),
         "name": def.name,
-        "trigger": def.trigger,
+        "trigger_buttons": def.trigger_buttons,
         "repeat": {
             "count": def.repeat_count,
             "interval_ms": def.interval_ms,
@@ -174,7 +179,9 @@ struct MacroFile {
     #[serde(default)]
     name: String,
     mode: Mode,
-    trigger: String,
+    /// The legacy single trigger of a v0.1.1 file.
+    trigger: Option<String>,
+    trigger_buttons: Option<Vec<String>>,
     repeat: RepeatFile,
     steps: Vec<StepFile>,
 }
@@ -222,15 +229,29 @@ struct TriggersFile {
 /// [`macro_to_json`].
 ///
 /// A step's `press` list is the set of buttons held during it, as
-/// the pad stores a step. `macro_slot` is `None`: the caller names the slot.
+/// the pad stores a step. `macro_slot` is `None`: the caller names the slot. The legacy
+/// `trigger` string of a v0.1.1 file reads as a one-button `trigger_buttons`.
 ///
 /// Run the validator first. This only reads the shape, and checks no button name.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `json` does not have the macro file shape.
+/// Returns [`Error::Validation`] if `json` does not have the macro file shape, or has
+/// both `trigger` and `trigger_buttons`, or neither.
 pub fn macro_from_json(json: &Value) -> Result<MacroDefinition> {
     let file = MacroFile::deserialize(json)
         .map_err(|e| Error::Validation(format!("This is not a macro: {e}.")))?;
+    let trigger_buttons = match (file.trigger, file.trigger_buttons) {
+        (None, Some(buttons)) => buttons,
+        (Some(button), None) => vec![button],
+        (Some(_), Some(_)) => {
+            return Err(Error::Validation(
+                "A macro has either trigger or trigger_buttons, not both.".into(),
+            ))
+        }
+        (None, None) => {
+            return Err(Error::Validation("This is not a macro: it has no trigger_buttons.".into()))
+        }
+    };
     let stick = |s: Option<StickFile>| s.map_or((STICK_CENTER, STICK_CENTER), |s| (s.x, s.y));
     let steps = file
         .steps
@@ -255,7 +276,8 @@ pub fn macro_from_json(json: &Value) -> Result<MacroDefinition> {
     Ok(MacroDefinition {
         name: file.name,
         mode: file.mode,
-        trigger: file.trigger,
+        trigger_buttons,
+        unknown_trigger_bits: 0,
         repeat_count: file.repeat.count,
         interval_ms: file.repeat.interval_ms,
         steps,
@@ -264,7 +286,7 @@ pub fn macro_from_json(json: &Value) -> Result<MacroDefinition> {
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
     use crate::devices::pro3::XINPUT;
@@ -274,7 +296,8 @@ mod tests {
         let def = MacroDefinition {
             name: "My-macro 1".into(),
             mode: XINPUT,
-            trigger: "l1".into(),
+            trigger_buttons: vec!["l1".into()],
+            unknown_trigger_bits: 0,
             repeat_count: 1,
             interval_ms: 0,
             steps: Vec::new(),
@@ -291,7 +314,8 @@ mod tests {
         let def = MacroDefinition {
             name: "Mix".into(),
             mode: XINPUT,
-            trigger: "r4".into(),
+            trigger_buttons: vec!["r4".into()],
+            unknown_trigger_bits: 0,
             repeat_count: REPEAT_CONTINUOUS,
             interval_ms: 40,
             steps: vec![
@@ -307,7 +331,15 @@ mod tests {
             ],
             macro_slot: None,
         };
-        assert_eq!(macro_from_json(&macro_to_json(&def, "8bitdo-pro3")).unwrap(), def);
+        let json = macro_to_json(&def, "8bitdo-pro3");
+        assert_eq!(macro_from_json(&json).unwrap(), def);
         assert!(macro_from_json(&json!({ "name": "x" })).is_err());
+
+        let mut legacy = json;
+        legacy.as_object_mut().unwrap().remove("trigger_buttons");
+        legacy["trigger"] = "r4".into();
+        assert_eq!(macro_from_json(&legacy).unwrap(), def, "a v0.1.1 file");
+        legacy["trigger_buttons"] = json!(["r4"]);
+        assert!(macro_from_json(&legacy).is_err(), "both fields");
     }
 }

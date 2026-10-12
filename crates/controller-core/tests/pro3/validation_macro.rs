@@ -38,6 +38,26 @@ fn a_valid_step() -> Value {
 // --- Positive ---------------------------------------------------------------
 
 #[test]
+fn trigger_buttons_are_a_list_of_distinct_macro_trigger_buttons() {
+    let with = |buttons: Value| {
+        let mut m = make_valid_macro();
+        m.as_object_mut().unwrap().remove("trigger");
+        m["trigger_buttons"] = buttons;
+        m
+    };
+    assert_eq!(validate_macro(&with(json!([]))).unwrap(), [], "no button");
+    assert_eq!(validate_macro(&with(json!(["rp", "lp"]))).unwrap(), [], "two buttons");
+    assert_ne!(validate_macro(&with(json!(["rp", "rp"]))).unwrap(), [], "a duplicate");
+    assert_ne!(validate_macro(&with(json!(["home/guide"]))).unwrap(), [], "no can_start_macro");
+    let mut both = make_valid_macro();
+    both["trigger_buttons"] = json!(["rp"]);
+    assert_ne!(validate_macro(&both).unwrap(), [], "trigger and trigger_buttons");
+    let mut neither = make_valid_macro();
+    neither.as_object_mut().unwrap().remove("trigger");
+    assert_ne!(validate_macro(&neither).unwrap(), [], "no trigger at all");
+}
+
+#[test]
 fn valid_macro_passes_validation() {
     assert_eq!(validate_macro(&make_valid_macro()).unwrap(), []);
 }

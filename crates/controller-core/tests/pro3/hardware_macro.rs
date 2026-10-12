@@ -43,7 +43,8 @@ fn buttons_macro() -> MacroDefinition {
     MacroDefinition {
         name: "Buttons".into(),
         mode: XINPUT,
-        trigger: "rp".into(),
+        trigger_buttons: vec!["rp".into()],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 0,
         macro_slot: Some(0),
@@ -141,8 +142,10 @@ fn put_fixture_macro(dev: &HidrawDevice) {
 
     let read = dev.read_all_profiles().unwrap();
     let refs = &read.profiles[0].canonical.macro_refs;
-    let expected =
-        MacroRef { trigger: "rp".to_owned(), path: "xinput-slot1-macro0-Buttons.json".to_owned() };
+    let expected = MacroRef {
+        trigger_buttons: vec!["rp".to_owned()],
+        path: "xinput-slot1-macro0-Buttons.json".to_owned(),
+    };
     assert_eq!(refs, &vec![expected]);
     let back = dev.read_macro_stream(XINPUT, slot, macro_slot, def.steps.len()).unwrap();
     assert_eq!(Pro3.decode_macro_steps(&back, def.steps.len(), XINPUT).unwrap(), def.steps);
@@ -152,7 +155,7 @@ fn put_fixture_macro(dev: &HidrawDevice) {
 fn remove_it_on_a_pick(dev: &HidrawDevice) {
     let before = dev.read_all_profiles().unwrap();
     let mut profile = before.profiles[0].canonical.clone();
-    assert!(profile.macro_refs.iter().any(|m| m.trigger == "rp"), "the put came first");
+    assert!(profile.macro_refs.iter().any(|m| m.trigger_buttons == ["rp"]), "the put came first");
     let x = ButtonMapping { source: "rp".to_owned(), target: "left face".to_owned() };
     profile.button_mappings.retain(|m| m.source != "rp");
     profile.button_mappings.push(x.clone());

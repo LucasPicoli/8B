@@ -339,7 +339,7 @@ fn slot_with_a_macro() {
     let mut s = connected(XINPUT);
     let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
-        trigger: "rp".to_owned(),
+        trigger_buttons: vec!["rp".to_owned()],
         path: "xinput-slot1-macro0-Buttons.json".to_owned(),
     });
     // Tall enough to show the back view and the paddle rows.
@@ -487,7 +487,7 @@ fn cross_mode_import() -> AppState {
         "screenshot".clone_into(&mut m.target);
     }
     p.macro_refs.push(controller_core::model::MacroRef {
-        trigger: "right face".to_owned(),
+        trigger_buttons: vec!["right face".to_owned()],
         path: "m.json".to_owned(),
     });
     let text = crate::files::export_text(&p).unwrap();
@@ -528,7 +528,7 @@ fn the_drawing_keeps_its_size_from_slot_to_slot() {
     let mut s = connected(XINPUT);
     let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
-        trigger: "rp".to_owned(),
+        trigger_buttons: vec!["rp".to_owned()],
         path: "xinput-slot1-macro3-ABCDEFGHIJKLMNO.json".to_owned(),
     });
     let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 2)).unwrap().pad.as_mut().unwrap();
@@ -550,7 +550,7 @@ fn reviewing() -> AppState {
     let mut s = connected(XINPUT);
     let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
-        trigger: "rp".to_owned(),
+        trigger_buttons: vec!["rp".to_owned()],
         path: "xinput-slot1-macro0-Buttons.json".to_owned(),
     });
     s.set_name("Edited");

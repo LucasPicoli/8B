@@ -67,7 +67,7 @@ export component ReviewDialog inherits DialogShell {
             ? "The macro on this slot stays."
             : "The " + root.info.macros-stay + " macros on this slot stay.";
     }
-    for r in root.info.removed: Bullet {
+    for r in root.info.macro-changes: Bullet {
         text: r + ".";
     }
     if root.info.leftover > 0: Bullet {

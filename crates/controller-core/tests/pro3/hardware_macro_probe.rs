@@ -196,7 +196,8 @@ fn probe_macro_triggers() {
     let def = MacroDefinition {
         name: format!("P-{case}"),
         mode,
-        trigger: env_or("TRIGGER", "r4"),
+        trigger_buttons: vec![env_or("TRIGGER", "r4")],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 0,
         macro_slot: Some(macro_slot.get()),

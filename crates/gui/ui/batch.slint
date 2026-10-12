@@ -10,7 +10,7 @@ component BatchSlotRow inherits Rectangle {
     // The last row has no rule under it.
     in property <bool> last;
     callback toggled;
-    property <bool> has-body: slot.changes.length > 0 || slot.removed.length > 0 || slot.leftover > 0;
+    property <bool> has-body: slot.changes.length > 0 || slot.macro-changes.length > 0 || slot.leftover > 0;
 
     VerticalLayout {
         header := Rectangle {
@@ -88,9 +88,9 @@ component BatchSlotRow inherits Rectangle {
             VerticalLayout {
                 for c[i] in root.slot.changes: ChangeRow {
                     change: c;
-                    rule: i < root.slot.changes.length - 1 || root.slot.removed.length > 0 || root.slot.leftover > 0;
+                    rule: i < root.slot.changes.length - 1 || root.slot.macro-changes.length > 0 || root.slot.leftover > 0;
                 }
-                for r[i] in root.slot.removed: Rectangle {
+                for r[i] in root.slot.macro-changes: Rectangle {
                     min-height: 32px;
                     Text {
                         x: 10px;
@@ -209,7 +209,7 @@ export component BatchReviewDialog inherits DialogShell {
     }
     Bullet {
         text: root.info.any-removed
-            ? "Each slot keeps its macros, except the ones listed as removed."
+            ? "Each slot keeps its macros, except where a line under the slot says otherwise."
             : "Each slot keeps the macros it has.";
     }
     Bullet {

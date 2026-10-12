@@ -10,7 +10,7 @@ use controller_core::devices::pro3::{Pro3, XINPUT};
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::macros::{macro_from_json, macro_to_json};
 use controller_core::model::{
-    MacroDefinition, MacroSlot, MacroStep, ProfileReadResult, Slot, WriteResult,
+    ButtonMapping, MacroDefinition, MacroSlot, MacroStep, ProfileReadResult, Slot, WriteResult,
 };
 use controller_core::orchestrator::ProfileWriteOrchestrator;
 use controller_core::service::ConfirmPolicy;
@@ -43,7 +43,8 @@ fn def(name: &str, trigger: &str, n: u8) -> MacroDefinition {
     MacroDefinition {
         name: name.into(),
         mode: XINPUT,
-        trigger: trigger.into(),
+        trigger_buttons: vec![trigger.into()],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 0,
         steps: steps(n),
@@ -202,6 +203,59 @@ fn nothing_is_sent_for_an_empty_profile_slot_or_a_bad_macro() {
     // The schema's own step cap refuses it first, until glides drop that cap.
     assert!(!to(&long, 1).success);
     assert_eq!(dev.calls(), []);
+}
+
+#[test]
+fn a_put_refuses_a_button_that_starts_another_macro_of_the_slot() {
+    let (dev, dir) = (pad(), tempfile::tempdir().unwrap());
+    let orchestrator = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
+    let with = |buttons: &[&str]| {
+        let mut json = new_macro();
+        json["trigger_buttons"] = buttons.into();
+        json
+    };
+    let to = |json: &Value, m: u8| {
+        orchestrator.put_macro(json, XINPUT, slot(1), macro_slot(m), &ConfirmPolicy::Force)
+    };
+    let r = to(&with(&["r4", "r1"]), 2);
+    assert!(!r.success);
+    assert!(
+        r.message.contains("'r1' already starts the macro 'Keep' in macro slot 1."),
+        "{}",
+        r.message
+    );
+    assert_eq!(dev.calls(), []);
+    let r = to(&with(&["l1"]), 0);
+    assert!(r.success, "a replace keeps its own button: {}", r.message);
+}
+
+#[test]
+fn a_put_refuses_a_button_with_another_output_and_takes_a_paddle_at_rest() {
+    let mut profile = Pro3.default_profile(XINPUT);
+    profile.button_mappings.retain(|m| m.source != "l1");
+    profile.button_mappings.push(ButtonMapping { source: "l1".into(), target: "r1".into() });
+    let bank = Pro3.compile_profile(&profile, slot(1), &[], &[]).unwrap();
+    let dev = MockDevice::new()
+        .with_profiles(ProfileReadResult {
+            raw_blobs: vec![bank, vec![0; BLOB_SIZE], vec![0; BLOB_SIZE]],
+            ..ProfileReadResult::default()
+        })
+        .keeping_writes();
+    let dir = tempfile::tempdir().unwrap();
+    let orchestrator = ProfileWriteOrchestrator::new(&dev, &Pro3, dir.path());
+    let mut json = new_macro();
+    json["trigger_buttons"] = ["l1"].as_slice().into();
+    let r = orchestrator.put_macro(&json, XINPUT, slot(1), macro_slot(0), &ConfirmPolicy::Force);
+    assert!(
+        r.message.contains("'l1' is mapped to 'r1', so it cannot start a macro."),
+        "{}",
+        r.message
+    );
+    assert_eq!(dev.calls(), []);
+    // `r4` reads `disabled` in the default XInput profile too, so it is at rest.
+    let r =
+        orchestrator.put_macro(&new_macro(), XINPUT, slot(1), macro_slot(0), &ConfirmPolicy::Force);
+    assert!(r.success, "{}", r.message);
 }
 
 #[test]

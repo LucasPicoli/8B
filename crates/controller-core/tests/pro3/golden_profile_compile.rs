@@ -90,7 +90,8 @@ fn compile_profile_embeds_macro_into_section4() {
     let def = MacroDefinition {
         name: "GoldenMac".into(),
         mode: XINPUT,
-        trigger: "l1".into(),
+        trigger_buttons: vec!["l1".into()],
+        unknown_trigger_bits: 0,
         repeat_count: 3,
         interval_ms: 100,
         steps: vec![MacroStep::default(); 3],
@@ -108,7 +109,7 @@ fn compile_profile_embeds_macro_into_section4() {
     let metas = Pro3.decode_macro_metadata(&blob, Slot::new(1).unwrap()).unwrap();
     assert_eq!(metas.len(), 1);
     assert_eq!(metas[0].name, "GoldenMac");
-    assert_eq!(metas[0].trigger, "l1");
+    assert_eq!(metas[0].trigger_buttons, ["l1"]);
     assert_eq!(metas[0].repeat_count, 3);
     assert_eq!(metas[0].interval_ms, 100);
     assert_eq!(metas[0].macro_slot, Some(0));
@@ -294,16 +295,20 @@ fn dinput_macros_decode_as_refs_and_survive_or_leave_with_an_edit() {
     for slot in 1..=3u8 {
         let profile = decode_slot(&base, slot, DINPUT);
         let want = format!("dinput-slot{slot}-macro3-mx_d{slot}4.json");
-        let refs: Vec<_> = profile.macro_refs.iter().map(|m| (&*m.path, &*m.trigger)).collect();
-        assert_eq!(refs, [(want.as_str(), "r4")], "slot {slot}");
+        let refs: Vec<_> =
+            profile.macro_refs.iter().map(|m| (&*m.path, m.trigger_buttons.join(","))).collect();
+        assert_eq!(refs, [(want.as_str(), "r4".to_owned())], "slot {slot}");
 
-        // An edit keeps the descriptors byte for byte, and dropping the trigger clears them.
+        // An edit keeps the descriptors byte for byte, and dropping the button leaves the
+        // macro with none.
         let at = Slot::new(slot).unwrap();
         let kept = Pro3.compile_profile_keep_macros(&profile, at, &base).unwrap();
         let region = 0x068C + usize::from(slot - 1) * 216..0x068C + usize::from(slot) * 216;
         assert_eq!(kept[region.clone()], base[region.clone()], "slot {slot} keeps");
         let dropped = Pro3.drop_macros(&base, at, &["r4".to_owned()]).unwrap();
-        assert!(decode_slot(&dropped, slot, DINPUT).macro_refs.is_empty(), "slot {slot}");
+        let left = decode_slot(&dropped, slot, DINPUT).macro_refs;
+        assert_eq!(left.len(), 1, "slot {slot}");
+        assert!(left[0].trigger_buttons.is_empty(), "slot {slot}");
     }
 }
 

@@ -141,10 +141,10 @@ export struct ReviewInfo {
     // The controller holds nothing in the slot.
     is-new: bool,
     changes: [Change],
-    // Macros that stay, "Removes macro 1 (name)" lines, and macros an empty slot
-    // still holds that the write replaces.
+    // Macros that stay, "<name> (Macro 1) changed: starts with A to B" lines, and
+    // macros an empty slot still holds that the write replaces.
     macros-stay: int,
-    removed: [string],
+    macro-changes: [string],
     leftover: int,
     // Why the profile cannot be written as it is, empty when nothing stops it.
     problem: string,
@@ -178,9 +178,9 @@ export struct BatchSlot {
     changes: [Change],
     // The controller holds nothing in the slot.
     is-new: bool,
-    // "Removes macro 1 (name)" lines, and macros an empty slot still holds that
-    // the write replaces.
-    removed: [string],
+    // "<name> (Macro 1) changed: starts with A to B" lines, and macros an empty slot
+    // still holds that the write replaces.
+    macro-changes: [string],
     leftover: int,
     // The review shows the row's changes.
     open: bool,

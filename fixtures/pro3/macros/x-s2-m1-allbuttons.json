@@ -32,6 +32,6 @@
       "duration_ms": 30
     }
   ],
-  "trigger": "l1",
+  "trigger_buttons": ["l1"],
   "version": 1
 }

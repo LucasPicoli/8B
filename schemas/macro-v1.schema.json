@@ -8,9 +8,12 @@
     "version",
     "device",
     "mode",
-    "trigger",
     "repeat",
     "steps"
+  ],
+  "oneOf": [
+    { "required": ["trigger_buttons"] },
+    { "required": ["trigger"] }
   ],
   "properties": {
     "version": {
@@ -30,7 +33,16 @@
       "minLength": 1,
       "maxLength": 16
     },
+    "trigger_buttons": {
+      "description": "The buttons that start the macro. Empty when no button starts it.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/MacroTrigger"
+      }
+    },
     "trigger": {
+      "description": "The single trigger button of a v0.1.1 file. Read as a one-button trigger_buttons; never written.",
       "$ref": "#/$defs/MacroTrigger"
     },
     "repeat": {

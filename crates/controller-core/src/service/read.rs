@@ -16,6 +16,26 @@ pub struct MacroReadResult {
     pub macros: Vec<MacroDefinition>,
 }
 
+impl MacroReadResult {
+    /// One warning per macro whose trigger bits include some that name no button, with
+    /// their hex value. Writing that macro back drops them.
+    #[must_use]
+    pub fn warnings(&self) -> Vec<String> {
+        self.macros
+            .iter()
+            .filter(|m| m.unknown_trigger_bits != 0)
+            .map(|m| {
+                format!(
+                    "Macro slot {} ('{}') has trigger bits that name no button: {:#010x}.",
+                    m.macro_slot.unwrap_or_default(),
+                    m.name,
+                    m.unknown_trigger_bits
+                )
+            })
+            .collect()
+    }
+}
+
 /// Reads the profiles of every mode's bank.
 ///
 /// A thin delegate to [`DeviceIo::read_all_profiles`].
@@ -174,7 +194,10 @@ mod tests {
         let result = read_macros(&dev, DINPUT, Slot::new(1).unwrap()).unwrap();
         assert_eq!(result.macros.len(), 1, "the empty descriptors are skipped");
         let m = &result.macros[0];
-        assert_eq!((m.name.as_str(), m.trigger.as_str()), ("mx_d14", "r4"));
+        assert_eq!(
+            (m.name.as_str(), m.trigger_buttons.as_slice()),
+            ("mx_d14", &["r4".to_owned()][..])
+        );
         assert_eq!((m.mode, m.macro_slot, m.repeat_count), (DINPUT, Some(3), 1));
         assert_eq!(m.steps.len(), 256);
         assert_eq!((m.steps[0].duration_ms, m.steps[0].left_stick_x), (10, 0x7F));

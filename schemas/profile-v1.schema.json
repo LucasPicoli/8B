@@ -368,11 +368,23 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "trigger",
         "path"
       ],
+      "oneOf": [
+        { "required": ["trigger_buttons"] },
+        { "required": ["trigger"] }
+      ],
       "properties": {
+        "trigger_buttons": {
+          "description": "The buttons that start the macro. Empty when no button starts it.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/MacroTrigger"
+          }
+        },
         "trigger": {
+          "description": "The single trigger button of a v0.1.1 profile. Read as a one-button trigger_buttons; never written.",
           "$ref": "#/$defs/MacroTrigger"
         },
         "path": {
@@ -442,5 +454,5 @@
       }
     }
   ],
-  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode, and 'rp output', 'lp output', 'l4 output' and 'r4 output' only for dinput mode. Semantic validator requirements not expressible in core JSON Schema: unique macro trigger values in macro_refs, and profile/macro file existence checks. The semantic validator also refuses swap_dpad_with_left_stick together with swap_sticks, invert_left_x or invert_left_y, so its message can name the flags. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
+  "description": "Schema-level constraints: rp/lp/l4/r4 are valid source buttons only (not targets); 'screenshot' is a valid target only for switch mode, and 'rp output', 'lp output', 'l4 output' and 'r4 output' only for dinput mode. Semantic validator requirements not expressible in core JSON Schema: no button in the trigger_buttons of two macro_refs, and profile/macro file existence checks. The semantic validator also refuses swap_dpad_with_left_stick together with swap_sticks, invert_left_x or invert_left_y, so its message can name the flags. Note: analog trigger min/max ordering and gap constraints are UI-only (slider limits) — the firmware accepts any values and the decoder auto-fixes inverted ranges."
 }

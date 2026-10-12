@@ -30,6 +30,6 @@
       "duration_ms": 40
     }
   ],
-  "trigger": "turbo",
+  "trigger_buttons": ["turbo"],
   "version": 1
 }

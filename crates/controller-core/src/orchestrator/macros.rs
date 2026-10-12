@@ -19,7 +19,9 @@ use serde_json::Value;
 use super::write::{failure_from, text, Plan, ProfileWriteOrchestrator};
 use crate::error::{Error, ErrorCategory, Result};
 use crate::model::macros::{macro_from_json, macro_to_json};
-use crate::model::{MacroDefinition, MacroSlot, Mode, Slot, WriteResult};
+use crate::model::{
+    CanonicalProfile, MacroDefinition, MacroSlot, Mode, RawProfilePayload, Slot, WriteResult,
+};
 use crate::protocol::wire_write::MACRO_CHUNK_LEN;
 use crate::service::validation::validate_macro;
 use crate::service::{
@@ -187,7 +189,7 @@ impl ProfileWriteOrchestrator<'_> {
                 return Ok(Plan::Declined(declined));
             }
         }
-        check_bank(&rb.backup_blob, slot, macro_slot, def)?;
+        self.check_bank(&rb.backup_blob, mode, slot, macro_slot, def)?;
         let bank = self.model.set_macro(&rb.backup_blob, slot, macro_slot, Some(def))?;
         let stream = self.model.encode_macro_steps(&def.steps, mode)?;
         let old = match held {
@@ -221,6 +223,36 @@ impl ProfileWriteOrchestrator<'_> {
         }
         let bank = self.model.set_macro(&rb.backup_blob, slot, macro_slot, None)?;
         Ok(Plan::Write(MacroPlan { bank, page: None, old: None }))
+    }
+
+    /// Refuses a trigger button of `def` that starts another macro of `slot` in `bank`, or
+    /// that has another output there.
+    fn check_bank(
+        &self,
+        bank: &[u8],
+        mode: Mode,
+        slot: Slot,
+        macro_slot: MacroSlot,
+        def: &MacroDefinition,
+    ) -> Result<()> {
+        if def.trigger_buttons.is_empty() {
+            return Ok(());
+        }
+        let mut others = self.model.decode_macro_metadata(bank, slot)?;
+        others.retain(|m| m.macro_slot != Some(macro_slot.get()));
+        let raw = RawProfilePayload {
+            payload: bank.to_vec(),
+            source_slot: slot.get(),
+            source_profile_index: 0,
+            mode_hint: mode,
+        };
+        let profile = self.model.map_profile(&raw)?.canonical;
+        let default = self.model.default_profile(mode);
+        let refusal = |b: &String| bank_refusal(b, &others, &profile, &default);
+        def.trigger_buttons
+            .iter()
+            .find_map(refusal)
+            .map_or(Ok(()), |reason| Err(Error::Validation(reason)))
     }
 
     /// The macro in `macro_slot` of the bank as read, with no steps read yet. Refuses a
@@ -392,14 +424,29 @@ fn declined(policy: &ConfirmPolicy, warning: &str, action: &str) -> Option<Strin
     }
 }
 
-/// The checks a put needs the bank for, such as a trigger button that already starts
-/// another macro of the slot. It accepts every macro for now.
-#[allow(clippy::unnecessary_wraps)]
-const fn check_bank(
-    _bank: &[u8],
-    _slot: Slot,
-    _macro_slot: MacroSlot,
-    _def: &MacroDefinition,
-) -> Result<()> {
-    Ok(())
+/// The output of `button` in `profile`. A button with no entry keeps its own press.
+fn output<'a>(profile: &'a CanonicalProfile, button: &'a str) -> &'a str {
+    profile.button_mappings.iter().find(|m| m.source == button).map_or(button, |m| &m.target)
+}
+
+/// The message for a trigger button of a put that the bank refuses: one that starts
+/// another macro of the slot, or one with another output than in `default`, the mode's
+/// default profile. A back paddle's own output reads `disabled` there, and its macro
+/// plays.
+fn bank_refusal(
+    button: &str,
+    others: &[MacroDefinition],
+    profile: &CanonicalProfile,
+    default: &CanonicalProfile,
+) -> Option<String> {
+    if let Some(other) = others.iter().find(|m| m.trigger_buttons.iter().any(|b| b == button)) {
+        return Some(format!(
+            "'{button}' already starts the macro '{}' in macro slot {}.",
+            other.name,
+            other.macro_slot.unwrap_or_default()
+        ));
+    }
+    let target = output(profile, button);
+    (target != output(default, button))
+        .then(|| format!("'{button}' is mapped to '{target}', so it cannot start a macro."))
 }

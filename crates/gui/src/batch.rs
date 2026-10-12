@@ -262,7 +262,7 @@ impl AppState {
         let mut rows = Vec::new();
         for (i, key) in self.edited_slots().into_iter().enumerate() {
             let review = self.review_info(key);
-            let removes = review.removed.row_count() > 0 || review.leftover > 0;
+            let removes = review.macro_changes.row_count() > 0 || review.leftover > 0;
             info.any_new |= review.is_new;
             info.any_removed |= removes;
             if !review.is_new {
@@ -274,7 +274,7 @@ impl AppState {
                 name: review.name,
                 changes: review.changes,
                 is_new: review.is_new,
-                removed: review.removed,
+                macro_changes: review.macro_changes,
                 leftover: review.leftover,
                 open: flipped.contains(&key) != (i == 0 || removes),
             });
@@ -543,7 +543,7 @@ mod tests {
         s.review_read(PORT, true);
         let rows: Vec<_> = s.batch_info().slots.iter().collect();
         assert_eq!(rows.iter().map(|r| r.open).collect::<Vec<_>>(), [true, true]);
-        assert_eq!(rows[1].removed.row_count(), 2);
+        assert_eq!(rows[1].macro_changes.row_count(), 2);
     }
 
     #[test]

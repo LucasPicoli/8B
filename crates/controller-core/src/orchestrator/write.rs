@@ -78,9 +78,9 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         self.upload_profile_dropping_macros(profile, mode, slot, &[], policy)
     }
 
-    /// Like [`Self::upload_profile`], and also removes the slot's macros that the buttons
-    /// in `drop_macros` start. The other macros stay. This is how the window removes a
-    /// macro when its button gets another output.
+    /// Like [`Self::upload_profile`], and also takes the buttons in `drop_macros` off the
+    /// slot's macros. Every macro stays, one left with no button included. This is how
+    /// the window keeps a button that gets another output from starting its macro.
     #[must_use]
     pub fn upload_profile_dropping_macros(
         &self,
@@ -107,7 +107,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     }
 
     /// The bank blob with `parsed` in `slot` of `base`. An occupied slot keeps its macros,
-    /// except those the buttons in `drop_macros` start.
+    /// and the buttons in `drop_macros` no longer start them.
     pub(super) fn build_upload(
         &self,
         parsed: &CanonicalProfile,

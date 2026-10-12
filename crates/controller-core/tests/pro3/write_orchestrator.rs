@@ -51,7 +51,8 @@ fn macro_def(name: &str, trigger: &str, macro_slot: u8) -> MacroDefinition {
     MacroDefinition {
         name: name.into(),
         mode: XINPUT,
-        trigger: trigger.into(),
+        trigger_buttons: vec![trigger.into()],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 10,
         steps: vec![MacroStep::default(); 2],
@@ -328,7 +329,7 @@ fn upload_ignores_macro_refs_and_keeps_the_slots_macros() {
 }
 
 #[test]
-fn upload_dropping_a_macro_zeroes_its_descriptor_and_keeps_the_others() {
+fn upload_dropping_a_button_clears_only_its_trigger_bit() {
     let profile: CanonicalProfile = serde_json::from_value(fixture("xinput-slot1")).unwrap();
     let two = [macro_def("Alpha", "l1", 0), macro_def("Gamma", "r4", 3)];
     let base = Pro3.compile_profile(&profile, slot(1), &base_blob(XINPUT), &two).unwrap();
@@ -344,12 +345,16 @@ fn upload_dropping_a_macro_zeroes_its_descriptor_and_keeps_the_others() {
     assert!(r.success, "{}", r.message);
     let written = writes(&dev).pop().unwrap();
     let (old, new) = (section4(&base, 0), section4(&written, 0));
-    assert!(new[DESCRIPTORS..DESCRIPTORS + DESCRIPTOR_SIZE].iter().all(|&b| b == 0), "Alpha gone");
-    assert_eq!(new[..DESCRIPTORS], old[..DESCRIPTORS], "the header stays");
-    assert_eq!(new[DESCRIPTORS + DESCRIPTOR_SIZE..], old[DESCRIPTORS + DESCRIPTOR_SIZE..]);
+    // Only Alpha's `key_map` (descriptor bytes 40 to 43) changes.
+    let key_map = DESCRIPTORS + 40..DESCRIPTORS + 44;
+    assert_eq!(new[key_map.clone()], [0; 4], "l1 is off Alpha");
+    assert_eq!(new[..key_map.start], old[..key_map.start]);
+    assert_eq!(new[key_map.end..], old[key_map.end..]);
     assert_eq!(section4(&written, 1), section4(&base, 1), "slot 2's macro stays");
     let left: Vec<_> = Pro3.decode_macro_metadata(&written, slot(1)).unwrap();
-    assert_eq!(left.iter().map(|m| m.name.as_str()).collect::<Vec<_>>(), ["Gamma"]);
+    let left: Vec<_> =
+        left.iter().map(|m| (m.name.as_str(), m.trigger_buttons.join(","))).collect();
+    assert_eq!(left, [("Alpha", String::new()), ("Gamma", "r4".to_owned())], "Alpha stays");
     assert!(crc_ok(&written));
 }
 

@@ -75,17 +75,43 @@ fn invalid_button_target_fails_schema() {
 }
 
 #[test]
-fn duplicate_macro_triggers_fails_semantic() {
+fn a_button_in_two_macro_refs_fails_semantic() {
     let mut p = make_valid_xinput_profile();
     p["macro_refs"] = json!([
-        { "trigger": "l1", "path": "macros/macro1.json" },
+        { "trigger_buttons": ["r1", "l1"], "path": "macros/macro1.json" },
         { "trigger": "l1", "path": "macros/macro2.json" }
     ]);
     let r = validate_profile(&Pro3, &p).unwrap();
     assert!(!r.valid);
     // Exact message + path (this rule passes schema and reaches semantics).
-    assert!(r.errors.iter().any(|e| e.path == "/macro_refs/1/trigger"
-        && e.reason == "Duplicate macro trigger 'l1'. Each trigger must be unique."));
+    assert!(r.errors.iter().any(|e| e.path == "/macro_refs/1/trigger_buttons"
+        && e.reason == "'l1' starts two macros. A button starts at most one macro."));
+}
+
+#[test]
+fn macro_refs_take_a_button_list_or_the_legacy_trigger_but_not_both() {
+    let mut p = make_valid_xinput_profile();
+    p["macro_refs"] = json!([
+        { "trigger_buttons": [], "path": "macros/none.json" },
+        { "trigger_buttons": ["rp", "lp"], "path": "macros/two.json" },
+        { "trigger": "l1", "path": "macros/legacy.json" }
+    ]);
+    assert!(validate_profile(&Pro3, &p).unwrap().valid);
+    let profile: controller_core::model::CanonicalProfile =
+        serde_json::from_value(p.clone()).unwrap();
+    assert_eq!(profile.macro_refs[2].trigger_buttons, ["l1"]);
+    assert_eq!(
+        serde_json::to_value(&profile.macro_refs[2]).unwrap(),
+        json!({ "trigger_buttons": ["l1"], "path": "macros/legacy.json" })
+    );
+    for refs in [
+        json!([{ "trigger": "l1", "trigger_buttons": ["l1"], "path": "m.json" }]),
+        json!([{ "path": "m.json" }]),
+        json!([{ "trigger_buttons": ["l1", "l1"], "path": "m.json" }]),
+    ] {
+        p["macro_refs"] = refs.clone();
+        assert!(!validate_profile(&Pro3, &p).unwrap().valid, "{refs}");
+    }
 }
 
 #[test]

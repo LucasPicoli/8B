@@ -155,14 +155,13 @@ fn semantic_errors(
 
     let mut seen: BTreeSet<&str> = BTreeSet::new();
     for (i, entry) in profile.macro_refs.iter().enumerate() {
-        if !seen.insert(entry.trigger.as_str()) {
-            errors.push(error(
-                format!("/macro_refs/{i}/trigger"),
-                format!(
-                    "Duplicate macro trigger '{}'. Each trigger must be unique.",
-                    entry.trigger
-                ),
-            ));
+        for button in &entry.trigger_buttons {
+            if !seen.insert(button.as_str()) {
+                errors.push(error(
+                    format!("/macro_refs/{i}/trigger_buttons"),
+                    format!("'{button}' starts two macros. A button starts at most one macro."),
+                ));
+            }
         }
     }
 

@@ -511,7 +511,7 @@ pub const STEP_BUTTONS: [StepButtonEntry; 16] = [
 
 /// A canonical trigger name paired with its 32-bit `KeyMap` value.
 ///
-/// All 21 trigger values; used as a reverse lookup by `key_map_to_trigger_name`.
+/// Each is one bit of the descriptor's `key_map`, so a macro may have several.
 #[derive(Debug, Clone, Copy)]
 pub struct TriggerEntry {
     /// Canonical trigger name (e.g. `"l1"`).
@@ -520,27 +520,28 @@ pub struct TriggerEntry {
     pub key_map: u32,
 }
 
-/// The 21 trigger `KeyMap` entries.
+/// The 21 trigger `KeyMap` entries, in the order of the buttons in the description, the
+/// order a read lists a macro's trigger buttons in.
 pub const TRIGGERS: [TriggerEntry; 21] = [
-    TriggerEntry { name: "start/menu", key_map: 0x0000_0001 },
+    TriggerEntry { name: "right face", key_map: 0x0000_2000 },
+    TriggerEntry { name: "bottom face", key_map: 0x0000_1000 },
+    TriggerEntry { name: "top face", key_map: 0x0000_0010 },
+    TriggerEntry { name: "left face", key_map: 0x0000_0020 },
+    TriggerEntry { name: "l1", key_map: 0x0000_0400 },
+    TriggerEntry { name: "r1", key_map: 0x0000_0800 },
+    TriggerEntry { name: "l2", key_map: 0x0000_4000 },
+    TriggerEntry { name: "r2", key_map: 0x0000_8000 },
     TriggerEntry { name: "l3", key_map: 0x0000_0002 },
     TriggerEntry { name: "r3", key_map: 0x0000_0004 },
     TriggerEntry { name: "select/back", key_map: 0x0000_0008 },
-    TriggerEntry { name: "top face", key_map: 0x0000_0010 },
-    TriggerEntry { name: "left face", key_map: 0x0000_0020 },
-    TriggerEntry { name: "d-pad right", key_map: 0x0000_0040 },
-    TriggerEntry { name: "d-pad left", key_map: 0x0000_0080 },
-    TriggerEntry { name: "d-pad down", key_map: 0x0000_0100 },
-    TriggerEntry { name: "d-pad up", key_map: 0x0000_0200 },
-    TriggerEntry { name: "l1", key_map: 0x0000_0400 },
-    TriggerEntry { name: "r1", key_map: 0x0000_0800 },
-    TriggerEntry { name: "bottom face", key_map: 0x0000_1000 },
-    TriggerEntry { name: "right face", key_map: 0x0000_2000 },
-    TriggerEntry { name: "l2", key_map: 0x0000_4000 },
-    TriggerEntry { name: "r2", key_map: 0x0000_8000 },
+    TriggerEntry { name: "start/menu", key_map: 0x0000_0001 },
     TriggerEntry { name: "turbo", key_map: 0x0001_0000 },
-    TriggerEntry { name: "l4", key_map: 0x0020_0000 },
-    TriggerEntry { name: "lp", key_map: 0x0400_0000 },
+    TriggerEntry { name: "d-pad up", key_map: 0x0000_0200 },
+    TriggerEntry { name: "d-pad down", key_map: 0x0000_0100 },
+    TriggerEntry { name: "d-pad left", key_map: 0x0000_0080 },
+    TriggerEntry { name: "d-pad right", key_map: 0x0000_0040 },
     TriggerEntry { name: "rp", key_map: 0x0200_0000 },
+    TriggerEntry { name: "lp", key_map: 0x0400_0000 },
+    TriggerEntry { name: "l4", key_map: 0x0020_0000 },
     TriggerEntry { name: "r4", key_map: 0x4000_0000 },
 ];

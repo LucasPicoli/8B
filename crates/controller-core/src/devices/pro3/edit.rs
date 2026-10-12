@@ -6,12 +6,12 @@
 //! mode byte, unknown trigger key maps and the unmodelled descriptor bytes do not survive),
 //! so [`compile_profile_keep_macros`] copies the descriptor bytes verbatim instead.
 
-use super::macros::{decode_macro_metadata, encode_macro_metadata};
+use super::macros::{encode_macro_metadata, trigger_key_map};
 use super::profile::{compile_profile, seal_crc};
 use super::tables;
 use crate::error::{Error, Result};
 use crate::model::{CanonicalProfile, MacroDefinition, MacroSlot, Mode, Slot};
-use crate::protocol::bytes::{put_slice, take};
+use crate::protocol::bytes::{put_slice, put_u32_le, read_u32_le, take};
 
 /// Size of the descriptor region of one Section-4 slot record (4 descriptors of 52 bytes).
 const DESCRIPTOR_REGION_SIZE: usize =
@@ -48,15 +48,16 @@ pub fn compile_profile_keep_macros(
     Ok(blob)
 }
 
-/// Returns `blob` with every macro of `slot` whose trigger is in `triggers` removed.
+/// Returns `blob` with each button of `buttons` taken off the macros of `slot` it starts.
 ///
-/// A removed macro's 52-byte descriptor becomes zeros, which the controller reads as an
-/// empty macro slot. Its step page stays as it is. The other macros, the other slots and
-/// the record header stay as read. A trigger that names no macro is skipped.
+/// Only the `key_map` field of a descriptor changes. A macro that loses its last button
+/// stays, with no button; its descriptor is never zeroed. The other bytes, the other
+/// slots and the record header stay as read, and the CRC is resealed. A name that is no
+/// macro trigger button is skipped.
 ///
 /// # Errors
 /// Returns [`Error::Validation`] if `blob` is not 2348 bytes.
-pub fn drop_macros(blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
+pub fn drop_macros(blob: &[u8], slot: Slot, buttons: &[String]) -> Result<Vec<u8>> {
     if blob.len() != tables::EXPECTED_PROFILE_SIZE {
         return Err(Error::Validation(format!(
             "blob must be {} bytes to remove a macro, got {}",
@@ -64,14 +65,16 @@ pub fn drop_macros(blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u
             blob.len()
         )));
     }
+    let known: Vec<String> =
+        buttons.iter().filter(|b| tables::TRIGGERS.iter().any(|t| t.name == *b)).cloned().collect();
+    let dropped = trigger_key_map(&known)?;
     let mut out = blob.to_vec();
-    for def in decode_macro_metadata(blob, slot)? {
-        if !triggers.contains(&def.trigger) {
-            continue;
-        }
-        let index = usize::from(def.macro_slot.unwrap_or(0));
-        let at = descriptor_region_offset(slot)? + index * tables::MACRO_DESCRIPTOR_SIZE;
-        put_slice(&mut out, at, &[0; tables::MACRO_DESCRIPTOR_SIZE])?;
+    for index in 0..tables::MACRO_SLOTS_PER_PROFILE {
+        let at = descriptor_region_offset(slot)?
+            + index * tables::MACRO_DESCRIPTOR_SIZE
+            + tables::MACRO_KEY_MAP_OFFSET;
+        let key_map = read_u32_le(&out, at)?;
+        put_u32_le(&mut out, at, key_map & !dropped)?;
     }
     seal_crc(&mut out)?;
     Ok(out)
@@ -144,6 +147,7 @@ pub fn validate_remap(mode: Mode, source: &str, target: &str) -> Result<()> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
+    use super::super::macros::decode_macro_metadata;
     use super::*;
     use crate::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use crate::model::MacroStep;
@@ -155,7 +159,8 @@ mod tests {
         MacroDefinition {
             name: name.into(),
             mode: XINPUT,
-            trigger: trigger.into(),
+            trigger_buttons: trigger.split(',').map(Into::into).collect(),
+            unknown_trigger_bits: 0,
             repeat_count: 2,
             interval_ms: 5,
             steps: vec![MacroStep::default(); steps],
@@ -219,6 +224,29 @@ mod tests {
         assert_eq!(decode_macro_metadata(&out, slot).unwrap(), []);
         assert!(sealed(&out));
         assert!(set_macro(&base[1..], slot, MacroSlot::new(0).unwrap(), None).is_err());
+    }
+
+    #[test]
+    fn a_remap_takes_the_button_off_its_macro_and_keeps_the_macro() {
+        let slot = Slot::new(3).unwrap();
+        let profile = super::super::profile::default_profile(XINPUT);
+        let mut defs = [macro_def("Two", "l1,r1", 3), macro_def("One", "l2", 4)];
+        defs[1].macro_slot = Some(1);
+        let base = compile_profile(&profile, slot, &[], &defs).unwrap();
+        let out = drop_macros(&base, slot, &["l1".into(), "l2".into(), "nope".into()]).unwrap();
+        let read = decode_macro_metadata(&out, slot).unwrap();
+        let buttons: Vec<_> =
+            read.iter().map(|d| (d.name.as_str(), d.trigger_buttons.clone())).collect();
+        assert_eq!(buttons, [("Two", vec!["r1".to_owned()]), ("One", vec![])]);
+        let key_maps = [0, 1].map(|i| {
+            descriptor_region_offset(slot).unwrap()
+                + i * tables::MACRO_DESCRIPTOR_SIZE
+                + tables::MACRO_KEY_MAP_OFFSET
+        });
+        assert!(changed(&base, &out)
+            .iter()
+            .all(|i| key_maps.iter().any(|k| (k..&(k + 4)).contains(&i))));
+        assert!(sealed(&out));
     }
 
     /// `dinput-macro.blob` holds the official app's `r4` macro in macro slot 3 of every

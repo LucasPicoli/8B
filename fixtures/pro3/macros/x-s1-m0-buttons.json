@@ -43,6 +43,6 @@
       "duration_ms": 0
     }
   ],
-  "trigger": "rp",
+  "trigger_buttons": ["rp"],
   "version": 1
 }

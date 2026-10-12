@@ -212,8 +212,8 @@ pub trait ProtocolCodec {
         base_blob: &[u8],
     ) -> Result<Vec<u8>>;
 
-    /// Returns `blob` with the macros of `slot` that `triggers` start removed. The other
-    /// macros stay byte for byte.
+    /// Returns `blob` with each button of `triggers` taken off the macros of `slot` it
+    /// starts. Every macro stays, one left with no button included.
     ///
     /// # Errors
     /// Returns [`crate::Error::Validation`] if `blob` is not a full profile blob.

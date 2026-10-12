@@ -368,16 +368,18 @@ impl AppState {
         slot.edited = Some(edited);
     }
 
-    /// Gives `button` the output `target` in the selected slot, and drops the macro
-    /// it starts, because the controller sends a button's macro in place of its
-    /// output. An unrecognised output is read-only: a button can leave it, never go
+    /// Gives `button` the output `target` in the selected slot, and takes it off the
+    /// macro it starts, because the controller sends a button's macro in place of its
+    /// output. The macro stays, with no button if that was its last. An unrecognised output is read-only: a button can leave it, never go
     /// back to it.
     pub fn set_output(&mut self, button: &str, target: &str) {
         if target == UNRECOGNISED_OUTPUT {
             return;
         }
         self.edit(|p| {
-            p.macro_refs.retain(|m| m.trigger != button);
+            for m in &mut p.macro_refs {
+                m.trigger_buttons.retain(|b| b != button);
+            }
             let mapping = ButtonMapping { source: button.to_owned(), target: target.to_owned() };
             match p.button_mappings.iter_mut().find(|m| m.source == button) {
                 Some(m) => *m = mapping,
@@ -458,7 +460,7 @@ pub mod tests {
         canonical.macro_refs.clear();
         for i in 0..macros {
             canonical.macro_refs.push(controller_core::model::MacroRef {
-                trigger: "p1".to_owned(),
+                trigger_buttons: vec!["p1".to_owned()],
                 path: format!("macro-{i}.json"),
             });
         }

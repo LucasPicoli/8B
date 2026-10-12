@@ -93,12 +93,40 @@ pub struct ButtonMapping {
 }
 
 /// A reference from a profile to a macro file.
+///
+/// It reads the legacy single `trigger` of a v0.1.1 profile as a one-button
+/// `trigger_buttons`, and refuses both fields together. It writes `trigger_buttons` only.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "MacroRefFile")]
 pub struct MacroRef {
-    /// Trigger control name.
-    pub trigger: String,
+    /// The buttons that start the macro, empty when none does.
+    pub trigger_buttons: Vec<String>,
     /// Relative path to the macro JSON.
     pub path: String,
+}
+
+/// A [`MacroRef`] as a profile file may hold it.
+#[derive(Deserialize)]
+struct MacroRefFile {
+    trigger: Option<String>,
+    trigger_buttons: Option<Vec<String>>,
+    path: String,
+}
+
+impl TryFrom<MacroRefFile> for MacroRef {
+    type Error = String;
+
+    fn try_from(file: MacroRefFile) -> Result<Self, String> {
+        let trigger_buttons = match (file.trigger, file.trigger_buttons) {
+            (None, Some(buttons)) => buttons,
+            (Some(button), None) => vec![button],
+            (Some(_), Some(_)) => {
+                return Err("a macro ref has trigger or trigger_buttons, not both".into())
+            }
+            (None, None) => return Err("a macro ref needs trigger_buttons".into()),
+        };
+        Ok(Self { trigger_buttons, path: file.path })
+    }
 }
 
 /// Raw profile payload from USB readback before mapping.

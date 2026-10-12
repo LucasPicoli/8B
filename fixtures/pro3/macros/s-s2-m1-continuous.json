@@ -28,6 +28,6 @@
       "duration_ms": 30
     }
   ],
-  "trigger": "r2",
+  "trigger_buttons": ["r2"],
   "version": 1
 }

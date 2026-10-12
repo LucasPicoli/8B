@@ -132,7 +132,8 @@ fn play_stick_and_trigger_macro() {
     let def = MacroDefinition {
         name: "SticksTrig".into(),
         mode,
-        trigger: "r4".into(),
+        trigger_buttons: vec!["r4".into()],
+        unknown_trigger_bits: 0,
         repeat_count: 1,
         interval_ms: 0,
         macro_slot: Some(macro_slot.get()),

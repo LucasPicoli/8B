@@ -36,6 +36,6 @@
       "duration_ms": 25
     }
   ],
-  "trigger": "start/menu",
+  "trigger_buttons": ["start/menu"],
   "version": 1
 }

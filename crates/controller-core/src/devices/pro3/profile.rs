@@ -448,15 +448,14 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
     })
 }
 
-/// The macros of `source_slot` as profile references, in macro-slot order. A macro whose
-/// trigger names no single button is left out, because the profile schema cannot hold it.
+/// The macros of `source_slot` as profile references, in macro-slot order. Every macro
+/// is kept, one that no button starts included.
 fn decode_macro_refs(payload: &[u8], mode: Mode, source_slot: u8) -> Result<Vec<MacroRef>> {
     let refs = decode_macro_metadata(payload, Slot::new(source_slot)?)?
         .into_iter()
-        .filter(|def| !def.trigger.is_empty())
         .map(|def| MacroRef {
             path: macro_file_name(mode, source_slot, &def),
-            trigger: def.trigger,
+            trigger_buttons: def.trigger_buttons,
         })
         .collect();
     Ok(refs)

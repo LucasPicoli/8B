@@ -51,7 +51,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "Buttons".into(),
                 mode: XINPUT,
-                trigger: "rp".into(),
+                trigger_buttons: vec!["rp".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 1,
                 interval_ms: 0,
                 macro_slot: Some(0),
@@ -67,7 +68,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "AllButtons".into(),
                 mode: XINPUT,
-                trigger: "l1".into(),
+                trigger_buttons: vec!["l1".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 2,
                 interval_ms: 200,
                 macro_slot: Some(1),
@@ -79,7 +81,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "SticksTrig".into(),
                 mode: XINPUT,
-                trigger: "r4".into(),
+                trigger_buttons: vec!["r4".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 1,
                 interval_ms: 0,
                 macro_slot: Some(2),
@@ -106,7 +109,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "Repeat255".into(),
                 mode: XINPUT,
-                trigger: "turbo".into(),
+                trigger_buttons: vec!["turbo".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 255,
                 interval_ms: 1000,
                 macro_slot: Some(3),
@@ -118,7 +122,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "SwitchL2".into(),
                 mode: SWITCH,
-                trigger: "l2".into(),
+                trigger_buttons: vec!["l2".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 1,
                 interval_ms: 0,
                 macro_slot: Some(0),
@@ -135,7 +140,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "Continuous".into(),
                 mode: SWITCH,
-                trigger: "r2".into(),
+                trigger_buttons: vec!["r2".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: u32::MAX,
                 interval_ms: 16,
                 macro_slot: Some(1),
@@ -147,7 +153,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "MaxSteps".into(),
                 mode: SWITCH,
-                trigger: "select/back".into(),
+                trigger_buttons: vec!["select/back".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 1,
                 interval_ms: 0,
                 macro_slot: Some(2),
@@ -159,7 +166,8 @@ fn build_macro_fixtures() -> Vec<Fixture> {
             def: MacroDefinition {
                 name: "TrigVariety".into(),
                 mode: SWITCH,
-                trigger: "start/menu".into(),
+                trigger_buttons: vec!["start/menu".into()],
+                unknown_trigger_bits: 0,
                 repeat_count: 3,
                 interval_ms: 100,
                 macro_slot: Some(3),
