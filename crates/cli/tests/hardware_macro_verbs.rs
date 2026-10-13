@@ -8,7 +8,8 @@
 //! and the two pages it wrote end as they began.
 //!
 //! A second test exports the pad, wipes slot 2's macros and puts them back with
-//! `upload --with-macros` from the export: every bank reads as before. Run with:
+//! `upload --with-macros` from the profile file, which holds them: every bank reads as
+//! before. Run with:
 //!   `cargo test -p cli --features hardware --test hardware_macro_verbs -- --ignored`
 #![cfg(feature = "hardware")]
 #![allow(unreachable_pub, clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
@@ -279,6 +280,8 @@ fn upload_with_macros_puts_an_export_back_in_every_mode() {
     let export = dir.path().join("export");
     let export_dir = export.to_string_lossy().into_owned();
     ok(&["export", "-o", &export_dir]);
+    let names = std::fs::read_dir(&export).unwrap().map(|e| e.unwrap().file_name());
+    assert!(names.into_iter().all(|n| n.to_string_lossy().starts_with("profile-")));
     let before = banks();
 
     for (mode, defs) in &macros {

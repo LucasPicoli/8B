@@ -12,11 +12,12 @@ use serde_json::{json, Value};
 
 use controller_core::devices;
 use controller_core::error::{Error, ErrorCategory};
+use controller_core::model::macros::{macro_file_name, macro_to_json};
 use controller_core::model::{DeviceReadiness, Mode, Slot};
 use controller_core::orchestrator::profile::{detect_and_read_all, DetectAndReadResult};
 use controller_core::service::read::{read_macros, MacroReadResult};
 
-use crate::export::{macro_file, write_json};
+use crate::export::write_json;
 
 // ---------------------------------------------------------------------------
 // Helper functions
@@ -305,8 +306,8 @@ pub fn run_read_macro(mode: Mode, slot: u8, output_dir: Option<&str>) -> i32 {
 /// marked as a macro of `device`.
 fn export_macros(res: &MacroReadResult, mode: Mode, slot: u8, dir: &str, device: &str) {
     for def in &res.macros {
-        let (path, value) = macro_file(Path::new(dir), mode, slot, def, device);
-        if let Err(e) = write_json(&path, &value) {
+        let path = Path::new(dir).join(macro_file_name(mode, slot, def));
+        if let Err(e) = write_json(&path, &macro_to_json(def, device)) {
             eprintln!("{e}");
         }
     }

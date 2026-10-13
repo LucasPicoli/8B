@@ -1,9 +1,8 @@
-//! The `export` command: read every profile and its macros and save each as canonical
+//! The `export` command: read every profile with its macros and save each as canonical
 //! JSON.
 //!
 //! The files are what `upload` takes back, so an export is also the restorable backup
-//! of a mode's slots. Each macro goes beside its profile, under the path the profile's
-//! `macro_refs` entry holds.
+//! of a mode's slots. Each profile file holds its slot's macros in its `macros` list.
 
 use std::path::{Path, PathBuf};
 
@@ -12,11 +11,12 @@ use serde_json::{json, Value};
 use controller_core::device::Model;
 use controller_core::devices;
 use controller_core::error::{ErrorCategory, Result};
-use controller_core::model::macros::{macro_file_name, macro_to_json};
-use controller_core::model::{CanonicalProfileSummary, MacroDefinition, Mode, ProfileReadResult};
+use controller_core::model::{
+    CanonicalProfile, CanonicalProfileSummary, MacroDefinition, Mode, ProfileReadResult,
+};
 use controller_core::orchestrator::profile::{detect_and_read_all, DetectAndReadResult};
 use controller_core::service::read::{macro_summaries, read_macro_steps, MacroAt};
-use controller_core::service::validation::{validate_macro, validate_profile, ValidationError};
+use controller_core::service::validation::{validate_profile, ValidationError};
 use controller_core::transport::DeviceIo;
 
 use crate::commands::{emit_json, error_category_label, mode_label};
@@ -24,19 +24,6 @@ use crate::commands::{emit_json, error_category_label, mode_label};
 /// `profile-<mode>-slot-<N>-index-<N>.json`.
 fn file_name(p: &CanonicalProfileSummary) -> String {
     format!("profile-{}-slot-{}-index-{}.json", p.mode, p.source_slot, p.source_profile_index)
-}
-
-/// The path in `dir` and the `macro-v1` JSON of `def`, a macro of `profile_slot` in
-/// `mode`, marked as a macro of `device`. The file name is the one a read puts in the
-/// profile's `macro_refs`.
-pub fn macro_file(
-    dir: &Path,
-    mode: Mode,
-    profile_slot: u8,
-    def: &MacroDefinition,
-    device: &str,
-) -> (PathBuf, Value) {
-    (dir.join(macro_file_name(mode, profile_slot, def)), macro_to_json(def, device))
 }
 
 /// Writes `value` to `path` as pretty JSON with a final newline.
@@ -71,48 +58,62 @@ fn write_files(
     files.iter().try_for_each(|(path, value)| write_json(path, value))
 }
 
-/// One `files` or `macro_files` entry: `head` plus the path and the validator's verdict.
+/// The `files` entry of the profile `id` written to `path`: the path, its macro count
+/// and the validator's verdict. Also gives whether it passed and how many of its macros
+/// have an error.
 fn file_entry(
-    mut head: Value,
+    id: &str,
     path: &Path,
+    macro_count: usize,
     verdict: Result<(bool, Vec<ValidationError>)>,
-) -> (Value, bool) {
+) -> (Value, bool, usize) {
     let (passed, errors) = verdict.unwrap_or_else(|e| {
         eprintln!("validation could not run: {e}");
         (false, vec![])
     });
-    if let Some(map) = head.as_object_mut() {
-        map.insert("path".to_owned(), json!(path.display().to_string()));
-        map.insert("validation_passed".to_owned(), json!(passed));
-        map.insert("status".to_owned(), json!(if passed { "ok" } else { "validation_failed" }));
-        if !errors.is_empty() {
-            let list: Vec<Value> =
-                errors.iter().map(|e| json!({ "path": e.path, "reason": e.reason })).collect();
+    let mut bad: Vec<&str> = errors
+        .iter()
+        .filter_map(|e| e.path.strip_prefix("/macros/"))
+        .map(|rest| rest.split('/').next().unwrap_or(rest))
+        .collect();
+    bad.sort_unstable();
+    bad.dedup();
+    let mut entry = json!({
+        "profile_id": id,
+        "path": path.display().to_string(),
+        "macro_count": macro_count,
+        "validation_passed": passed,
+        "status": if passed { "ok" } else { "validation_failed" },
+    });
+    if !errors.is_empty() {
+        let list: Vec<Value> =
+            errors.iter().map(|e| json!({ "path": e.path, "reason": e.reason })).collect();
+        if let Some(map) = entry.as_object_mut() {
             map.insert("validation_errors".to_owned(), Value::Array(list));
         }
     }
-    (head, passed)
+    (entry, passed, bad.len())
 }
 
-/// What an export gave: its category, its message, and one entry with its verdict per
-/// profile file and per macro file.
+/// What an export gave: its category, its message, one entry with its verdict per
+/// profile file, and the count of macros and of those with an error.
 struct Exported {
     category: ErrorCategory,
     message: String,
     profiles: Vec<(Value, bool)>,
-    macros: Vec<(Value, bool)>,
+    macros: (usize, usize),
 }
 
 impl Exported {
     /// An export that wrote nothing.
     const fn nothing(category: ErrorCategory, message: String) -> Self {
-        Self { category, message, profiles: Vec::new(), macros: Vec::new() }
+        Self { category, message, profiles: Vec::new(), macros: (0, 0) }
     }
 }
 
-/// Exports `profiles` and `macros`, the macros of the held slots with their steps.
-/// An empty slot, one whose profile has no id, is skipped: its default profile is no
-/// backup and would not upload back.
+/// Exports `profiles`, each held one with its macros from `macros` in its `macros`
+/// list. An empty slot, one whose profile has no id, is skipped: its default profile is
+/// no backup and would not upload back.
 fn export_held(
     model: &dyn Model,
     profiles: &[CanonicalProfileSummary],
@@ -130,55 +131,50 @@ fn export_held(
         let message = "Every slot is empty: nothing to export.".to_owned();
         return Exported::nothing(ErrorCategory::None, message);
     }
-    let mut files = Vec::with_capacity(held.len() + macros.len());
+    let mut files = Vec::with_capacity(held.len());
+    let mut counts = Vec::with_capacity(held.len());
     for p in &held {
-        match serde_json::to_value(&p.canonical) {
+        let own: Vec<MacroDefinition> = macros
+            .iter()
+            .filter(|(at, _)| *at == (p.mode, p.source_slot))
+            .map(|(_, def)| def.clone())
+            .collect();
+        counts.push(own.len());
+        let canonical =
+            CanonicalProfile { macro_refs: Vec::new(), macros: Some(own), ..p.canonical.clone() };
+        match serde_json::to_value(&canonical) {
             Ok(value) => files.push((dir.join(file_name(p)), value)),
             Err(e) => return Exported::nothing(ErrorCategory::ExportFailure, e.to_string()),
         }
     }
-    files.extend(macros.iter().map(|((mode, slot), def)| {
-        macro_file(dir, *mode, *slot, def, &model.default_profile(*mode).device)
-    }));
     if let Err(message) = write_files(&files, dir, overwrite) {
         return Exported::nothing(ErrorCategory::ExportFailure, message);
     }
 
-    let (profile_files, macro_files) = files.split_at(held.len());
-    let profile_entries: Vec<(Value, bool)> = held
+    let mut macros_failed = 0;
+    let entries: Vec<(Value, bool)> = held
         .iter()
-        .zip(profile_files)
-        .map(|(p, (path, value))| {
+        .zip(&files)
+        .zip(&counts)
+        .map(|((p, (path, value)), count)| {
             let verdict = validate_profile(model, value).map(|v| (v.valid, v.errors));
-            file_entry(json!({ "profile_id": p.id }), path, verdict)
-        })
-        .collect();
-    let macro_entries: Vec<(Value, bool)> = macros
-        .iter()
-        .zip(macro_files)
-        .map(|(((mode, slot), def), (path, value))| {
-            let verdict = validate_macro(model, value).map(|e| (e.is_empty(), e));
-            let about = json!({
-                "mode": mode_label(Some(*mode)),
-                "slot": slot,
-                "macro_slot": def.macro_slot,
-                "name": def.name,
-            });
-            file_entry(about, path, verdict)
+            let (entry, passed, bad) = file_entry(&p.id, path, *count, verdict);
+            macros_failed += bad;
+            (entry, passed)
         })
         .collect();
 
-    let failed = profile_entries.iter().chain(&macro_entries).filter(|(_, ok)| !ok).count();
+    let macro_count = counts.iter().sum();
+    let failed = entries.iter().filter(|(_, ok)| !ok).count();
     let message = format!(
-        "Exported {} profile(s) and {} macro(s), skipped {} empty slot(s).",
+        "Exported {} profile(s) with {macro_count} macro(s), skipped {} empty slot(s).",
         held.len(),
-        macros.len(),
         profiles.len() - held.len()
     );
     let category = if failed == 0 { ErrorCategory::None } else { ErrorCategory::ValidationFailure };
     let message =
         if failed == 0 { message } else { format!("{failed} exported file(s) failed validation.") };
-    Exported { category, message, profiles: profile_entries, macros: macro_entries }
+    Exported { category, message, profiles: entries, macros: (macro_count, macros_failed) }
 }
 
 /// The macros of every held slot of `read`, with their steps, read in one session.
@@ -230,11 +226,8 @@ fn export(dev: &dyn DeviceIo, output_dir: &Path, overwrite: bool) -> (Value, i32
 
     let success = category == ErrorCategory::None;
     let failed = profiles.iter().filter(|(_, ok)| !ok).count();
-    let macros_failed = macros.iter().filter(|(_, ok)| !ok).count();
+    let (macro_count, macros_failed) = macros;
     let code = category.exit_code();
-    let entries = |files: Vec<(Value, bool)>| {
-        Value::Array(files.into_iter().map(|(entry, _)| entry).collect())
-    };
     if let Some(map) = payload.as_object_mut() {
         map.insert("success".to_owned(), json!(success));
         map.insert("exit_code".to_owned(), json!(code));
@@ -246,14 +239,14 @@ fn export(dev: &dyn DeviceIo, output_dir: &Path, overwrite: bool) -> (Value, i32
         map.insert("profile_count".to_owned(), json!(profiles.len()));
         map.insert("profiles_succeeded".to_owned(), json!(profiles.len() - failed));
         map.insert("profiles_failed".to_owned(), json!(failed));
-        map.insert("macro_count".to_owned(), json!(macros.len()));
+        map.insert("macro_count".to_owned(), json!(macro_count));
         map.insert("macros_failed".to_owned(), json!(macros_failed));
         map.insert(
             "validation_passed".to_owned(),
             json!(!profiles.is_empty() && failed == 0 && macros_failed == 0),
         );
-        map.insert("files".to_owned(), entries(profiles));
-        map.insert("macro_files".to_owned(), entries(macros));
+        let entries = profiles.into_iter().map(|(entry, _)| entry).collect();
+        map.insert("files".to_owned(), Value::Array(entries));
     }
     (payload, code)
 }
@@ -379,50 +372,45 @@ mod tests {
     }
 
     #[test]
-    fn every_macro_ref_is_exported_beside_its_profile_and_validates() {
+    fn every_macro_is_embedded_in_its_profile_and_validates() {
         let dir = tempfile::tempdir().unwrap();
         let (payload, code) = export(&pad(), dir.path(), false);
         assert_eq!(code, 0, "{payload}");
-        assert_eq!(payload["macro_count"], 3, "{payload}");
+        assert_eq!((&payload["macro_count"], &payload["macros_failed"]), (&json!(3), &json!(0)));
+        assert!(payload.get("macro_files").is_none(), "{payload}");
 
-        let mut refs = 0;
+        let mut macros = Vec::new();
         for entry in payload["files"].as_array().unwrap() {
             let text = std::fs::read_to_string(entry["path"].as_str().unwrap()).unwrap();
             let profile: Value = serde_json::from_str(&text).unwrap();
-            for r in profile["macro_refs"].as_array().unwrap() {
-                let path = dir.path().join(r["path"].as_str().unwrap());
-                let text = std::fs::read_to_string(&path).unwrap();
-                let file: Value = serde_json::from_str(&text).unwrap();
-                assert_eq!(validate_macro(&Pro3, &file).unwrap(), vec![], "{}", path.display());
-                assert_eq!(file["trigger_buttons"], r["trigger_buttons"]);
-                assert_eq!(file["steps"].as_array().unwrap().len(), 3, "the steps were read");
-                refs += 1;
+            assert!(validate_profile(&Pro3, &profile).unwrap().valid, "{profile}");
+            assert_eq!(profile["macro_refs"], json!([]), "{profile}");
+            let held = profile["macros"].as_array().unwrap();
+            assert_eq!(entry["macro_count"], held.len(), "{entry}");
+            for m in held {
+                assert_eq!(m["steps"].as_array().unwrap().len(), 3, "the steps were read");
+                macros.push((m["mode"].clone(), m["macro_slot"].clone(), m["name"].clone()));
             }
         }
-        assert_eq!(refs, 3, "both modes' macros are referenced");
-        for entry in payload["macro_files"].as_array().unwrap() {
-            assert_eq!(entry["validation_passed"], true, "{entry}");
-        }
+        let want = [("xinput", 0, "Dash"), ("dinput", 1, "Combo"), ("dinput", 3, "Spin")];
+        let want: Vec<(Value, Value, Value)> =
+            want.iter().map(|(m, s, n)| (json!(m), json!(s), json!(n))).collect();
+        assert_eq!(macros, want);
+        let count = std::fs::read_dir(dir.path()).unwrap().count();
+        assert_eq!(count, 2, "one file per held slot, no macro files");
 
-        let names = |dir: &Path| -> Vec<String> {
-            let mut names: Vec<String> = std::fs::read_dir(dir)
-                .unwrap()
-                .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-                .collect();
-            names.sort();
-            names
-        };
         let (_, code) = export(&pad(), dir.path(), false);
         assert_eq!(code, 5, "every file exists");
+    }
 
-        // With only the macro files left, they alone stop the export.
-        let macros_only: Vec<String> =
-            names(dir.path()).into_iter().filter(|n| !n.starts_with("profile-")).collect();
-        for entry in payload["files"].as_array().unwrap() {
-            std::fs::remove_file(entry["path"].as_str().unwrap()).unwrap();
-        }
-        let (payload, code) = export(&pad(), dir.path(), false);
-        assert_eq!(code, 5, "a macro file exists: {payload}");
-        assert_eq!(names(dir.path()), macros_only, "the second run wrote nothing");
+    #[test]
+    fn an_invalid_embedded_macro_counts_as_failed() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut bad = three_steps("Dash", XINPUT, "l1", 0);
+        bad.steps[0].pressed_buttons = vec!["nope".to_owned()];
+        let at = ((XINPUT, 1), bad);
+        let done = export_held(&Pro3, &[summary(1, "Mine")], &[at], dir.path(), false);
+        assert_eq!(done.category, ErrorCategory::ValidationFailure, "{}", done.message);
+        assert_eq!(done.macros, (1, 1));
     }
 }

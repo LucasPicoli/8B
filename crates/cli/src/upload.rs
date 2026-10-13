@@ -1,11 +1,11 @@
-//! The `upload` verb, and with `--with-macros` the macro files its profile names.
+//! The `upload` verb, and with `--with-macros` the macros its profile holds.
 //!
-//! With the flag, the slot's macros become the files in the profile's `macro_refs`, in
-//! the same write job as the profile: each file is put in the macro slot its name gives,
-//! and every other macro slot is emptied.
+//! With the flag, the slot's macros become the profile's `macros`, or for an older file
+//! the macro files in its `macro_refs`, in the same write job as the profile: each macro
+//! is put in its macro slot, and every other macro slot is emptied.
 //!
 //! A `warnings` list names each macro the slot's dead zone stops from moving a stick:
-//! with the flag the files, without it the macros the slot keeps.
+//! with the flag the macros it writes, without it the macros the slot keeps.
 
 use std::path::{Component, Path};
 
@@ -15,10 +15,14 @@ use controller_core::device::{ControllerSpec, Model};
 use controller_core::devices;
 use controller_core::error::Error;
 use controller_core::model::macros::{macro_from_json, parse_macro_file_name};
-use controller_core::model::{MacroDefinition, MacroRef, MacroSlot, Mode, Slot, WriteResult};
+use controller_core::model::{
+    CanonicalProfile, MacroDefinition, MacroRef, MacroSlot, Mode, Slot, WriteResult,
+};
 use controller_core::orchestrator::{MacroEdit, WriteJob, WriteOp};
 use controller_core::service::read::read_macros;
-use controller_core::service::validation::{low_sticks, macro_stick_warnings, validate_macro};
+use controller_core::service::validation::{
+    low_sticks, macro_stick_warnings, validate_macro, validate_profile,
+};
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
 
@@ -35,7 +39,8 @@ pub struct Upload<'a> {
     pub mode: Mode,
     /// The target slot.
     pub slot: Slot,
-    /// Replace the slot's macros with the files the profile's `macro_refs` name.
+    /// Replace the slot's macros with the profile's `macros`, or the files its
+    /// `macro_refs` name.
     pub with_macros: bool,
 }
 
@@ -83,10 +88,11 @@ fn upload(dev: &dyn DeviceIo, req: &Upload<'_>, policy: &ConfirmPolicy) -> (Valu
                 MacroEdit::Delete { .. } => None,
             })
             .collect();
-        // The job's profile carries no refs: its macros travel as the edits.
+        // The job's profile carries no macros: they travel as the edits.
         let mut profile = profile.clone();
         if let Some(map) = profile.as_object_mut() {
             map.insert("macro_refs".to_owned(), json!([]));
+            map.remove("macros");
         }
         let op =
             WriteOp::Upload { profile: Some(profile), drop_macros: Vec::new(), macro_edits: edits };
@@ -116,27 +122,35 @@ fn kept_warnings(dev: &dyn DeviceIo, mode: Mode, slot: Slot, profile: &Value) ->
     found().unwrap_or_default()
 }
 
-/// The edits that make the slot's macros the files in `profile`'s `macro_refs`, read
-/// from `folder`: a put per ref, in the macro slot its file name gives, and a delete for
-/// every other macro slot of `model`.
+/// The edits that make the slot's macros the ones `profile` embeds in `macros`, or else
+/// the files in its `macro_refs`, read from `folder`: a put per macro, in its macro slot,
+/// and a delete for every other macro slot of `model`.
 ///
 /// # Errors
-/// [`Error::Validation`] naming the ref for a path that leaves `folder`, a file name
-/// with no macro number, a macro number two refs share, a file that is missing or
-/// invalid, is for another mode than `mode`, or names other buttons than its ref.
+/// [`Error::Validation`] for a profile with `macros` that is not valid, or naming the
+/// ref for a path that leaves `folder`, a file name with no macro number, a macro number
+/// two refs share, a file that is missing or invalid, is for another mode than `mode`,
+/// or names other buttons than its ref.
 fn macro_edits(
     model: &dyn Model,
     profile: &Value,
     mode: Mode,
     folder: &Path,
 ) -> Result<Vec<MacroEdit>, Error> {
+    let mut taken: Vec<u8> = Vec::new();
+    let mut edits = Vec::new();
+    if profile.get("macros").is_some() {
+        for definition in embedded_macros(model, profile)? {
+            let n = definition.macro_slot.unwrap_or_default();
+            taken.push(n);
+            edits.push(MacroEdit::Put { macro_slot: MacroSlot::new(n)?, definition });
+        }
+    }
     let refs: Vec<MacroRef> = match profile.get("macro_refs") {
         Some(refs) => serde_json::from_value(refs.clone())
             .map_err(|e| Error::Validation(format!("The profile's macro_refs: {e}")))?,
         None => Vec::new(),
     };
-    let mut taken: Vec<u8> = Vec::new();
-    let mut edits = Vec::new();
     for r in &refs {
         let n = macro_number(&r.path)?;
         if taken.contains(&n) {
@@ -156,6 +170,26 @@ fn macro_edits(
         }
     }
     Ok(edits)
+}
+
+/// The macros `profile` embeds, each with its macro slot, once the whole profile is
+/// valid for `model`. Validation refuses non-empty `macro_refs` beside them.
+///
+/// # Errors
+/// [`Error::Validation`] listing every reason the profile is not valid.
+fn embedded_macros(model: &dyn Model, profile: &Value) -> Result<Vec<MacroDefinition>, Error> {
+    let validation = validate_profile(model, profile)?;
+    if !validation.valid {
+        let details: Vec<String> =
+            validation.errors.iter().map(|e| format!("{}: {}", e.path, e.reason)).collect();
+        return Err(Error::Validation(format!(
+            "Profile validation failed: {}",
+            details.join("; ")
+        )));
+    }
+    let parsed: CanonicalProfile = serde_json::from_value(profile.clone())
+        .map_err(|e| Error::Validation(format!("The profile's macros: {e}")))?;
+    Ok(parsed.macros.unwrap_or_default())
 }
 
 /// The macro slot in the file name of the ref `path`.
@@ -255,6 +289,23 @@ mod tests {
         dir
     }
 
+    /// A folder with an `XInput` profile that embeds `macros`, and `refs` beside them.
+    fn embedded(macros: Vec<MacroDefinition>, refs: Value) -> tempfile::TempDir {
+        let dir = folder(refs, &[]);
+        let profile = CanonicalProfile {
+            id: "xinput-new".to_owned(),
+            name: "New".to_owned(),
+            macros: Some(macros),
+            ..Pro3.default_profile(XINPUT)
+        };
+        let mut json = serde_json::to_value(profile).unwrap();
+        let path = dir.path().join("profile.json");
+        let text = std::fs::read_to_string(&path).unwrap();
+        json["macro_refs"] = serde_json::from_str::<Value>(&text).unwrap()["macro_refs"].clone();
+        std::fs::write(path, json.to_string()).unwrap();
+        dir
+    }
+
     /// The ref of `d` as `export` writes it.
     fn reference(d: &MacroDefinition) -> Value {
         json!({ "trigger_buttons": d.trigger_buttons, "path": macro_file_name(XINPUT, 1, d) })
@@ -303,6 +354,56 @@ mod tests {
             ]
         );
         assert_eq!(pages(&dev), [0, 2]);
+    }
+
+    #[test]
+    fn embedded_macros_replace_every_macro_of_the_slot_in_one_job() {
+        let dev = pad(2);
+        let dir =
+            embedded(vec![def("Dash", XINPUT, "l3", 1), def("Hop", XINPUT, "r4", 3)], json!([]));
+        let (payload, code) = run(&dev, dir.path(), true, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        assert_eq!(payload["macro_count"], 2);
+        assert!(!payload["message"].as_str().unwrap().contains("Ignored"), "{payload}");
+        assert_eq!(held(&dev), [(Some(1), "Dash".to_owned()), (Some(3), "Hop".to_owned())]);
+        assert_eq!(pages(&dev), [1, 3]);
+    }
+
+    #[test]
+    fn an_empty_macros_list_clears_the_slots_macros() {
+        let dev = pad(2);
+        let dir = embedded(Vec::new(), json!([]));
+        let (payload, code) = run(&dev, dir.path(), true, &ConfirmPolicy::Force);
+        assert_eq!((code, &payload["macro_count"]), (0, &json!(0)), "{payload}");
+        assert_eq!(held(&dev), []);
+    }
+
+    #[test]
+    fn without_the_flag_embedded_macros_are_ignored() {
+        let dev = pad(2);
+        let dir = embedded(vec![def("Dash", XINPUT, "l3", 0)], json!([]));
+        let (payload, code) = run(&dev, dir.path(), false, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        assert!(payload["message"].as_str().unwrap().contains("Ignored 1 macro"), "{payload}");
+        assert_eq!(held(&dev).len(), 2);
+    }
+
+    #[test]
+    fn an_invalid_embedded_macro_is_exit_4_with_nothing_written() {
+        let a = def("Dash", XINPUT, "l3", 0);
+        let cases = [
+            (vec![a.clone()], json!([reference(&a)]), "/macro_refs"),
+            (vec![a.clone(), def("Hop", XINPUT, "r4", 0)], json!([]), "/macros/1/macro_slot"),
+            (vec![def("Combo", DINPUT, "l3", 1)], json!([]), "/macros/0/mode"),
+        ];
+        for (macros, refs, says) in cases {
+            let dev = pad(2);
+            let dir = embedded(macros, refs);
+            let (payload, code) = run(&dev, dir.path(), true, &ConfirmPolicy::Force);
+            assert_eq!(code, 4, "{says}: {payload}");
+            assert!(payload["message"].as_str().unwrap().contains(says), "{says}: {payload}");
+            assert!(wrote_nothing(&dev), "{says}");
+        }
     }
 
     #[test]

@@ -172,8 +172,8 @@ enum Commands {
     /// Read all profiles from the device and report them as JSON.
     Read,
 
-    /// Save every profile of every mode as canonical JSON (re-uploadable), and each of
-    /// its macros as a `macro-v1` file beside it, under the path its `macro_refs` holds.
+    /// Save every profile of every mode as canonical JSON (re-uploadable), one file per
+    /// slot with the slot's macros in its `macros` list.
     Export {
         /// Output directory.
         #[arg(short, long, default_value = "exports")]
@@ -215,10 +215,12 @@ enum Commands {
         /// Path to the canonical profile JSON.
         #[arg(short, long)]
         file: PathBuf,
-        /// Replace the slot's macros with the `macro-v1` files the profile's `macro_refs`
-        /// name, read from the profile's folder, in the same write. Each file goes in the
-        /// macro slot its name gives (`<mode>-slot<N>-macro<M>-<name>.json`), and the
-        /// other macro slots are emptied. An empty `macro_refs` clears them all.
+        /// Replace the slot's macros with the profile's `macros`, in the same write. Each
+        /// macro goes in its `macro_slot`, and the other macro slots are emptied; an
+        /// empty list clears them all. A profile with no `macros` key takes the
+        /// `macro-v1` files its `macro_refs` name instead, read from the profile's
+        /// folder, each in the macro slot its name gives
+        /// (`<mode>-slot<N>-macro<M>-<name>.json`).
         #[arg(long)]
         with_macros: bool,
     },
