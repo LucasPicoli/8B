@@ -1143,6 +1143,8 @@ fn step_table_shows_lanes_glides_and_pauses() {
         }
         ui.set_tab(1);
         ui.set_selected_step(2);
+        // The app renders again when the selection changes; the test has no callbacks.
+        render(&s, &ui);
         save(&format!("steps-{}", if dark { "dark" } else { "light" }), &ui);
     }
     let ui = window(&s);

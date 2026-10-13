@@ -99,6 +99,8 @@ pub struct StepUndo {
     before: Vec<MacroStep>,
     after: Vec<MacroStep>,
     selected: usize,
+    /// Edits with the same key in a row are one undo, such as typing a duration.
+    key: Option<(usize, &'static str)>,
 }
 
 impl AppState {
@@ -144,21 +146,40 @@ impl AppState {
                 StepEdit::Delete => delete(s, step),
             });
         });
-        let after = self.macro_steps(n)?;
-        if after != steps {
-            let slot = self.selected_slot()?;
-            if self.step_undo.len() >= UNDO_DEPTH {
-                self.step_undo.remove(0);
-            }
-            self.step_undo.push(StepUndo {
-                slot,
-                macro_slot: n,
-                before: steps,
-                after,
-                selected: step,
-            });
-        }
+        self.record_step_edit(n, steps, step, None);
         selected
+    }
+
+    /// Puts the edit that turned `before` into the steps macro slot `n` holds now into
+    /// the undo history, with step `selected` to select again. An edit with the `key`
+    /// of the latest one, right after it, joins it.
+    pub(crate) fn record_step_edit(
+        &mut self,
+        n: u8,
+        before: Vec<MacroStep>,
+        selected: usize,
+        key: Option<(usize, &'static str)>,
+    ) {
+        let (Some(after), Some(slot)) = (self.macro_steps(n), self.selected_slot()) else {
+            return;
+        };
+        if after == before {
+            return;
+        }
+        if let Some(last) = self.step_undo.last_mut().filter(|u| {
+            key.is_some()
+                && u.key == key
+                && u.slot == slot
+                && u.macro_slot == n
+                && u.after == before
+        }) {
+            last.after = after;
+            return;
+        }
+        if self.step_undo.len() >= UNDO_DEPTH {
+            self.step_undo.remove(0);
+        }
+        self.step_undo.push(StepUndo { slot, macro_slot: n, before, after, selected, key });
     }
 
     /// Where the latest step edit of macro slot `n` of the selected slot sits in the

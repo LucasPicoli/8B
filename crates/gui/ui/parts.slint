@@ -1,5 +1,5 @@
 // Pieces shared by the screens, coloured from `Theme`.
-import { Theme, Button, ScrollView } from "look/breeze/widgets.slint";
+import { Theme, Button, LineEdit, ScrollView } from "look/breeze/widgets.slint";
 import { Section, Change } from "types.slint";
 
 export global Icons {
@@ -742,5 +742,24 @@ export component NoteRow inherits Rectangle {
         y: parent.height - 1px;
         height: 1px;
         background: Theme.line-soft;
+    }
+}
+
+// A number field that hands Rust each value in range as it is typed, and shows the
+// stored value again when it loses focus.
+export component NumberEdit inherits LineEdit {
+    in property <int> value;
+    in property <int> minimum;
+    in property <int> maximum;
+    callback committed(int);
+    width: 76px;
+    input-type: InputType.number;
+    text: root.value;
+    changed value => { if (!self.has-focus) { self.text = self.value; } }
+    changed has-focus => { if (!self.has-focus) { self.text = self.value; } }
+    edited(t) => {
+        if (t.is-float() && round(t.to-float()) == t.to-float() && t.to-float() >= root.minimum && t.to-float() <= root.maximum) {
+            root.committed(t.to-float());
+        }
     }
 }

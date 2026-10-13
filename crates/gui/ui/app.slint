@@ -9,10 +9,10 @@ import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, Theme, Palette, Diagnostics }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -75,6 +75,13 @@ export component AppWindow inherits Window {
     in-out property <int> selected-step: 0;
     // Ctrl+Z can take back the last step edit of the shown macro.
     in property <bool> can-undo-step;
+    // The step panel of the selected step. Rust reads `selected-step` to fill it.
+    in property <string> panel-title;
+    in property <int> panel-duration;
+    in property <int> step-ms-min;
+    in property <int> step-ms-max;
+    in property <[ChipInfo]> panel-chips;
+    changed selected-step => { root.macro-shown(); }
     // The first settings tab.
     property <int> first-page: root.has-macros ? 2 : 1;
     // Why the last read failed, empty when it did not.
@@ -197,6 +204,9 @@ export component AppWindow inherits Window {
     // A step edit: the macro slot, the step, and the edit (see `StepTable.edited`).
     callback step-edited(int, int, int);
     callback step-undone(int);
+    // A step panel edit: the macro slot, the step, and the duration or the chip.
+    callback step-duration-changed(int, int, int);
+    callback step-chip-toggled(int, int, int);
     callback start-from-default;
     // Open and save dialogs for profile JSON, and the answer to the import warning.
     callback import-file;
@@ -486,6 +496,13 @@ export component AppWindow inherits Window {
                         can-undo-step: root.can-undo-step;
                         step-edited(n, i, e) => { root.step-edited(n, i, e); }
                         step-undone(n) => { root.step-undone(n); }
+                        panel-title: root.panel-title;
+                        panel-duration: root.panel-duration;
+                        step-ms-min: root.step-ms-min;
+                        step-ms-max: root.step-ms-max;
+                        panel-chips: root.panel-chips;
+                        step-duration-changed(n, i, v) => { root.step-duration-changed(n, i, v); }
+                        step-chip-toggled(n, i, c) => { root.step-chip-toggled(n, i, c); }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, x, y) => { return root.macro-hit(v, n, x, y); }
                         created(n) => { root.macro-created(n); }

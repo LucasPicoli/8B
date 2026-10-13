@@ -1,28 +1,10 @@
 // The Macros tab: the macro slots of the selected slot and the controller views on the
 // left, the selected macro's header on the right.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
-import { Dot, Frame, Icons, SmallHead } from "parts.slint";
-import { MacroRow, MacroSpot, PadView, StepInfo } from "types.slint";
+import { Dot, Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
+import { ChipInfo, MacroRow, MacroSpot, PadView, StepInfo } from "types.slint";
 import { StepTable } from "steps.slint";
-
-// A number field that hands Rust each value in range as it is typed, and shows the
-// stored value again when it loses focus.
-component NumberEdit inherits LineEdit {
-    in property <int> value;
-    in property <int> minimum;
-    in property <int> maximum;
-    callback committed(int);
-    width: 76px;
-    input-type: InputType.number;
-    text: root.value;
-    changed value => { if (!self.has-focus) { self.text = self.value; } }
-    changed has-focus => { if (!self.has-focus) { self.text = self.value; } }
-    edited(t) => {
-        if (t.is-float() && round(t.to-float()) == t.to-float() && t.to-float() >= root.minimum && t.to-float() <= root.maximum) {
-            root.committed(t.to-float());
-        }
-    }
-}
+import { StepPanel } from "step_panel.slint";
 
 // A button that starts a macro, as a filled pill.
 component ButtonChip inherits Rectangle {
@@ -466,6 +448,15 @@ export component MacrosTab {
     // Ctrl+Z on macro slot n.
     callback step-edited(int, int, int);
     callback step-undone(int);
+    // The step panel of the selected step: its title, duration and held buttons.
+    in property <string> panel-title;
+    in property <int> panel-duration;
+    in property <int> step-ms-min;
+    in property <int> step-ms-max;
+    in property <[ChipInfo]> panel-chips;
+    // A panel edit: the macro slot, the step, and the duration or the chip.
+    callback step-duration-changed(int, int, int);
+    callback step-chip-toggled(int, int, int);
     // The button row under (x, y) in view `view`'s viewBox units, or -1; and the same
     // only when a click there acts on macro slot `macro` (0-based).
     pure callback hit(int, float, float) -> int;
@@ -580,6 +571,17 @@ export component MacrosTab {
                 selected <=> root.selected-step;
                 can-undo: root.can-undo-step;
                 edited(e) => { root.step-edited(root.selected, root.selected-step, e); }
+                undone => { root.step-undone(root.selected); }
+            }
+            if root.current.filled && root.steps-ready && root.panel-title != "": StepPanel {
+                title: root.panel-title;
+                duration: root.panel-duration;
+                duration-min: root.step-ms-min;
+                duration-max: root.step-ms-max;
+                chips: root.panel-chips;
+                editable: root.editable;
+                duration-changed(v) => { root.step-duration-changed(root.selected, root.selected-step, v); }
+                chip-toggled(c) => { root.step-chip-toggled(root.selected, root.selected-step, c); }
                 undone => { root.step-undone(root.selected); }
             }
             if !root.current.filled: Frame {

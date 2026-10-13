@@ -22,6 +22,7 @@ mod render;
 mod review;
 mod settings;
 mod state;
+mod step_panel;
 mod step_table;
 mod udev;
 mod worker;
@@ -576,6 +577,16 @@ fn wire_macros(
         if let (Some(i), Some(ui)) = (selected.get(), weak.upgrade()) {
             ui.set_selected_step(i32::try_from(i).unwrap_or(0));
         }
+    });
+    let c = change.clone();
+    ui.on_step_duration_changed(move |n, step, ms| {
+        let Ok(step) = usize::try_from(step) else { return };
+        c(&|s| s.set_step_duration(macro_slot(n), step, ms));
+    });
+    let c = change.clone();
+    ui.on_step_chip_toggled(move |n, step, chip| {
+        let (Ok(step), Ok(chip)) = (usize::try_from(step), usize::try_from(chip)) else { return };
+        c(&|s| s.toggle_step_button(macro_slot(n), step, chip));
     });
     ui.on_macro_hit(move |view, n, x, y| {
         let view = usize::try_from(view).unwrap_or(usize::MAX);

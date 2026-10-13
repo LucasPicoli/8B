@@ -1,0 +1,166 @@
+// The step panel of the Macros tab: the selected step's duration and the buttons it
+// holds. The right column is kept for the sticks and the trigger pressure.
+import { Theme } from "look/breeze/widgets.slint";
+import { Frame, NumberEdit, SmallHead } from "parts.slint";
+import { ChipInfo } from "types.slint";
+
+// A button that is on or off: the accent wash and border while on, the hover fill under
+// the pointer. Space toggles it, as on a Breeze check box.
+component ToggleChip inherits Rectangle {
+    in property <string> text;
+    in property <bool> on;
+    in property <bool> enabled: true;
+    callback toggled;
+    height: 26px;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: root.on ? Theme.accent : Theme.line;
+    background: root.on ? Theme.accent-wash : ta.has-hover && root.enabled ? Theme.hover : Theme.button;
+    opacity: root.enabled ? 1 : 0.45;
+    accessible-role: checkbox;
+    accessible-checkable: true;
+    accessible-label: root.text;
+    accessible-checked: root.on;
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.toggled(); }
+    forward-focus: fs;
+    fs := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            // A held key toggles once, not on every repeat.
+            if (e.text == " " && !e.repeat) {
+                root.toggled();
+                return accept;
+            }
+            reject
+        }
+    }
+    Text {
+        x: 6px;
+        width: parent.width - 12px;
+        height: 100%;
+        text: root.text;
+        font-weight: root.on ? 600 : 400;
+        color: Theme.fg;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            fs.focus();
+            root.toggled();
+        }
+    }
+    // Keyboard focus: the Breeze accent frame outside the chip.
+    if fs.has-focus: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: root.width + 4px;
+        height: root.height + 4px;
+        border-radius: Theme.radius + 2px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+}
+
+export component StepPanel inherits Frame {
+    // Such as "Step 3 of 5".
+    in property <string> title;
+    in property <int> duration;
+    in property <int> duration-min;
+    in property <int> duration-max;
+    in property <[ChipInfo]> chips;
+    in property <bool> editable;
+    callback duration-changed(int);
+    // A chip of `chips`.
+    callback chip-toggled(int);
+    // Ctrl+Z: take back the last step edit.
+    callback undone;
+
+    VerticalLayout {
+        Rectangle {
+            height: 40px;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 12px;
+                spacing: 8px;
+                SmallHead {
+                    text: root.title;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    width: 8px;
+                }
+                Text {
+                    text: "Duration";
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    NumberEdit {
+                        value: root.duration;
+                        minimum: root.duration-min;
+                        maximum: root.duration-max;
+                        enabled: root.editable;
+                        accessible-name: "Step duration in milliseconds";
+                        committed(v) => { root.duration-changed(v); }
+                    }
+                }
+                Text {
+                    text: "ms";
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+            }
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+        }
+        VerticalLayout {
+            padding: 12px;
+            spacing: 6px;
+            SmallHead {
+                text: "Buttons held";
+            }
+            // The chips by index, four or eight to a line so the description's groups of
+            // four stay together, each cell stretched to fill: Slint has no wrap layout.
+            grid := Rectangle {
+                property <length> gap: 6px;
+                property <length> least: 84px;
+                property <int> per-line: self.width >= 8 * self.least + 7 * self.gap ? 8 : 4;
+                property <length> cell: floor((self.width - (self.per-line - 1) * self.gap) / self.per-line / 1phx) * 1phx;
+                height: max(0px, ceil(root.chips.length / self.per-line) * (26px + self.gap) - self.gap);
+                // The chips sit inside it, so Ctrl+Z on a chip reaches it.
+                FocusScope {
+                    width: 100%;
+                    height: 100%;
+                    focus-on-click: false;
+                    key-pressed(e) => {
+                        if (e.modifiers.control && (e.text == "z" || e.text == "Z")) {
+                            root.undone();
+                            return accept;
+                        }
+                        reject
+                    }
+                    for c[i] in root.chips: ToggleChip {
+                        x: round(mod(i, grid.per-line) * (grid.cell + grid.gap) / 1phx) * 1phx;
+                        y: round(floor(i / grid.per-line) * (26px + grid.gap) / 1phx) * 1phx;
+                        width: grid.cell;
+                        text: c.label;
+                        on: c.on;
+                        enabled: root.editable;
+                        toggled => { root.chip-toggled(i); }
+                    }
+                }
+            }
+        }
+    }
+}
