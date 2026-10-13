@@ -151,6 +151,15 @@ mod tests {
     }
 
     #[test]
+    fn a_staged_delete_comes_back_with_its_buttons() {
+        let mut s = held();
+        s.delete_macro(0);
+        s.revert_macro(0);
+        assert_eq!(s.slot(XINPUT, 2).macro_started_by("rp"), Some(0));
+        assert!(clean(&s));
+    }
+
+    #[test]
     fn a_button_it_took_goes_back_to_its_macro() {
         let mut s = held();
         s.add_macro_button(0, "r4");
