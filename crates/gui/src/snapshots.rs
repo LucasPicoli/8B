@@ -1099,3 +1099,55 @@ fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
     ui.set_selected_macro(1);
     save("macros-narrow", &ui);
 }
+
+/// `XInput` slot 2 holding "Slide jump" on PL: A held over two steps, LT pressed half and
+/// gliding to full, the left stick gliding to the right, then a pause.
+fn steps_tab() -> AppState {
+    use controller_core::model::{GlideControl, MacroStep};
+    let mut s = connected(XINPUT);
+    let mut def = macro_def(0, "Slide jump", &["lp"], 0);
+    let a = || vec!["bottom face".to_owned()];
+    def.steps = vec![
+        MacroStep { duration_ms: 300, pressed_buttons: a(), ..MacroStep::default() },
+        MacroStep {
+            duration_ms: 60,
+            pressed_buttons: a(),
+            trigger_left: 128,
+            glide: [GlideControl::LeftTrigger].into(),
+            ..MacroStep::default()
+        },
+        MacroStep {
+            duration_ms: 500,
+            trigger_left: 255,
+            left_stick_x: 127,
+            glide: [GlideControl::LeftStick].into(),
+            ..MacroStep::default()
+        },
+        MacroStep { duration_ms: 120, left_stick_x: 255, ..MacroStep::default() },
+        MacroStep { duration_ms: 200, ..MacroStep::default() },
+    ];
+    hold_macros(&mut s, (XINPUT, 2), &[def]);
+    s.select(0, 1);
+    s
+}
+
+#[test]
+fn step_table_shows_lanes_glides_and_pauses() {
+    let s = steps_tab();
+    for dark in [false, true] {
+        let ui = window(&s);
+        if dark {
+            ui.global::<crate::ui::Palette<'_>>()
+                .set_color_scheme(slint::language::ColorScheme::Dark);
+            render_views(s.description(), &ui);
+        }
+        ui.set_tab(1);
+        ui.set_selected_step(2);
+        save(&format!("steps-{}", if dark { "dark" } else { "light" }), &ui);
+    }
+    let ui = window(&s);
+    ui.window().set_size(PhysicalSize::new(1024, 640));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    save("steps-narrow", &ui);
+}

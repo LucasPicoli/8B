@@ -245,7 +245,10 @@ The model supplies:
    appear in a macro step. Both default to `false`, are the same in every mode, and
    `macro_slot_count` above 0 needs at least one button with each. Macro validation
    builds its button lists from them. The Pro 3 has 21 and 16, and a test pins them
-   to its codec tables.
+   to its codec tables. A button whose press a macro step holds as a trigger value
+   (`MacroStep::trigger_left` or `trigger_right`) instead of as a pressed button also
+   sets `step_trigger_value` to `"left"` or `"right"`, so the macro editor shows that
+   value as the button's press. On the Pro 3 these are L2 and R2.
 
 Check the description with `cargo test -p controller-core every_registered_description_loads`,
 which loads the description of every model in `MODELS`. A bad file fails with the

@@ -260,6 +260,20 @@ pub struct Button {
     /// same in every mode.
     #[serde(default)]
     pub can_be_in_macro_step: bool,
+    /// A macro step holds this button's press in its left or right trigger value, as a
+    /// pressure in an analog mode, not among its pressed buttons. `None` for a button.
+    #[serde(default)]
+    pub step_trigger_value: Option<TriggerSide>,
+}
+
+/// One of the two trigger values of a macro step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerSide {
+    /// `MacroStep::trigger_left`.
+    Left,
+    /// `MacroStep::trigger_right`.
+    Right,
 }
 
 impl ControllerDescription {
@@ -469,6 +483,15 @@ impl ControllerDescription {
             return Err("a controller with macros needs a button that can start a macro \
                         and a button that can be in a macro step"
                 .to_owned());
+        }
+        for side in [TriggerSide::Left, TriggerSide::Right] {
+            let holders: Vec<_> =
+                self.buttons.iter().filter(|b| b.step_trigger_value == Some(side)).collect();
+            if holders.len() > 1 || holders.iter().any(|b| !b.can_be_in_macro_step) {
+                return Err(format!(
+                    "step_trigger_value {side:?} needs one button that can be in a macro step"
+                ));
+            }
         }
         Ok(())
     }
@@ -712,7 +735,13 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 25] = [
+        let cases: [fn(&mut Value); 27] = [
+            |v| v["buttons"][1]["step_trigger_value"] = json!("left"),
+            |v| {
+                v["buttons"][0]["step_trigger_value"] = json!("right");
+                v["buttons"][1]["can_be_in_macro_step"] = json!(true);
+                v["buttons"][1]["step_trigger_value"] = json!("right");
+            },
             |v| v["settings"][1]["frames"][0]["sliders"][0]["low"]["field"] = json!("/name"),
             |v| v["settings"][0]["frames"][0]["flags"][0]["field"] = json!("/mode"),
             |v| v["settings"][1]["modes"] = json!(["dinput"]),

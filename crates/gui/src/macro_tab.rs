@@ -110,7 +110,7 @@ impl AppState {
     }
 
     /// Applies `change` to the macro in macro slot `n` of the selected slot.
-    fn edit_macro(&mut self, n: u8, change: impl FnOnce(&mut MacroDefinition)) {
+    pub(crate) fn edit_macro(&mut self, n: u8, change: impl FnOnce(&mut MacroDefinition)) {
         self.edit_macros(|macros| {
             if let Some(m) = macros.iter_mut().find(|m| m.macro_slot == Some(n)) {
                 change(m);

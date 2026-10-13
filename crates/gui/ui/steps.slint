@@ -1,0 +1,441 @@
+// The step table of the Macros tab: the toolbar, then one row per step of the selected
+// macro, with a lane per button it holds and its two sticks.
+import { Theme, Button, ScrollView, Spinner } from "look/breeze/widgets.slint";
+import { Frame, Icons, SmallHead } from "parts.slint";
+import { LaneInfo, StepInfo, StickInfo } from "types.slint";
+
+// Column widths: step number, start time, each stick, duration. The lanes share the
+// rest, at most `lane-max` each.
+global Columns {
+    out property <length> number: 44px;
+    out property <length> start: 80px;
+    out property <length> stick: 64px;
+    out property <length> duration: 80px;
+    out property <length> lane-max: 36px;
+    out property <length> lane-min: 22px;
+    out property <length> row: 40px;
+    // The scroll area shows this many rows, then scrolls.
+    out property <int> shown-rows: 9;
+}
+
+// A button's cell in one step: a bar while it is held. The bar runs into the cell above
+// or below that also holds it, and a trigger's bar is as wide as its pressure.
+component LaneCell inherits Rectangle {
+    in property <LaneInfo> cell;
+    property <length> inset: 9px;
+    // Deep enough on `view` for a graphic (3:1) in both themes.
+    property <brush> ink: Theme.dark ? Theme.accent : Theme.accent-strong;
+    // No wider than the lane, less a 2px gap on each side.
+    property <length> top: min(root.cell.top, root.width - 4px);
+    property <length> bottom: min(root.cell.bottom, root.width - 4px);
+    property <length> y0: root.cell.joins-up ? 0 : self.inset;
+    property <length> y1: root.cell.joins-down ? self.height : self.height - self.inset;
+    // A pill when it stands alone, square where it joins.
+    if root.cell.held && root.cell.top == root.cell.bottom: Rectangle {
+        x: round((parent.width - root.top) / 2 / 1phx) * 1phx;
+        y: root.y0;
+        width: root.top;
+        height: root.y1 - root.y0;
+        background: root.ink;
+        border-top-left-radius: root.cell.joins-up ? 0 : self.width / 2;
+        border-top-right-radius: root.cell.joins-up ? 0 : self.width / 2;
+        border-bottom-left-radius: root.cell.joins-down ? 0 : self.width / 2;
+        border-bottom-right-radius: root.cell.joins-down ? 0 : self.width / 2;
+    }
+    // A glide: a trapezoid from this pressure to the next.
+    if root.cell.held && root.cell.top != root.cell.bottom: Path {
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.width / 1px;
+        viewbox-height: root.height / 1px;
+        property <float> c: root.width / 2 / 1px;
+        property <float> t: root.top / 2 / 1px;
+        property <float> b: root.bottom / 2 / 1px;
+        commands: "M " + (self.c - self.t) + " " + root.y0 / 1px + " L " + (self.c + self.t) + " " + root.y0 / 1px + " L " + (self.c + self.b) + " " + root.y1 / 1px + " L " + (self.c - self.b) + " " + root.y1 / 1px + " Z";
+        fill: root.ink;
+    }
+    if root.cell.held: Tooltip {
+        text: @markdown("\{root.cell.tip}");
+    }
+}
+
+// A stick on its gate: a dot where it is, and a line to where it glides.
+component StickGlyph inherits Rectangle {
+    in property <StickInfo> stick;
+    // The gate's centre and the reach of a full deflection, in pixels.
+    property <float> c: 12;
+    property <float> r: 9;
+    width: 24px;
+    height: 24px;
+    accessible-role: image;
+    accessible-label: root.stick.text;
+    Rectangle {
+        border-width: 1px;
+        border-color: Theme.line;
+        border-radius: self.width / 2;
+        background: Theme.view;
+    }
+    // The start, then the path over it, then where the glide ends.
+    Rectangle {
+        x: (root.c + root.stick.x * root.r) * 1px - 3px;
+        y: (root.c + root.stick.y * root.r) * 1px - 3px;
+        width: 6px;
+        height: 6px;
+        border-radius: 3px;
+        background: Theme.accent-strong;
+    }
+    if root.stick.glide: Path {
+        width: root.width;
+        height: root.height;
+        viewbox-width: 24;
+        viewbox-height: 24;
+        commands: "M " + (root.c + root.stick.x * root.r) + " " + (root.c + root.stick.y * root.r) + " L " + (root.c + root.stick.to-x * root.r) + " " + (root.c + root.stick.to-y * root.r);
+        stroke: Theme.accent;
+        stroke-width: 1.5px;
+    }
+    if root.stick.glide: Rectangle {
+        x: (root.c + root.stick.to-x * root.r) * 1px - 3px;
+        y: (root.c + root.stick.to-y * root.r) * 1px - 3px;
+        width: 6px;
+        height: 6px;
+        border-radius: 3px;
+        background: Theme.view;
+        border-width: 1.5px;
+        border-color: Theme.accent;
+    }
+}
+
+// The lane cells of a row or the lane heads, left to right in the space they share.
+// A lane is at least `lane-min` wide: lanes past the space are cut off.
+component Lanes inherits Rectangle {
+    in property <int> count;
+    out property <length> lane: self.count > 0 ? round(clamp(self.width / self.count, Columns.lane-min, Columns.lane-max) / 1phx) * 1phx : 0;
+    horizontal-stretch: 1;
+    min-width: 0;
+    clip: true;
+}
+
+// One step: number, start time, lanes, sticks (or "Pause"), duration.
+component StepRow inherits Rectangle {
+    in property <StepInfo> step;
+    in property <bool> selected;
+    in property <bool> focused;
+    callback picked;
+    height: Columns.row;
+    background: root.selected ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
+    accessible-role: list-item;
+    accessible-label: "Step " + root.step.number + ", starts at " + root.step.starts-at + (root.step.pause ? ", pause" : root.step.held != "" ? ", holds " + root.step.held : "") + ", lasts " + root.step.duration;
+    accessible-item-selected: root.selected;
+    accessible-action-default => { root.picked(); }
+    // Under the lanes, so a held bar runs through it.
+    Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+    ta := TouchArea {
+        clicked => { root.picked(); }
+    }
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        Text {
+            width: Columns.number;
+            text: root.step.number;
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
+        Text {
+            width: Columns.start;
+            text: root.step.starts-at;
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
+        lanes := Lanes {
+            count: root.step.lanes.length;
+            for cell[i] in root.step.lanes: LaneCell {
+                x: i * lanes.lane;
+                width: lanes.lane;
+                height: parent.height;
+                cell: cell;
+            }
+        }
+        if root.step.pause: Text {
+            width: Columns.stick * 2;
+            text: "Pause";
+            font-size: Theme.text-small;
+            font-italic: true;
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
+        if !root.step.pause: Rectangle {
+            width: Columns.stick;
+            if root.step.left.shown: StickGlyph {
+                x: 0;
+                y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                stick: root.step.left;
+            }
+        }
+        if !root.step.pause: Rectangle {
+            width: Columns.stick;
+            if root.step.right.shown: StickGlyph {
+                x: 0;
+                y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                stick: root.step.right;
+            }
+        }
+        Text {
+            width: Columns.duration;
+            text: root.step.duration;
+            color: Theme.fg;
+            horizontal-alignment: right;
+            vertical-alignment: center;
+        }
+    }
+    if root.selected && root.focused: Rectangle {
+        x: 2px;
+        y: 2px;
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        border-radius: Theme.radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+}
+
+// The toolbar and the table. Each toolbar edit acts on the selected step.
+export component StepTable inherits Frame {
+    in property <[StepInfo]> rows;
+    in property <[string]> lanes;
+    // Such as "12/408 steps".
+    in property <string> count;
+    // The steps fill the controller: no edit may add one.
+    in property <bool> full;
+    // The steps are read from the controller.
+    in property <bool> ready;
+    in property <bool> editable;
+    in-out property <int> selected: 0;
+    // The last step edit can be taken back.
+    in property <bool> can-undo;
+    // An edit of the selected step: 0 add, 1 duplicate, 2 split, 3 up, 4 down, 5 delete.
+    callback edited(int);
+    // Ctrl+Z: take back the last step edit.
+    callback undone;
+    property <bool> can: root.ready && root.editable;
+    property <int> last: root.rows.length - 1;
+
+    // Scrolls the selected row into view.
+    function reveal() {
+        let top = root.selected * Columns.row;
+        if (top < -sv.content-y) {
+            sv.content-y = -top;
+        } else if (top + Columns.row > -sv.content-y + sv.visible-height) {
+            sv.content-y = -(top + Columns.row - sv.visible-height);
+        }
+    }
+    changed selected => { root.reveal(); }
+
+    VerticalLayout {
+        Rectangle {
+            height: 44px;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 12px;
+                spacing: 4px;
+                // A tooltip cannot sit in a layout, so each button gets a frame. Focus
+                // goes back to the rows after a click, so the keys keep working.
+                Rectangle {
+                    horizontal-stretch: 0;
+                    VerticalLayout {
+                        alignment: center;
+                        Button {
+                            text: "Add step";
+                            icon: Icons.plus;
+                            enabled: root.can && !root.full;
+                            clicked => {
+                                root.edited(0);
+                                fs.focus();
+                            }
+                        }
+                    }
+                    Tooltip {
+                        text: @markdown("Add an empty step after this one (Insert)");
+                    }
+                }
+                for tool in [
+                    { text: "Duplicate step", icon: Icons.copy, edit: 1, on: !root.full },
+                    { text: "Split step in two halves", icon: Icons.split, edit: 2, on: !root.full && root.rows[root.selected].duration-ms >= 2 },
+                    { text: "Move step up (Alt+Up)", icon: Icons.up, edit: 3, on: root.selected > 0 },
+                    { text: "Move step down (Alt+Down)", icon: Icons.down, edit: 4, on: root.selected < root.last },
+                    { text: "Delete step (Delete)", icon: Icons.clear, edit: 5, on: root.rows.length > 1 },
+                    { text: "Undo the last step edit (Ctrl+Z)", icon: Icons.discard, edit: 6, on: root.can-undo },
+                ]: Rectangle {
+                    horizontal-stretch: 0;
+                    VerticalLayout {
+                        alignment: center;
+                        Button {
+                            text: tool.text;
+                            icon: tool.icon;
+                            icon-only: true;
+                            enabled: root.can && tool.on;
+                            clicked => {
+                                if (tool.edit == 6) {
+                                    root.undone();
+                                } else {
+                                    root.edited(tool.edit);
+                                }
+                                fs.focus();
+                            }
+                        }
+                    }
+                    Tooltip {
+                        text: @markdown("\{tool.text}");
+                    }
+                }
+                Text {
+                    horizontal-stretch: 1;
+                    text: root.count + (root.full ? ", full" : "");
+                    font-size: Theme.text-small;
+                    color: root.full ? Theme.fg : Theme.fg-muted;
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+        }
+        Rectangle {
+            height: 30px;
+            background: Theme.window;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                SmallHead {
+                    width: Columns.number;
+                    text: "Step";
+                    vertical-alignment: center;
+                }
+                SmallHead {
+                    width: Columns.start;
+                    text: "Starts at";
+                    vertical-alignment: center;
+                }
+                heads := Lanes {
+                    count: root.lanes.length;
+                    for name[i] in root.lanes: SmallHead {
+                        x: i * heads.lane;
+                        width: heads.lane;
+                        height: parent.height;
+                        text: name;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                        overflow: elide;
+                    }
+                }
+                SmallHead {
+                    width: Columns.stick;
+                    text: "Left stick";
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                SmallHead {
+                    width: Columns.stick;
+                    text: "Right stick";
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                SmallHead {
+                    width: Columns.duration;
+                    text: "Duration";
+                    horizontal-alignment: right;
+                    vertical-alignment: center;
+                }
+            }
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+        }
+        if !root.ready: HorizontalLayout {
+            padding: 16px;
+            spacing: 8px;
+            alignment: center;
+            VerticalLayout {
+                alignment: center;
+                Spinner { }
+            }
+            Text {
+                text: "Reading the steps from the controller…";
+                color: Theme.fg-muted;
+                vertical-alignment: center;
+            }
+        }
+        fs := FocusScope {
+            visible: root.ready;
+            height: root.ready ? min(root.rows.length, Columns.shown-rows) * Columns.row : 0;
+            key-pressed(e) => {
+                if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
+                    let down = e.text == Key.DownArrow;
+                    if (e.modifiers.alt) {
+                        if (root.can && (down ? root.selected < root.last : root.selected > 0)) {
+                            root.edited(down ? 4 : 3);
+                        }
+                    } else {
+                        root.selected = max(0, min(root.last, root.selected + (down ? 1 : -1)));
+                    }
+                    return accept;
+                }
+                if (e.text == Key.Home || e.text == Key.End) {
+                    root.selected = e.text == Key.Home ? 0 : root.last;
+                    return accept;
+                }
+                if (e.text == Key.PageUp || e.text == Key.PageDown) {
+                    let page = Columns.shown-rows - 1;
+                    root.selected = max(0, min(root.last, root.selected + (e.text == Key.PageDown ? page : -page)));
+                    return accept;
+                }
+                if (e.modifiers.control && (e.text == "z" || e.text == "Z")) {
+                    if (root.can && root.can-undo) {
+                        root.undone();
+                    }
+                    return accept;
+                }
+                if (e.text == Key.Insert && root.can && !root.full) {
+                    root.edited(0);
+                    return accept;
+                }
+                if (e.text == Key.Delete && root.can && root.rows.length > 1) {
+                    root.edited(5);
+                    return accept;
+                }
+                reject
+            }
+            sv := ScrollView {
+                width: parent.width;
+                height: parent.height;
+                VerticalLayout {
+                    accessible-role: list;
+                    accessible-label: "Steps";
+                    for r[i] in root.rows: StepRow {
+                        step: r;
+                        selected: i == root.selected;
+                        focused: fs.has-focus;
+                        picked => {
+                            root.selected = i;
+                            fs.focus();
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

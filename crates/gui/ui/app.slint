@@ -9,10 +9,10 @@ import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, Theme, Palette, Diagnostics }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, Theme, Palette, Diagnostics }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -60,8 +60,21 @@ export component AppWindow inherits Window {
     in property <int> macro-count-min;
     in property <int> macro-count-max;
     in property <int> macro-pause-max;
-    // The selected macro slot (0-based).
+    // The selected macro slot (0-based). Rust reads it to draw that macro's steps.
     in-out property <int> selected-macro: 0;
+    changed selected-macro => {
+        root.selected-step = 0;
+        root.macro-shown();
+    }
+    // The step table of the selected macro, and its selected step.
+    in property <[StepInfo]> step-rows;
+    in property <[string]> step-lanes;
+    in property <string> step-count;
+    in property <bool> steps-full;
+    in property <bool> steps-ready;
+    in-out property <int> selected-step: 0;
+    // Ctrl+Z can take back the last step edit of the shown macro.
+    in property <bool> can-undo-step;
     // The first settings tab.
     property <int> first-page: root.has-macros ? 2 : 1;
     // Why the last read failed, empty when it did not.
@@ -179,6 +192,11 @@ export component AppWindow inherits Window {
     callback macro-button-added(int, int);
     callback macro-button-removed(int, int);
     callback macro-view-clicked(int, int);
+    // Another macro is shown: its steps need drawing.
+    callback macro-shown;
+    // A step edit: the macro slot, the step, and the edit (see `StepTable.edited`).
+    callback step-edited(int, int, int);
+    callback step-undone(int);
     callback start-from-default;
     // Open and save dialogs for profile JSON, and the answer to the import warning.
     callback import-file;
@@ -459,6 +477,15 @@ export component AppWindow inherits Window {
                         pause-max: root.macro-pause-max;
                         selected <=> root.selected-macro;
                         narrow: root.compact;
+                        step-rows: root.step-rows;
+                        step-lanes: root.step-lanes;
+                        step-count: root.step-count;
+                        steps-full: root.steps-full;
+                        steps-ready: root.steps-ready;
+                        selected-step <=> root.selected-step;
+                        can-undo-step: root.can-undo-step;
+                        step-edited(n, i, e) => { root.step-edited(n, i, e); }
+                        step-undone(n) => { root.step-undone(n); }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, x, y) => { return root.macro-hit(v, n, x, y); }
                         created(n) => { root.macro-created(n); }

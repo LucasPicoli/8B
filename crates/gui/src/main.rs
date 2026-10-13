@@ -13,6 +13,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod logging;
+mod macro_steps;
 mod macro_tab;
 mod macros;
 mod plain;
@@ -21,6 +22,7 @@ mod render;
 mod review;
 mod settings;
 mod state;
+mod step_table;
 mod udev;
 mod worker;
 mod writes;
@@ -65,6 +67,7 @@ use crate::closing::CloseOutcome;
 use crate::macro_tab::{action_hit, added_button, chip_button, view_click, Plays, ViewClick};
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
+use crate::step_table::StepEdit;
 use crate::ui::{AppWindow, Diagnostics};
 use crate::worker::{Command, Event, Failure};
 use crate::writes::WriteJob;
@@ -553,6 +556,27 @@ fn wire_macros(
     change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
     state: Rc<RefCell<AppState>>,
 ) {
+    let c = change.clone();
+    ui.on_macro_shown(move || c(&|_| {}));
+    let c = change.clone();
+    let weak = ui.as_weak();
+    ui.on_step_edited(move |n, step, edit| {
+        let (Some(edit), Ok(step)) = (StepEdit::at(edit), usize::try_from(step)) else { return };
+        let selected = Cell::new(None);
+        c(&|s| selected.set(s.edit_step(macro_slot(n), step, edit)));
+        if let (Some(i), Some(ui)) = (selected.get(), weak.upgrade()) {
+            ui.set_selected_step(i32::try_from(i).unwrap_or(0));
+        }
+    });
+    let c = change.clone();
+    let weak = ui.as_weak();
+    ui.on_step_undone(move |n| {
+        let selected = Cell::new(None);
+        c(&|s| selected.set(s.undo_step(macro_slot(n))));
+        if let (Some(i), Some(ui)) = (selected.get(), weak.upgrade()) {
+            ui.set_selected_step(i32::try_from(i).unwrap_or(0));
+        }
+    });
     ui.on_macro_hit(move |view, n, x, y| {
         let view = usize::try_from(view).unwrap_or(usize::MAX);
         action_hit(&state.borrow(), view, macro_slot(n), x, y)

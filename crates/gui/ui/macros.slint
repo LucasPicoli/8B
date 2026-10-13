@@ -2,7 +2,8 @@
 // left, the selected macro's header on the right.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Dot, Frame, Icons, SmallHead } from "parts.slint";
-import { MacroRow, MacroSpot, PadView } from "types.slint";
+import { MacroRow, MacroSpot, PadView, StepInfo } from "types.slint";
+import { StepTable } from "steps.slint";
 
 // A number field that hands Rust each value in range as it is typed, and shows the
 // stored value again when it loses focus.
@@ -434,13 +435,6 @@ component MacroHeader inherits Frame {
                     text: "ms";
                 }
             }
-            Field {
-                label: "Steps";
-                FieldLabel {
-                    text: root.item.steps;
-                    color: Theme.fg-muted;
-                }
-            }
         }
     }
 }
@@ -460,6 +454,18 @@ export component MacrosTab {
     // A narrow window: the left column gets narrower. Rust sets it, as the tab's own
     // width would form a layout loop.
     in property <bool> narrow;
+    // The step table of the selected macro.
+    in property <[StepInfo]> step-rows;
+    in property <[string]> step-lanes;
+    in property <string> step-count;
+    in property <bool> steps-full;
+    in property <bool> steps-ready;
+    in-out property <int> selected-step: 0;
+    in property <bool> can-undo-step;
+    // A step edit: the macro slot, the step, and the edit (see `StepTable.edited`); and
+    // Ctrl+Z on macro slot n.
+    callback step-edited(int, int, int);
+    callback step-undone(int);
     // The button row under (x, y) in view `view`'s viewBox units, or -1; and the same
     // only when a click there acts on macro slot `macro` (0-based).
     pure callback hit(int, float, float) -> int;
@@ -548,6 +554,7 @@ export component MacrosTab {
         VerticalLayout {
             horizontal-stretch: 1;
             alignment: start;
+            spacing: 12px;
             if root.current.filled: MacroHeader {
                 item: root.current;
                 editable: root.editable;
@@ -562,6 +569,18 @@ export component MacrosTab {
                 pause-changed(v) => { root.pause-changed(root.selected, v); }
                 button-added(c) => { root.button-added(root.selected, c); }
                 button-removed(c) => { root.button-removed(root.selected, c); }
+            }
+            if root.current.filled: StepTable {
+                rows: root.step-rows;
+                lanes: root.step-lanes;
+                count: root.step-count;
+                full: root.steps-full;
+                ready: root.steps-ready;
+                editable: root.editable;
+                selected <=> root.selected-step;
+                can-undo: root.can-undo-step;
+                edited(e) => { root.step-edited(root.selected, root.selected-step, e); }
+                undone => { root.step-undone(root.selected); }
             }
             if !root.current.filled: Frame {
                 VerticalLayout {

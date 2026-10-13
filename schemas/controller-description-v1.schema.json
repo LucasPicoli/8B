@@ -295,6 +295,10 @@
           "description": "This button's press and release may appear in a macro step (a step button). The same in every mode. Default false.",
           "type": "boolean",
           "default": false
+        },
+        "step_trigger_value": {
+          "description": "A macro step holds this button's press in its left or right trigger value, as a pressure in an analog mode, not among its pressed buttons. At most one button per side, and it sets can_be_in_macro_step. Absent for a plain button.",
+          "enum": ["left", "right"]
         }
       }
     },

@@ -28,7 +28,7 @@ pub const fn axes(step: &MacroStep, control: GlideControl) -> [u8; 2] {
 }
 
 /// Sets `control` in `step` to `[x, y]`, or `[v, _]` for a trigger.
-const fn set_axes(step: &mut MacroStep, control: GlideControl, [a, b]: [u8; 2]) {
+pub const fn set_axes(step: &mut MacroStep, control: GlideControl, [a, b]: [u8; 2]) {
     match control {
         GlideControl::LeftStick => (step.left_stick_x, step.left_stick_y) = (a, b),
         GlideControl::RightStick => (step.right_stick_x, step.right_stick_y) = (a, b),

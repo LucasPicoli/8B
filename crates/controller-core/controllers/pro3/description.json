@@ -192,7 +192,8 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "step_trigger_value": "left"
     },
     {
       "id": "r2",
@@ -204,7 +205,8 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "step_trigger_value": "right"
     },
     {
       "id": "l3",

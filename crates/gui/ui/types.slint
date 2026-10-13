@@ -279,3 +279,46 @@ export struct MacroSpot {
     x1: float,
     y1: float,
 }
+
+// One button's cell in a step row: a bar while the button is held. A bar that meets a
+// held cell above or below runs into it, so a hold reads as one bar.
+export struct LaneInfo {
+    held: bool,
+    joins-up: bool,
+    joins-down: bool,
+    // The bar's width at its top and bottom: a trigger's pressure, tapering as it glides.
+    top: length,
+    bottom: length,
+    // What the bar holds, such as "LT 128 to 255".
+    tip: string,
+}
+
+// A stick in a step row, on a disc of radius 1: where it is, and where it glides to.
+export struct StickInfo {
+    // At rest and not gliding: the cell is blank.
+    shown: bool,
+    x: float,
+    y: float,
+    glide: bool,
+    to-x: float,
+    to-y: float,
+    // Words for a screen reader, such as "x 255, y 127".
+    text: string,
+}
+
+// One step of the selected macro in the step table.
+export struct StepInfo {
+    // 1-based.
+    number: int,
+    // Such as "300 ms".
+    starts-at: string,
+    duration: string,
+    duration-ms: int,
+    // No button, no trigger, both sticks at rest.
+    pause: bool,
+    // What the step holds, such as "A, LT 128 to 255", or "".
+    held: string,
+    lanes: [LaneInfo],
+    left: StickInfo,
+    right: StickInfo,
+}

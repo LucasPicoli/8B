@@ -222,6 +222,7 @@ impl ProtocolCodec for Pro3 {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::description::TriggerSide;
     use crate::device::ControllerSpec;
     use crate::model::Mode;
     use crate::protocol::framing::Framing;
@@ -275,6 +276,14 @@ mod tests {
         let steps = tables::STEP_BUTTONS.iter().filter(|s| s.mask != 0).map(|s| s.name);
         assert_eq!(sorted(flagged(|b| b.can_start_macro)), sorted(triggers.collect()));
         assert_eq!(sorted(flagged(|b| b.can_be_in_macro_step)), sorted(steps.collect()));
+        // The codec moves these two keys bits into the step's trigger values.
+        let side = |mask: u16| {
+            let name = tables::STEP_BUTTONS.iter().find(|s| s.mask == mask).map(|s| s.name);
+            buttons.iter().find(|b| Some(b.id.as_str()) == name).and_then(|b| b.step_trigger_value)
+        };
+        assert_eq!(side(tables::STEP_SWITCH_L2_MASK), Some(TriggerSide::Left));
+        assert_eq!(side(tables::STEP_SWITCH_R2_MASK), Some(TriggerSide::Right));
+        assert_eq!(buttons.iter().filter(|b| b.step_trigger_value.is_some()).count(), 2);
     }
 
     /// The profile schema keeps its own list of macro triggers.

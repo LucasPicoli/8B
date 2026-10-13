@@ -15,6 +15,7 @@ use crate::macro_tab::render_macros;
 use crate::review::render_writes;
 use crate::settings::render_settings;
 use crate::state::{Access, AppState, Install, Rule};
+use crate::step_table::render_steps;
 use crate::ui::{AppWindow, ModeGroup, Slot};
 
 /// The sidebar: every slot of every mode, in the description's order.
@@ -166,6 +167,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
     render_macros(state, ui);
+    render_steps(state, ui);
     render_settings(state, ui);
     render_files(state, ui);
     render_writes(state, ui);
