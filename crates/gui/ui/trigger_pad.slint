@@ -1,0 +1,129 @@
+// A trigger's pressure in the step panel: drag the slider, or type the value. The slider
+// is as wide as a stick's gate and the field sits under the stick's X and Y fields.
+import { Theme, CheckBox, LinkButton, Slider } from "look/breeze/widgets.slint";
+import { NumberEdit, SmallHead } from "parts.slint";
+import { PadTrigger } from "types.slint";
+
+// The sizes a stick pad and a trigger pad share, so their columns line up.
+export global PadSize {
+    // A stick's gate, and a trigger's slider.
+    out property <length> gate: 120px;
+    // The column of a stick's X and Y labels, beside the gate.
+    out property <length> label: 12px;
+    // The gaps a stick pad leaves around that column: before it, and after it.
+    out property <length> before-label: 16px;
+    out property <length> after-label: 6px;
+}
+
+export component TriggerPad {
+    in property <PadTrigger> trigger;
+    in property <bool> enabled;
+    // Keep the link's line on every step, so the panel keeps its height from step to step.
+    in property <bool> keep-link-line: true;
+    // The value, and whether the edit is its own undo; the glide.
+    callback set(int, bool);
+    callback glided(bool);
+    // The link on an arriving step was clicked: select the step that glides in (0-based).
+    callback step-picked(int);
+    // A click or a drag ends the boxes' own bindings: follow the data.
+    changed trigger => {
+        glide.checked = root.trigger.glide;
+        slider.value = root.trigger.value;
+    }
+
+    VerticalLayout {
+        spacing: 8px;
+        HorizontalLayout {
+            spacing: 8px;
+            SmallHead {
+                text: root.trigger.label + " pressure";
+                vertical-alignment: center;
+            }
+            // What a glide does, or why it cannot, on hover. A tooltip cannot sit in a
+            // layout, so the box gets a frame.
+            glide-frame := Rectangle {
+                horizontal-stretch: 0;
+                HorizontalLayout {
+                    glide := CheckBox {
+                        text: root.trigger.glide-label;
+                        checked: root.trigger.glide;
+                        enabled: root.enabled && root.trigger.can-glide;
+                        accessible-label: root.trigger.label + " pressure, " + root.trigger.glide-label;
+                        accessible-description: root.trigger.glide-tip;
+                        toggled => { root.glided(self.checked); }
+                    }
+                }
+                Tooltip {
+                    text: @markdown("\{root.trigger.glide-tip}");
+                }
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+        }
+        HorizontalLayout {
+            alignment: start;
+            spacing: PadSize.before-label + PadSize.label + PadSize.after-label;
+            // The widget's own minimum is the gate's width; it grows no wider.
+            slider := Slider {
+                max-width: PadSize.gate;
+                value: root.trigger.value;
+                minimum: 0;
+                maximum: 255;
+                enabled: root.enabled;
+                marked: root.trigger.glide;
+                mark: root.trigger.to-value;
+                accessible-name: root.trigger.label + " pressure";
+                changed(v) => { root.set(round(v), false); }
+            }
+            NumberEdit {
+                value: root.trigger.value;
+                minimum: 0;
+                maximum: 255;
+                step: 1;
+                enabled: root.enabled;
+                accessible-name: root.trigger.label + " pressure value, 0 to 255";
+                committed(v) => { root.set(v, false); }
+            }
+        }
+        // The glide that arrives here belongs to the step before: a way back to it.
+        if root.keep-link-line || root.trigger.glides-in-from > 0: Rectangle {
+            height: line.preferred-height;
+            line := Text {
+                text: " ";
+                visible: false;
+            }
+            if root.trigger.glides-in-from > 0: LinkButton {
+                x: 0;
+                text: "Glides in from step " + root.trigger.glides-in-from;
+                accessible-label: root.trigger.label + " pressure glides in from step " + root.trigger.glides-in-from + ". Select that step.";
+                clicked => { root.step-picked(root.trigger.glides-in-from - 1); }
+            }
+        }
+    }
+
+    // The Glide tip while the box has focus from the keyboard, as the hover tooltip shows
+    // only to the pointer. Drawn last, over the slider, and no wider than the pad.
+    if glide.keyboard-focus: Rectangle {
+        x: glide-frame.x;
+        y: glide-frame.y + glide-frame.height + 4px;
+        width: min(ceil((tip.preferred-width + 12px) / 1phx) * 1phx, root.width - self.x);
+        height: ceil((tip.preferred-height + 6px) / 1phx) * 1phx;
+        border-radius: 3px;
+        background: Theme.view;
+        border-width: 1px;
+        border-color: Theme.line;
+        drop-shadow-blur: 4px;
+        drop-shadow-offset-y: 1px;
+        drop-shadow-color: Theme.shadow;
+        tip := Text {
+            x: 6px;
+            y: 3px;
+            width: parent.width - 12px;
+            text: root.trigger.glide-tip;
+            font-size: Theme.text-small;
+            color: Theme.fg;
+            wrap: word-wrap;
+        }
+    }
+}

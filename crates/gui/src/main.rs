@@ -28,6 +28,7 @@ mod state;
 mod step_panel;
 mod step_table;
 mod stick_pad;
+mod trigger_pad;
 mod udev;
 mod worker;
 mod writes;
@@ -665,6 +666,16 @@ fn wire_macros(
     ui.on_stick_glided(move |n, step, stick, on| {
         let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
         c(&|s| s.set_stick_glide(macro_slot(n), step, stick, on));
+    });
+    let c = change.clone();
+    ui.on_trigger_set(move |n, step, k, v, apart| {
+        let (Ok(step), Ok(k)) = (usize::try_from(step), usize::try_from(k)) else { return };
+        c(&|s| s.set_trigger(macro_slot(n), step, k, v, apart));
+    });
+    let c = change.clone();
+    ui.on_trigger_glided(move |n, step, k, on| {
+        let (Ok(step), Ok(k)) = (usize::try_from(step), usize::try_from(k)) else { return };
+        c(&|s| s.set_trigger_glide(macro_slot(n), step, k, on));
     });
     let c = change.clone();
     ui.on_floor_raised(move |n| c(&|s| s.raise_to_stick_floor(macro_slot(n))));

@@ -1,9 +1,10 @@
-// The step panel of the Macros tab, under the step table: the sticks the selected step
-// holds. The controller views beside the tab set its buttons, and the table's row its
-// duration.
+// The step panel of the Macros tab, under the step table: the sticks and the trigger
+// pressure the selected step holds. The controller views beside the tab set its buttons,
+// and the table's row its duration.
 import { Theme, Button, CheckBox, LinkButton } from "look/breeze/widgets.slint";
 import { Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
-import { PadStick } from "types.slint";
+import { PadStick, PadTrigger } from "types.slint";
+import { PadSize, TriggerPad } from "trigger_pad.slint";
 
 // A stick on its round gate: drag the knob, or type X and Y. The square of values maps
 // to the gate as the step table's glyph maps it, so Rust turns a point into values.
@@ -20,9 +21,11 @@ component StickPad {
     // A drag near a marked rim point lands on it; the points show only then.
     in property <bool> snap;
     // The gate's size, and the reach of a full deflection from its centre.
-    property <length> size: 120px;
+    property <length> size: PadSize.gate;
     property <length> r: 52px;
     property <length> c: root.size / 2;
+    // The X and Y labels' column, which `TriggerPad` leaves free, so the fields line up.
+    property <length> label-width: PadSize.label;
     property <bool> at-rest: root.stick.value-x == 127 && root.stick.value-y == 127;
     // A click sets the box's own `checked`, which ends its binding: follow the data.
     changed stick => { glide.checked = root.stick.at.glide; }
@@ -67,7 +70,7 @@ component StickPad {
             }
         }
         HorizontalLayout {
-            spacing: 16px;
+            spacing: PadSize.before-label;
             alignment: start;
             gate := Rectangle {
                 width: root.size;
@@ -158,8 +161,9 @@ component StickPad {
                     spacing: 8px;
                     HorizontalLayout {
                         alignment: start;
-                        spacing: 6px;
+                        spacing: PadSize.after-label;
                         Text {
+                            width: root.label-width;
                             text: "X";
                             color: Theme.fg;
                             vertical-alignment: center;
@@ -176,8 +180,9 @@ component StickPad {
                     }
                     HorizontalLayout {
                         alignment: start;
-                        spacing: 6px;
+                        spacing: PadSize.after-label;
                         Text {
+                            width: root.label-width;
                             text: "Y";
                             color: Theme.fg;
                             vertical-alignment: center;
@@ -235,11 +240,15 @@ component StickPad {
 
 export component StepPanel inherits Frame {
     in property <[PadStick]> sticks;
+    in property <[PadTrigger]> triggers;
     in property <bool> enabled;
     // The selected step: picking another scrolls the panel into view.
     in property <int> step;
     // A narrow window, set by Rust: the panel's own width would form a layout loop.
     in property <bool> narrow;
+    // A trigger edit names the trigger (its place in the panel) first.
+    callback trigger-set(int, int, bool);
+    callback trigger-glided(int, bool);
     // Each edit names the stick (0 left, 1 right) first.
     callback stick-set(int, int, int, bool);
     callback stick-dragged(int, float, float, bool);
@@ -255,44 +264,86 @@ export component StepPanel inherits Frame {
 
     VerticalLayout {
         padding: 12px;
-        spacing: 12px;
-        // The sticks sit side by side, or one under the other in a narrow window.
-        // Two equal columns, so each stick's controls group apart from the other's.
-        if !root.narrow: HorizontalLayout {
-            spacing: 16px;
-            for s[i] in root.sticks: StickPad {
-                horizontal-stretch: 1;
-                stick: s;
-                enabled: root.enabled;
-                snap: root.snap;
-                min-width: 260px;
-                set(x, y, apart) => { root.stick-set(i, x, y, apart); }
-                dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
-                glided(on) => { root.stick-glided(i, on); }
-                step-picked(n) => { root.step-picked(n); }
-            }
-        }
-        // Each pad keeps its own width instead of the panel's.
-        if root.narrow: VerticalLayout {
-            spacing: 16px;
-            alignment: start;
-            for s[i] in root.sticks: HorizontalLayout {
-                alignment: start;
-                StickPad {
+        spacing: 16px;
+        // The sticks side by side and Snap under them, then each trigger under its stick,
+        // in two equal columns so each side's controls group apart. One under the other in
+        // a narrow window, each pad at its own width. Every pad in a column starts from
+        // the same width, so the trigger rows line up with the sticks.
+        VerticalLayout {
+            spacing: 8px;
+            if !root.narrow: HorizontalLayout {
+                spacing: 16px;
+                for s[i] in root.sticks: StickPad {
+                    horizontal-stretch: 1;
                     stick: s;
                     enabled: root.enabled;
                     snap: root.snap;
                     min-width: 260px;
+                    preferred-width: 260px;
                     set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                     dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
                     glided(on) => { root.stick-glided(i, on); }
                     step-picked(n) => { root.step-picked(n); }
                 }
             }
+            if root.narrow: VerticalLayout {
+                spacing: 16px;
+                alignment: start;
+                for s[i] in root.sticks: HorizontalLayout {
+                    alignment: start;
+                    StickPad {
+                        stick: s;
+                        enabled: root.enabled;
+                        snap: root.snap;
+                        min-width: 260px;
+                        set(x, y, apart) => { root.stick-set(i, x, y, apart); }
+                        dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
+                        glided(on) => { root.stick-glided(i, on); }
+                        step-picked(n) => { root.step-picked(n); }
+                    }
+                }
+            }
+            // A drag snaps to the edges and corners marked on the rim: a stick option, so
+            // it sits with the sticks.
+            HorizontalLayout {
+                alignment: start;
+                CheckBox {
+                    text: "Snap to edges and corners";
+                    checked <=> root.snap;
+                }
+            }
         }
-        CheckBox {
-            text: "Snap to edges and corners";
-            checked <=> root.snap;
+        // None in a mode whose triggers are on or off.
+        if !root.narrow && root.triggers.length > 0: HorizontalLayout {
+            spacing: 16px;
+            for t[k] in root.triggers: TriggerPad {
+                horizontal-stretch: 1;
+                min-width: 260px;
+                preferred-width: 260px;
+                trigger: t;
+                enabled: root.enabled;
+                set(v, apart) => { root.trigger-set(k, v, apart); }
+                glided(on) => { root.trigger-glided(k, on); }
+                step-picked(n) => { root.step-picked(n); }
+            }
+        }
+        // Stacked, the panel scrolls with the page, so a trigger keeps no empty line for
+        // its link.
+        if root.narrow && root.triggers.length > 0: VerticalLayout {
+            spacing: 16px;
+            alignment: start;
+            for t[k] in root.triggers: HorizontalLayout {
+                alignment: start;
+                TriggerPad {
+                    width: 260px;
+                    trigger: t;
+                    enabled: root.enabled;
+                    keep-link-line: false;
+                    set(v, apart) => { root.trigger-set(k, v, apart); }
+                    glided(on) => { root.trigger-glided(k, on); }
+                    step-picked(n) => { root.step-picked(n); }
+                }
+            }
         }
     }
 }

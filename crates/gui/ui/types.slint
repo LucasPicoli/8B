@@ -374,6 +374,20 @@ export struct PadStick {
     glides-in-from: int,
 }
 
+// A trigger value of the step panel's selected step: its label, its pressure (0 to 255)
+// and its glide, as `PadStick` has them. `to-value` is the next step's pressure, where a
+// glide ends.
+export struct PadTrigger {
+    label: string,
+    value: int,
+    glide: bool,
+    to-value: int,
+    glide-label: string,
+    can-glide: bool,
+    glide-tip: string,
+    glides-in-from: int,
+}
+
 // One button in the step panel's "Buttons held": its label, and whether the step holds it.
 export struct ChipInfo {
     label: string,

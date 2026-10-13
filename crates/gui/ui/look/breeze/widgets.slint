@@ -285,27 +285,51 @@ export component Slider {
     in property <float> maximum: 100;
     in property <float> step: 1;
     in property <string> accessible-name;
+    in property <bool> enabled: true;
+    // A value the slider moves to, such as a glide's end: a hollow ring on the groove and
+    // a line to it from the knob. Shown while `marked`.
+    in property <bool> marked;
+    in property <float> mark;
     callback changed(float);
     min-height: 22px;
     max-height: 22px;
     min-width: 120px;
     accessible-role: slider;
     accessible-label: accessible-name;
+    accessible-enabled: root.enabled;
     accessible-value: round(value);
     accessible-value-minimum: minimum;
     accessible-value-maximum: maximum;
     accessible-value-step: step;
+    accessible-action-increment => { root.set(root.value + root.step); }
+    accessible-action-decrement => { root.set(root.value - root.step); }
+    accessible-action-set-value(v) => { root.set(v.to-float()); }
     forward-focus: fs;
 
     property <float> ratio: (value - minimum) / (maximum - minimum);
     property <length> knob: 18px;
+    // PageUp and PageDown move a tenth of the range, in whole steps.
+    property <float> page: max(step, round((maximum - minimum) / 10 / step) * step);
+    // The centre of the knob at value `v`.
+    pure function at(v: float) -> length {
+        (v - root.minimum) / (root.maximum - root.minimum) * (root.width - root.knob) + root.knob / 2
+    }
 
+    // Moves to `v` in whole steps within the range. A move that keeps the value, such as a
+    // drag past either end, sends nothing.
     function set(v: float) {
-        value = clamp(round(v / step) * step, minimum, maximum);
+        let next = clamp(round(v / step) * step, minimum, maximum);
+        if (next == value) {
+            return;
+        }
+        value = next;
         changed(value);
     }
 
+    opacity: root.enabled ? 1 : 0.45;
+
     fs := FocusScope {
+        enabled: root.enabled;
         key-pressed(e) => {
             if (e.text == Key.LeftArrow || e.text == Key.DownArrow) {
                 root.set(root.value - root.step);
@@ -313,6 +337,22 @@ export component Slider {
             }
             if (e.text == Key.RightArrow || e.text == Key.UpArrow) {
                 root.set(root.value + root.step);
+                return accept;
+            }
+            if (e.text == Key.PageDown) {
+                root.set(root.value - root.page);
+                return accept;
+            }
+            if (e.text == Key.PageUp) {
+                root.set(root.value + root.page);
+                return accept;
+            }
+            if (e.text == Key.Home) {
+                root.set(root.minimum);
+                return accept;
+            }
+            if (e.text == Key.End) {
+                root.set(root.maximum);
                 return accept;
             }
             reject
@@ -333,7 +373,25 @@ export component Slider {
         border-radius: 2px;
         background: Theme.accent;
     }
-    Rectangle {
+    // The line from the knob to the mark, then the mark, under the knob.
+    if root.marked: Rectangle {
+        x: min(root.at(root.value), root.at(root.mark));
+        y: (parent.height - 2px) / 2;
+        width: abs(root.at(root.mark) - root.at(root.value));
+        height: 2px;
+        background: Theme.accent-ink;
+    }
+    if root.marked: Rectangle {
+        x: root.at(root.mark) - 6px;
+        y: (parent.height - 12px) / 2;
+        width: 12px;
+        height: 12px;
+        border-radius: 6px;
+        background: Theme.view;
+        border-width: 2px;
+        border-color: Theme.accent-ink;
+    }
+    knob := Rectangle {
         x: root.ratio * (parent.width - root.knob);
         y: (parent.height - root.knob) / 2;
         width: root.knob;
@@ -341,13 +399,24 @@ export component Slider {
         border-radius: root.knob / 2;
         background: Theme.button;
         border-width: 1px;
-        border-color: fs.has-focus || ta.has-hover ? Theme.accent : Theme.line;
+        border-color: root.enabled && (fs.has-focus || ta.has-hover) ? Theme.accent : Theme.line;
         drop-shadow-blur: 2px;
         drop-shadow-offset-y: 1px;
         drop-shadow-color: Theme.shadow;
     }
+    // The focus frame: 2px of accent, 2px outside the knob.
+    if fs.has-focus && root.enabled: Rectangle {
+        x: knob.x - 4px;
+        y: knob.y - 4px;
+        width: knob.width + 8px;
+        height: knob.height + 8px;
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
 
     ta := TouchArea {
+        enabled: root.enabled;
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down) {
                 fs.focus();

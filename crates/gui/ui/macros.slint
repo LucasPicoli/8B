@@ -2,7 +2,7 @@
 // left, the selected macro's header on the right.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Dot, Frame, Icons, MessageBar, NumberEdit, SmallHead, ViewTip } from "parts.slint";
-import { ChipInfo, MacroRow, MacroSpot, PadStick, PadView, StepInfo } from "types.slint";
+import { ChipInfo, MacroRow, MacroSpot, PadStick, PadTrigger, PadView, StepInfo } from "types.slint";
 import { StepTable } from "steps.slint";
 import { StepPanel } from "step_panel.slint";
 
@@ -483,6 +483,9 @@ export component MacrosTab {
     // The stick pads of the selected step, and their edits: the macro slot, the step and
     // the stick (0 left, 1 right) first.
     in property <[PadStick]> step-sticks;
+    in property <[PadTrigger]> step-triggers;
+    callback trigger-set(int, int, int, int, bool);
+    callback trigger-glided(int, int, int, bool);
     callback stick-set(int, int, int, int, int, bool);
     callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
@@ -644,6 +647,9 @@ export component MacrosTab {
             }
             if root.current.filled && root.step-sticks.length > 0: StepPanel {
                 sticks: root.step-sticks;
+                triggers: root.step-triggers;
+                trigger-set(k, v, apart) => { root.trigger-set(root.selected, root.selected-step, k, v, apart); }
+                trigger-glided(k, on) => { root.trigger-glided(root.selected, root.selected-step, k, on); }
                 enabled: root.live;
                 step: root.selected-step;
                 narrow: root.narrow;

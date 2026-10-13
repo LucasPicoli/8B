@@ -62,26 +62,40 @@ pub fn from_disc(x: f32, y: f32, snap: bool) -> [u8; 2] {
 }
 
 /// The Glide box of `control` in step `i`: its label, whether it can glide, and its
-/// tip, which says what a glide does or why it cannot.
-fn glide_box(steps: &[MacroStep], i: usize, control: GlideControl) -> (String, bool, String) {
+/// tip, which says what a glide does or why it cannot. `what` names the value, such as
+/// "position".
+pub fn glide_box(
+    steps: &[MacroStep],
+    i: usize,
+    control: GlideControl,
+    what: &str,
+) -> (String, bool, String) {
     let label = format!("Glide to step {}", i + 2);
     match (steps.get(i), steps.get(i + 1)) {
         (_, None) => ("Glide".to_owned(), false, "No next step to glide to.".to_owned()),
         (Some(s), Some(n)) if axes(s, control) == axes(n, control) => (
             label,
             false,
-            format!("Step {} holds the same position, so there is nothing to glide to.", i + 2),
+            format!("Step {} holds the same {what}, so there is nothing to glide to.", i + 2),
         ),
         (s, _) => (
             label,
             true,
             format!(
-                "Moves in a straight line from here to step {}'s position over this step's {} ms.",
+                "Moves in a straight line from here to step {}'s {what} over this step's {} ms.",
                 i + 2,
                 s.map_or(0, |s| s.duration_ms)
             ),
         ),
     }
+}
+
+/// The step before step `i` when it glides `control` here: its number, 1-based, or 0.
+pub fn glides_in_from(steps: &[MacroStep], i: usize, control: GlideControl) -> i32 {
+    i.checked_sub(1)
+        .filter(|&p| steps.get(p).is_some_and(|s| s.glide.contains(&control)))
+        .and_then(|p| i32::try_from(p + 1).ok())
+        .unwrap_or(0)
 }
 
 impl AppState {
@@ -125,11 +139,7 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
         .iter()
         .map(|&(control, label)| {
             let [x, y] = steps.get(step).map_or([STICK_CENTER; 2], |s| axes(s, control));
-            let (glide_label, can_glide, tip) = glide_box(&steps, step, control);
-            // The step before glides this stick here: its number, 1-based, or 0.
-            let from = step
-                .checked_sub(1)
-                .filter(|&p| steps.get(p).is_some_and(|s| s.glide.contains(&control)));
+            let (glide_label, can_glide, tip) = glide_box(&steps, step, control, "position");
             PadStick {
                 label: label.into(),
                 value_x: i32::from(x),
@@ -138,7 +148,7 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
                 glide_label: glide_label.into(),
                 can_glide,
                 glide_tip: tip.into(),
-                glides_in_from: from.and_then(|p| i32::try_from(p + 1).ok()).unwrap_or(0),
+                glides_in_from: glides_in_from(&steps, step, control),
             }
         })
         .collect()

@@ -1331,6 +1331,11 @@ fn stick_pads_at(step: i32) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
         s.borrow_mut().set_stick_glide(u8::try_from(slot).unwrap(), to(step), to(stick), on);
         render(&s.borrow(), &weak.upgrade().unwrap());
     });
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_trigger_set(move |slot, step, k, v, apart| {
+        s.borrow_mut().set_trigger(u8::try_from(slot).unwrap(), to(step), to(k), v, apart);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
     (state, ui)
 }
 
@@ -1346,14 +1351,66 @@ fn a_quick_stick_drag_survives_the_render_after_each_move() {
     // the page to decide on a pan.
     let at = |x: f32, y: f32| slint::LogicalPosition::new(x, y);
     let button = PointerEventButton::Left;
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 646.0) });
-    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 646.0), button });
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 646.0) });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 549.0) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 549.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 549.0) });
     let first = left();
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 620.0) });
-    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 620.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 523.0) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 523.0), button });
     assert!(first.0 > 180 && first.1 == 127, "halfway right: {first:?}");
     assert!(left().1 < 127, "the drag stopped after one render: {:?}", left());
+}
+
+#[test]
+fn a_trigger_slider_drag_survives_the_render_after_each_move() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    let (state, ui) = stick_pads_at(2);
+    let lt = || state.borrow().macro_steps(0).unwrap()[2].trigger_left;
+    // Along the LT slider at this size, right, then right again.
+    let at = |x: f32| slint::LogicalPosition::new(x, 695.0);
+    let button = PointerEventButton::Left;
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(640.0) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(640.0), button });
+    let pressed = lt();
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(690.0) });
+    let first = lt();
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(730.0) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(730.0), button });
+    assert!(pressed < 20, "near the left end: {pressed}");
+    assert!((110..=170).contains(&first), "halfway: {first}");
+    assert!(lt() > 200, "the drag stopped after one render: {}", lt());
+    assert_eq!(state.borrow_mut().undo_step(0), Some(2), "the drag is one undo");
+    assert_eq!(lt(), 255);
+}
+
+#[test]
+fn the_trigger_slider_moves_by_key() {
+    use slint::platform::{Key, WindowEvent};
+    let (state, ui) = stick_pads_at(2);
+    let lt = || state.borrow().macro_steps(0).unwrap()[2].trigger_left;
+    let press = |key: Key| {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+    };
+    // A click on the LT knob, at its full press, focuses the slider and keeps 255.
+    click(&ui, 739.0, 699.0);
+    assert_eq!(lt(), 255);
+    press(Key::Home);
+    assert_eq!(lt(), 0);
+    press(Key::RightArrow);
+    assert_eq!(lt(), 1);
+    press(Key::PageUp);
+    assert_eq!(lt(), 27, "a tenth of the range");
+    press(Key::End);
+    assert_eq!(lt(), 255);
+}
+
+#[test]
+fn the_arriving_trigger_links_back_to_the_step_that_glides_in() {
+    let (_state, ui) = stick_pads_at(2);
+    // "Glides in from step 2" under LT, at this size.
+    click(&ui, 686.0, 731.0);
+    assert_eq!(ui.get_selected_step(), 1);
 }
 
 #[test]
@@ -1371,12 +1428,12 @@ fn the_glide_box_follows_the_selected_step() {
     // The left stick's Glide box at this size. Step 3 glides: a click stops it. Step 4
     // does not: a click starts it. Back on step 3 the box must show off again, or the
     // next click sends "off" and nothing changes.
-    click(&ui, 694.0, 563.0);
+    click(&ui, 694.0, 466.0);
     pick(3);
-    click(&ui, 694.0, 563.0);
+    click(&ui, 694.0, 466.0);
     assert!(!glides(2) && glides(3));
     pick(2);
-    click(&ui, 694.0, 563.0);
+    click(&ui, 694.0, 466.0);
     assert!(glides(2), "the box kept step 4's tick");
 }
 
@@ -1384,7 +1441,7 @@ fn the_glide_box_follows_the_selected_step() {
 fn the_arriving_step_links_back_to_the_step_that_glides_in() {
     let (_state, ui) = stick_pads_at(3);
     // "Glides in from step 3" under the left pad, at this size.
-    click(&ui, 822.0, 692.0);
+    click(&ui, 822.0, 595.0);
     assert_eq!(ui.get_selected_step(), 2);
 }
 
@@ -1397,7 +1454,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
         ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Tab.into() });
     };
     // A click on the right stick's disabled Glide box, then Tab back from Centre.
-    click(&ui, 1015.0, 563.0);
+    click(&ui, 1015.0, 466.0);
     let before = ui.window().take_snapshot().unwrap();
     tab();
     ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Backtab.into() });
@@ -1406,7 +1463,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
     let after = ui.window().take_snapshot().unwrap();
     // The tip sits under the box, over the right gate: its area changes after Tab.
     let area = |shot: &slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
-        (583..610_u32)
+        (486..513_u32)
             .flat_map(|y| (1010..1250_u32).map(move |x| (x, y)))
             .map(|(x, y)| shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()])
             .collect::<Vec<_>>()
@@ -1434,6 +1491,11 @@ fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
         render(&s, &ui);
         slint::platform::update_timers_and_animations();
         save(&format!("step-panel-{}", if dark { "dark" } else { "light" }), &ui);
+        // Step 2 glides LT to step 3's full press: a ring on the slider.
+        ui.set_selected_step(1);
+        render(&s, &ui);
+        slint::platform::update_timers_and_animations();
+        save(&format!("step-panel-trigger-glide-{}", if dark { "dark" } else { "light" }), &ui);
     }
     let ui = window(&s);
     ui.window().set_size(PhysicalSize::new(1024, 640));
