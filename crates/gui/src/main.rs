@@ -13,6 +13,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod logging;
+mod macro_revert;
 mod macro_steps;
 mod macro_tab;
 mod macros;
@@ -596,6 +597,8 @@ fn wire_macros(
     });
     let c = change.clone();
     ui.on_macro_created(move |n| c(&|s| s.new_macro(macro_slot(n))));
+    let c = change.clone();
+    ui.on_macro_reverted(move |n| c(&|s| s.revert_macro(macro_slot(n))));
     let c = change.clone();
     ui.on_macro_deleted(move |n| c(&|s| s.delete_macro(macro_slot(n))));
     let c = change.clone();

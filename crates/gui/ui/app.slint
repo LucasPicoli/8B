@@ -190,6 +190,7 @@ export component AppWindow inherits Window {
     callback discard;
     // Macros tab edits, each for a macro slot (0-based).
     callback macro-created(int);
+    callback macro-reverted(int);
     callback macro-deleted(int);
     callback macro-renamed(int, string);
     callback macro-plays-picked(int, int);
@@ -506,6 +507,7 @@ export component AppWindow inherits Window {
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         created(n) => { root.macro-created(n); }
+                        reverted(n) => { root.macro-reverted(n); }
                         deleted(n) => { root.macro-deleted(n); }
                         renamed(n, t) => { root.macro-renamed(n, t); }
                         plays-picked(n, p) => { root.macro-plays-picked(n, p); }

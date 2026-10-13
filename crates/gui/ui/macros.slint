@@ -240,6 +240,7 @@ component MacroHeader inherits Frame {
     in property <int> count-min;
     in property <int> count-max;
     in property <int> pause-max;
+    callback reverted;
     callback deleted;
     callback renamed(string);
     callback plays-picked(int);
@@ -269,12 +270,22 @@ component MacroHeader inherits Frame {
                 }
                 VerticalLayout {
                     alignment: center;
-                    Button {
-                        text: "Delete macro";
-                        icon: Icons.clear;
-                        flat: true;
-                        enabled: root.editable;
-                        clicked => { root.deleted(); }
+                    HorizontalLayout {
+                        spacing: 4px;
+                        Button {
+                            text: "Revert macro";
+                            icon: Icons.discard;
+                            flat: true;
+                            enabled: root.editable && root.item.unsaved;
+                            clicked => { root.reverted(); }
+                        }
+                        Button {
+                            text: "Delete macro";
+                            icon: Icons.clear;
+                            flat: true;
+                            enabled: root.editable;
+                            clicked => { root.deleted(); }
+                        }
                     }
                 }
             }
@@ -469,6 +480,7 @@ export component MacrosTab {
     pure callback action-hit(int, int, int, float, float) -> int;
     // Each takes the selected macro slot (0-based) first.
     callback created(int);
+    callback reverted(int);
     callback deleted(int);
     callback renamed(int, string);
     callback plays-picked(int, int);
@@ -574,6 +586,7 @@ export component MacrosTab {
                 count-min: root.count-min;
                 count-max: root.count-max;
                 pause-max: root.pause-max;
+                reverted => { root.reverted(root.selected); }
                 deleted => { root.deleted(root.selected); }
                 renamed(t) => { root.renamed(root.selected, t); }
                 plays-picked(p) => { root.plays-picked(root.selected, p); }
