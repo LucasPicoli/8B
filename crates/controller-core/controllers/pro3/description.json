@@ -43,12 +43,14 @@
       "id": "xinput",
       "label": "XInput",
       "trigger_kind": "analog",
+      "macro_stick_floor": 2,
       "extra_outputs": []
     },
     {
       "id": "switch",
       "label": "Switch",
       "trigger_kind": "on_off",
+      "macro_stick_floor": 2,
       "extra_outputs": [
         {
           "id": "screenshot",
@@ -381,7 +383,7 @@
     {
       "id": "sticks",
       "label": "Sticks",
-      "lead": "Inside the low end of the dead zone the stick reads as centred. Past the high end it reads as pushed all the way.",
+      "lead": "Inside the low end of the dead zone the stick reads as centred. Past the high end it reads as pushed all the way. In XInput and Switch, a macro cannot move a stick whose low end is below 2 %.",
       "frames": [
         {
           "title": "Left stick",
@@ -389,6 +391,7 @@
             {
               "label": "Dead zone",
               "unit": "%",
+              "macro_stick": "left_stick",
               "low": {
                 "field": "/sticks/left_min_pct",
                 "min": 0,
@@ -418,6 +421,7 @@
             {
               "label": "Dead zone",
               "unit": "%",
+              "macro_stick": "right_stick",
               "low": {
                 "field": "/sticks/right_min_pct",
                 "min": 0,

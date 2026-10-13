@@ -64,6 +64,13 @@ Each entry has an `id`, a `label`, a `trigger_kind` and the mode's `extra_output
 `trigger_kind` is `analog` when the triggers read a pressure from 0 to 255 in this
 mode, and `on_off` when they read pressed or released. A macro step follows it.
 
+A mode where a low stick dead zone stops a macro's stick moves adds
+`macro_stick_floor`, the lowest dead zone low end in percent that still plays them
+(the Pro 3 has 2 in XInput and Switch). Each stick's dead zone slider then names its
+stick with `"macro_stick": "left_stick"` or `"right_stick"`. The app and the command
+line warn about a macro that moves a stick whose low end is under the floor, and
+still write it. Leave both out when every low end plays.
+
 The `id` is 1 to 15 lowercase letters, digits, `-` or `_`. Profiles, the command
 line (`-m xinput`), config ports and settings tabs use it. The app shows the
 `label`. A model may have one mode or several, and its ids need not match another

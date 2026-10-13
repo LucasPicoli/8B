@@ -3,23 +3,27 @@
 //! With the flag, the slot's macros become the files in the profile's `macro_refs`, in
 //! the same write job as the profile: each file is put in the macro slot its name gives,
 //! and every other macro slot is emptied.
+//!
+//! A `warnings` list names each macro the slot's dead zone stops from moving a stick:
+//! with the flag the files, without it the macros the slot keeps.
 
 use std::path::{Component, Path};
 
 use serde_json::{json, Value};
 
-use controller_core::device::Model;
+use controller_core::device::{ControllerSpec, Model};
 use controller_core::devices;
 use controller_core::error::Error;
 use controller_core::model::macros::{macro_from_json, parse_macro_file_name};
 use controller_core::model::{MacroDefinition, MacroRef, MacroSlot, Mode, Slot, WriteResult};
 use controller_core::orchestrator::{MacroEdit, WriteJob, WriteOp};
-use controller_core::service::validation::validate_macro;
+use controller_core::service::read::read_macros;
+use controller_core::service::validation::{low_sticks, macro_stick_warnings, validate_macro};
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
 
 use crate::commands::emit_json;
-use crate::macros::{read_json, with_fields};
+use crate::macros::{read_json, with_fields, with_warnings};
 use crate::write::{confirm_policy, orchestrate};
 
 /// What `upload` writes, and where.
@@ -61,16 +65,24 @@ fn upload(dev: &dyn DeviceIo, req: &Upload<'_>, policy: &ConfirmPolicy) -> (Valu
     };
     if !req.with_macros {
         let r = orchestrate(dev, mode, slot, |o, _| o.upload_profile(&profile, mode, slot, policy));
-        return with_fields(&r, json!({}));
+        let warnings =
+            if r.success { kept_warnings(dev, mode, slot, &profile) } else { Vec::new() };
+        return with_fields(&r, with_warnings(json!({}), &warnings));
     }
     let folder = req.file.parent().unwrap_or_else(|| Path::new("."));
-    let mut puts = 0;
+    let mut puts = Vec::new();
     let r = orchestrate(dev, mode, slot, |o, model| {
         let edits = match macro_edits(model, &profile, mode, folder) {
             Ok(edits) => edits,
             Err(e) => return fail(&e),
         };
-        puts = edits.iter().filter(|e| matches!(e, MacroEdit::Put { .. })).count();
+        puts = edits
+            .iter()
+            .filter_map(|e| match e {
+                MacroEdit::Put { definition, .. } => Some(definition.clone()),
+                MacroEdit::Delete { .. } => None,
+            })
+            .collect();
         // The job's profile carries no refs: its macros travel as the edits.
         let mut profile = profile.clone();
         if let Some(map) = profile.as_object_mut() {
@@ -82,7 +94,26 @@ fn upload(dev: &dyn DeviceIo, req: &Upload<'_>, policy: &ConfirmPolicy) -> (Valu
             .pop()
             .unwrap_or_else(|| fail(&Error::Usb("the write gave no result".to_owned())))
     });
-    with_fields(&r, json!({ "macro_count": puts }))
+    let warnings = match (r.success, dev.model().and_then(ControllerSpec::description)) {
+        (true, Ok(description)) => macro_stick_warnings(description, mode, &profile, &puts),
+        _ => Vec::new(),
+    };
+    with_fields(&r, with_warnings(json!({ "macro_count": puts.len() }), &warnings))
+}
+
+/// The macro stick warnings for the macros `slot` of `mode` on `dev` keeps under
+/// `profile`. Reads them only when a stick of `profile` is under the mode's floor. A
+/// failed read gives none: the write is done, and this only warns.
+fn kept_warnings(dev: &dyn DeviceIo, mode: Mode, slot: Slot, profile: &Value) -> Vec<String> {
+    let found = || -> Result<Vec<String>, Error> {
+        let description = dev.model()?.description()?;
+        if low_sticks(description, mode, profile).is_empty() {
+            return Ok(Vec::new());
+        }
+        let macros = read_macros(dev, mode, slot)?.macros;
+        Ok(macro_stick_warnings(description, mode, profile, &macros))
+    };
+    found().unwrap_or_default()
 }
 
 /// The edits that make the slot's macros the files in `profile`'s `macro_refs`, read
@@ -205,7 +236,7 @@ mod tests {
     use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
 
     use super::*;
-    use crate::macros::tests::{def, pad, pages, slot1, wrote_nothing};
+    use crate::macros::tests::{def, pad, pad_with, pages, slot1, stick, wrote_nothing};
 
     /// A folder with an `XInput` profile whose `macro_refs` are `refs`, and each macro
     /// of `files` beside it under its own file name.
@@ -293,6 +324,41 @@ mod tests {
         assert_eq!(code, 0, "{payload}");
         assert!(payload.get("macro_count").is_none());
         assert_eq!(held(&dev).len(), 2);
+    }
+
+    /// Sets the left stick's dead zone low end of the profile in `dir` to 0.
+    fn low_left_stick(dir: &Path) {
+        let file = dir.join("profile.json");
+        let mut profile: Value =
+            serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        profile["sticks"]["left_min_pct"] = 0.into();
+        std::fs::write(file, profile.to_string()).unwrap();
+    }
+
+    #[test]
+    fn a_stick_macro_file_under_a_low_dead_zone_warns() {
+        let a = stick(def("Dash", XINPUT, "l3", 0));
+        let dir = folder(json!([reference(&a)]), &[a]);
+        low_left_stick(dir.path());
+        let (payload, code) = run(&pad(0), dir.path(), true, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        assert_eq!(payload["warnings"].as_array().map(Vec::len), Some(1), "{payload}");
+    }
+
+    #[test]
+    fn a_kept_stick_macro_under_a_low_dead_zone_warns() {
+        let profile = Pro3.default_profile(XINPUT);
+        let dev = pad_with(&profile, &[stick(def("Dash", XINPUT, "l3", 0))]);
+        let dir = folder(json!([]), &[]);
+        let (payload, code) = run(&dev, dir.path(), false, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        assert!(payload.get("warnings").is_none(), "{payload}");
+
+        low_left_stick(dir.path());
+        let (payload, code) = run(&dev, dir.path(), false, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        let warnings = payload["warnings"].as_array().unwrap();
+        assert!(warnings[0].as_str().unwrap().contains("'Dash' moves the left stick"), "{payload}");
     }
 
     #[test]

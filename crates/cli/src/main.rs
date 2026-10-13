@@ -206,6 +206,9 @@ enum Commands {
 
     /// Write a canonical profile JSON file into a slot. Keeps the slot's macros, unless
     /// --with-macros is given.
+    ///
+    /// A `warnings` list names each macro whose stick moves the profile's stick dead zone
+    /// stops. The write still goes ahead.
     Upload {
         #[command(flatten)]
         target: Target,
@@ -222,6 +225,9 @@ enum Commands {
 
     /// Write a `macro-v1` file into a macro slot of an occupied slot. The slot's other
     /// macros and its profile stay as they are.
+    ///
+    /// A `warnings` list names each stick the macro moves that the slot's stick dead zone
+    /// stops. The write still goes ahead.
     ///
     /// Example: `write-macro -m xinput -s 1 -f xinput-slot1-macro0-Dash.json`.
     #[command(name = "write-macro")]

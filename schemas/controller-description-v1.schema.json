@@ -166,6 +166,11 @@
           "type": "string",
           "enum": ["analog", "on_off"]
         },
+        "macro_stick_floor": {
+          "description": "Optional. The lowest dead zone low end, in percent, at which a macro still moves a stick in this mode, read from each slider with a macro_stick. Omit it when every low end plays.",
+          "type": "integer",
+          "minimum": 0
+        },
         "extra_outputs": {
           "description": "Outputs beyond the buttons and 'disabled', which every mode has.",
           "type": "array",
@@ -219,7 +224,12 @@
         "label": { "type": "string" },
         "unit": { "type": "string" },
         "low": { "$ref": "#/$defs/NumberField" },
-        "high": { "$ref": "#/$defs/NumberField" }
+        "high": { "$ref": "#/$defs/NumberField" },
+        "macro_stick": {
+          "description": "Optional, on a stick's dead zone slider. The macro stick whose moves stop playing when low is under the mode's macro_stick_floor.",
+          "type": "string",
+          "enum": ["left_stick", "right_stick"]
+        }
       }
     },
     "NumberField": {

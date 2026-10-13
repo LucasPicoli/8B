@@ -464,7 +464,7 @@ fn a_slider_drag_survives_the_render_after_each_move() {
     };
     let start = low();
     // The low knob of the left stick's dead zone at 1280×800, then two moves right.
-    let at = |x: f32| slint::LogicalPosition::new(x, 203.0);
+    let at = |x: f32| slint::LogicalPosition::new(x, 219.0);
     let button = PointerEventButton::Left;
     let x0 = 294.0 + 9.0 + 271.0 * f32::from(u8::try_from(start).unwrap()) / 100.0;
     ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(x0) });

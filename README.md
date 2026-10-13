@@ -18,6 +18,8 @@
 | --- | --- |
 | 8BitDo Pro 3 | Edit button mapping, sticks, triggers and vibration in every slot of XInput, Switch and DInput. Clear slots. Import and export profiles as JSON. See which button starts each macro. Macro steps cannot be viewed or edited yet, and remapping a macro's button removes the macro. |
 
+On the Pro 3, a stick you touch by hand takes over from a macro's move of that stick. In XInput and Switch, a macro cannot move a stick whose dead zone low end is below 2 % (seen on firmware 2.02).
+
 To add another controller, start with [Reverse engineering a controller](docs/reverse-engineering.md),
 then see [Adding a controller](docs/adding-a-controller.md).
 

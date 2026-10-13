@@ -2,7 +2,8 @@
 //!
 //! Each runs one macro edit through [`ProfileWriteOrchestrator`] and prints its
 //! [`WriteResult`] as the other write verbs do, plus the macro slot. A write adds the
-//! macro's name, and with `--convert` the list of what the conversion dropped.
+//! macro's name, with `--convert` the list of what the conversion dropped, and a
+//! `warnings` list when the slot's dead zone stops the macro's stick moves.
 
 use std::path::Path;
 
@@ -15,6 +16,7 @@ use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::macros::{macro_from_json, macro_to_json};
 use controller_core::model::{MacroSlot, Mode, Slot, WriteResult};
 use controller_core::service::read::macro_summaries;
+use controller_core::service::validation::macro_stick_warnings;
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
 
@@ -94,6 +96,7 @@ fn write_macro(dev: &dyn DeviceIo, req: &MacroWrite<'_>, policy: &ConfirmPolicy)
         Err(r) => r,
     });
     let Some(p) = planned else { return with_fields(&r, json!({})) };
+    let warnings = if r.success { stick_warnings(dev, mode, slot, &p.json) } else { Vec::new() };
     let mut fields = serde_json::Map::new();
     fields.insert("macro_slot".to_owned(), json!(p.macro_slot.get()));
     fields.insert("name".to_owned(), json!(p.name));
@@ -102,7 +105,36 @@ fn write_macro(dev: &dyn DeviceIo, req: &MacroWrite<'_>, policy: &ConfirmPolicy)
             dropped.iter().map(|l| json!({ "item": l.item, "reason": l.reason })).collect();
         fields.insert("dropped".to_owned(), json!(dropped));
     }
-    with_fields(&r, Value::Object(fields))
+    with_fields(&r, with_warnings(Value::Object(fields), &warnings))
+}
+
+/// The macro stick warnings for the macro `json` in `slot` of `mode` on `dev`. Reads the
+/// slot's profile only when the mode has a macro stick floor. A failed read gives none:
+/// the write is done, and this only warns.
+fn stick_warnings(dev: &dyn DeviceIo, mode: Mode, slot: Slot, json: &Value) -> Vec<String> {
+    let found = || -> Result<Vec<String>, Error> {
+        let description = dev.model()?.description()?;
+        if description.mode(mode).and_then(|m| m.macro_stick_floor).is_none() {
+            return Ok(Vec::new());
+        }
+        let read = dev.read_all_profiles()?;
+        let Some(p) = read.profiles.iter().find(|p| p.mode == mode && p.source_slot == slot.get())
+        else {
+            return Ok(Vec::new());
+        };
+        let profile =
+            serde_json::to_value(&p.canonical).map_err(|e| Error::Decode(e.to_string()))?;
+        Ok(macro_stick_warnings(description, mode, &profile, &[macro_from_json(json)?]))
+    };
+    found().unwrap_or_default()
+}
+
+/// `extra` with a `warnings` list added, when `warnings` has some.
+pub fn with_warnings(mut extra: Value, warnings: &[String]) -> Value {
+    if let (Some(map), false) = (extra.as_object_mut(), warnings.is_empty()) {
+        map.insert("warnings".to_owned(), json!(warnings));
+    }
+    extra
 }
 
 /// Reads the file of `req`, picks its macro slot and converts it when asked. Reads the
@@ -232,7 +264,13 @@ pub mod tests {
             .map(|m| def(&format!("Held{m}"), XINPUT, triggers[usize::from(m)], m))
             .collect();
         let profile = CanonicalProfile { name: "Pad".to_owned(), ..Pro3.default_profile(XINPUT) };
-        let bank = Pro3.compile_profile(&profile, slot1(), &[], &macros).unwrap();
+        pad_with(&profile, &macros)
+    }
+
+    /// A pad whose `XInput` slot 1 holds `profile` and `macros`, and slots 2 and 3 are
+    /// empty. It keeps what it is sent.
+    pub fn pad_with(profile: &CanonicalProfile, macros: &[MacroDefinition]) -> MockDevice {
+        let bank = Pro3.compile_profile(profile, slot1(), &[], macros).unwrap();
         let empty = vec![0; Pro3.blob_size()];
         let profiles = (1..=3)
             .map(|n| {
@@ -254,7 +292,7 @@ pub mod tests {
             .with_model(&Pro3)
             .with_profiles(ProfileReadResult { profiles, raw_blobs })
             .keeping_writes();
-        for m in &macros {
+        for m in macros {
             let stream = Pro3.encode_macro_steps(&m.steps, XINPUT).unwrap();
             let at = MacroSlot::new(m.macro_slot.unwrap()).unwrap();
             dev = dev.with_macro_stream(XINPUT, slot1(), at, stream);
@@ -422,6 +460,32 @@ pub mod tests {
         let bank = &dev.read_all_profiles().unwrap().raw_blobs[0];
         let held = Pro3.decode_macro_metadata(bank, slot1()).unwrap();
         assert_eq!(held.iter().map(|h| h.macro_slot).collect::<Vec<_>>(), [Some(0)]);
+    }
+
+    /// `def` with its last step holding the left stick right.
+    pub fn stick(def: MacroDefinition) -> MacroDefinition {
+        let mut def = def;
+        if let Some(step) = def.steps.last_mut() {
+            step.left_stick_x = 255;
+        }
+        def
+    }
+
+    #[test]
+    fn a_stick_macro_under_a_low_dead_zone_warns() {
+        let mut profile = Pro3.default_profile(XINPUT);
+        assert!(profile.set_setting("/sticks/left_min_pct", json!(0)));
+        let dev = pad_with(&profile, &[]);
+        let dash = stick(def("Dash", XINPUT, "l3", 0));
+        let (payload, code) = write(&dev, &dash, None, false, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        let warnings = payload["warnings"].as_array().unwrap();
+        assert_eq!(warnings.len(), 1, "{payload}");
+        assert!(warnings[0].as_str().unwrap().contains("'Dash' moves the left stick"));
+
+        let (payload, code) = write(&pad(0), &dash, None, false, &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        assert!(payload.get("warnings").is_none(), "{payload}");
     }
 
     #[test]

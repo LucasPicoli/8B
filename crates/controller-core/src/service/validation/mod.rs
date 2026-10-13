@@ -6,6 +6,7 @@
 
 pub mod macros;
 pub mod profile;
+pub mod stick_floor;
 
 use std::sync::OnceLock;
 
@@ -17,6 +18,7 @@ use crate::error::{Error, Result};
 
 pub use macros::validate_macro;
 pub use profile::{validate_all_profiles, validate_profile};
+pub use stick_floor::{low_sticks, macro_stick_warnings, LowStick};
 
 /// A single validation failure: a JSON-Pointer `path` and a human `reason`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]

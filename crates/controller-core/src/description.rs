@@ -109,6 +109,20 @@ pub struct Slider {
     /// The high end of the range. `None` for a single number.
     #[serde(default)]
     pub high: Option<NumberField>,
+    /// The macro stick whose moves stop playing when `low` is under the mode's
+    /// [`ModeDescription::macro_stick_floor`]. Set on a stick's dead zone slider.
+    #[serde(default)]
+    pub macro_stick: Option<MacroStick>,
+}
+
+/// A stick a macro step moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MacroStick {
+    /// The left stick.
+    LeftStick,
+    /// The right stick.
+    RightStick,
 }
 
 /// One integer setting and its allowed range.
@@ -167,6 +181,11 @@ pub struct ModeDescription {
     pub trigger_kind: TriggerKind,
     /// Outputs a button may map to in this mode beyond the buttons and [`DISABLED_OUTPUT`].
     pub extra_outputs: Vec<ExtraOutput>,
+    /// The lowest dead zone low end, in percent, at which a macro still moves a stick in
+    /// this mode, read from each slider with a [`Slider::macro_stick`]. `None` when every
+    /// low end plays.
+    #[serde(default)]
+    pub macro_stick_floor: Option<i32>,
 }
 
 /// How a mode's triggers read.
