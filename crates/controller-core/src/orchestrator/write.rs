@@ -64,8 +64,8 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     /// Writes a canonical profile JSON into `slot` of `mode`.
     ///
     /// The profile is validated first (schema and semantic rules) and must be for `mode`.
-    /// Its `macro_refs` are ignored, because macros are read-only: the macros already in an
-    /// occupied target slot are kept, and the success message counts the ignored refs.
+    /// Its `macro_refs` and `macros` are ignored: the macros already in an occupied target
+    /// slot are kept, and the success message counts the ignored macros.
     /// Nothing is sent to the device if the input is invalid.
     #[must_use]
     pub fn upload_profile(
@@ -100,7 +100,7 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             Ok(Plan::Write(blob))
         });
         if result.success {
-            result.message = with_ignored(result.message, parsed.macro_refs.len());
+            result.message = with_ignored(result.message, &parsed);
         }
         result.profile_id = parsed.id;
         result
@@ -268,12 +268,15 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     }
 }
 
-/// The success message of an upload, with the count of macro references it ignored.
-pub(super) fn with_ignored(message: String, ignored: usize) -> String {
-    if ignored == 0 {
-        return message;
+/// The success message of an upload, with the count of `parsed`'s macros it ignored:
+/// its macro references and its embedded macros.
+pub(super) fn with_ignored(message: String, parsed: &CanonicalProfile) -> String {
+    let ignored = parsed.macro_refs.len() + parsed.macros.as_ref().map_or(0, Vec::len);
+    match ignored {
+        0 => message,
+        1 => format!("{message} Ignored 1 macro in the file: the slot keeps the macros it has."),
+        n => format!("{message} Ignored {n} macros in the file: the slot keeps the macros it has."),
     }
-    format!("{message} Ignored {ignored} macro reference(s): the slot keeps the macros it has.")
 }
 
 /// Success message of an upload.

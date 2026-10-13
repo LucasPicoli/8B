@@ -314,18 +314,31 @@ fn every_write_to_an_occupied_slot_keeps_all_macros() {
 }
 
 #[test]
-fn upload_ignores_macro_refs_and_keeps_the_slots_macros() {
+fn upload_ignores_the_files_macros_and_keeps_the_slots_macros() {
     let base = base_blob(XINPUT);
-    let dir = tempfile::tempdir().unwrap();
-    let dev = device(XINPUT, &base);
     let mut with_refs = fixture("xinput-slot2");
     with_refs["macro_refs"] = json!([{"trigger": "r4", "path": "m.json"}]);
-    let r =
-        orch(&dev, dir.path()).upload_profile(&with_refs, XINPUT, slot(1), &ConfirmPolicy::Force);
-    assert!(r.success, "{}", r.message);
-    assert!(r.message.ends_with("Ignored 1 macro reference(s): the slot keeps the macros it has."));
-    let written = writes(&dev).pop().unwrap();
-    assert_eq!(section4(&written, 0), section4(&base, 0));
+    let mut embedded = fixture("xinput-slot2");
+    embedded["macros"] = json!([{
+        "mode": "xinput", "name": "Tap", "trigger_buttons": ["r4"], "macro_slot": 1,
+        "repeat": { "count": 1, "interval_ms": 0 },
+        "steps": [{ "duration_ms": 50,
+                    "actions": { "buttons": { "press": ["bottom face"], "release": [] } } }]
+    }]);
+    for file in [with_refs, embedded] {
+        let dir = tempfile::tempdir().unwrap();
+        let dev = device(XINPUT, &base);
+        let r =
+            orch(&dev, dir.path()).upload_profile(&file, XINPUT, slot(1), &ConfirmPolicy::Force);
+        assert!(r.success, "{}", r.message);
+        assert!(
+            r.message.ends_with("Ignored 1 macro in the file: the slot keeps the macros it has."),
+            "{}",
+            r.message
+        );
+        let written = writes(&dev).pop().unwrap();
+        assert_eq!(section4(&written, 0), section4(&base, 0));
+    }
 }
 
 #[test]

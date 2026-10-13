@@ -289,7 +289,7 @@ impl ProfileWriteOrchestrator<'_> {
             bank.blob =
                 self.build_upload(&parsed, job.slot, drop_macros, &bank.blob, rb.slot_active)?;
             bank.dirty = true;
-            outcome.message = with_ignored(UPLOADED.to_owned(), parsed.macro_refs.len());
+            outcome.message = with_ignored(UPLOADED.to_owned(), &parsed);
             outcome.profile_id = parsed.id;
         } else if rb.slot_active && !drop_macros.is_empty() {
             bank.blob = self.model.drop_macros(&bank.blob, job.slot, drop_macros)?;

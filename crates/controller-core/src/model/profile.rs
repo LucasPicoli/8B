@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use super::ids::Mode;
+use super::macros::MacroDefinition;
 
 /// The fields every profile has, by JSON name. A settings group may not take one.
-pub const PROFILE_FIELDS: [&str; 9] = [
+pub const PROFILE_FIELDS: [&str; 10] = [
     "id",
     "name",
     "version",
@@ -20,6 +21,7 @@ pub const PROFILE_FIELDS: [&str; 9] = [
     "preferred_slot",
     "button_mappings",
     "macro_refs",
+    "macros",
 ];
 
 /// A full canonical profile (export/validation shape).
@@ -48,7 +50,13 @@ pub struct CanonicalProfile {
     /// Button remaps.
     pub button_mappings: Vec<ButtonMapping>,
     /// Macro references (always empty for device readback).
+    #[serde(default)]
     pub macro_refs: Vec<MacroRef>,
+    /// The slot's macros, held in the file itself, each with its `macro_slot`. `None`
+    /// when the file has no `macros` key, and always for a read from the pad. A file
+    /// holds these or non-empty `macro_refs`, not both.
+    #[serde(default, skip_serializing_if = "Option::is_none", with = "embedded")]
+    pub macros: Option<Vec<MacroDefinition>>,
 }
 
 impl CanonicalProfile {
@@ -79,6 +87,60 @@ fn split(pointer: &str) -> Option<(&str, &str)> {
     let path = pointer.strip_prefix('/')?;
     let group = path.split('/').next()?;
     Some((group, path.get(group.len()..)?))
+}
+
+/// The `macros` entries of profile JSON: `macro-v1` without `version` and `device`,
+/// which the profile holds, plus `macro_slot`.
+mod embedded {
+    use serde::de::Error as _;
+    use serde::{Deserialize as _, Deserializer, Serialize as _, Serializer};
+    use serde_json::Value;
+
+    use crate::model::macros::{macro_from_json, macro_to_json, MacroDefinition};
+
+    /// The file keys of a `macro-v1` object that an entry leaves to its profile.
+    const PROFILE_KEYS: [&str; 2] = ["version", "device"];
+
+    /// Writes each macro as its entry.
+    #[allow(clippy::ref_option)] // serde's `with` passes the field by reference
+    pub(super) fn serialize<S: Serializer>(
+        macros: &Option<Vec<MacroDefinition>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        let entries: Option<Vec<Value>> = macros.as_ref().map(|defs| {
+            defs.iter()
+                .map(|def| {
+                    let mut entry = macro_to_json(def, "");
+                    if let Some(map) = entry.as_object_mut() {
+                        for key in PROFILE_KEYS {
+                            map.remove(key);
+                        }
+                        map.insert("macro_slot".to_owned(), def.macro_slot.into());
+                    }
+                    entry
+                })
+                .collect()
+        });
+        entries.serialize(serializer)
+    }
+
+    /// Reads each entry as a macro in its `macro_slot`.
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Vec<MacroDefinition>>, D::Error> {
+        Vec::<Value>::deserialize(deserializer)?
+            .iter()
+            .map(|entry| {
+                let mut def = macro_from_json(entry).map_err(D::Error::custom)?;
+                let slot = entry.get("macro_slot").and_then(Value::as_u64);
+                let slot = slot.and_then(|n| u8::try_from(n).ok());
+                def.macro_slot =
+                    Some(slot.ok_or_else(|| D::Error::custom("a macro needs its macro_slot"))?);
+                Ok(def)
+            })
+            .collect::<Result<_, _>>()
+            .map(Some)
+    }
 }
 
 /// A single button remap.

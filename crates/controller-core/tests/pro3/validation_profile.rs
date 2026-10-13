@@ -226,3 +226,151 @@ fn paddle_outputs_pass_schema_in_dinput_only() {
         assert_eq!(r.valid, valid, "{}: {:?}", p["mode"], r.errors);
     }
 }
+
+// --- embedded macros ----------------------------------------------------------
+
+/// Two embedded macros for an `XInput` profile, in their canonical JSON: one presses
+/// buttons, the other glides the left stick and R2.
+fn two_macros() -> Value {
+    json!([
+        {
+            "mode": "xinput", "name": "Tap", "trigger_buttons": ["rp"],
+            "repeat": { "count": 1, "interval_ms": 0 },
+            "steps": [{ "duration_ms": 50,
+                        "actions": { "buttons": { "press": ["bottom face"], "release": [] } } }],
+            "macro_slot": 0
+        },
+        {
+            "mode": "xinput", "name": "Sweep", "trigger_buttons": ["lp", "l4"],
+            "repeat": { "count": 2, "interval_ms": 100 },
+            "steps": [
+                { "duration_ms": 100, "glide": ["left_stick", "right_trigger"],
+                  "actions": { "buttons": { "press": [], "release": [] } } },
+                { "duration_ms": 100,
+                  "actions": { "buttons": { "press": [], "release": [] },
+                               "left_stick": { "x": 255, "y": 127 },
+                               "triggers": { "left": 0, "right": 255 } } }
+            ],
+            "macro_slot": 2
+        }
+    ])
+}
+
+/// The reasons `validate_profile` gives for `p`, by path.
+fn errors(p: &Value) -> Vec<(String, String)> {
+    let r = validate_profile(&Pro3, p).unwrap();
+    r.errors.into_iter().map(|e| (e.path, e.reason)).collect()
+}
+
+#[test]
+fn embedded_macros_round_trip() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    assert_eq!(errors(&p), []);
+    let profile: CanonicalProfile = serde_json::from_value(p.clone()).unwrap();
+    let macros = profile.macros.as_ref().unwrap();
+    assert_eq!(macros.len(), 2);
+    assert_eq!(macros[1].macro_slot, Some(2));
+    assert_eq!(macros[1].trigger_buttons, ["lp", "l4"]);
+    assert_eq!(macros[1].steps[0].glide.len(), 2);
+    assert_eq!(serde_json::to_value(&profile).unwrap(), p);
+}
+
+#[test]
+fn no_macros_key_differs_from_an_empty_list() {
+    let mut p = make_valid_xinput_profile();
+    let absent: CanonicalProfile = serde_json::from_value(p.clone()).unwrap();
+    assert_eq!(absent.macros, None);
+    assert!(serde_json::to_value(&absent).unwrap().get("macros").is_none());
+    p["macros"] = json!([]);
+    assert_eq!(errors(&p), []);
+    let empty: CanonicalProfile = serde_json::from_value(p.clone()).unwrap();
+    assert_eq!(empty.macros, Some(vec![]));
+    assert_eq!(serde_json::to_value(&empty).unwrap(), p);
+}
+
+#[test]
+fn macro_refs_may_be_absent() {
+    let mut p = make_valid_xinput_profile();
+    p.as_object_mut().unwrap().remove("macro_refs");
+    assert_eq!(errors(&p), []);
+}
+
+#[test]
+fn a_bad_embedded_macro_names_its_entry() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][1]["name"] = json!("");
+    let errs = errors(&p);
+    assert!(errs.iter().any(|(path, _)| path.starts_with("/macros/1/")), "{errs:?}");
+    p["macros"] = two_macros();
+    p["macros"][0]["steps"][0]["actions"]["buttons"]["press"] = json!(["warp"]);
+    let errs = errors(&p);
+    assert!(errs.iter().any(|(path, _)| path.starts_with("/macros/0/steps/0")), "{errs:?}");
+}
+
+#[test]
+fn an_embedded_macro_needs_a_macro_slot_the_pad_has() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][0].as_object_mut().unwrap().remove("macro_slot");
+    assert!(!validate_profile(&Pro3, &p).unwrap().valid);
+    for slot in [json!(4), json!(-1), json!("0")] {
+        p["macros"] = two_macros();
+        p["macros"][0]["macro_slot"] = slot.clone();
+        assert!(!validate_profile(&Pro3, &p).unwrap().valid, "{slot}");
+    }
+}
+
+#[test]
+fn two_embedded_macros_cannot_share_a_macro_slot() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][1]["macro_slot"] = json!(0);
+    assert_eq!(
+        errors(&p),
+        [("/macros/1/macro_slot".to_owned(), "Two macros are in macro slot 0.".to_owned())]
+    );
+}
+
+#[test]
+fn an_embedded_macro_has_the_profiles_mode() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][0]["mode"] = json!("dinput");
+    assert_eq!(
+        errors(&p),
+        [(
+            "/macros/0/mode".to_owned(),
+            "This macro is for DInput mode; the profile is for XInput mode.".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn a_button_starts_one_embedded_macro() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][1]["trigger_buttons"] = json!(["rp"]);
+    assert_eq!(
+        errors(&p),
+        [(
+            "/macros/1/trigger_buttons".to_owned(),
+            "'rp' starts two macros. A button starts at most one macro.".to_owned()
+        )]
+    );
+}
+
+#[test]
+fn macros_and_macro_refs_together_are_refused() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macro_refs"] = json!([{ "trigger_buttons": ["r1"], "path": "m.json" }]);
+    assert_eq!(
+        errors(&p),
+        [(
+            "/macro_refs".to_owned(),
+            "A profile holds its macros in macros or in macro_refs, not both.".to_owned()
+        )]
+    );
+}

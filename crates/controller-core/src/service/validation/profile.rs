@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use super::{ProfileValidationResult, ValidationError, ValidationSummary};
+use super::{validate_macro, ProfileValidationResult, ValidationError, ValidationSummary};
 use crate::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT};
 use crate::device::Model;
 use crate::error::{Error, Result};
@@ -29,6 +29,11 @@ pub fn validate_profile(
     let schema = model.profile_schema_errors(profile_json)?;
     if !schema.is_empty() {
         return Ok(ProfileValidationResult { profile_id, valid: false, errors: schema });
+    }
+
+    let embedded = embedded_macro_errors(model, profile_json)?;
+    if !embedded.is_empty() {
+        return Ok(ProfileValidationResult { profile_id, valid: false, errors: embedded });
     }
 
     let semantic = semantic_errors(model, model.description()?, profile_json);
@@ -57,6 +62,30 @@ pub fn validate_all_profiles(
     Ok(ValidationSummary { results, all_valid })
 }
 
+/// The errors [`validate_macro`] finds in each `macros` entry, at `/macros/{i}`. An
+/// entry is checked as a macro file: it takes the profile's `version` and `device` when
+/// it has none, and drops its `macro_slot`.
+fn embedded_macro_errors(model: &dyn Model, profile_json: &Value) -> Result<Vec<ValidationError>> {
+    let entries = profile_json.get("macros").and_then(Value::as_array);
+    let mut errors = Vec::new();
+    for (i, entry) in entries.into_iter().flatten().enumerate() {
+        let mut file = entry.clone();
+        if let Some(map) = file.as_object_mut() {
+            map.remove("macro_slot");
+            for key in ["version", "device"] {
+                if let Some(value) = profile_json.get(key) {
+                    map.entry(key).or_insert_with(|| value.clone());
+                }
+            }
+        }
+        for e in validate_macro(model, &file)? {
+            let at = if e.path == "/" { "" } else { e.path.as_str() };
+            errors.push(error(format!("/macros/{i}{at}"), e.reason));
+        }
+    }
+    Ok(errors)
+}
+
 /// One error at `path`.
 fn error(path: impl Into<String>, reason: impl Into<String>) -> ValidationError {
     ValidationError { path: path.into(), reason: reason.into() }
@@ -72,7 +101,7 @@ fn name(field: &str) -> &str {
 /// The profile must be for this model and one of its modes, hold every setting its
 /// mode declares with a value that fits, and nothing else. No flag may be on together
 /// with a flag it excludes, such as the Pro 3's D-pad swap with swap sticks. Mappings
-/// name buttons and outputs the model has, and each macro trigger is used once.
+/// name buttons and outputs the model has, and the macros pass [`macro_errors`].
 /// Analog trigger min/max ordering and gap are deliberately NOT enforced
 /// (firmware-accepted; decoder auto-fixes), and macro-ref file existence is
 /// deferred to the orchestrator layer.
@@ -153,12 +182,55 @@ fn semantic_errors(
         }
     }
 
+    errors.extend(macro_errors(description, &profile));
+    errors
+}
+
+/// The macro errors of `profile`: each embedded macro has the profile's mode and its own
+/// macro slot, a profile holds `macros` or non-empty `macro_refs`, and a button starts
+/// at most one macro across both lists.
+fn macro_errors(
+    description: &ControllerDescription,
+    profile: &CanonicalProfile,
+) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+    let mode = profile.mode;
+    let embedded = profile.macros.as_deref().unwrap_or_default();
+    if profile.macros.is_some() && !profile.macro_refs.is_empty() {
+        let reason = "A profile holds its macros in macros or in macro_refs, not both.";
+        errors.push(error("/macro_refs", reason));
+    }
+    let count = description.macro_slot_count;
+    let mut slots = BTreeSet::new();
+    for (i, def) in embedded.iter().enumerate() {
+        if def.mode != mode {
+            let (got, want) = (description.mode_label(def.mode), description.mode_label(mode));
+            let reason = format!("This macro is for {got} mode; the profile is for {want} mode.");
+            errors.push(error(format!("/macros/{i}/mode"), reason));
+        }
+        let slot = def.macro_slot.unwrap_or_default();
+        if slot >= count {
+            let reason = format!(
+                "This controller has {count} macro slots, 0 to {}.",
+                count.saturating_sub(1)
+            );
+            errors.push(error(format!("/macros/{i}/macro_slot"), reason));
+        } else if !slots.insert(slot) {
+            let reason = format!("Two macros are in macro slot {slot}.");
+            errors.push(error(format!("/macros/{i}/macro_slot"), reason));
+        }
+    }
+
+    let refs = profile.macro_refs.iter().enumerate();
+    let refs = refs.map(|(i, r)| (format!("/macro_refs/{i}/trigger_buttons"), &r.trigger_buttons));
+    let macros = embedded.iter().enumerate();
+    let macros = macros.map(|(i, m)| (format!("/macros/{i}/trigger_buttons"), &m.trigger_buttons));
     let mut seen: BTreeSet<&str> = BTreeSet::new();
-    for (i, entry) in profile.macro_refs.iter().enumerate() {
-        for button in &entry.trigger_buttons {
+    for (path, buttons) in refs.chain(macros) {
+        for button in buttons {
             if !seen.insert(button.as_str()) {
                 errors.push(error(
-                    format!("/macro_refs/{i}/trigger_buttons"),
+                    path.clone(),
                     format!("'{button}' starts two macros. A button starts at most one macro."),
                 ));
             }

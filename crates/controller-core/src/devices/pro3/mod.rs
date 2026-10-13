@@ -375,6 +375,11 @@ mod tests {
         let count = range(&macro_, &count, "minimum", "minimum");
         assert_eq!(l.macro_repeat_count.min, count.0, "the schema also holds continuous");
         let d = Pro3.description().unwrap();
+        let slots = i32::from(d.macro_slot_count);
+        let embedded = format!("{props}/macros");
+        assert_eq!(range(&profile, &embedded, "maxItems", "maxItems").0, slots);
+        let macro_slot = format!("{embedded}/items/properties/macro_slot");
+        assert_eq!(range(&profile, &macro_slot, "minimum", "maximum"), (0, slots - 1));
         let field = |mode, pointer: &str| pair(d.number(mode, pointer).unwrap().range());
         for side in ["left", "right"] {
             let sticks = format!("{defs}/Sticks/properties/{side}");

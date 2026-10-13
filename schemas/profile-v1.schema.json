@@ -14,8 +14,7 @@
     "sticks",
     "triggers",
     "vibration",
-    "button_mappings",
-    "macro_refs"
+    "button_mappings"
   ],
   "properties": {
     "id": {
@@ -72,6 +71,24 @@
       "maxItems": 4,
       "items": {
         "$ref": "#/$defs/MacroRef"
+      }
+    },
+    "macros": {
+      "description": "The slot's macros. Each entry is a macro-v1 object without version and device, which the profile holds, plus its macro_slot. The macro schema checks the rest of an entry.",
+      "type": "array",
+      "maxItems": 4,
+      "items": {
+        "type": "object",
+        "required": [
+          "macro_slot"
+        ],
+        "properties": {
+          "macro_slot": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3
+          }
+        }
       }
     }
   },

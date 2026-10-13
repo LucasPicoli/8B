@@ -436,6 +436,7 @@ pub fn map_profile(_device: &Pro3, raw: &RawProfilePayload) -> Result<CanonicalP
         .into_map(),
         button_mappings: decode_button_mappings(payload, mode, source_slot),
         macro_refs: decode_macro_refs(payload, mode, source_slot)?,
+        macros: None,
     };
 
     Ok(CanonicalProfileSummary {
@@ -520,6 +521,7 @@ pub fn default_profile(mode: Mode) -> CanonicalProfile {
         .into_map(),
         button_mappings,
         macro_refs: Vec::new(),
+        macros: None,
     }
 }
 

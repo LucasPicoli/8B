@@ -113,6 +113,7 @@ impl ProtocolCodec for TestPad {
             settings: feel(1, true),
             button_mappings: Vec::new(),
             macro_refs: Vec::new(),
+            macros: None,
         }
     }
 
