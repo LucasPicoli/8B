@@ -177,7 +177,9 @@ export component MacroImportDialog inherits DialogShell {
         ScrollView {
             width: parent.width;
             height: parent.height;
+            // As wide as the box, so each wrapped reason gets its full height.
             errors := VerticalLayout {
+                width: parent.width;
                 for e[i] in root.info.errors: NoteRow {
                     text: e;
                     rule: i < root.info.errors.length - 1;

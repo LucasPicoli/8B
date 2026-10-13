@@ -10,6 +10,7 @@ use controller_core::model::macros::macro_from_json;
 use controller_core::model::macros::macro_to_json;
 use controller_core::model::{MacroDefinition, Mode};
 use controller_core::service::validation::validate_macro;
+use serde_json::Value;
 use slint::{ModelRc, SharedString, VecModel};
 
 use crate::buttons::output_label;
@@ -20,6 +21,11 @@ use crate::review::macro_edits::steps;
 use crate::state::{AppState, Notice};
 use crate::step_table::trigger_control;
 use crate::ui::{AppWindow, MacroImportInfo};
+
+/// Why a profile file picked as a macro file does not import, and where it goes.
+const PROFILE_FILE: &str = "This is a profile file, not a macro file. Import it with \
+     Import… at the top of the window. To move one macro, use Export macro… and Import \
+     macro… here.";
 
 /// A macro file, put into the slot's mode, waiting for the user's yes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +91,10 @@ impl AppState {
     ) -> Result<ReadyImport, Vec<String>> {
         let one = |e: String| vec![e];
         let (value, model) = parse_json(self.model(), text).map_err(one)?;
+        // A profile file fails every macro rule; one reason says what it is instead.
+        if value.get("kind").and_then(Value::as_str).is_some_and(|k| k.ends_with(".profile")) {
+            return Err(one(PROFILE_FILE.to_owned()));
+        }
         let errors = validate_macro(model, &value).map_err(|e| one(sentence(&e.to_string())))?;
         if !errors.is_empty() {
             return Err(errors.iter().map(problem).collect());
@@ -289,6 +299,37 @@ mod tests {
     }
 
     #[test]
+    fn a_macro_with_stick_and_trigger_glides_imports_back_unchanged() {
+        use controller_core::devices::pro3::DINPUT;
+        use controller_core::model::{GlideControl, MacroStep};
+        let mut s = connected(DINPUT);
+        let mut def = macro_def(0, "Slide", &["rp"], 0);
+        def.mode = DINPUT;
+        def.steps = vec![
+            MacroStep {
+                duration_ms: 300,
+                left_stick_x: 0,
+                trigger_left: 40,
+                glide: [GlideControl::LeftStick, GlideControl::LeftTrigger].into(),
+                ..MacroStep::default()
+            },
+            MacroStep {
+                duration_ms: 200,
+                left_stick_x: 255,
+                trigger_left: 255,
+                ..MacroStep::default()
+            },
+        ];
+        hold_macros(&mut s, (DINPUT, 1), &[def.clone()]);
+        s.select(2, 0);
+        let shown = s.slot(DINPUT, 1).shown_macro(0).unwrap().clone();
+        assert_eq!(shown.steps, def.steps, "the glides survive the read");
+        s.import_macro(0, "dinput-slot1-macro0-Slide.json", Ok(file(&shown)));
+        let outcome = s.pending_macro_import.clone().unwrap().outcome;
+        assert_eq!(outcome.map(|r| r.def.steps), Ok(shown.steps));
+    }
+
+    #[test]
     fn buttons_that_start_another_macro_or_are_mapped_are_left_out() {
         let mut s = held();
         s.set_output("l4", "bottom face");
@@ -372,6 +413,28 @@ mod tests {
         assert!(errors[0].starts_with("\"version\" is"), "{errors:?}");
         s.cancel_macro_import();
         assert!(!macro_import_info(&s).shown);
+    }
+
+    #[test]
+    fn a_profile_file_is_named_as_one_and_points_to_the_right_import() {
+        let mut s = held();
+        let profile = s.defaults().get(&XINPUT).unwrap().clone();
+        let text = crate::files::export_text(&profile).unwrap();
+        s.import_macro(1, "profile-xinput-slot-2-index-1.json", Ok(text));
+        let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].starts_with("This is a profile file, not a macro file."), "{errors:?}");
+    }
+
+    #[test]
+    fn every_reason_is_shown_in_full() {
+        let mut s = held();
+        let name = "n".repeat(400);
+        let def = macro_def(0, &name, &[], 1);
+        s.import_macro(1, "long.json", Ok(file(&def)));
+        let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
+        assert!(errors.iter().any(|e| e.contains(&name)), "cut: {errors:?}");
+        assert!(errors.iter().all(|e| !e.ends_with('…')), "{errors:?}");
     }
 
     #[test]

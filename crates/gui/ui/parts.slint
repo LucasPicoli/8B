@@ -772,13 +772,20 @@ export component NoteRow inherits Rectangle {
     // A rule under the line.
     in property <bool> rule;
     min-height: 32px;
-    Text {
-        x: 10px;
-        width: parent.width - 20px;
-        text: root.text;
-        color: Theme.fg;
-        vertical-alignment: center;
-        wrap: word-wrap;
+    // In a layout, so a line that wraps makes the row taller.
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        padding-top: 6px;
+        padding-bottom: 6px;
+        Text {
+            // A word longer than the row, such as a long name, does not widen it.
+            min-width: 0px;
+            text: root.text;
+            color: Theme.fg;
+            vertical-alignment: center;
+            wrap: word-wrap;
+        }
     }
     if root.rule: Rectangle {
         y: parent.height - 1px;

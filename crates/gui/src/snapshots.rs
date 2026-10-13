@@ -1129,6 +1129,16 @@ fn a_macro_file_shows_what_changes_before_it_imports() {
     s.import_macro(1, "bad.json", Ok("{}".to_owned()));
     macros_at("macro-import-failed", &s, 1);
     s.cancel_macro_import();
+    // Reasons long enough to wrap: each row grows to its text, nothing overlaps.
+    let mut long = macro_def(1, &"Slide".repeat(30), &["r4"], 2);
+    long.repeat_count = 0;
+    s.import_macro(
+        1,
+        "long.json",
+        Ok(crate::macro_files::macro_text(&long, "8bitdo-pro3").unwrap()),
+    );
+    macros_at("macro-import-long-reasons", &s, 1);
+    s.cancel_macro_import();
     macros_at("macros-empty-slot", &s, 3);
 }
 

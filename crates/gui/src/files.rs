@@ -76,17 +76,13 @@ pub fn parse_json<'a>(
     Ok((value, model))
 }
 
-/// `error` as one line, such as "/name: …". A reason too long is cut.
+/// `error` as one line, in full, such as "/name: …".
 #[must_use]
 pub fn problem(error: &ValidationError) -> String {
-    let mut reason: String = error.reason.chars().take(REASON_MAX).collect();
-    if reason.len() < error.reason.len() {
-        reason.push('…');
-    }
     // A pointer to the whole file, "/", says nothing to the user.
     match error.path.as_str() {
-        "" | "/" => reason,
-        path => format!("{path}: {reason}"),
+        "" | "/" => error.reason.clone(),
+        path => format!("{path}: {}", error.reason),
     }
 }
 
@@ -98,7 +94,13 @@ pub fn first_error(kind: &str, errors: &[ValidationError]) -> Option<String> {
         0 => String::new(),
         n => format!(" ({n} more problems)"),
     };
-    Some(format!("It is not a valid {kind}. {}{more}", problem(errors.first()?)))
+    // One line in a message bar: a reason too long is cut.
+    let full = problem(errors.first()?);
+    let mut first: String = full.chars().take(REASON_MAX).collect();
+    if first.len() < full.len() {
+        first.push('…');
+    }
+    Some(format!("It is not a valid {kind}. {first}{more}"))
 }
 
 /// The profile in `text`, checked as a profile of `model`.
