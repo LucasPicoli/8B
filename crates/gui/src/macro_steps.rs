@@ -46,17 +46,11 @@ pub fn prune_glides(steps: &mut [MacroStep]) {
     }
 }
 
-/// Puts an empty step after step `i`, where its sticks and triggers end: no buttons,
+/// Puts an empty step after step `i`: no buttons, triggers released, sticks centred,
 /// no glide.
 pub fn add_after(steps: &mut Vec<MacroStep>, i: usize) -> usize {
-    let mut step = MacroStep { duration_ms: NEW_STEP_MS, ..MacroStep::default() };
-    if i < steps.len() {
-        for c in CONTROLS {
-            set_axes(&mut step, c, value_at(steps, i, c, 1.0));
-        }
-    }
     let at = (i + 1).min(steps.len());
-    steps.insert(at, step);
+    steps.insert(at, MacroStep { duration_ms: NEW_STEP_MS, ..MacroStep::default() });
     prune_glides(steps);
     at
 }
@@ -129,12 +123,10 @@ mod tests {
     }
 
     #[test]
-    fn add_starts_where_the_step_ends_with_no_buttons() {
+    fn add_puts_an_empty_step_with_centred_sticks() {
         let mut steps = vec![step(100, 0, 200, true), step(100, 200, 0, false)];
         assert_eq!(add_after(&mut steps, 0), 1);
-        let new = &steps[1];
-        assert_eq!((new.left_stick_x, new.trigger_left, new.duration_ms), (200, 200, NEW_STEP_MS));
-        assert!(new.pressed_buttons.is_empty() && new.glide.is_empty());
+        assert_eq!(steps[1], MacroStep { duration_ms: NEW_STEP_MS, ..MacroStep::default() });
         assert!(steps[0].glide.contains(&GlideControl::LeftStick), "it glides to the new step");
         assert_eq!(add_after(&mut steps, 2), 3, "after the last");
     }

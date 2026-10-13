@@ -98,6 +98,7 @@ export component LineEdit {
     in property <bool> wrap;
     in property <string> accessible-name;
     in property <InputType> input-type: InputType.text;
+    in property <TextHorizontalAlignment> horizontal-alignment: left;
     in property <bool> enabled: true;
     out property <bool> has-focus: ti.has-focus;
     callback edited(string);
@@ -123,6 +124,7 @@ export component LineEdit {
             text <=> root.text;
             read-only: root.read-only;
             input-type: root.input-type;
+            horizontal-alignment: root.horizontal-alignment;
             enabled: root.enabled;
             color: root.enabled ? Theme.fg : Theme.fg-muted;
             font-family: root.mono ? Theme.mono-family : Theme.font-family;

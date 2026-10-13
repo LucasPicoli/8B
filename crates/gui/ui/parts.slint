@@ -795,6 +795,7 @@ export component NumberEdit inherits LineEdit {
     callback committed(int);
     width: 76px;
     input-type: InputType.number;
+    horizontal-alignment: right;
     text: root.value;
     changed value => { if (!self.has-focus) { self.text = self.value; } }
     changed has-focus => { if (!self.has-focus) { self.text = self.value; } }
