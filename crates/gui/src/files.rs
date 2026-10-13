@@ -103,9 +103,18 @@ pub fn first_error(kind: &str, errors: &[ValidationError]) -> Option<String> {
     Some(format!("It is not a valid {kind}. {first}{more}"))
 }
 
+/// Why a macro file picked as a profile does not import, and where it goes.
+const MACRO_FILE: &str = "This is a macro file, not a profile. Import it with Import macro… \
+     on the Macros tab.";
+
 /// The profile in `text`, checked as a profile of `model`.
 fn parse(model: Option<&dyn Model>, text: &str) -> Result<CanonicalProfile, String> {
     let (value, model) = parse_json(model, text)?;
+    // A macro file fails every profile rule; one reason says what it is instead. Only a
+    // macro file has steps.
+    if value.get("steps").is_some_and(Value::is_array) {
+        return Err(MACRO_FILE.to_owned());
+    }
     let check = validate_profile(model, &value).map_err(|e| sentence(&e.to_string()))?;
     if let Some(e) = first_error("profile", &check.errors) {
         return Err(e);
@@ -486,6 +495,17 @@ mod tests {
         let edited = s.slot(XINPUT, 2).edited.unwrap();
         assert_eq!(edited.mode, XINPUT);
         assert!(edited.button_mappings.iter().any(|m| m.source == "l1" && m.target == "disabled"));
+    }
+
+    #[test]
+    fn a_macro_file_is_named_as_one_and_points_to_the_right_import() {
+        let mut s = connected(XINPUT);
+        let def = crate::state::tests::macro_def(0, "Jump", &["rp"], 2);
+        let text = crate::macro_files::macro_text(&def, "8bitdo-pro3").unwrap();
+        s.import((XINPUT, 1), "xinput-slot1-macro0-Jump.json", Ok(text));
+        let n = s.notice.take().unwrap();
+        assert_eq!(n.body, MACRO_FILE);
+        assert_eq!(s.pending_import, None);
     }
 
     #[test]
