@@ -61,19 +61,22 @@ pub fn from_disc(x: f32, y: f32, snap: bool) -> [u8; 2] {
     [value(axis(x, y)), value(axis(y, x))]
 }
 
-/// Whether `control` of step `i` can glide, and the tip of its Glide box: what a glide
-/// does, or why it cannot.
-fn glide_tip(steps: &[MacroStep], i: usize, control: GlideControl) -> (bool, String) {
+/// The Glide box of `control` in step `i`: its label, whether it can glide, and its
+/// tip, which says what a glide does or why it cannot.
+fn glide_box(steps: &[MacroStep], i: usize, control: GlideControl) -> (String, bool, String) {
+    let label = format!("Glide to step {}", i + 2);
     match (steps.get(i), steps.get(i + 1)) {
-        (_, None) => (false, "The last step cannot glide: no step comes after it.".to_owned()),
+        (_, None) => ("Glide".to_owned(), false, "No next step to glide to.".to_owned()),
         (Some(s), Some(n)) if axes(s, control) == axes(n, control) => (
+            label,
             false,
             format!("Step {} holds the same position, so there is nothing to glide to.", i + 2),
         ),
         (s, _) => (
+            label,
             true,
             format!(
-                "Moves in a straight line to step {}'s position over this step's {} ms.",
+                "Moves in a straight line from here to step {}'s position over this step's {} ms.",
                 i + 2,
                 s.map_or(0, |s| s.duration_ms)
             ),
@@ -122,14 +125,20 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
         .iter()
         .map(|&(control, label)| {
             let [x, y] = steps.get(step).map_or([STICK_CENTER; 2], |s| axes(s, control));
-            let (can_glide, tip) = glide_tip(&steps, step, control);
+            let (glide_label, can_glide, tip) = glide_box(&steps, step, control);
+            // The step before glides this stick here: its number, 1-based, or 0.
+            let from = step
+                .checked_sub(1)
+                .filter(|&p| steps.get(p).is_some_and(|s| s.glide.contains(&control)));
             PadStick {
                 label: label.into(),
                 value_x: i32::from(x),
                 value_y: i32::from(y),
                 at: stick(&steps, step, control),
+                glide_label: glide_label.into(),
                 can_glide,
                 glide_tip: tip.into(),
+                glides_in_from: from.and_then(|p| i32::try_from(p + 1).ok()).unwrap_or(0),
             }
         })
         .collect()
@@ -282,19 +291,32 @@ mod tests {
             (255, 0, "Left stick")
         );
         assert!(!pads[0].can_glide && !pads[1].can_glide);
+        assert_eq!(pads[0].glide_label, "Glide to step 3");
         assert_eq!(
             pads[0].glide_tip,
             "Step 3 holds the same position, so there is nothing to glide to."
         );
         let last = &stick_pads(&s, 0, 2)[0];
-        assert!(!last.can_glide && last.glide_tip.starts_with("The last step cannot glide"));
+        assert_eq!((last.glide_label.as_str(), last.can_glide), ("Glide", false));
+        assert_eq!(last.glide_tip, "No next step to glide to.");
         let first = &stick_pads(&s, 0, 0)[0];
         assert!(first.can_glide);
         assert_eq!(
             first.glide_tip,
-            "Moves in a straight line to step 2's position over this step's 100 ms."
+            "Moves in a straight line from here to step 2's position over this step's 100 ms."
         );
         assert!(stick_pads(&s, 0, 3).is_empty(), "no step 4");
+    }
+
+    #[test]
+    fn the_arriving_step_names_the_step_that_glides_in() {
+        let glide =
+            MacroStep { left_stick_x: 0, glide: [GlideControl::LeftStick].into(), ..step(100) };
+        let s = holding(vec![step(100), glide, step(100)]);
+        let arriving = stick_pads(&s, 0, 2);
+        assert_eq!((arriving[0].glides_in_from, arriving[1].glides_in_from), (2, 0));
+        assert_eq!(stick_pads(&s, 0, 1)[0].glides_in_from, 0, "step 1 does not glide");
+        assert_eq!(stick_pads(&s, 0, 0)[0].glides_in_from, 0, "no step before");
     }
 
     #[test]

@@ -15,6 +15,8 @@ component StickPad {
     callback set(int, int, bool);
     callback dragged(float, float);
     callback glided(bool);
+    // The note on an arriving step was clicked: select the step that glides in (0-based).
+    callback step-picked(int);
     // A drag near a marked rim point lands on it; the points show only then.
     in property <bool> snap;
     // The gate's size, and the reach of a full deflection from its centre.
@@ -42,10 +44,10 @@ component StickPad {
                 horizontal-stretch: 0;
                 HorizontalLayout {
                     glide := CheckBox {
-                        text: "Glide";
+                        text: root.stick.glide-label;
                         checked: root.stick.at.glide;
                         enabled: root.enabled && root.stick.can-glide;
-                        accessible-label: root.stick.label + " glide";
+                        accessible-label: root.stick.label + ", " + root.stick.glide-label;
                         accessible-description: root.stick.glide-tip;
                         toggled => { root.glided(self.checked); }
                     }
@@ -187,6 +189,17 @@ component StickPad {
                 }
             }
         }
+        // The glide that arrives here belongs to the step before: a way back to it.
+        if root.stick.glides-in-from > 0: HorizontalLayout {
+            alignment: start;
+            Button {
+                text: "Glides in from step " + root.stick.glides-in-from;
+                icon: Icons.up;
+                flat: true;
+                accessible-label: root.stick.label + " glides in from step " + root.stick.glides-in-from + ". Select that step.";
+                clicked => { root.step-picked(root.stick.glides-in-from - 1); }
+            }
+        }
     }
 }
 
@@ -201,9 +214,23 @@ export component StepPanel inherits Frame {
     callback stick-set(int, int, int, bool);
     callback stick-dragged(int, float, float, bool);
     callback stick-glided(int, bool);
+    // A pad asks to select step n (0-based).
+    callback step-picked(int);
     // Asks the page to scroll the panel into view (absolute y, height).
     callback reveal(length, length);
-    changed step => { root.reveal(self.absolute-position.y, self.height); }
+    // The new step's pads can change the panel's height after this runs, such as a
+    // "Glides in" line, so the height that follows a pick reveals once more.
+    property <bool> revealing;
+    changed step => {
+        root.revealing = true;
+        root.reveal(self.absolute-position.y, self.height);
+    }
+    changed height => {
+        if (root.revealing) {
+            root.revealing = false;
+            root.reveal(self.absolute-position.y, self.height);
+        }
+    }
 
     // A drag snaps to the edges and corners marked on the rim. For the session, both pads.
     in-out property <bool> snap: true;
@@ -223,6 +250,7 @@ export component StepPanel inherits Frame {
                 set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                 dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
                 glided(on) => { root.stick-glided(i, on); }
+                step-picked(n) => { root.step-picked(n); }
             }
         }
         // Each pad keeps its own width instead of the panel's.
@@ -239,6 +267,7 @@ export component StepPanel inherits Frame {
                     set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                     dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
                     glided(on) => { root.stick-glided(i, on); }
+                step-picked(n) => { root.step-picked(n); }
                 }
             }
         }

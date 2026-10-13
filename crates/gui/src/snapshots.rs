@@ -1312,6 +1312,14 @@ fn the_glide_box_follows_the_selected_step() {
 }
 
 #[test]
+fn the_arriving_step_links_back_to_the_step_that_glides_in() {
+    let (_state, ui) = stick_pads_at(3);
+    // "Glides in from step 3" under the left pad, at this size.
+    click(&ui, 700.0, 691.0);
+    assert_eq!(ui.get_selected_step(), 2);
+}
+
+#[test]
 fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
     let mut s = steps_tab();
     s.set_number("/sticks/left_min_pct", 0.0);
