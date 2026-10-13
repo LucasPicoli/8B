@@ -13,6 +13,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod logging;
+mod macro_tab;
 mod macros;
 mod plain;
 mod portal;
@@ -43,7 +44,7 @@ mod ui {
     slint::include_modules!();
 }
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::mpsc::{self, Sender};
@@ -61,6 +62,7 @@ use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 
 use crate::buttons::{hit, picked_output, render_views};
 use crate::closing::CloseOutcome;
+use crate::macro_tab::{action_hit, added_button, chip_button, view_click, Plays, ViewClick};
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
 use crate::ui::{AppWindow, Diagnostics};
@@ -539,6 +541,72 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     ui.on_start_from_default(move || c(&AppState::start_from_default));
 }
 
+/// The macro slot a Macros tab callback names.
+fn macro_slot(n: i32) -> u8 {
+    u8::try_from(n).unwrap_or(u8::MAX)
+}
+
+/// Wires the Macros tab: each edit names the macro slot it is for. The hit test reads
+/// `state` outside a change.
+fn wire_macros(
+    ui: &AppWindow,
+    change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
+    state: Rc<RefCell<AppState>>,
+) {
+    ui.on_macro_hit(move |view, n, x, y| {
+        let view = usize::try_from(view).unwrap_or(usize::MAX);
+        action_hit(&state.borrow(), view, macro_slot(n), x, y)
+    });
+    let c = change.clone();
+    ui.on_macro_created(move |n| c(&|s| s.new_macro(macro_slot(n))));
+    let c = change.clone();
+    ui.on_macro_deleted(move |n| c(&|s| s.delete_macro(macro_slot(n))));
+    let c = change.clone();
+    ui.on_macro_renamed(move |n, name| c(&|s| s.rename_macro(macro_slot(n), &name)));
+    let c = change.clone();
+    ui.on_macro_plays_picked(move |n, p| {
+        if let Some(plays) = Plays::at(p) {
+            c(&|s| s.set_plays(macro_slot(n), plays));
+        }
+    });
+    let c = change.clone();
+    ui.on_macro_count_changed(move |n, v| c(&|s| s.set_play_count(macro_slot(n), v)));
+    let c = change.clone();
+    ui.on_macro_pause_changed(move |n, v| c(&|s| s.set_play_pause(macro_slot(n), v)));
+    let c = change.clone();
+    ui.on_macro_button_added(move |n, choice| {
+        let Ok(choice) = usize::try_from(choice) else { return };
+        c(&|s| {
+            if let Some(button) = added_button(s, macro_slot(n), choice) {
+                s.add_macro_button(macro_slot(n), &button);
+            }
+        });
+    });
+    let c = change.clone();
+    ui.on_macro_button_removed(move |n, chip| {
+        let Ok(chip) = usize::try_from(chip) else { return };
+        c(&|s| {
+            if let Some(button) = chip_button(s, macro_slot(n), chip) {
+                s.remove_macro_button(macro_slot(n), &button);
+            }
+        });
+    });
+    let c = change.clone();
+    let weak = ui.as_weak();
+    ui.on_macro_view_clicked(move |n, row| {
+        let Ok(row) = usize::try_from(row) else { return };
+        let open = Cell::new(None);
+        c(&|s| match view_click(s, macro_slot(n), row) {
+            Some(ViewClick::Open(other)) => open.set(Some(other)),
+            Some(ViewClick::Add(button)) => s.add_macro_button(macro_slot(n), &button),
+            None => {}
+        });
+        if let (Some(other), Some(ui)) = (open.get(), weak.upgrade()) {
+            ui.set_selected_macro(i32::from(other));
+        }
+    });
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sandboxed = udev::sandboxed();
     logging::init(sandboxed);
@@ -637,6 +705,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     wire_edits(&ui, &change);
+    wire_macros(&ui, &change, Rc::clone(&hit_state));
     wire_fix(&ui, &change, jobs);
 
     let s = Rc::clone(&hit_state);

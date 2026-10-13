@@ -97,6 +97,9 @@ export component LineEdit {
     // Several lines: a path or command the user must read in full.
     in property <bool> wrap;
     in property <string> accessible-name;
+    in property <InputType> input-type: InputType.text;
+    in property <bool> enabled: true;
+    out property <bool> has-focus: ti.has-focus;
     callback edited(string);
     min-height: wrap ? ti.preferred-height + 12px : Theme.control-height;
     max-height: self.min-height;
@@ -119,7 +122,9 @@ export component LineEdit {
             wrap: root.wrap ? char-wrap : no-wrap;
             text <=> root.text;
             read-only: root.read-only;
-            color: Theme.fg;
+            input-type: root.input-type;
+            enabled: root.enabled;
+            color: root.enabled ? Theme.fg : Theme.fg-muted;
             font-family: root.mono ? Theme.mono-family : Theme.font-family;
             selection-background-color: Theme.accent;
             selection-foreground-color: Theme.on-accent;
@@ -144,6 +149,9 @@ export component ComboBox {
     in property <string> accessible-name;
     // Small: the table rows, 26px.
     in property <bool> small;
+    // A menu of commands, such as "Add a button…", whose first entry is the prompt: the
+    // arrow keys only move through the entries, and Enter or a click picks one.
+    in property <bool> menu;
     callback selected(string);
     callback focused;
     min-height: small ? 26px : Theme.control-height;
@@ -155,9 +163,17 @@ export component ComboBox {
     forward-focus: fs;
 
     function pick(i: int) {
-        if (i >= 0 && i < model.length && i != current-index) {
+        if (i >= 0 && i < model.length && (i != current-index || menu)) {
             current-index = i;
             selected(current-value);
+        }
+    }
+    // The arrow keys: a pick, or in a menu a move.
+    function step(i: int) {
+        if (!menu) {
+            pick(i);
+        } else if (i >= 0 && i < model.length) {
+            current-index = i;
         }
     }
 
@@ -166,11 +182,15 @@ export component ComboBox {
         focus-gained => { root.focused(); }
         key-pressed(e) => {
             if (e.text == Key.UpArrow) {
-                root.pick(root.current-index - 1);
+                root.step(root.current-index - 1);
                 return accept;
             }
             if (e.text == Key.DownArrow) {
-                root.pick(root.current-index + 1);
+                root.step(root.current-index + 1);
+                return accept;
+            }
+            if (root.menu && e.text == Key.Return && root.current-index > 0) {
+                root.pick(root.current-index);
                 return accept;
             }
             if (e.text == " " || e.text == Key.Return) {

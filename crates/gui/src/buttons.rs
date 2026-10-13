@@ -112,7 +112,8 @@ pub fn picked_output(state: &AppState, row: usize, choice: usize) -> Option<(Str
     (output != current).then(|| (button.id.clone(), output))
 }
 
-/// The tab strip, with a dot on each tab that holds unsaved edits.
+/// The tab strip, with a dot on each tab that holds unsaved edits: Buttons, Macros
+/// when the controller has macro slots, then the settings tabs.
 #[must_use]
 pub fn sections(state: &AppState) -> Vec<Section> {
     let description = state.description();
@@ -122,10 +123,20 @@ pub fn sections(state: &AppState) -> Vec<Section> {
     else {
         return Vec::new();
     };
-    let tabs = description.pages(mode).map(|p| (p.label.as_str(), dirty.tab(&p.id)));
-    std::iter::once(("Buttons", dirty.buttons))
+    let macros = selected.map_or(0, |(m, n)| state.slot(m, n).shown_macros().len());
+    let macros = (description.macro_slot_count > 0).then(|| Section {
+        name: "Macros".into(),
+        unsaved: dirty.macros,
+        count: i32::try_from(macros).unwrap_or(i32::MAX),
+    });
+    let tabs = description.pages(mode).map(|p| Section {
+        name: p.label.as_str().into(),
+        unsaved: dirty.tab(&p.id),
+        count: 0,
+    });
+    std::iter::once(Section { name: "Buttons".into(), unsaved: dirty.buttons, count: 0 })
+        .chain(macros)
         .chain(tabs)
-        .map(|(name, unsaved)| Section { name: name.into(), unsaved, count: 0 })
         .collect()
 }
 
@@ -561,6 +572,8 @@ mod tests {
         assert!(sections(&s).iter().all(|t| !t.unsaved));
         s.set_output("r1", "disabled");
         let dots: Vec<bool> = sections(&s).iter().map(|t| t.unsaved).collect();
-        assert_eq!(dots, [true, false, false, false]);
+        assert_eq!(dots, [true, false, false, false, false]);
+        let names: Vec<String> = sections(&s).iter().map(|t| t.name.to_string()).collect();
+        assert_eq!(&names[..2], ["Buttons", "Macros"]);
     }
 }

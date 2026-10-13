@@ -3,15 +3,16 @@
 import { Theme, Button, LineEdit, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { MessageBar, Placeholder, Icons, TabBar, Diagnostics } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
+import { MacrosTab } from "macros.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Theme, Palette, Diagnostics }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, Theme, Palette, Diagnostics }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -50,6 +51,19 @@ export component AppWindow inherits Window {
     in property <[SettingsPage]> pages;
     in-out property <int> tab;
     in-out property <int> selected-row: -1;
+    // The controller has macro slots: the Macros tab follows Buttons.
+    in property <bool> has-macros;
+    in property <[MacroRow]> macro-rows;
+    in property <[MacroSpot]> macro-spots;
+    in property <bool> macros-editable;
+    in property <int> macro-name-max;
+    in property <int> macro-count-min;
+    in property <int> macro-count-max;
+    in property <int> macro-pause-max;
+    // The selected macro slot (0-based).
+    in-out property <int> selected-macro: 0;
+    // The first settings tab.
+    property <int> first-page: root.has-macros ? 2 : 1;
     // Why the last read failed, empty when it did not.
     in property <string> read-error;
     in property <string> read-error-title;
@@ -154,6 +168,17 @@ export component AppWindow inherits Window {
     callback number-changed(string, float);
     callback flag-changed(string, bool);
     callback discard;
+    // Macros tab edits, each for a macro slot (0-based).
+    callback macro-created(int);
+    callback macro-deleted(int);
+    callback macro-renamed(int, string);
+    callback macro-plays-picked(int, int);
+    callback macro-count-changed(int, int);
+    callback macro-pause-changed(int, int);
+    // An entry of the "Add a button…" picker, a chip, and a button row on a view.
+    callback macro-button-added(int, int);
+    callback macro-button-removed(int, int);
+    callback macro-view-clicked(int, int);
     callback start-from-default;
     // Open and save dialogs for profile JSON, and the answer to the import warning.
     callback import-file;
@@ -186,6 +211,8 @@ export component AppWindow inherits Window {
     callback close-discard;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
+    // The same, only when a click there acts on macro slot `macro` (0-based).
+    pure callback macro-hit(int, int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
     callback theme-changed;
     property <bool> dark: Theme.dark;
@@ -234,11 +261,13 @@ export component AppWindow inherits Window {
                 // A selected button belongs to the slot it was picked in.
                 if (m != root.selected-mode || s != root.selected-slot) {
                     root.selected-row = -1;
+                    root.selected-macro = 0;
                 }
                 root.slot-picked(m, s);
             }
             controller-picked(i) => {
                 root.selected-row = -1;
+                root.selected-macro = 0;
                 root.controller-picked(i);
             }
             edited-count: root.edited-count;
@@ -419,8 +448,31 @@ export component AppWindow inherits Window {
                             }
                         }
                     }
-                    if root.tab > 0: SettingsTab {
-                        page: root.pages[root.tab - 1];
+                    if root.has-macros && root.tab == 1: MacrosTab {
+                        rows: root.macro-rows;
+                        views: root.views;
+                        spots: root.macro-spots;
+                        editable: root.macros-editable;
+                        name-max: root.macro-name-max;
+                        count-min: root.macro-count-min;
+                        count-max: root.macro-count-max;
+                        pause-max: root.macro-pause-max;
+                        selected <=> root.selected-macro;
+                        narrow: root.compact;
+                        hit(v, x, y) => { return root.hit(v, x, y); }
+                        action-hit(v, n, x, y) => { return root.macro-hit(v, n, x, y); }
+                        created(n) => { root.macro-created(n); }
+                        deleted(n) => { root.macro-deleted(n); }
+                        renamed(n, t) => { root.macro-renamed(n, t); }
+                        plays-picked(n, p) => { root.macro-plays-picked(n, p); }
+                        count-changed(n, v) => { root.macro-count-changed(n, v); }
+                        pause-changed(n, v) => { root.macro-pause-changed(n, v); }
+                        button-added(n, c) => { root.macro-button-added(n, c); }
+                        button-removed(n, c) => { root.macro-button-removed(n, c); }
+                        view-clicked(n, row) => { root.macro-view-clicked(n, row); }
+                    }
+                    if root.tab >= root.first-page: SettingsTab {
+                        page: root.pages[root.tab - root.first-page];
                         number-changed(field, v) => { root.number-changed(field, v); }
                         flag-changed(field, on) => { root.flag-changed(field, on); }
                     }

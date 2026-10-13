@@ -115,7 +115,8 @@ impl SlotState {
 }
 
 /// "1 step" or "n steps".
-fn steps(n: usize) -> String {
+#[must_use]
+pub fn steps(n: usize) -> String {
     if n == 1 {
         "1 step".to_owned()
     } else {

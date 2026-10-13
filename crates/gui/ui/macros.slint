@@ -1,0 +1,587 @@
+// The Macros tab: the macro slots of the selected slot and the controller views on the
+// left, the selected macro's header on the right.
+import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
+import { Dot, Frame, Icons, SmallHead } from "parts.slint";
+import { MacroRow, MacroSpot, PadView } from "types.slint";
+
+// A number field that hands Rust each value in range as it is typed, and shows the
+// stored value again when it loses focus.
+component NumberEdit inherits LineEdit {
+    in property <int> value;
+    in property <int> minimum;
+    in property <int> maximum;
+    callback committed(int);
+    width: 76px;
+    input-type: InputType.number;
+    text: root.value;
+    changed value => { if (!self.has-focus) { self.text = self.value; } }
+    changed has-focus => { if (!self.has-focus) { self.text = self.value; } }
+    edited(t) => {
+        if (t.is-float() && round(t.to-float()) == t.to-float() && t.to-float() >= root.minimum && t.to-float() <= root.maximum) {
+            root.committed(t.to-float());
+        }
+    }
+}
+
+// A button that starts a macro, as a filled pill.
+component ButtonChip inherits Rectangle {
+    in property <string> text;
+    // "No button" or a "+n" count: an outline, muted.
+    in property <bool> muted;
+    height: 18px;
+    width: round((label.preferred-width + 12px) / 1phx) * 1phx;
+    border-radius: self.height / 2;
+    background: root.muted ? transparent : Theme.accent-strong;
+    border-width: root.muted ? 1px : 0;
+    border-color: Theme.line;
+    label := Text {
+        width: 100%;
+        height: 100%;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        text: root.text;
+        font-size: Theme.text-small;
+        font-weight: root.muted ? 400 : 600;
+        color: root.muted ? Theme.fg-muted : Theme.on-accent;
+    }
+}
+
+// One macro slot in the list: number, name or "Empty", step count, buttons, unsaved dot.
+component MacroSlotRow inherits Rectangle {
+    in property <MacroRow> item;
+    in property <bool> selected;
+    in property <bool> last;
+    // The list has keyboard focus: the selected row shows the focus frame.
+    in property <bool> focused;
+    callback picked;
+    height: 40px;
+    background: root.selected ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
+    border-width: root.selected ? 1px : 0;
+    border-color: Theme.accent;
+    accessible-role: list-item;
+    accessible-label: "Macro " + root.item.number + ", " + (!root.item.filled ? "empty" : root.item.name != "" ? root.item.name : "no name");
+    accessible-item-selected: root.selected;
+    accessible-action-default => { root.picked(); }
+    ta := TouchArea {
+        clicked => { root.picked(); }
+    }
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+        Rectangle {
+            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+            width: 22px;
+            height: 22px;
+            border-width: 1px;
+            border-radius: Theme.radius;
+            border-color: Theme.line;
+            Text {
+                width: 100%;
+                height: 100%;
+                text: root.item.number;
+                font-size: Theme.text-small;
+                color: Theme.fg-muted;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Text {
+            horizontal-stretch: 1;
+            text: !root.item.filled ? "Empty" : root.item.name != "" ? root.item.name : "No name";
+            color: root.item.filled && root.item.name != "" ? Theme.fg : Theme.fg-muted;
+            font-italic: !root.item.filled || root.item.name == "";
+            vertical-alignment: center;
+            overflow: elide;
+        }
+        if root.item.filled: Text {
+            text: root.item.steps;
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
+        for b in root.item.first-buttons: ButtonChip {
+            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+            text: b;
+        }
+        if root.item.more > 0: ButtonChip {
+            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+            text: "+" + root.item.more;
+            muted: true;
+        }
+        if root.item.filled && root.item.buttons.length == 0: ButtonChip {
+            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+            text: "No button";
+            muted: true;
+        }
+        if root.item.unsaved: Dot {
+            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+        }
+    }
+    if !root.last: Rectangle {
+        y: parent.height - 1px;
+        height: 1px;
+        background: Theme.line-soft;
+    }
+    if root.selected && root.focused: Rectangle {
+        x: 2px;
+        y: 2px;
+        width: parent.width - 4px;
+        height: parent.height - 4px;
+        border-radius: Theme.radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+}
+
+// One controller view. This macro's buttons are in the accent with a "Macro n" tip,
+// other macros' buttons grey, mapped buttons an outline. Under the pointer, a button a
+// click acts on lights up, and a tip says what the click does.
+component MacroViewArt {
+    in property <PadView> view;
+    in property <int> index;
+    in property <[MacroSpot]> spots;
+    // The selected macro slot (0-based).
+    in property <int> selected;
+    // The button row under (x, y) in viewBox units, or -1; and the same only when a
+    // click on that button does something.
+    pure callback hit(float, float) -> int;
+    pure callback action-hit(float, float) -> int;
+    callback clicked(int);
+    property <float> scale: self.width / 1px / view.width;
+    property <float> mx: ta.mouse-x / 1px / scale;
+    property <float> my: ta.mouse-y / 1px / scale;
+    property <int> hover: ta.has-hover ? root.hit(self.mx, self.my) : -1;
+    property <int> action: ta.has-hover ? root.action-hit(self.mx, self.my) : -1;
+    // Whole pixels, so the next view starts on one.
+    height: round(self.width * view.height / view.width / 1phx) * 1phx;
+
+    Image {
+        width: 100%;
+        height: 100%;
+        source: root.view.image;
+    }
+    for s in root.spots: Path {
+        property <bool> own: s.owner >= 0 && s.owner == root.selected;
+        property <bool> other: s.owner >= 0 && !self.own;
+        property <bool> mapped: s.mapped-to != "";
+        property <bool> lit: s.row == root.action;
+        visible: s.view == root.index && (self.own || self.other || self.mapped || self.lit);
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
+        viewbox-width: root.view.width;
+        viewbox-height: root.view.height;
+        commands: s.commands;
+        fill: self.own ? Theme.accent-wash : self.lit ? Theme.hover : self.other ? Theme.line-soft : transparent;
+        stroke: self.own || self.lit ? Theme.accent : Theme.fg-muted;
+        stroke-width: self.own ? 2.4px : 1.2px;
+    }
+    // Right of the shape, or left of it where the right side has no room.
+    for s in root.spots: Rectangle {
+        property <bool> own: s.owner >= 0 && s.owner == root.selected;
+        property <bool> pointed: s.row == root.hover && (s.row == root.action || s.mapped-to != "");
+        visible: s.view == root.index && (self.own || self.pointed);
+        property <length> right: s.x1 * root.scale * 1px + 6px;
+        x: round((self.right + self.width <= root.width ? self.right : s.x0 * root.scale * 1px - 6px - self.width) / 1phx) * 1phx;
+        y: round(((s.y0 + s.y1) / 2 * root.scale * 1px - self.height / 2) / 1phx) * 1phx;
+        width: tip.preferred-width + 12px;
+        height: 20px;
+        border-radius: 3px;
+        background: Theme.view;
+        border-width: 1px;
+        border-color: Theme.line;
+        drop-shadow-blur: 4px;
+        drop-shadow-offset-y: 1px;
+        drop-shadow-color: Theme.shadow;
+        tip := Text {
+            text: parent.own ? "Macro " + (s.owner + 1) : s.owner >= 0 ? "Open Macro " + (s.owner + 1) : s.mapped-to != "" ? "Mapped to " + s.mapped-to : "Add to Macro " + (root.selected + 1);
+            font-size: Theme.text-small;
+            color: Theme.fg;
+        }
+    }
+    ta := TouchArea {
+        mouse-cursor: root.action >= 0 ? MouseCursor.pointer : MouseCursor.default;
+        clicked => {
+            if (root.action >= 0) {
+                root.clicked(root.action);
+            }
+        }
+    }
+}
+
+// A line of text in the header.
+component FieldLabel inherits Text {
+    color: Theme.fg;
+    vertical-alignment: center;
+}
+
+// One header line: its label in a fixed column, then its fields.
+component Field inherits HorizontalLayout {
+    in property <string> label;
+    // The fields take the whole width, not their own.
+    in property <bool> fill;
+    spacing: 16px;
+    // At the top, level with the first line of a field that wraps.
+    VerticalLayout {
+        alignment: start;
+        horizontal-stretch: 0;
+        // At least the column's width, more when the desktop font is larger.
+        FieldLabel {
+            min-width: 120px;
+            height: Theme.control-height;
+            text: root.label;
+        }
+    }
+    HorizontalLayout {
+        horizontal-stretch: 1;
+        spacing: 8px;
+        alignment: root.fill ? LayoutAlignment.stretch : LayoutAlignment.start;
+        @children
+    }
+}
+
+// The selected macro: its name, the buttons that start it, how often it plays.
+component MacroHeader inherits Frame {
+    in property <MacroRow> item;
+    in property <bool> editable;
+    in property <int> name-max;
+    in property <int> count-min;
+    in property <int> count-max;
+    in property <int> pause-max;
+    callback deleted;
+    callback renamed(string);
+    callback plays-picked(int);
+    callback count-changed(int);
+    callback pause-changed(int);
+    // An entry of `item.addable`, and a chip's index.
+    callback button-added(int);
+    callback button-removed(int);
+    // The pickers and the name field follow another macro once one is picked.
+    property <string> name: item.name;
+    property <int> plays: item.plays;
+    changed name => { if (name-field.text != self.name) { name-field.text = self.name; } }
+    changed plays => { plays-box.current-index = self.plays; }
+
+    VerticalLayout {
+        Rectangle {
+            height: 40px;
+            HorizontalLayout {
+                padding-left: 12px;
+                padding-right: 6px;
+                SmallHead {
+                    text: "Macro " + root.item.number;
+                    vertical-alignment: center;
+                }
+                Rectangle {
+                    horizontal-stretch: 1;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Button {
+                        text: "Delete macro";
+                        icon: Icons.clear;
+                        flat: true;
+                        enabled: root.editable;
+                        clicked => { root.deleted(); }
+                    }
+                }
+            }
+            Rectangle {
+                y: parent.height - 1px;
+                height: 1px;
+                background: Theme.line-soft;
+            }
+        }
+        VerticalLayout {
+            padding: 12px;
+            spacing: 10px;
+            Field {
+                label: "Name";
+                HorizontalLayout {
+                    spacing: 8px;
+                    name-field := LineEdit {
+                        width: 240px;
+                        text: root.item.name;
+                        enabled: root.editable;
+                        accessible-name: "Macro name";
+                        edited(t) => {
+                            root.renamed(t);
+                            // Rust cuts the name to the limit.
+                            if (self.text != root.item.name) {
+                                self.text = root.item.name;
+                            }
+                        }
+                    }
+                    Text {
+                        text: name-field.text.character-count + "/" + root.name-max;
+                        font-size: Theme.text-small;
+                        color: Theme.fg-muted;
+                        vertical-alignment: center;
+                    }
+                }
+            }
+            Field {
+                label: "Starts with";
+                fill: true;
+                VerticalLayout {
+                    spacing: 6px;
+                    // The chips by index, as many to a line as fit: Slint has no wrap layout.
+                    if root.item.buttons.length > 0: Rectangle {
+                        property <int> per-line: max(1, floor((self.width + 6px) / 126px));
+                        height: ceil(root.item.buttons.length / self.per-line) * 36px - 6px;
+                        for b[i] in root.item.buttons: Rectangle {
+                            x: mod(i, parent.per-line) * 126px;
+                            y: floor(i / parent.per-line) * 36px;
+                            width: 120px;
+                            height: 30px;
+                            border-width: 1px;
+                            border-radius: Theme.radius;
+                            border-color: Theme.accent;
+                            background: Theme.accent-wash;
+                            HorizontalLayout {
+                                padding-left: 8px;
+                                padding-right: 2px;
+                                spacing: 2px;
+                                Text {
+                                    horizontal-stretch: 1;
+                                    text: b;
+                                    font-weight: 600;
+                                    color: Theme.fg;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                                VerticalLayout {
+                                    alignment: center;
+                                    Button {
+                                        text: "Remove " + b;
+                                        icon: Icons.close;
+                                        icon-only: true;
+                                        flat: true;
+                                        enabled: root.editable;
+                                        clicked => { root.button-removed(i); }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    HorizontalLayout {
+                        spacing: 8px;
+                        alignment: start;
+                        if root.item.buttons.length == 0: ButtonChip {
+                            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                            text: "No button";
+                            muted: true;
+                        }
+                        ComboBox {
+                            width: 180px;
+                            menu: true;
+                            model: root.item.addable;
+                            current-index: 0;
+                            enabled: root.editable && root.item.addable.length > 1;
+                            accessible-name: "Add a button";
+                            selected => {
+                                root.button-added(self.current-index);
+                                self.current-index = 0;
+                            }
+                        }
+                    }
+                }
+            }
+            Field {
+                label: "Plays";
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    plays-box := ComboBox {
+                        width: 180px;
+                        model: ["Once", "A number of times", "Until pressed again"];
+                        current-index: root.item.plays;
+                        enabled: root.editable;
+                        accessible-name: "Plays";
+                        selected => {
+                            root.plays-picked(self.current-index);
+                            self.current-index = root.item.plays;
+                        }
+                    }
+                    if root.item.plays == 1: NumberEdit {
+                        value: root.item.count;
+                        minimum: root.count-min;
+                        maximum: root.count-max;
+                        enabled: root.editable;
+                        accessible-name: "Times";
+                        committed(v) => { root.count-changed(v); }
+                    }
+                    if root.item.plays == 1: FieldLabel {
+                        text: "times";
+                    }
+                }
+            }
+            if root.item.plays != 0: Field {
+                label: "Pause between plays";
+                NumberEdit {
+                    value: root.item.pause;
+                    minimum: 0;
+                    maximum: root.pause-max;
+                    enabled: root.editable;
+                    accessible-name: "Pause between plays in milliseconds";
+                    committed(v) => { root.pause-changed(v); }
+                }
+                FieldLabel {
+                    text: "ms";
+                }
+            }
+            Field {
+                label: "Steps";
+                FieldLabel {
+                    text: root.item.steps;
+                    color: Theme.fg-muted;
+                }
+            }
+        }
+    }
+}
+
+export component MacrosTab {
+    in property <[MacroRow]> rows;
+    in property <[PadView]> views;
+    in property <[MacroSpot]> spots;
+    // The slot's macros can be edited now: their steps are read.
+    in property <bool> editable;
+    in property <int> name-max;
+    in property <int> count-min;
+    in property <int> count-max;
+    in property <int> pause-max;
+    // The selected macro slot (0-based).
+    in-out property <int> selected: 0;
+    // A narrow window: the left column gets narrower. Rust sets it, as the tab's own
+    // width would form a layout loop.
+    in property <bool> narrow;
+    // The button row under (x, y) in view `view`'s viewBox units, or -1; and the same
+    // only when a click there acts on macro slot `macro` (0-based).
+    pure callback hit(int, float, float) -> int;
+    pure callback action-hit(int, int, float, float) -> int;
+    // Each takes the selected macro slot (0-based) first.
+    callback created(int);
+    callback deleted(int);
+    callback renamed(int, string);
+    callback plays-picked(int, int);
+    callback count-changed(int, int);
+    callback pause-changed(int, int);
+    callback button-added(int, int);
+    callback button-removed(int, int);
+    // A button row clicked on a view.
+    callback view-clicked(int, int);
+    property <MacroRow> current: root.rows[root.selected];
+
+    HorizontalLayout {
+        spacing: 16px;
+        VerticalLayout {
+            // A fixed width, so the views keep their size from macro to macro.
+            width: root.narrow ? 224px : 320px;
+            alignment: start;
+            spacing: 6px;
+            SmallHead {
+                text: "Macro slots";
+            }
+            Frame {
+                list-fs := FocusScope {
+                    key-pressed(e) => {
+                        if (e.text == Key.DownArrow && root.selected < root.rows.length - 1) {
+                            root.selected += 1;
+                            return accept;
+                        }
+                        if (e.text == Key.UpArrow && root.selected > 0) {
+                            root.selected -= 1;
+                            return accept;
+                        }
+                        reject
+                    }
+                    VerticalLayout {
+                        accessible-role: list;
+                        accessible-label: "Macro slots";
+                        for r[i] in root.rows: MacroSlotRow {
+                            item: r;
+                            selected: i == root.selected;
+                            last: i == root.rows.length - 1;
+                            focused: list-fs.has-focus;
+                            picked => {
+                                root.selected = i;
+                                list-fs.focus();
+                            }
+                        }
+                    }
+                }
+            }
+            Rectangle {
+                height: 6px;
+            }
+            SmallHead {
+                text: "Macro trigger buttons";
+            }
+            if root.current.filled: Text {
+                text: "Click a button on the controller to make it start this macro.";
+                font-size: Theme.text-small;
+                color: Theme.fg-muted;
+                wrap: word-wrap;
+            }
+            Frame {
+                VerticalLayout {
+                    padding: 10px;
+                    spacing: 4px;
+                    for v[i] in root.views: MacroViewArt {
+                        view: v;
+                        index: i;
+                        spots: root.spots;
+                        selected: root.selected;
+                        hit(x, y) => { return root.hit(i, x, y); }
+                        action-hit(x, y) => { return root.action-hit(i, root.selected, x, y); }
+                        clicked(row) => { root.view-clicked(root.selected, row); }
+                    }
+                }
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            alignment: start;
+            if root.current.filled: MacroHeader {
+                item: root.current;
+                editable: root.editable;
+                name-max: root.name-max;
+                count-min: root.count-min;
+                count-max: root.count-max;
+                pause-max: root.pause-max;
+                deleted => { root.deleted(root.selected); }
+                renamed(t) => { root.renamed(root.selected, t); }
+                plays-picked(p) => { root.plays-picked(root.selected, p); }
+                count-changed(v) => { root.count-changed(root.selected, v); }
+                pause-changed(v) => { root.pause-changed(root.selected, v); }
+                button-added(c) => { root.button-added(root.selected, c); }
+                button-removed(c) => { root.button-removed(root.selected, c); }
+            }
+            if !root.current.filled: Frame {
+                VerticalLayout {
+                    padding: 24px;
+                    spacing: 12px;
+                    alignment: center;
+                    Text {
+                        text: "Macro " + root.current.number + " is empty";
+                        font-size: Theme.text-placeholder;
+                        color: Theme.fg;
+                        horizontal-alignment: center;
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        Button {
+                            text: "New macro";
+                            primary: true;
+                            enabled: root.editable;
+                            clicked => { root.created(root.selected); }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

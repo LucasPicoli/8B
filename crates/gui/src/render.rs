@@ -11,6 +11,7 @@ use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 use crate::buttons::{render_buttons, render_views};
 use crate::closing::render_close;
 use crate::files::render_files;
+use crate::macro_tab::render_macros;
 use crate::review::render_writes;
 use crate::settings::render_settings;
 use crate::state::{Access, AppState, Install, Rule};
@@ -31,8 +32,12 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
                     number: i32::from(number),
                     name: shown.map_or_else(SharedString::new, |p| p.name.as_str().into()),
                     empty: shown.is_none(),
-                    macros: shown
-                        .map_or(0, |p| i32::try_from(p.macro_refs.len()).unwrap_or(i32::MAX)),
+                    macros: i32::try_from(
+                        slot.edited_macros
+                            .as_ref()
+                            .map_or_else(|| shown.map_or(0, |p| p.macro_refs.len()), Vec::len),
+                    )
+                    .unwrap_or(i32::MAX),
                     unsaved: slot.unsaved(),
                 }
             });
@@ -160,6 +165,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_name_max(state.description().limits.profile_name_length.max);
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
+    render_macros(state, ui);
     render_settings(state, ui);
     render_files(state, ui);
     render_writes(state, ui);

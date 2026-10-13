@@ -831,7 +831,7 @@ mod tests {
     }
 }
 
-mod macro_edits;
+pub mod macro_edits;
 
 #[cfg(test)]
 mod control_map;

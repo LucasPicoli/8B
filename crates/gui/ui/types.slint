@@ -235,3 +235,45 @@ export struct CloseInfo {
     write: int,
     groups: [CloseGroup],
 }
+
+// One macro slot of the selected slot on the Macros tab: its row in the list, and
+// the header of its macro.
+export struct MacroRow {
+    // 1-based.
+    number: int,
+    // A macro is in the macro slot.
+    filled: bool,
+    name: string,
+    // Such as "4 steps".
+    steps: string,
+    // The labels of the buttons that start it, the first of them for the list row,
+    // and how many more the row leaves out.
+    buttons: [string],
+    first-buttons: [string],
+    more: int,
+    // Differs from what the controller holds: not written yet.
+    unsaved: bool,
+    // 0 once, 1 a number of times, 2 until pressed again.
+    plays: int,
+    count: int,
+    // Pause between plays in milliseconds.
+    pause: int,
+    // "Add a button…", then each button that can join the macro.
+    addable: [string],
+}
+
+// One button's shape on the Macros tab's controller views, in viewBox units.
+export struct MacroSpot {
+    // Index of the button in the description.
+    row: int,
+    view: int,
+    commands: string,
+    // The macro slot of the macro it starts (0-based), or -1.
+    owner: int,
+    // The output it is mapped to, which stops it starting a macro, or "".
+    mapped-to: string,
+    x0: float,
+    y0: float,
+    x1: float,
+    y1: float,
+}

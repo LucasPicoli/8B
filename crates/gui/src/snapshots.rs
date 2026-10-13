@@ -439,7 +439,7 @@ fn settings_tabs() {
     let clean = connected(XINPUT);
     let edited = edited_settings();
     for dark in [false, true] {
-        for (i, name) in [(1, "sticks"), (2, "triggers"), (3, "vibration")] {
+        for (i, name) in [(2, "sticks"), (3, "triggers"), (4, "vibration")] {
             tab(&format!("{name}-clean"), &clean, i, dark);
             tab(&format!("{name}-edited"), &edited, i, dark);
         }
@@ -451,7 +451,7 @@ fn a_slider_drag_survives_the_render_after_each_move() {
     use slint::platform::{PointerEventButton, WindowEvent};
     let state = Rc::new(std::cell::RefCell::new(connected(XINPUT)));
     let ui = window(&state.borrow());
-    ui.set_tab(1);
+    ui.set_tab(2);
     let (s, weak) = (Rc::clone(&state), ui.as_weak());
     ui.on_number_changed(move |field, value| {
         s.borrow_mut().set_number(&field, value);
@@ -1032,4 +1032,49 @@ fn copy_from_the_bar(dark: bool) {
     save(&format!("bar-after-copy-{theme}"), &ui);
     let after = red(&ui);
     assert!(after < before * 2, "the bar grew: {before} red pixels before the copy, {after} after");
+}
+
+/// `XInput` slot 2 holding "Jump combo" on five buttons, and a macro with no name on R4
+/// played 3 times, with a new macro staged in macro slot 3 and L4 mapped to A.
+fn macros_tab() -> AppState {
+    let mut s = connected(XINPUT);
+    let held = [macro_def(0, "Jump combo", &["rp", "lp"], 12), macro_def(1, "Dash", &["r4"], 3)];
+    hold_macros(&mut s, (XINPUT, 2), &held);
+    s.select(0, 1);
+    s.set_plays(1, crate::macro_tab::Plays::Times);
+    s.set_play_count(1, 3);
+    s.set_play_pause(1, 120);
+    s.new_macro(2);
+    for b in ["r3", "l3", "turbo"] {
+        s.add_macro_button(0, b);
+    }
+    s.rename_macro(1, "");
+    s.set_output("l4", "bottom face");
+    s
+}
+
+#[test]
+fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
+    let s = macros_tab();
+    for dark in [false, true] {
+        let ui = window(&s);
+        if dark {
+            ui.global::<crate::ui::Palette<'_>>()
+                .set_color_scheme(slint::language::ColorScheme::Dark);
+            render_views(s.description(), &ui);
+        }
+        ui.set_tab(1);
+        let theme = if dark { "dark" } else { "light" };
+        for (macro_slot, name) in [(0, "first"), (1, "times"), (3, "empty")] {
+            ui.set_selected_macro(macro_slot);
+            save(&format!("macros-{name}-{theme}"), &ui);
+        }
+    }
+    // The smallest window still fits the header of a macro that plays a number of times.
+    let ui = window(&s);
+    ui.window().set_size(PhysicalSize::new(1024, 640));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    ui.set_selected_macro(1);
+    save("macros-narrow", &ui);
 }
