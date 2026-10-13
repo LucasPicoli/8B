@@ -9,7 +9,7 @@ import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, PadStick } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
 export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics }
@@ -79,6 +79,11 @@ export component AppWindow inherits Window {
     in property <int> step-ms-min;
     in property <int> step-ms-max;
     in property <[ChipInfo]> panel-chips;
+    in property <[PadStick]> step-sticks;
+    // The bar for a stick the shown macro moves under the dead zone floor, and its action.
+    in property <string> floor-title;
+    in property <string> floor-body;
+    in property <string> floor-action;
     changed selected-step => { root.macro-shown(); }
     // The first settings tab.
     property <int> first-page: root.has-macros ? 2 : 1;
@@ -211,6 +216,12 @@ export component AppWindow inherits Window {
     // A step panel edit: the macro slot, the step, and the duration or the chip.
     callback step-duration-changed(int, int, int);
     callback step-chip-toggled(int, int, int);
+    // A stick pad edit: the macro slot, the step, the stick (0 left, 1 right), then the
+    // values and whether the edit is its own undo; the point on the gate; or the glide.
+    callback stick-set(int, int, int, int, int, bool);
+    callback stick-dragged(int, int, int, float, float);
+    callback stick-glided(int, int, int, bool);
+    callback floor-raised(int);
     callback start-from-default;
     // Open and save dialogs for profile JSON, and the answer to the import warning.
     callback import-file;
@@ -506,6 +517,22 @@ export component AppWindow inherits Window {
                         panel-chips: root.panel-chips;
                         step-duration-changed(n, i, v) => { root.step-duration-changed(n, i, v); }
                         step-chip-toggled(n, i, c) => { root.step-chip-toggled(n, i, c); }
+                        step-sticks: root.step-sticks;
+                        floor-title: root.floor-title;
+                        floor-body: root.floor-body;
+                        floor-action: root.floor-action;
+                        floor-raised(n) => { root.floor-raised(n); }
+                        stick-set(n, i, k, x, y, apart) => { root.stick-set(n, i, k, x, y, apart); }
+                        stick-dragged(n, i, k, x, y) => { root.stick-dragged(n, i, k, x, y); }
+                        stick-glided(n, i, k, on) => { root.stick-glided(n, i, k, on); }
+                        reveal(abs-y, h) => {
+                            let top = abs-y - page.absolute-position.y;
+                            if (top < 0) {
+                                page.content-y -= top;
+                            } else if (top + h > page.visible-height) {
+                                page.content-y -= top + h - page.visible-height;
+                            }
+                        }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         created(n) => { root.macro-created(n); }

@@ -26,6 +26,7 @@ mod settings;
 mod state;
 mod step_panel;
 mod step_table;
+mod stick_pad;
 mod udev;
 mod worker;
 mod writes;
@@ -643,6 +644,23 @@ fn wire_macros(
         let (Ok(step), Ok(chip)) = (usize::try_from(step), usize::try_from(chip)) else { return };
         c(&|s| s.toggle_step_button(macro_slot(n), step, chip));
     });
+    let c = change.clone();
+    ui.on_stick_set(move |n, step, stick, x, y, apart| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.set_stick(macro_slot(n), step, stick, [x, y], apart));
+    });
+    let c = change.clone();
+    ui.on_stick_dragged(move |n, step, stick, x, y| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.drag_stick(macro_slot(n), step, stick, x, y));
+    });
+    let c = change.clone();
+    ui.on_stick_glided(move |n, step, stick, on| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.set_stick_glide(macro_slot(n), step, stick, on));
+    });
+    let c = change.clone();
+    ui.on_floor_raised(move |n| c(&|s| s.raise_to_stick_floor(macro_slot(n))));
     ui.on_macro_hit(move |view, n, step, x, y| {
         let view = usize::try_from(view).unwrap_or(usize::MAX);
         let step = usize::try_from(step).unwrap_or(usize::MAX);

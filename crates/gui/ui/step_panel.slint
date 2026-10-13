@@ -1,0 +1,255 @@
+// The step panel of the Macros tab, under the step table: the sticks the selected step
+// holds. The controller views beside the tab set its buttons, and the table's row its
+// duration.
+import { Theme, Button, CheckBox } from "look/breeze/widgets.slint";
+import { Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
+import { PadStick } from "types.slint";
+
+// A stick on its round gate: drag the knob, or type X and Y. The square of values maps
+// to the gate as the step table's glyph maps it, so Rust turns a point into values.
+component StickPad {
+    in property <PadStick> stick;
+    in property <bool> enabled;
+    // The values, and whether the edit is its own undo; a point on the gate in gate
+    // radii from its centre; the glide.
+    callback set(int, int, bool);
+    callback dragged(float, float);
+    callback glided(bool);
+    // Why Glide is off shows under the gate, unless the panel says it once for both.
+    in property <bool> show-reason: true;
+    // The gate's size, and the reach of a full deflection from its centre.
+    property <length> size: 120px;
+    property <length> r: 52px;
+    property <length> c: root.size / 2;
+    property <bool> at-rest: root.stick.value-x == 127 && root.stick.value-y == 127;
+    // A click sets the box's own `checked`, which ends its binding: follow the data.
+    changed stick => { glide.checked = root.stick.at.glide; }
+
+    VerticalLayout {
+        spacing: 8px;
+        HorizontalLayout {
+            spacing: 8px;
+            SmallHead {
+                text: root.stick.label;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            glide := CheckBox {
+                text: "Glide";
+                checked: root.stick.at.glide;
+                enabled: root.enabled && root.stick.can-glide;
+                accessible-label: root.stick.label + " glide";
+                accessible-description: root.stick.glide-reason;
+                toggled => { root.glided(self.checked); }
+            }
+            Button {
+                text: "Centre";
+                icon: Icons.centre;
+                flat: true;
+                enabled: root.enabled && !root.at-rest;
+                accessible-label: "Centre " + root.stick.label;
+                clicked => { root.set(127, 127, true); }
+            }
+        }
+        HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            gate := Rectangle {
+                width: root.size;
+                height: root.size;
+                accessible-role: image;
+                accessible-label: root.stick.label + ": " + root.stick.at.text;
+                opacity: root.enabled ? 1 : 0.45;
+                Rectangle {
+                    border-width: 1px;
+                    border-color: Theme.fg-muted;
+                    border-radius: self.width / 2;
+                    background: Theme.view;
+                }
+                Rectangle {
+                    x: root.c;
+                    y: root.c - root.r;
+                    width: 1px;
+                    height: root.r * 2;
+                    background: Theme.line-soft;
+                }
+                Rectangle {
+                    x: root.c - root.r;
+                    y: root.c;
+                    width: root.r * 2;
+                    height: 1px;
+                    background: Theme.line-soft;
+                }
+                // The 8 snap points on the rim.
+                for k in 8: Rectangle {
+                    x: root.c + root.r * cos(k * 45deg) - 2px;
+                    y: root.c + root.r * sin(k * 45deg) - 2px;
+                    width: 4px;
+                    height: 4px;
+                    border-radius: 2px;
+                    background: Theme.fg-muted;
+                }
+                if root.stick.at.glide: Path {
+                    width: root.size;
+                    height: root.size;
+                    viewbox-width: root.size / 1px;
+                    viewbox-height: root.size / 1px;
+                    commands: "M " + (root.c + root.stick.at.x * root.r) / 1px + " " + (root.c + root.stick.at.y * root.r) / 1px
+                        + " L " + (root.c + root.stick.at.to-x * root.r) / 1px + " " + (root.c + root.stick.at.to-y * root.r) / 1px;
+                    stroke: Theme.accent-ink;
+                    stroke-width: 2px;
+                }
+                // Where the glide ends, hollow, under the knob.
+                if root.stick.at.glide: Rectangle {
+                    x: root.c + root.stick.at.to-x * root.r - 6px;
+                    y: root.c + root.stick.at.to-y * root.r - 6px;
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 6px;
+                    background: Theme.view;
+                    border-width: 2px;
+                    border-color: Theme.accent-ink;
+                }
+                Rectangle {
+                    x: root.c + root.stick.at.x * root.r - 8px;
+                    y: root.c + root.stick.at.y * root.r - 8px;
+                    width: 16px;
+                    height: 16px;
+                    border-radius: 8px;
+                    background: Theme.accent-strong;
+                    border-width: 2px;
+                    border-color: Theme.view;
+                }
+                TouchArea {
+                    enabled: root.enabled;
+                    pointer-event(e) => {
+                        if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                            root.dragged((self.mouse-x - root.c) / root.r, (self.mouse-y - root.c) / root.r);
+                        }
+                    }
+                    moved => {
+                        if (self.pressed) {
+                            root.dragged((self.mouse-x - root.c) / root.r, (self.mouse-y - root.c) / root.r);
+                        }
+                    }
+                }
+            }
+            // Centred on the gate on a whole physical pixel, so the field text stays sharp.
+            VerticalLayout {
+                alignment: start;
+                padding-top: max(0px, round((root.size - 2 * Theme.control-height - self.spacing) / 2 / 1phx) * 1phx);
+                spacing: 8px;
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "X";
+                        color: Theme.fg;
+                        vertical-alignment: center;
+                    }
+                    NumberEdit {
+                        value: root.stick.value-x;
+                        minimum: 0;
+                        maximum: 255;
+                        step: 1;
+                        enabled: root.enabled;
+                        accessible-name: root.stick.label + " X, 0 to 255, rest 127";
+                        committed(v) => { root.set(v, root.stick.value-y, false); }
+                    }
+                }
+                HorizontalLayout {
+                    spacing: 6px;
+                    Text {
+                        text: "Y";
+                        color: Theme.fg;
+                        vertical-alignment: center;
+                    }
+                    NumberEdit {
+                        value: root.stick.value-y;
+                        minimum: 0;
+                        maximum: 255;
+                        step: 1;
+                        enabled: root.enabled;
+                        accessible-name: root.stick.label + " Y, 0 to 255, rest 127";
+                        committed(v) => { root.set(root.stick.value-x, v, false); }
+                    }
+                }
+            }
+        }
+        if root.show-reason && root.enabled && !root.stick.can-glide: Text {
+            text: root.stick.glide-reason;
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            wrap: word-wrap;
+        }
+    }
+}
+
+export component StepPanel inherits Frame {
+    in property <[PadStick]> sticks;
+    in property <bool> enabled;
+    // The selected step: picking another scrolls the panel into view.
+    in property <int> step;
+    // A narrow window, set by Rust: the panel's own width would form a layout loop.
+    in property <bool> narrow;
+    // Each edit names the stick (0 left, 1 right) first.
+    callback stick-set(int, int, int, bool);
+    callback stick-dragged(int, float, float);
+    callback stick-glided(int, bool);
+    // Asks the page to scroll the panel into view (absolute y, height).
+    callback reveal(length, length);
+    changed step => { root.reveal(self.absolute-position.y, self.height); }
+
+    // Both pads give the same reason, such as on the last step: the panel says it once.
+    property <bool> shared-reason: root.sticks.length == 2 && !root.sticks[0].can-glide
+        && root.sticks[0].glide-reason == root.sticks[1].glide-reason;
+
+    VerticalLayout {
+        padding: 12px;
+        spacing: 12px;
+        // The sticks sit side by side, or one under the other in a narrow window.
+        if !root.narrow: HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            for s[i] in root.sticks: StickPad {
+                stick: s;
+                enabled: root.enabled;
+                show-reason: !root.shared-reason;
+                min-width: 260px;
+                set(x, y, apart) => { root.stick-set(i, x, y, apart); }
+                dragged(x, y) => { root.stick-dragged(i, x, y); }
+                glided(on) => { root.stick-glided(i, on); }
+            }
+        }
+        // Each pad keeps its own width instead of the panel's.
+        if root.narrow: VerticalLayout {
+            spacing: 16px;
+            alignment: start;
+            for s[i] in root.sticks: HorizontalLayout {
+                alignment: start;
+                StickPad {
+                    stick: s;
+                    enabled: root.enabled;
+                    show-reason: !root.shared-reason;
+                    min-width: 260px;
+                    set(x, y, apart) => { root.stick-set(i, x, y, apart); }
+                    dragged(x, y) => { root.stick-dragged(i, x, y); }
+                    glided(on) => { root.stick-glided(i, on); }
+                }
+            }
+        }
+        if root.enabled && root.shared-reason: Text {
+            text: root.sticks[0].glide-reason;
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            wrap: word-wrap;
+        }
+        Text {
+            text: "X and Y: 0 is left or up, 127 is the centre, 255 is right or down.";
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            wrap: word-wrap;
+        }
+    }
+}

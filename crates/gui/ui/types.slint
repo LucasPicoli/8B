@@ -352,6 +352,17 @@ export struct StepInfo {
     right: StickInfo,
 }
 
+// A stick pad of the step panel: where the selected step holds the stick, and whether
+// it can glide (and why not).
+export struct PadStick {
+    label: string,
+    value-x: int,
+    value-y: int,
+    at: StickInfo,
+    can-glide: bool,
+    glide-reason: string,
+}
+
 // One button in the step panel's "Buttons held": its label, and whether the step holds it.
 export struct ChipInfo {
     label: string,

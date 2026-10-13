@@ -1,9 +1,10 @@
 // The Macros tab: the macro slots of the selected slot and the controller views on the
 // left, the selected macro's header on the right.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
-import { Dot, Frame, Icons, NumberEdit, SmallHead, ViewTip } from "parts.slint";
-import { ChipInfo, MacroRow, MacroSpot, PadView, StepInfo } from "types.slint";
+import { Dot, Frame, Icons, MessageBar, NumberEdit, SmallHead, ViewTip } from "parts.slint";
+import { ChipInfo, MacroRow, MacroSpot, PadStick, PadView, StepInfo } from "types.slint";
 import { StepTable } from "steps.slint";
+import { StepPanel } from "step_panel.slint";
 
 // A button that starts a macro, as a filled pill.
 component ButtonChip inherits Rectangle {
@@ -479,6 +480,20 @@ export component MacrosTab {
     // A panel edit: the macro slot, the step, and the duration or the chip.
     callback step-duration-changed(int, int, int);
     callback step-chip-toggled(int, int, int);
+    // The stick pads of the selected step, and their edits: the macro slot, the step and
+    // the stick (0 left, 1 right) first.
+    in property <[PadStick]> step-sticks;
+    callback stick-set(int, int, int, int, int, bool);
+    callback stick-dragged(int, int, int, float, float);
+    callback stick-glided(int, int, int, bool);
+    // A stick the macro moves sits under the dead zone floor: the bar's words and its
+    // action, which raises the low ends of macro slot n to the floor.
+    in property <string> floor-title;
+    in property <string> floor-body;
+    in property <string> floor-action;
+    callback floor-raised(int);
+    // Asks the page to scroll the step panel into view (absolute y, height).
+    callback reveal(length, length);
     // The button row under (x, y) in view `view`'s viewBox units, or -1; and the chip of
     // "Buttons held" there, when a click toggles it in step `step` of macro slot `macro`
     // (0-based), or -1.
@@ -605,6 +620,13 @@ export component MacrosTab {
                 button-added(c) => { root.button-added(root.selected, c); }
                 button-removed(c) => { root.button-removed(root.selected, c); }
             }
+            if root.current.filled && root.floor-title != "": MessageBar {
+                title: root.floor-title;
+                body: root.floor-body;
+                action: root.floor-action;
+                action-enabled: root.editable;
+                acted => { root.floor-raised(root.selected); }
+            }
             if root.current.filled: StepTable {
                 rows: root.step-rows;
                 lanes: root.step-lanes;
@@ -619,6 +641,16 @@ export component MacrosTab {
                 duration-min: root.step-ms-min;
                 duration-max: root.step-ms-max;
                 duration-changed(v) => { root.step-duration-changed(root.selected, root.selected-step, v); }
+            }
+            if root.current.filled && root.step-sticks.length > 0: StepPanel {
+                sticks: root.step-sticks;
+                enabled: root.live;
+                step: root.selected-step;
+                narrow: root.narrow;
+                stick-set(k, x, y, apart) => { root.stick-set(root.selected, root.selected-step, k, x, y, apart); }
+                stick-dragged(k, x, y) => { root.stick-dragged(root.selected, root.selected-step, k, x, y); }
+                stick-glided(k, on) => { root.stick-glided(root.selected, root.selected-step, k, on); }
+                reveal(y, h) => { root.reveal(y, h); }
             }
             if !root.current.filled: Frame {
                 VerticalLayout {

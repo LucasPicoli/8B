@@ -268,19 +268,26 @@ pub fn render_views(description: &ControllerDescription, ui: &AppWindow) {
     ui.set_views(ModelRc::from(Rc::new(VecModel::from(views))));
 }
 
-/// Replaces the rows in place when their count holds, so each row's picker keeps
-/// its focus.
-fn push_rows(ui: &AppWindow, rows: Vec<MapRow>) {
-    let current = ui.get_rows();
-    if let Some(model) = current.as_any().downcast_ref::<VecModel<MapRow>>() {
-        if model.row_count() == rows.len() {
+/// Sets `rows` into `current` in place when the row count holds, so each row's controls
+/// keep their focus and a drag in progress. Gives the rows back when it cannot.
+pub fn set_in_place<T: Clone + 'static>(current: &ModelRc<T>, rows: Vec<T>) -> Option<Vec<T>> {
+    match current.as_any().downcast_ref::<VecModel<T>>() {
+        Some(model) if model.row_count() == rows.len() => {
             for (i, row) in rows.into_iter().enumerate() {
                 model.set_row_data(i, row);
             }
-            return;
+            None
         }
+        _ => Some(rows),
     }
-    ui.set_rows(ModelRc::from(Rc::new(VecModel::from(rows))));
+}
+
+/// Replaces the rows in place when their count holds, so each row's picker keeps
+/// its focus.
+fn push_rows(ui: &AppWindow, rows: Vec<MapRow>) {
+    if let Some(rows) = set_in_place(&ui.get_rows(), rows) {
+        ui.set_rows(ModelRc::from(Rc::new(VecModel::from(rows))));
+    }
 }
 
 /// Pushes the tab strip, the button shapes and the mapping table.

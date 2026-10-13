@@ -221,13 +221,13 @@ fn unit(x: u8) -> f32 {
 
 /// A stick position on the disc: the square of values mapped to the round gate, so a
 /// corner such as (255, 0) sits on the rim.
-fn disc(x: u8, y: u8) -> (f32, f32) {
+pub fn disc(x: u8, y: u8) -> (f32, f32) {
     let (u, v) = (unit(x), unit(y));
     (u * (1.0 - v * v / 2.0).sqrt(), v * (1.0 - u * u / 2.0).sqrt())
 }
 
 /// The stick cell of `control` in step `i` of `steps`.
-fn stick(steps: &[MacroStep], i: usize, control: GlideControl) -> StickInfo {
+pub fn stick(steps: &[MacroStep], i: usize, control: GlideControl) -> StickInfo {
     let Some(step) = steps.get(i) else { return StickInfo::default() };
     let [x, y] = controller_core::model::glide::axes(step, control);
     let next = steps.get(i + 1).filter(|_| step.glide.contains(&control));

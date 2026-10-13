@@ -41,7 +41,7 @@ fn holds(step: &MacroStep, button: &Button) -> bool {
 impl AppState {
     /// Applies `change` to step `step` of the macro in macro slot `n`, then drops the
     /// glides that no longer move, and records the edit for undo under `key`.
-    fn edit_step_values(
+    pub(crate) fn edit_step_values(
         &mut self,
         n: u8,
         step: usize,

@@ -21,6 +21,8 @@ pub struct LowStick {
     pub name: String,
     /// The low end, in percent.
     pub low: i64,
+    /// The JSON pointer of the low end in the profile, such as `/sticks/left_min_pct`.
+    pub field: String,
 }
 
 /// The sticks whose dead zone low end in `profile` is under the macro stick floor of
@@ -41,7 +43,12 @@ pub fn low_sticks(
             let Some(stick) = slider.macro_stick else { continue };
             let value = profile.pointer(&slider.low.field).and_then(Value::as_i64);
             if let Some(value) = value.filter(|&v| v < i64::from(floor)) {
-                low.push(LowStick { stick, name: frame.title.clone(), low: value });
+                low.push(LowStick {
+                    stick,
+                    name: frame.title.clone(),
+                    low: value,
+                    field: slider.low.field.clone(),
+                });
             }
         }
     }
@@ -57,20 +64,44 @@ pub fn macro_stick_warnings(
     profile: &Value,
     macros: &[MacroDefinition],
 ) -> Vec<String> {
-    let Some(floor) = floor(description, mode) else { return Vec::new() };
-    let label = description.mode_label(mode);
-    let mut warnings = Vec::new();
-    for LowStick { stick, name, low } in low_sticks(description, mode, profile) {
-        for m in macros.iter().filter(|m| m.steps.iter().any(|s| moves(s, stick))) {
-            warnings.push(format!(
-                "Macro '{}' moves the {}, but its dead zone low end is {low} %. In {label}, a \
-                 macro cannot move a stick whose low end is below {floor} %.",
-                m.name,
-                name.to_lowercase()
-            ));
-        }
-    }
-    warnings
+    let low = low_sticks(description, mode, profile);
+    low.iter()
+        .flat_map(|l| macros.iter().filter_map(|m| warning(description, mode, l, m)))
+        .collect()
+}
+
+/// The sticks of [`low_sticks`] that `m` moves, such as for an editor that warns about
+/// one macro in its own words.
+#[must_use]
+pub fn moved_low_sticks(
+    description: &ControllerDescription,
+    mode: Mode,
+    profile: &Value,
+    m: &MacroDefinition,
+) -> Vec<LowStick> {
+    let mut low = low_sticks(description, mode, profile);
+    low.retain(|l| m.steps.iter().any(|s| moves(s, l.stick)));
+    low
+}
+
+/// The warning for `low` in `m`, when `m` moves that stick.
+fn warning(
+    description: &ControllerDescription,
+    mode: Mode,
+    low: &LowStick,
+    m: &MacroDefinition,
+) -> Option<String> {
+    let floor = floor(description, mode)?;
+    m.steps.iter().any(|s| moves(s, low.stick)).then(|| {
+        format!(
+            "Macro '{}' moves the {}, but its dead zone low end is {} %. In {}, a macro \
+             cannot move a stick whose low end is below {floor} %.",
+            m.name,
+            low.name.to_lowercase(),
+            low.low,
+            description.mode_label(mode)
+        )
+    })
 }
 
 /// The macro stick floor of `mode`, if it has one.
@@ -148,5 +179,16 @@ mod tests {
         for mode in description.modes.iter().map(|m| m.id) {
             assert_eq!(macro_stick_warnings(description, mode, &profile(0, 0), &macros), NONE);
         }
+    }
+
+    #[test]
+    fn moved_low_sticks_name_the_field_to_raise() {
+        let description = Pro3.description().unwrap();
+        let m = left_stick_macro();
+        let low = moved_low_sticks(description, XINPUT, &profile(0, 1), &m);
+        assert_eq!(low.len(), 1, "the right stick is low but does not move");
+        assert_eq!((low[0].stick, low[0].low), (MacroStick::LeftStick, 0));
+        assert_eq!(low[0].field, "/sticks/left_min_pct");
+        assert_eq!(moved_low_sticks(description, XINPUT, &profile(5, 0), &m), []);
     }
 }

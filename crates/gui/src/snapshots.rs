@@ -1237,3 +1237,108 @@ fn step_table_shows_lanes_glides_and_pauses() {
     ui.set_tab(1);
     save("steps-narrow", &ui);
 }
+
+/// The Macros tab of [`steps_tab`] at step `step`, with the stick pad edits wired to
+/// the state and a render after each, as the app does.
+fn stick_pads_at(step: i32) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
+    let state = Rc::new(std::cell::RefCell::new(steps_tab()));
+    let ui = window(&state.borrow());
+    ui.set_tab(1);
+    render(&state.borrow(), &ui);
+    // Drawn once, so picking the step scrolls the panel into view.
+    ui.window().take_snapshot().unwrap();
+    ui.set_selected_step(step);
+    render(&state.borrow(), &ui);
+    slint::platform::update_timers_and_animations();
+    let to = |v: i32| usize::try_from(v).unwrap();
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_stick_dragged(move |slot, step, stick, dx, dy| {
+        s.borrow_mut().drag_stick(u8::try_from(slot).unwrap(), to(step), to(stick), dx, dy);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_stick_glided(move |slot, step, stick, on| {
+        s.borrow_mut().set_stick_glide(u8::try_from(slot).unwrap(), to(step), to(stick), on);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    (state, ui)
+}
+
+#[test]
+fn a_quick_stick_drag_survives_the_render_after_each_move() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    let (state, ui) = stick_pads_at(2);
+    let left = || {
+        let step = &state.borrow().macro_steps(0).unwrap()[2];
+        (step.left_stick_x, step.left_stick_y)
+    };
+    // From the left gate's centre at this size, right and then up, with no pause for
+    // the page to decide on a pan.
+    let at = |x: f32, y: f32| slint::LogicalPosition::new(x, y);
+    let button = PointerEventButton::Left;
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 628.0) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 628.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 628.0) });
+    let first = left();
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 602.0) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 602.0), button });
+    assert!(first.0 > 180 && first.1 == 127, "halfway right: {first:?}");
+    assert!(left().1 < 127, "the drag stopped after one render: {:?}", left());
+}
+
+#[test]
+fn the_glide_box_follows_the_selected_step() {
+    use controller_core::model::GlideControl;
+    let (state, ui) = stick_pads_at(2);
+    let glides = |i: usize| {
+        state.borrow().macro_steps(0).unwrap()[i].glide.contains(&GlideControl::LeftStick)
+    };
+    let pick = |step: i32| {
+        ui.set_selected_step(step);
+        render(&state.borrow(), &ui);
+        slint::platform::update_timers_and_animations();
+    };
+    // The left stick's Glide box at this size. Step 3 glides: a click stops it. Step 4
+    // does not: a click starts it. Back on step 3 the box must show off again, or the
+    // next click sends "off" and nothing changes.
+    click(&ui, 728.0, 545.0);
+    pick(3);
+    click(&ui, 728.0, 545.0);
+    assert!(!glides(2) && glides(3));
+    pick(2);
+    click(&ui, 728.0, 545.0);
+    assert!(glides(2), "the box kept step 4's tick");
+}
+
+#[test]
+fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
+    let mut s = steps_tab();
+    s.set_number("/sticks/left_min_pct", 0.0);
+    for dark in [false, true] {
+        let ui = window(&s);
+        if dark {
+            ui.global::<crate::ui::Palette<'_>>()
+                .set_color_scheme(slint::language::ColorScheme::Dark);
+            render_views(s.description(), &ui);
+        }
+        ui.set_tab(1);
+        render(&s, &ui);
+        // Picking a step scrolls the panel into view, once it is drawn and the change
+        // handlers run.
+        ui.window().take_snapshot().unwrap();
+        ui.set_selected_step(2);
+        render(&s, &ui);
+        slint::platform::update_timers_and_animations();
+        save(&format!("step-panel-{}", if dark { "dark" } else { "light" }), &ui);
+    }
+    let ui = window(&s);
+    ui.window().set_size(PhysicalSize::new(1024, 640));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    render(&s, &ui);
+    ui.window().take_snapshot().unwrap();
+    ui.set_selected_step(3);
+    render(&s, &ui);
+    slint::platform::update_timers_and_animations();
+    save("step-panel-narrow", &ui);
+}
