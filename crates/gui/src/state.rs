@@ -211,8 +211,8 @@ pub struct AppState {
     /// A command could not reach the worker: its thread has ended, so the stopped
     /// message shows. The worker is not restarted.
     pub worker_stopped: bool,
-    /// The last step edit of the Macros tab, which Ctrl+Z takes back.
-    pub step_undo: Option<crate::step_table::StepUndo>,
+    /// The step edits of the Macros tab, oldest first, which Ctrl+Z takes back.
+    pub step_undo: Vec<crate::step_table::StepUndo>,
     /// The description whose views the window last drew. [`crate::render::render`]
     /// draws them again when the shown controller is another model.
     pub views_of: Cell<Option<&'static ControllerDescription>>,
@@ -286,7 +286,7 @@ impl AppState {
             write: WriteState::default(),
             closing: false,
             worker_stopped: false,
-            step_undo: None,
+            step_undo: Vec::new(),
             views_of: Cell::new(None),
         }
     }

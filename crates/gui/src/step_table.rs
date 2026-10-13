@@ -84,8 +84,13 @@ fn holds(step: &MacroStep, button: &Button) -> bool {
         .map_or_else(|| step.pressed_buttons.contains(&button.id), |side| trigger(step, side) > 0)
 }
 
-/// The last step edit, so Ctrl+Z can take it back: the macro's steps before and after
-/// it, and the step that was selected.
+/// How many step edits Ctrl+Z can take back, over every macro.
+// ponytail: whole step lists per edit, about 30 KB each at 408 steps; store diffs if
+// memory ever matters.
+const UNDO_DEPTH: usize = 100;
+
+/// A step edit, so Ctrl+Z can take it back: the macro's steps before and after it, and
+/// the step that was selected.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StepUndo {
     /// The slot and the macro slot of the macro.
@@ -142,30 +147,42 @@ impl AppState {
         let after = self.macro_steps(n)?;
         if after != steps {
             let slot = self.selected_slot()?;
-            self.step_undo =
-                Some(StepUndo { slot, macro_slot: n, before: steps, after, selected: step });
+            if self.step_undo.len() >= UNDO_DEPTH {
+                self.step_undo.remove(0);
+            }
+            self.step_undo.push(StepUndo {
+                slot,
+                macro_slot: n,
+                before: steps,
+                after,
+                selected: step,
+            });
         }
         selected
     }
 
-    /// Whether Ctrl+Z can take back the last step edit of macro slot `n`: it was made
-    /// there, and the steps are still as it left them.
-    #[must_use]
-    pub fn can_undo_step(&self, n: u8) -> bool {
-        self.step_undo.as_ref().is_some_and(|u| {
-            Some(u.slot) == self.selected_slot()
-                && u.macro_slot == n
-                && self.macro_steps(n).as_ref() == Some(&u.after)
-        })
+    /// Where the latest step edit of macro slot `n` of the selected slot sits in the
+    /// history, when the steps are still as it left them.
+    fn undoable(&self, n: u8) -> Option<usize> {
+        let slot = self.selected_slot()?;
+        let at = self.step_undo.iter().rposition(|u| u.slot == slot && u.macro_slot == n)?;
+        let steps = self.macro_steps(n)?;
+        self.step_undo.get(at).filter(|u| u.after == steps).map(|_| at)
     }
 
-    /// Takes back the last step edit of macro slot `n`. Returns the step to select, or
-    /// `None` when there is nothing to take back. One edit only.
+    /// Whether Ctrl+Z can take back a step edit of macro slot `n`: its latest one, while
+    /// the steps are still as that edit left them. Another change to the steps, such as
+    /// Discard, ends the history of that macro.
+    #[must_use]
+    pub fn can_undo_step(&self, n: u8) -> bool {
+        self.undoable(n).is_some()
+    }
+
+    /// Takes back the latest step edit of macro slot `n`, so each Ctrl+Z goes one edit
+    /// further back. Returns the step to select, or `None` when there is nothing to take
+    /// back.
     pub fn undo_step(&mut self, n: u8) -> Option<usize> {
-        if !self.can_undo_step(n) {
-            return None;
-        }
-        let undo = self.step_undo.take()?;
+        let undo = self.step_undo.remove(self.undoable(n)?);
         self.edit_macro(n, |m| m.steps = undo.before);
         Some(undo.selected)
     }
@@ -448,11 +465,18 @@ mod tests {
         assert_eq!(s.macro_steps(0).unwrap().len(), 3);
         assert_eq!(s.edit_step(0, 1, StepEdit::Up), Some(0));
         assert!(s.slot(XINPUT, 2).macro_unsaved(0));
-        // Ctrl+Z takes back the move, once.
+        // Ctrl+Z takes back the move, then the add, then nothing.
         assert!(s.can_undo_step(0) && !s.can_undo_step(1));
         assert_eq!(s.undo_step(0), Some(1));
-        assert_eq!(s.undo_step(0), None);
         assert_eq!(s.macro_steps(0).unwrap().len(), 3, "the add stays");
+        assert_eq!(s.undo_step(0), Some(0));
+        assert_eq!(s.macro_steps(0).unwrap(), [step(150), step(200)]);
+        assert_eq!(s.undo_step(0), None);
+        assert!(!s.slot(XINPUT, 2).macro_unsaved(0), "back to what the controller holds");
+        // Discard ends the history: the steps no longer match it.
+        s.edit_step(0, 0, StepEdit::Add);
+        s.discard();
+        assert!(!s.can_undo_step(0));
         let mut full = holding(vec![step(1); 408]);
         assert_eq!(full.edit_step(0, 0, StepEdit::Duplicate), None);
         assert_eq!(full.edit_step(0, 0, StepEdit::Delete), Some(0));
