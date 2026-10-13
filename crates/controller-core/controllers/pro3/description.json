@@ -283,9 +283,9 @@
     {
       "id": "d-pad up",
       "labels": {
-        "xinput": "D-pad up",
-        "switch": "D-pad up",
-        "dinput": "D-pad up"
+        "xinput": "↑",
+        "switch": "↑",
+        "dinput": "↑"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -295,9 +295,9 @@
     {
       "id": "d-pad down",
       "labels": {
-        "xinput": "D-pad down",
-        "switch": "D-pad down",
-        "dinput": "D-pad down"
+        "xinput": "↓",
+        "switch": "↓",
+        "dinput": "↓"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -307,9 +307,9 @@
     {
       "id": "d-pad left",
       "labels": {
-        "xinput": "D-pad left",
-        "switch": "D-pad left",
-        "dinput": "D-pad left"
+        "xinput": "←",
+        "switch": "←",
+        "dinput": "←"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -319,9 +319,9 @@
     {
       "id": "d-pad right",
       "labels": {
-        "xinput": "D-pad right",
-        "switch": "D-pad right",
-        "dinput": "D-pad right"
+        "xinput": "→",
+        "switch": "→",
+        "dinput": "→"
       },
       "can_be_remapped": true,
       "can_be_output": true,
