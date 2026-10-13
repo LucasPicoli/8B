@@ -13,7 +13,7 @@ use controller_core::service::validation::validate_macro;
 use slint::{ModelRc, SharedString, VecModel};
 
 use crate::buttons::output_label;
-use crate::files::{first_error, parse_json, swapped_letters};
+use crate::files::{parse_json, problem, swapped_letters};
 use crate::macros::label;
 use crate::render::sentence;
 use crate::review::macro_edits::steps;
@@ -46,8 +46,8 @@ pub struct PendingMacroImport {
     pub macro_slot: u8,
     /// The file's name, without its folder.
     pub file_name: String,
-    /// The macro ready to import, or why the file cannot be imported.
-    pub outcome: Result<ReadyImport, String>,
+    /// The macro ready to import, or each reason the file cannot be imported.
+    pub outcome: Result<ReadyImport, Vec<String>>,
 }
 
 /// `def` as a macro file holds it, as the CLI's `export` writes it: pretty JSON and a
@@ -66,7 +66,7 @@ impl AppState {
     /// selected slot. The dialog waits in `pending_macro_import`, also for a bad file.
     pub fn import_macro(&mut self, n: u8, file_name: &str, text: Result<String, String>) {
         let Some(slot) = self.selected_slot() else { return };
-        let outcome = text.and_then(|t| self.ready(slot, n, &t));
+        let outcome = text.map_err(|e| vec![e]).and_then(|t| self.ready(slot, n, &t));
         self.pending_macro_import = Some(PendingMacroImport {
             slot,
             macro_slot: n,
@@ -77,13 +77,19 @@ impl AppState {
 
     /// The macro in `text`, checked, made for macro slot `n` of `slot`: each button that
     /// cannot start it there is left out, and the content follows the slot's mode.
-    fn ready(&self, (mode, number): (Mode, u8), n: u8, text: &str) -> Result<ReadyImport, String> {
-        let (value, model) = parse_json(self.model(), text)?;
-        let errors = validate_macro(model, &value).map_err(|e| sentence(&e.to_string()))?;
-        if let Some(e) = first_error("macro", &errors) {
-            return Err(e);
+    fn ready(
+        &self,
+        (mode, number): (Mode, u8),
+        n: u8,
+        text: &str,
+    ) -> Result<ReadyImport, Vec<String>> {
+        let one = |e: String| vec![e];
+        let (value, model) = parse_json(self.model(), text).map_err(one)?;
+        let errors = validate_macro(model, &value).map_err(|e| one(sentence(&e.to_string())))?;
+        if !errors.is_empty() {
+            return Err(errors.iter().map(problem).collect());
         }
-        let mut file = macro_from_json(&value).map_err(|e| sentence(&e.to_string()))?;
+        let mut file = macro_from_json(&value).map_err(|e| one(sentence(&e.to_string())))?;
         let d = self.description();
         let slot = self.slot(mode, number);
         let macros = slot.shown_macros();
@@ -98,10 +104,13 @@ impl AppState {
             false
         });
         // The buttons are already checked against the slot, so the bank refuses none.
-        let default = self.defaults().get(&mode).ok_or("This controller has no such mode.")?;
+        let default = self
+            .defaults()
+            .get(&mode)
+            .ok_or_else(|| one("This controller has no such mode.".to_owned()))?;
         let bank = TargetBank { others: &[], profile: default, default };
         let (mut def, _) =
-            convert_macro(d, &file, mode, &bank).map_err(|e| sentence(&e.to_string()))?;
+            convert_macro(d, &file, mode, &bank).map_err(|e| one(sentence(&e.to_string())))?;
         def.macro_slot = Some(n);
 
         let mut glides = Vec::new();
@@ -199,7 +208,7 @@ pub fn macro_import_info(state: &AppState) -> MacroImportInfo {
         ..MacroImportInfo::default()
     };
     let ready = match &p.outcome {
-        Err(e) => return MacroImportInfo { error: e.as_str().into(), ..base },
+        Err(e) => return MacroImportInfo { errors: strings(e), ..base },
         Ok(ready) => ready,
     };
     let slot = state.slot(mode, number);
@@ -233,6 +242,7 @@ mod tests {
     use controller_core::devices::pro3::{SWITCH, XINPUT};
     use controller_core::model::macros::macro_file_name;
     use controller_core::model::{GlideControl, MacroStep};
+    use slint::Model as _;
 
     use super::*;
     use crate::state::tests::{connected, hold_macros, macro_def};
@@ -348,13 +358,14 @@ mod tests {
         ] {
             s.import_macro(1, "bad.json", text);
             let info = macro_import_info(&s);
-            assert!(info.shown && !info.error.is_empty(), "{info:?}");
+            assert!(info.shown && info.errors.row_count() > 0, "{info:?}");
             s.confirm_macro_import();
             assert!(!s.slot(XINPUT, 2).unsaved());
         }
         s.import_macro(1, "bad.json", Ok("{}".to_owned()));
-        let error = macro_import_info(&s).error;
-        assert!(error.starts_with("It is not a valid macro. \"version\" is"), "{error}");
+        let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
+        assert!(errors.len() > 1, "every problem, not just the first");
+        assert!(errors[0].starts_with("\"version\" is"), "{errors:?}");
         s.cancel_macro_import();
         assert!(!macro_import_info(&s).shown);
     }

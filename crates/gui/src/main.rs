@@ -275,7 +275,14 @@ fn import_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, n: u8) {
         let read = chooser::open_json("Import a macro").map(|p| p.as_deref().map(read_file));
         Box::new(move |state: &mut AppState| match read {
             Ok(None) => {}
-            Ok(Some((name, text))) => state.import_macro(n, &name, text),
+            Ok(Some((name, text))) => {
+                state.import_macro(n, &name, text);
+                // Logged, so "Copy diagnostics" in the dialog carries every reason.
+                if let Some(Err(problems)) = state.pending_macro_import.as_ref().map(|p| &p.outcome)
+                {
+                    warn!("could not import macro file {name}: {}", problems.join("; "));
+                }
+            }
             Err(e) => state.notice = Some(no_dialog(&e)),
         })
     });

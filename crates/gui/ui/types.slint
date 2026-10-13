@@ -120,8 +120,8 @@ export struct SettingsPage {
 // A macro file picked for a macro slot, shown before it joins the edits.
 export struct MacroImportInfo {
     shown: bool,
-    // Why the file cannot be imported, or "" when it can.
-    error: string,
+    // Each reason the file cannot be imported, or none when it can.
+    errors: [string],
     file-name: string,
     // The macro slot, 1-based.
     number: int,

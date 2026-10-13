@@ -76,25 +76,29 @@ pub fn parse_json<'a>(
     Ok((value, model))
 }
 
+/// `error` as one line, such as "/name: …". A reason too long is cut.
+#[must_use]
+pub fn problem(error: &ValidationError) -> String {
+    let mut reason: String = error.reason.chars().take(REASON_MAX).collect();
+    if reason.len() < error.reason.len() {
+        reason.push('…');
+    }
+    // A pointer to the whole file, "/", says nothing to the user.
+    match error.path.as_str() {
+        "" | "/" => reason,
+        path => format!("{path}: {reason}"),
+    }
+}
+
 /// The first of `errors`, such as "It is not a valid profile. /name: …", with a count
 /// of the rest. `None` when there are none.
 #[must_use]
 pub fn first_error(kind: &str, errors: &[ValidationError]) -> Option<String> {
-    let first = errors.first()?;
-    let more = match errors.len() - 1 {
+    let more = match errors.len().checked_sub(1)? {
         0 => String::new(),
         n => format!(" ({n} more problems)"),
     };
-    let mut reason: String = first.reason.chars().take(REASON_MAX).collect();
-    if reason.len() < first.reason.len() {
-        reason.push('…');
-    }
-    // A pointer to the whole file, "/", says nothing to the user.
-    let at = match first.path.as_str() {
-        "" | "/" => String::new(),
-        path => format!("{path}: "),
-    };
-    Some(format!("It is not a valid {kind}. {at}{reason}{more}"))
+    Some(format!("It is not a valid {kind}. {}{more}", problem(errors.first()?)))
 }
 
 /// The profile in `text`, checked as a profile of `model`.
