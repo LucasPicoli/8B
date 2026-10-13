@@ -137,6 +137,20 @@ fn read_blob_chunks(session: &mut Session) -> Result<Vec<u8>> {
     Ok(blob)
 }
 
+/// The (flash offset, size) of each request that reads `data_bytes` of steps from the page
+/// at `flash_base`. Every request asks for a whole chunk, the last one too: through the
+/// Switch connection the pad never answers a short last chunk at the end of a full page
+/// (408 steps). The caller drops the bytes past the steps.
+fn stream_chunks(flash_base: u16, data_bytes: usize) -> Vec<(u16, u16)> {
+    (0..data_bytes.div_ceil(usize::from(MACRO_CHUNK)))
+        .map_while(|i| {
+            let offset =
+                u16::try_from(i).ok()?.checked_mul(MACRO_CHUNK)?.checked_add(flash_base)?;
+            Some((offset, MACRO_CHUNK))
+        })
+        .collect()
+}
+
 /// Reads one macro's step stream in 32-byte chunks.
 fn read_stream_chunks(session: &mut Session, stream: &MacroStream) -> Result<Vec<u8>> {
     // Wire protocol uses 0-based profile slot.
@@ -148,12 +162,7 @@ fn read_stream_chunks(session: &mut Session, stream: &MacroStream) -> Result<Vec
     })?;
     let flash_base = u16::from(stream.macro_slot.get()) * MACRO_ERASE_LEN;
     let mut result = Vec::with_capacity(data_bytes);
-    for chunk_idx in 0..data_bytes.div_ceil(usize::from(MACRO_CHUNK)) {
-        #[allow(clippy::cast_possible_truncation)]
-        let chunk_offset = flash_base + (chunk_idx as u16) * MACRO_CHUNK;
-        #[allow(clippy::cast_possible_truncation)]
-        let chunk_size = (data_bytes - chunk_idx * usize::from(MACRO_CHUNK))
-            .min(usize::from(MACRO_CHUNK)) as u16;
+    for (chunk_offset, chunk_size) in stream_chunks(flash_base, data_bytes) {
         let pkt = build_read_macro_packet(ps, gamepad_mode, chunk_offset, total_len, chunk_size);
         let resp = session.send_recv(&pkt)?;
         result.extend_from_slice(&decode_read_macro_response(&resp, chunk_offset, total_len)?);
@@ -369,5 +378,21 @@ impl crate::transport::DeviceIo for HidrawDevice {
         stream: &[u8],
     ) -> Result<()> {
         hidraw_write::write_macro_stream(self.target(), mode, profile_slot, macro_slot, stream)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_step_read_asks_for_a_whole_chunk() {
+        // 408 steps fill a page up to 0xFF0. The last request still asks for 32 bytes.
+        let chunks = stream_chunks(MACRO_ERASE_LEN, 4080);
+        assert_eq!(chunks.len(), 128);
+        assert_eq!(chunks.first(), Some(&(0x1000, MACRO_CHUNK)));
+        assert_eq!(chunks.last(), Some(&(0x1FE0, MACRO_CHUNK)));
+        assert_eq!(stream_chunks(0, 460).len(), 15);
+        assert_eq!(stream_chunks(0, 0), Vec::new());
     }
 }
