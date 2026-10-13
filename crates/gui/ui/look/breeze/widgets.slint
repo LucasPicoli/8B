@@ -1,5 +1,5 @@
-// Breeze-drawn controls: Button, LineEdit, ComboBox, Slider, CheckBox, ScrollView,
-// Spinner.
+// Breeze-drawn controls: Button, LineEdit, ComboBox, Slider, CheckBox, LinkButton,
+// ScrollView, Spinner.
 import { Theme } from "theme.slint";
 export { Theme }
 
@@ -367,6 +367,8 @@ export component CheckBox {
     in property <string> text;
     in-out property <bool> checked;
     in property <bool> enabled: true;
+    // Focus came from the keyboard (Tab), not a click: for a tip only keyboard users need.
+    out property <bool> keyboard-focus;
     callback toggled;
     min-height: 22px;
     opacity: root.enabled ? 1 : 0.45;
@@ -386,8 +388,10 @@ export component CheckBox {
         toggled();
     }
 
+    // Focusable while disabled too, so a keyboard user reaches its tip; `toggle` refuses.
     fs := FocusScope {
-        enabled: root.enabled;
+        focus-gained(reason) => { root.keyboard-focus = reason == FocusReason.tab-navigation; }
+        focus-lost => { root.keyboard-focus = false; }
         key-pressed(e) => {
             if (e.text == " ") {
                 root.toggle();
@@ -446,6 +450,56 @@ export component CheckBox {
 }
 
 // Breeze scroll bar: a thin groove that widens on hover.
+// Kirigami LinkButton: accent text that acts, underlined on hover and focus.
+export component LinkButton {
+    in property <string> text;
+    callback clicked;
+    accessible-role: button;
+    accessible-label: text;
+    accessible-action-default => { clicked(); }
+    forward-focus: fs;
+
+    fs := FocusScope {
+        focus-on-click: false;
+        key-pressed(e) => {
+            if (e.text == " " || e.text == Key.Return) {
+                root.clicked();
+                return accept;
+            }
+            reject
+        }
+    }
+
+    label := Text {
+        text: root.text;
+        color: Theme.accent-ink;
+        vertical-alignment: center;
+    }
+    if ta.has-hover || fs.has-focus: Rectangle {
+        x: label.x;
+        y: label.y + label.height - 2px;
+        width: label.width;
+        height: 1px;
+        background: Theme.accent-ink;
+    }
+
+    // Keyboard focus, Breeze style: accent outline outside the text.
+    if fs.has-focus: Rectangle {
+        x: -3px;
+        y: -2px;
+        width: root.width + 6px;
+        height: root.height + 4px;
+        border-radius: Theme.radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+
+    ta := TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.clicked(); }
+    }
+}
+
 export component ScrollView {
     in-out property <length> content-y <=> f.content-y;
     in-out property <length> content-height <=> f.content-height;

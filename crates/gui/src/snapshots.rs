@@ -1302,12 +1302,12 @@ fn the_glide_box_follows_the_selected_step() {
     // The left stick's Glide box at this size. Step 3 glides: a click stops it. Step 4
     // does not: a click starts it. Back on step 3 the box must show off again, or the
     // next click sends "off" and nothing changes.
-    click(&ui, 754.0, 563.0);
+    click(&ui, 694.0, 563.0);
     pick(3);
-    click(&ui, 754.0, 563.0);
+    click(&ui, 694.0, 563.0);
     assert!(!glides(2) && glides(3));
     pick(2);
-    click(&ui, 754.0, 563.0);
+    click(&ui, 694.0, 563.0);
     assert!(glides(2), "the box kept step 4's tick");
 }
 
@@ -1315,8 +1315,34 @@ fn the_glide_box_follows_the_selected_step() {
 fn the_arriving_step_links_back_to_the_step_that_glides_in() {
     let (_state, ui) = stick_pads_at(3);
     // "Glides in from step 3" under the left pad, at this size.
-    click(&ui, 700.0, 691.0);
+    click(&ui, 822.0, 692.0);
     assert_eq!(ui.get_selected_step(), 2);
+}
+
+#[test]
+fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
+    use slint::platform::{Key, WindowEvent};
+    let (_state, ui) = stick_pads_at(3);
+    let tab = || {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Tab.into() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Tab.into() });
+    };
+    // A click on the right stick's disabled Glide box, then Tab back from Centre.
+    click(&ui, 1015.0, 563.0);
+    let before = ui.window().take_snapshot().unwrap();
+    tab();
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Backtab.into() });
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Backtab.into() });
+    save("glide-focus-tip", &ui);
+    let after = ui.window().take_snapshot().unwrap();
+    // The tip sits under the box, over the right gate: its area changes after Tab.
+    let area = |shot: &slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
+        (583..610_u32)
+            .flat_map(|y| (1010..1250_u32).map(move |x| (x, y)))
+            .map(|(x, y)| shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()])
+            .collect::<Vec<_>>()
+    };
+    assert_ne!(area(&before), area(&after), "no tip after Tab");
 }
 
 #[test]
