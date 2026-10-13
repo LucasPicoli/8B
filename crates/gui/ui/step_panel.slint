@@ -105,6 +105,7 @@ export component StepPanel inherits Frame {
                         minimum: root.duration-min;
                         maximum: root.duration-max;
                         enabled: root.editable;
+                        step: 5;
                         accessible-name: "Step duration in milliseconds";
                         committed(v) => { root.duration-changed(v); }
                     }

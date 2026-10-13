@@ -99,6 +99,8 @@ export component LineEdit {
     in property <string> accessible-name;
     in property <InputType> input-type: InputType.text;
     in property <TextHorizontalAlignment> horizontal-alignment: left;
+    // Room kept free at the right edge, such as for the arrows of a number field.
+    in property <length> inset-right;
     in property <bool> enabled: true;
     out property <bool> has-focus: ti.has-focus;
     callback edited(string);
@@ -118,7 +120,7 @@ export component LineEdit {
         ti := TextInput {
             x: 8px;
             y: root.wrap ? 6px : 0;
-            width: parent.width - 16px;
+            width: parent.width - 16px - root.inset-right;
             height: root.wrap ? parent.height - 12px : parent.height;
             wrap: root.wrap ? char-wrap : no-wrap;
             text <=> root.text;

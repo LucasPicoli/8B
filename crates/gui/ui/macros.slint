@@ -398,6 +398,7 @@ component MacroHeader inherits Frame {
                         minimum: root.count-min;
                         maximum: root.count-max;
                         enabled: root.editable;
+                        step: 1;
                         accessible-name: "Times";
                         committed(v) => { root.count-changed(v); }
                     }
@@ -413,6 +414,7 @@ component MacroHeader inherits Frame {
                     minimum: 0;
                     maximum: root.pause-max;
                     enabled: root.editable;
+                    step: 5;
                     accessible-name: "Interval between plays in milliseconds";
                     committed(v) => { root.pause-changed(v); }
                 }

@@ -1054,6 +1054,36 @@ fn macros_tab() -> AppState {
 }
 
 #[test]
+fn number_field_arrows_and_keys_step_to_the_next_multiple() {
+    let s = macros_tab();
+    let ui = window(&s);
+    ui.set_tab(1);
+    ui.set_selected_macro(1);
+    render(&s, &ui);
+    let got = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let g = Rc::clone(&got);
+    ui.on_macro_pause_changed(move |_, v| g.borrow_mut().push(v));
+    // The arrows of the Interval field, which holds 120 ms, at this size.
+    click(&ui, 847.0, 281.0);
+    click(&ui, 847.0, 295.0);
+    // A typed value off the step, then the Up key from the focused field.
+    ui.set_macro_rows(slint::ModelRc::from(Rc::new(slint::VecModel::from(
+        crate::macro_tab::macro_rows(&s)
+            .into_iter()
+            .map(|mut r| {
+                r.pause = 122;
+                r
+            })
+            .collect::<Vec<_>>(),
+    ))));
+    click(&ui, 800.0, 288.0);
+    ui.window().dispatch_event(slint::platform::WindowEvent::KeyPressed {
+        text: slint::platform::Key::UpArrow.into(),
+    });
+    assert_eq!(*got.borrow(), [125, 115, 125]);
+}
+
+#[test]
 fn a_deleted_macro_offers_undo() {
     let mut s = macros_tab();
     s.delete_macro(1);
