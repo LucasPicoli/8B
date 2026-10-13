@@ -326,66 +326,53 @@ component MacroHeader inherits Frame {
             Field {
                 label: "Starts with";
                 fill: true;
-                VerticalLayout {
+                // Each chip as wide as its label, then the picker, as many to a line as fit.
+                FlexboxLayout {
                     spacing: 6px;
-                    // The chips by index, as many to a line as fit: Slint has no wrap layout.
-                    if root.item.buttons.length > 0: Rectangle {
-                        property <int> per-line: max(1, floor((self.width + 6px) / 126px));
-                        height: ceil(root.item.buttons.length / self.per-line) * 36px - 6px;
-                        for b[i] in root.item.buttons: Rectangle {
-                            x: mod(i, parent.per-line) * 126px;
-                            y: floor(i / parent.per-line) * 36px;
-                            width: 120px;
-                            height: 30px;
-                            border-width: 1px;
-                            border-radius: Theme.radius;
-                            border-color: Theme.accent;
-                            background: Theme.accent-wash;
-                            HorizontalLayout {
-                                padding-left: 8px;
-                                padding-right: 2px;
-                                spacing: 2px;
-                                Text {
-                                    horizontal-stretch: 1;
-                                    text: b;
-                                    font-weight: 600;
-                                    color: Theme.fg;
-                                    vertical-alignment: center;
-                                    overflow: elide;
-                                }
-                                VerticalLayout {
-                                    alignment: center;
-                                    Button {
-                                        text: "Remove " + b;
-                                        icon: Icons.close;
-                                        icon-only: true;
-                                        flat: true;
-                                        enabled: root.editable;
-                                        clicked => { root.button-removed(i); }
-                                    }
+                    cross-axis-alignment: center;
+                    for b[i] in root.item.buttons: Rectangle {
+                        height: 30px;
+                        border-width: 1px;
+                        border-radius: Theme.radius;
+                        border-color: Theme.accent;
+                        background: Theme.accent-wash;
+                        HorizontalLayout {
+                            padding-left: 8px;
+                            padding-right: 2px;
+                            spacing: 2px;
+                            Text {
+                                text: b;
+                                font-weight: 600;
+                                color: Theme.fg;
+                                vertical-alignment: center;
+                            }
+                            VerticalLayout {
+                                alignment: center;
+                                Button {
+                                    text: "Remove " + b;
+                                    icon: Icons.close;
+                                    icon-only: true;
+                                    flat: true;
+                                    enabled: root.editable;
+                                    clicked => { root.button-removed(i); }
                                 }
                             }
                         }
                     }
-                    HorizontalLayout {
-                        spacing: 8px;
-                        alignment: start;
-                        if root.item.buttons.length == 0: ButtonChip {
-                            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
-                            text: "No button";
-                            muted: true;
-                        }
-                        ComboBox {
-                            width: 180px;
-                            menu: true;
-                            model: root.item.addable;
-                            current-index: 0;
-                            enabled: root.editable && root.item.addable.length > 1;
-                            accessible-name: "Add a button";
-                            selected => {
-                                root.button-added(self.current-index);
-                                self.current-index = 0;
-                            }
+                    if root.item.buttons.length == 0: ButtonChip {
+                        text: "No button";
+                        muted: true;
+                    }
+                    ComboBox {
+                        width: 180px;
+                        menu: true;
+                        model: root.item.addable;
+                        current-index: 0;
+                        enabled: root.editable && root.item.addable.length > 1;
+                        accessible-name: "Add a button";
+                        selected => {
+                            root.button-added(self.current-index);
+                            self.current-index = 0;
                         }
                     }
                 }

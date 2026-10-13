@@ -1111,6 +1111,9 @@ fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
     ui.set_tab(1);
     ui.set_selected_macro(1);
     save("macros-narrow", &ui);
+    // A macro started by no button: the muted chip, then the picker, on one line.
+    ui.set_selected_macro(2);
+    save("macros-narrow-no-button", &ui);
 }
 
 /// `XInput` slot 2 holding "Slide jump" on PL: A held over two steps, LT pressed half and
