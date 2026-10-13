@@ -1,17 +1,16 @@
 //! The Macros tab: one row per macro slot of the selected slot with the header of its
-//! macro, and the buttons that start each macro on the controller views. Every limit
-//! and every button comes from the controller description.
+//! macro and the buttons that start it. Every limit and every button comes from the
+//! controller description.
 
 use std::rc::Rc;
 
 use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
 use slint::{ModelRc, SharedString, VecModel};
 
-use crate::buttons::{hit, output_label, target};
-use crate::macros::title;
+use crate::buttons::{output_label, target};
 use crate::review::macro_edits::steps;
 use crate::state::{AppState, SlotState};
-use crate::ui::{AppWindow, MacroRow, MacroSpot};
+use crate::ui::{AppWindow, MacroRow};
 
 /// The length of the one step a new macro starts with, in milliseconds.
 const NEW_STEP_MS: u16 = 100;
@@ -232,7 +231,6 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
             let Some(m) = slot.shown_macro(n) else {
                 return MacroRow {
                     number: i32::from(n) + 1,
-                    title: format!("Macro {}", u16::from(n) + 1).into(),
                     unsaved: slot.macro_unsaved(n),
                     ..MacroRow::default()
                 };
@@ -248,7 +246,6 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 number: i32::from(n) + 1,
                 filled: true,
                 name: m.name.as_str().into(),
-                title: title(m, n).into(),
                 steps: steps(m.steps.len()).into(),
                 buttons: strings(m.trigger_buttons.iter().map(label)),
                 first_buttons: strings(m.trigger_buttons.iter().take(ROW_CHIPS).map(label)),
@@ -281,88 +278,12 @@ pub fn chip_button(state: &AppState, n: u8, chip: usize) -> Option<String> {
     state.slot(mode, number).shown_macro(n)?.trigger_buttons.get(chip).cloned()
 }
 
-/// The shapes of every button on the controller views that can start a macro, or that
-/// starts one, with the macro it starts and what a mapped one is mapped to.
-#[must_use]
-pub fn macro_spots(state: &AppState) -> Vec<MacroSpot> {
-    let description = state.description();
-    let Some((mode, number)) = state.selected_slot() else { return Vec::new() };
-    let slot = state.slot(mode, number);
-    if slot.shown().is_none() {
-        return Vec::new();
-    }
-    let mut out = Vec::new();
-    for (vi, view) in (0_i32..).zip(&description.views) {
-        for h in &view.hotspots {
-            let Some(row) = description.buttons.iter().position(|b| b.id == h.button) else {
-                continue;
-            };
-            let starts = slot.macro_started_by(&h.button);
-            let can_start = description.button(&h.button).is_some_and(|b| b.can_start_macro);
-            if !can_start && starts.is_none() {
-                continue;
-            }
-            #[allow(clippy::cast_possible_truncation)]
-            let [x0, y0, x1, y1] = h.bounds().map(|v| v as f32);
-            out.push(MacroSpot {
-                row: i32::try_from(row).unwrap_or(-1),
-                view: vi,
-                commands: h.path.as_str().into(),
-                owner: starts.map_or(-1, i32::from),
-                mapped_to: state.mapped_to(&h.button).unwrap_or_default().into(),
-                x0,
-                y0,
-                x1,
-                y1,
-            });
-        }
-    }
-    out
-}
-
-/// What a click on a button of the controller views does, with macro slot `n` shown.
-#[derive(Debug, PartialEq, Eq)]
-pub enum ViewClick {
-    /// Shows the macro the button starts, in this macro slot.
-    Open(u8),
-    /// Makes the button start the shown macro.
-    Add(String),
-}
-
-/// What a click on the button of row `row` does with macro slot `n` shown. `None` for
-/// a button that starts this macro, cannot start one or is mapped, and for an empty
-/// macro slot or one whose steps are still being read.
-#[must_use]
-pub fn view_click(state: &AppState, n: u8, row: usize) -> Option<ViewClick> {
-    let (mode, number) = state.selected_slot()?;
-    let button = state.description().buttons.get(row)?;
-    let slot = state.slot(mode, number);
-    match slot.macro_started_by(&button.id) {
-        Some(other) if other != n => Some(ViewClick::Open(other)),
-        Some(_) => None,
-        None => (button.can_start_macro
-            && slot.shown_macro(n).is_some()
-            && slot.macros_editable()
-            && state.mapped_to(&button.id).is_none())
-        .then(|| ViewClick::Add(button.id.clone())),
-    }
-}
-
-/// The row of the button under (`x`, `y`) in view `view`, in viewBox units, when a
-/// click there acts with macro slot `n` shown, or -1.
-#[must_use]
-pub fn action_hit(state: &AppState, view: usize, n: u8, x: f32, y: f32) -> i32 {
-    let row = hit(state.description(), view, x, y);
-    usize::try_from(row).ok().and_then(|r| view_click(state, n, r)).map_or(-1, |_| row)
-}
-
 /// Pushes the Macros tab of the selected slot.
 pub fn render_macros(state: &AppState, ui: &AppWindow) {
     let description = state.description();
     let limits = description.limits;
     ui.set_has_macros(description.macro_slot_count > 0);
     ui.set_macro_rows(ModelRc::from(Rc::new(VecModel::from(macro_rows(state)))));
-    ui.set_macro_spots(ModelRc::from(Rc::new(VecModel::from(macro_spots(state)))));
     ui.set_macros_editable(
         state.selected_slot().is_some_and(|(m, n)| state.slot(m, n).macros_editable()),
     );
@@ -405,7 +326,6 @@ mod tests {
         let rows = macro_rows(&s);
         assert_eq!(rows.len(), usize::from(s.description().macro_slot_count));
         assert_eq!((rows[0].name.as_str(), rows[0].steps.as_str()), ("Jump", "12 steps"));
-        assert_eq!((rows[0].title.as_str(), rows[1].title.as_str()), ("Jump (Macro 1)", "Macro 2"));
         assert_eq!(list(&rows[0].buttons), ["PR", "PL"]);
         assert!(!rows[1].filled && rows[1].number == 2);
         assert_eq!((rows[2].steps.as_str(), rows[2].plays), ("1 step", 0));
@@ -500,36 +420,6 @@ mod tests {
         assert_eq!(list(&row(&s, 0).buttons), ["PR"]);
         assert_eq!(s.slot(XINPUT, 2).macro_started_by("lp"), None);
         assert!(row(&s, 0).unsaved);
-    }
-
-    #[test]
-    fn spots_carry_the_macro_each_button_starts_and_mapped_ones_say_so() {
-        let mut s = held();
-        s.set_output("l4", "bottom face");
-        let spots = macro_spots(&s);
-        let of = |id: &str| {
-            let row = s.description().buttons.iter().position(|b| b.id == id).unwrap();
-            spots.iter().find(|p| p.row == i32::try_from(row).unwrap()).unwrap().clone()
-        };
-        assert_eq!((of("rp").owner, of("r4").owner, of("r3").owner), (0, 2, -1));
-        assert_eq!(of("l4").mapped_to, "A");
-        let home = s.description().buttons.iter().position(|b| b.id == "home/guide").unwrap();
-        assert!(spots.iter().all(|p| p.row != i32::try_from(home).unwrap()), "cannot start one");
-    }
-
-    #[test]
-    fn a_view_click_opens_another_macro_or_adds_a_free_button() {
-        let s = held();
-        let row = |id: &str| s.description().buttons.iter().position(|b| b.id == id).unwrap();
-        assert_eq!(view_click(&s, 0, row("r4")), Some(ViewClick::Open(2)));
-        assert_eq!(view_click(&s, 0, row("rp")), None, "it starts this one");
-        assert_eq!(view_click(&s, 0, row("r3")), Some(ViewClick::Add("r3".to_owned())));
-        assert_eq!(view_click(&s, 1, row("r3")), None, "macro slot 2 is empty");
-        assert_eq!(view_click(&s, 0, row("home/guide")), None);
-        let r3 = row("r3");
-        let mut s = held();
-        s.set_output("r3", "bottom face");
-        assert_eq!(view_click(&s, 0, r3), None, "a mapped button");
     }
 
     #[test]

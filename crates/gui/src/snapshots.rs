@@ -360,7 +360,7 @@ fn a_click_on_the_drawing_selects_the_button_row() {
     let d = s.description();
     ui.on_hit(move |view, x, y| crate::buttons::hit(d, usize::try_from(view).unwrap(), x, y));
     // The left bumper on the front view at this size.
-    click(&ui, 428.0, 190.0);
+    click(&ui, 428.0, 205.0);
     let l1 = s.description().buttons.iter().position(|b| b.id == "l1").unwrap();
     assert_eq!(ui.get_selected_row(), i32::try_from(l1).unwrap());
 }
@@ -1067,28 +1067,30 @@ fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
         let theme = if dark { "dark" } else { "light" };
         for (macro_slot, name) in [(0, "first"), (1, "times"), (3, "empty")] {
             ui.set_selected_macro(macro_slot);
+            render(&s, &ui);
             save(&format!("macros-{name}-{theme}"), &ui);
         }
     }
-    // R4 on the front view, under the pointer: its tip names the macro.
+    // R4 on the front view, under the pointer: its tip says a step cannot hold it.
     let ui = window(&s);
     let state = Rc::new(macros_tab());
     let st = Rc::clone(&state);
     ui.on_hit(move |v, x, y| {
         crate::buttons::hit(st.description(), usize::try_from(v).unwrap(), x, y)
     });
-    ui.on_macro_hit(move |v, n, x, y| {
-        crate::macro_tab::action_hit(
+    ui.on_macro_hit(move |v, n, i, x, y| {
+        crate::step_panel::action_hit(
             &state,
             usize::try_from(v).unwrap(),
             u8::try_from(n).unwrap(),
+            usize::try_from(i).unwrap(),
             x,
             y,
         )
     });
     ui.set_tab(1);
     ui.set_selected_macro(1);
-    let at = slint::LogicalPosition::new(472.0, 375.0);
+    let at = slint::LogicalPosition::new(472.0, 394.0);
     ui.window().dispatch_event(slint::platform::WindowEvent::PointerMoved { position: at });
     save("macros-hover", &ui);
     // The smallest window still fits the header of a macro that plays a number of times.

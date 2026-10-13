@@ -1,6 +1,6 @@
 //! The step panel of the Macros tab: the selected step's duration and the buttons it
-//! holds. Which buttons can be in a step, and which of them a trigger value holds, come
-//! from the controller description.
+//! holds, which the controller views also show and toggle. Which buttons can be in a
+//! step, and which of them a trigger value holds, come from the controller description.
 
 use std::rc::Rc;
 
@@ -8,9 +8,10 @@ use controller_core::description::{Button, TriggerSide};
 use controller_core::model::{GlideControl, MacroStep, Mode};
 use slint::{ModelRc, VecModel};
 
+use crate::buttons::{hit, output_label};
 use crate::macro_steps::prune_glides;
 use crate::state::AppState;
-use crate::ui::{AppWindow, ChipInfo};
+use crate::ui::{AppWindow, ChipInfo, MacroSpot};
 
 /// A trigger value pressed fully.
 const FULL: u8 = u8::MAX;
@@ -103,6 +104,66 @@ pub fn chips(state: &AppState, mode: Mode, step: &MacroStep) -> Vec<ChipInfo> {
         .collect()
 }
 
+/// The shape of every button on the controller views, with its chip in "Buttons held"
+/// and its label. Empty for an empty slot.
+#[must_use]
+pub fn macro_spots(state: &AppState) -> Vec<MacroSpot> {
+    let description = state.description();
+    let Some((mode, number)) = state.selected_slot() else { return Vec::new() };
+    if state.slot(mode, number).shown().is_none() {
+        return Vec::new();
+    }
+    let chips = step_buttons(state);
+    let mut out = Vec::new();
+    for (vi, view) in (0_i32..).zip(&description.views) {
+        for h in &view.hotspots {
+            let Some(row) = description.buttons.iter().position(|b| b.id == h.button) else {
+                continue;
+            };
+            let chip = chips.iter().position(|b| b.id == h.button);
+            #[allow(clippy::cast_possible_truncation)]
+            let [x0, y0, x1, y1] = h.bounds().map(|v| v as f32);
+            out.push(MacroSpot {
+                row: i32::try_from(row).unwrap_or(-1),
+                view: vi,
+                commands: h.path.as_str().into(),
+                chip: chip.and_then(|c| i32::try_from(c).ok()).unwrap_or(-1),
+                label: output_label(description, mode, &h.button).into(),
+                x0,
+                y0,
+                x1,
+                y1,
+            });
+        }
+    }
+    out
+}
+
+/// The chip a click on the button of row `row` toggles in step `step` of macro slot
+/// `n`. `None` for a button a step cannot hold, for a step that is not there, and
+/// while the slot's macros are still being read.
+#[must_use]
+pub fn view_chip(state: &AppState, n: u8, step: usize, row: usize) -> Option<usize> {
+    let (mode, number) = state.selected_slot()?;
+    if !state.slot(mode, number).macros_editable() {
+        return None;
+    }
+    let button = state.description().buttons.get(row)?;
+    state.macro_steps(n).filter(|s| step < s.len())?;
+    step_buttons(state).iter().position(|b| b.id == button.id)
+}
+
+/// The chip under (`x`, `y`) in view `view`, in viewBox units, when a click there
+/// toggles it in step `step` of macro slot `n`, or -1.
+#[must_use]
+pub fn action_hit(state: &AppState, view: usize, n: u8, step: usize, x: f32, y: f32) -> i32 {
+    usize::try_from(hit(state.description(), view, x, y))
+        .ok()
+        .and_then(|row| view_chip(state, n, step, row))
+        .and_then(|c| i32::try_from(c).ok())
+        .unwrap_or(-1)
+}
+
 /// Pushes the step panel of the step the table selects. A step past the end gets an
 /// empty title, which hides the panel.
 pub fn render_panel(state: &AppState, ui: &AppWindow) {
@@ -126,6 +187,7 @@ pub fn render_panel(state: &AppState, ui: &AppWindow) {
     ui.set_panel_title(title.into());
     ui.set_panel_duration(duration);
     ui.set_panel_chips(ModelRc::from(Rc::new(VecModel::from(list))));
+    ui.set_macro_spots(ModelRc::from(Rc::new(VecModel::from(macro_spots(state)))));
     let range = state.description().limits.macro_step_ms;
     ui.set_step_ms_min(range.min);
     ui.set_step_ms_max(range.max);
@@ -190,6 +252,36 @@ mod tests {
         s.toggle_step_button(0, 0, lt);
         assert_eq!(s.macro_steps(0).unwrap()[0].trigger_left, 255);
         assert_eq!(s.undo_step(0), Some(0), "each toggle is an undo");
+    }
+
+    /// The description row of button `id`.
+    fn row(s: &AppState, id: &str) -> usize {
+        s.description().buttons.iter().position(|b| b.id == id).unwrap()
+    }
+
+    #[test]
+    fn spots_carry_every_buttons_chip_and_label() {
+        let s = holding(vec![step(100)]);
+        let spots = macro_spots(&s);
+        let of = |id: &str| {
+            let row = i32::try_from(row(&s, id)).unwrap();
+            spots.iter().find(|p| p.row == row).unwrap().clone()
+        };
+        let lt = i32::try_from(chip(&s, "l2")).unwrap();
+        assert_eq!((of("l2").chip, of("l2").label.as_str()), (lt, "LT"));
+        assert_eq!((of("r4").chip, of("r4").label.as_str()), (-1, "R4"), "not a step button");
+        assert_eq!(of("home/guide").chip, -1);
+    }
+
+    #[test]
+    fn a_view_click_acts_on_a_step_button_of_a_shown_step() {
+        let mut s = holding(vec![step(100), step(100)]);
+        assert_eq!(view_chip(&s, 0, 1, row(&s, "l2")), Some(chip(&s, "l2")));
+        assert_eq!(view_chip(&s, 0, 1, row(&s, "r4")), None, "not a step button");
+        assert_eq!(view_chip(&s, 0, 2, row(&s, "l2")), None, "no step 3");
+        assert_eq!(view_chip(&s, 1, 0, row(&s, "l2")), None, "macro slot 2 is empty");
+        s.active_mut().unwrap().slots.get_mut(&(XINPUT, 2)).unwrap().pad_macros[0].loaded = false;
+        assert_eq!(view_chip(&s, 0, 0, row(&s, "l2")), None, "its steps are being read");
     }
 
     #[test]

@@ -114,6 +114,47 @@ export component SmallHead inherits Text {
     color: Theme.fg-muted;
 }
 
+// The tip of a button shape on a controller view, in the view's coordinates. Beside the
+// shape, right first, and under a shape at the top of the view, where a tip beside it
+// covers the next button. Always inside the view, and on whole pixels.
+export component ViewTip inherits Rectangle {
+    in property <string> text;
+    // The shape's bounds and the view's size.
+    in property <length> x0;
+    in property <length> y0;
+    in property <length> x1;
+    in property <length> y1;
+    in property <length> view-width;
+    in property <length> view-height;
+    // The share of the view's height, from the top, where a tip goes under the shape.
+    property <float> top-band: 0.15;
+    property <length> gap: 6px;
+    property <bool> under: root.y0 < root.view-height * root.top-band;
+    property <bool> right-fits: root.x1 + root.gap + self.width <= root.view-width;
+    property <length> want-x: root.under ? (root.x0 + root.x1 - self.width) / 2 : root.right-fits ? root.x1 + root.gap : root.x0 - root.gap - self.width;
+    property <length> want-y: root.under ? root.y1 + root.gap : (root.y0 + root.y1 - self.height) / 2;
+    x: round(max(0px, min(self.want-x, root.view-width - self.width)) / 1phx) * 1phx;
+    y: round(max(0px, min(self.want-y, root.view-height - self.height)) / 1phx) * 1phx;
+    width: ceil((label.preferred-width + 12px) / 1phx) * 1phx;
+    height: max(20px, ceil((label.preferred-height + 4px) / 1phx) * 1phx);
+    border-radius: 3px;
+    background: Theme.view;
+    border-width: 1px;
+    border-color: Theme.line;
+    drop-shadow-blur: 4px;
+    drop-shadow-offset-y: 1px;
+    drop-shadow-color: Theme.shadow;
+    label := Text {
+        x: 6px;
+        y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+        width: self.preferred-width;
+        height: self.preferred-height;
+        text: root.text;
+        font-size: Theme.text-small;
+        color: Theme.fg;
+    }
+}
+
 // Unsaved edits marker.
 export component Dot inherits Rectangle {
     width: 7px;

@@ -1,7 +1,7 @@
 // The Macros tab: the macro slots of the selected slot and the controller views on the
 // left, the selected macro's header on the right.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
-import { Dot, Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
+import { Dot, Frame, Icons, NumberEdit, SmallHead, ViewTip } from "parts.slint";
 import { ChipInfo, MacroRow, MacroSpot, PadView, StepInfo } from "types.slint";
 import { StepTable } from "steps.slint";
 import { StepPanel } from "step_panel.slint";
@@ -117,22 +117,25 @@ component MacroSlotRow inherits Rectangle {
     }
 }
 
-// One controller view. This macro's buttons are in the accent, other macros' buttons
-// grey, mapped buttons an outline. Under the pointer, a button a click acts on lights
-// up, and a tip names its macro or says what the click does.
+// One controller view. The buttons the selected step holds are in the accent. Under the
+// pointer, a button a click toggles lights up, and a tip says what the click does or
+// that a step cannot hold the button.
 component MacroViewArt {
     in property <PadView> view;
     in property <int> index;
     in property <[MacroSpot]> spots;
-    // The macro slots, for the macro names in the tips.
-    in property <[MacroRow]> rows;
-    // The selected macro slot (0-based).
-    in property <int> selected;
-    // The button row under (x, y) in viewBox units, or -1; and the same only when a
-    // click on that button does something.
+    // "Buttons held" of the selected step, and its number (1-based).
+    in property <[ChipInfo]> chips;
+    in property <int> step;
+    // A step is shown and can be edited: clicks act and tips show.
+    in property <bool> live;
+    // The button row under (x, y) in viewBox units, or -1; and the chip a click there
+    // toggles, or -1.
     pure callback hit(float, float) -> int;
     pure callback action-hit(float, float) -> int;
     callback clicked(int);
+    // Ctrl+Z after a click.
+    callback undone;
     property <float> scale: self.width / 1px / view.width;
     property <float> mx: ta.mouse-x / 1px / scale;
     property <float> my: ta.mouse-y / 1px / scale;
@@ -147,11 +150,9 @@ component MacroViewArt {
         source: root.view.image;
     }
     for s in root.spots: Path {
-        property <bool> own: s.owner >= 0 && s.owner == root.selected;
-        property <bool> other: s.owner >= 0 && !self.own;
-        property <bool> mapped: s.mapped-to != "";
-        property <bool> lit: s.row == root.action;
-        visible: s.view == root.index && (self.own || self.other || self.mapped || self.lit);
+        property <bool> held: s.chip >= 0 && root.chips[s.chip].on;
+        property <bool> lit: s.chip >= 0 && s.chip == root.action;
+        visible: s.view == root.index && (self.held || self.lit);
         x: 0;
         y: 0;
         width: root.width;
@@ -159,39 +160,43 @@ component MacroViewArt {
         viewbox-width: root.view.width;
         viewbox-height: root.view.height;
         commands: s.commands;
-        fill: self.own ? Theme.accent-wash : self.lit ? Theme.hover : self.other ? Theme.line-soft : transparent;
-        stroke: self.own || self.lit ? Theme.accent : Theme.fg-muted;
-        stroke-width: self.own ? 2.4px : 1.2px;
+        fill: self.held ? Theme.accent-wash : Theme.hover;
+        stroke: Theme.accent;
+        stroke-width: self.held ? 2.4px : 1.2px;
     }
-    // Right of the shape, or left of it where the right side has no room.
-    for s in root.spots: Rectangle {
-        property <bool> own: s.owner >= 0 && s.owner == root.selected;
-        // Under the pointer only: a tip that stays covers the buttons beside it.
-        visible: s.view == root.index && s.row == root.hover && (self.own || s.row == root.action || s.mapped-to != "");
-        property <length> right: s.x1 * root.scale * 1px + 6px;
-        x: round((self.right + self.width <= root.width ? self.right : s.x0 * root.scale * 1px - 6px - self.width) / 1phx) * 1phx;
-        y: round(((s.y0 + s.y1) / 2 * root.scale * 1px - self.height / 2) / 1phx) * 1phx;
-        width: tip.preferred-width + 12px;
-        height: 20px;
-        border-radius: 3px;
-        background: Theme.view;
-        border-width: 1px;
-        border-color: Theme.line;
-        drop-shadow-blur: 4px;
-        drop-shadow-offset-y: 1px;
-        drop-shadow-color: Theme.shadow;
-        tip := Text {
-            text: parent.own ? root.rows[s.owner].title : s.owner >= 0 ? "Open " + root.rows[s.owner].title : s.mapped-to != "" ? "Mapped to " + s.mapped-to : "Add to " + root.rows[root.selected].title;
-            font-size: Theme.text-small;
-            color: Theme.fg;
-        }
+    // Under the pointer only: a tip that stays covers the buttons beside it.
+    for s in root.spots: ViewTip {
+        visible: root.live && s.view == root.index && s.row == root.hover;
+        text: s.chip < 0 ? "A step can't hold " + s.label : (root.chips[s.chip].on ? "Stop holding " : "Hold ") + s.label + " in step " + root.step;
+        x0: s.x0 * root.scale * 1px;
+        y0: s.y0 * root.scale * 1px;
+        x1: s.x1 * root.scale * 1px;
+        y1: s.y1 * root.scale * 1px;
+        view-width: root.width;
+        view-height: root.height;
     }
     ta := TouchArea {
         mouse-cursor: root.action >= 0 ? MouseCursor.pointer : MouseCursor.default;
         clicked => {
             if (root.action >= 0) {
                 root.clicked(root.action);
+                fs.focus();
             }
+        }
+    }
+    // A click takes the keyboard, so Ctrl+Z undoes it. Tab skips the views: the chips of
+    // the step panel are their keyboard path.
+    fs := FocusScope {
+        width: 0;
+        height: 0;
+        focus-on-click: false;
+        focus-on-tab-navigation: false;
+        key-pressed(e) => {
+            if (e.modifiers.control && (e.text == "z" || e.text == "Z")) {
+                root.undone();
+                return accept;
+            }
+            reject
         }
     }
 }
@@ -457,10 +462,11 @@ export component MacrosTab {
     // A panel edit: the macro slot, the step, and the duration or the chip.
     callback step-duration-changed(int, int, int);
     callback step-chip-toggled(int, int, int);
-    // The button row under (x, y) in view `view`'s viewBox units, or -1; and the same
-    // only when a click there acts on macro slot `macro` (0-based).
+    // The button row under (x, y) in view `view`'s viewBox units, or -1; and the chip of
+    // "Buttons held" there, when a click toggles it in step `step` of macro slot `macro`
+    // (0-based), or -1.
     pure callback hit(int, float, float) -> int;
-    pure callback action-hit(int, int, float, float) -> int;
+    pure callback action-hit(int, int, int, float, float) -> int;
     // Each takes the selected macro slot (0-based) first.
     callback created(int);
     callback deleted(int);
@@ -470,9 +476,10 @@ export component MacrosTab {
     callback pause-changed(int, int);
     callback button-added(int, int);
     callback button-removed(int, int);
-    // A button row clicked on a view.
-    callback view-clicked(int, int);
     property <MacroRow> current: root.rows[root.selected];
+    // A step is shown, and can be edited: the views toggle its held buttons.
+    property <bool> has-step: root.current.filled && root.panel-chips.length > 0;
+    property <bool> live: root.has-step && root.editable;
 
     HorizontalLayout {
         spacing: 16px;
@@ -517,10 +524,14 @@ export component MacrosTab {
                 height: 6px;
             }
             SmallHead {
-                text: "Macro trigger buttons";
+                text: root.has-step ? "Buttons held in step \{root.selected-step + 1}" : "Buttons held";
             }
-            if root.current.filled: Text {
-                text: "Click a button on the controller to make it start this macro.";
+            // What a click does, or why it does nothing.
+            Text {
+                text: root.live ? "Click a button to hold it in this step. Click it again to let go."
+                    : !root.current.filled ? "Create a macro to choose the buttons its steps hold."
+                    : !root.steps-ready || !root.editable ? "The buttons show once the steps are read."
+                    : "Pick a step in the table to see the buttons it holds.";
                 font-size: Theme.text-small;
                 color: Theme.fg-muted;
                 wrap: word-wrap;
@@ -529,15 +540,25 @@ export component MacrosTab {
                 VerticalLayout {
                     padding: 10px;
                     spacing: 4px;
-                    for v[i] in root.views: MacroViewArt {
-                        view: v;
-                        index: i;
-                        spots: root.spots;
-                        rows: root.rows;
-                        selected: root.selected;
-                        hit(x, y) => { return root.hit(i, x, y); }
-                        action-hit(x, y) => { return root.action-hit(i, root.selected, x, y); }
-                        clicked(row) => { root.view-clicked(root.selected, row); }
+                    for v[i] in root.views: VerticalLayout {
+                        spacing: 4px;
+                        SmallHead {
+                            text: v.label;
+                        }
+                        MacroViewArt {
+                            view: v;
+                            index: i;
+                            spots: root.spots;
+                            chips: root.panel-chips;
+                            step: root.selected-step + 1;
+                            live: root.live;
+                            // Dimmed like the step panel's chips when clicks do nothing.
+                            opacity: root.live ? 1 : 0.45;
+                            hit(x, y) => { return root.hit(i, x, y); }
+                            action-hit(x, y) => { return root.action-hit(i, root.selected, root.selected-step, x, y); }
+                            clicked(c) => { root.step-chip-toggled(root.selected, root.selected-step, c); }
+                            undone => { root.step-undone(root.selected); }
+                        }
                     }
                 }
             }

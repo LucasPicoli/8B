@@ -1,6 +1,6 @@
 // The Buttons tab: the controller views beside the mapping table.
 import { Theme, ComboBox } from "look/breeze/widgets.slint";
-import { Frame, SmallHead } from "parts.slint";
+import { Frame, SmallHead, ViewTip } from "parts.slint";
 import { MapRow, PadView, Spot } from "types.slint";
 
 // A legend entry: the bar colour a table row shows, and what it means.
@@ -58,26 +58,15 @@ component ViewArt {
         stroke: s.fixed ? Theme.fg-muted : s.pending ? Theme.neutral : Theme.accent;
         stroke-width: s.row == root.selected ? 2.4px : 1.2px;
     }
-    // Right of the shape, or left of it where the right side has no room.
-    for s in root.spots: Rectangle {
+    for s in root.spots: ViewTip {
         visible: s.view == root.index && (s.row == root.hover || s.row == root.selected);
-        property <length> right: s.x1 * root.scale * 1px + 6px;
-        x: self.right + self.width <= root.width ? self.right : s.x0 * root.scale * 1px - 6px - self.width;
-        y: (s.y0 + s.y1) / 2 * root.scale * 1px - self.height / 2;
-        width: tip.preferred-width + 12px;
-        height: 20px;
-        border-radius: 3px;
-        background: Theme.view;
-        border-width: 1px;
-        border-color: Theme.line;
-        drop-shadow-blur: 4px;
-        drop-shadow-offset-y: 1px;
-        drop-shadow-color: Theme.shadow;
-        tip := Text {
-            text: s.output;
-            font-size: Theme.text-small;
-            color: Theme.fg;
-        }
+        text: s.output;
+        x0: s.x0 * root.scale * 1px;
+        y0: s.y0 * root.scale * 1px;
+        x1: s.x1 * root.scale * 1px;
+        y1: s.y1 * root.scale * 1px;
+        view-width: root.width;
+        view-height: root.height;
     }
     ta := TouchArea {
         mouse-cursor: root.hover >= 0 ? MouseCursor.pointer : MouseCursor.default;
@@ -135,13 +124,19 @@ export component ButtonsTab {
                     VerticalLayout {
                         padding: 10px;
                         spacing: 4px;
-                        for v[i] in root.views: ViewArt {
-                            view: v;
-                            index: i;
-                            spots: root.spots;
-                            selected: root.selected;
-                            hit(x, y) => { return root.hit(i, x, y); }
-                            pick(id) => { root.show(id); }
+                        for v[i] in root.views: VerticalLayout {
+                            spacing: 4px;
+                            SmallHead {
+                                text: v.label;
+                            }
+                            ViewArt {
+                                view: v;
+                                index: i;
+                                spots: root.spots;
+                                selected: root.selected;
+                                hit(x, y) => { return root.hit(i, x, y); }
+                                pick(id) => { root.show(id); }
+                            }
                         }
                     }
                 }

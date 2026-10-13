@@ -667,8 +667,8 @@ mod tests {
                   "can_be_remapped": true, "can_be_output": false }
             ],
             "views": [
-                { "id": "front", "svg": "front.svg" },
-                { "id": "back", "svg": "back.svg" }
+                { "id": "front", "label": "Front", "svg": "front.svg" },
+                { "id": "back", "label": "Back", "svg": "back.svg" }
             ]
         })
     }

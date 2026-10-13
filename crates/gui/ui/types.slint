@@ -42,6 +42,8 @@ export struct MapRow {
 // One drawing of the controller, recoloured for the theme.
 export struct PadView {
     image: image,
+    // The caption over the view, such as "Front".
+    label: string,
     // The viewBox size.
     width: float,
     height: float,
@@ -244,8 +246,6 @@ export struct MacroRow {
     // A macro is in the macro slot.
     filled: bool,
     name: string,
-    // "Jump (Macro 2)", or "Macro 2" with no name or no macro.
-    title: string,
     // Such as "4 steps".
     steps: string,
     // The labels of the buttons that start it, the first of them for the list row,
@@ -270,10 +270,10 @@ export struct MacroSpot {
     row: int,
     view: int,
     commands: string,
-    // The macro slot of the macro it starts (0-based), or -1.
-    owner: int,
-    // The output it is mapped to, which stops it starting a macro, or "".
-    mapped-to: string,
+    // Its chip in the step panel's "Buttons held", or -1 for a button a step cannot hold.
+    chip: int,
+    // Its label in the mode, for the tips.
+    label: string,
     x0: float,
     y0: float,
     x1: float,

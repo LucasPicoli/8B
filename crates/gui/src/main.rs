@@ -65,9 +65,10 @@ use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 
 use crate::buttons::{hit, picked_output, render_views};
 use crate::closing::CloseOutcome;
-use crate::macro_tab::{action_hit, added_button, chip_button, view_click, Plays, ViewClick};
+use crate::macro_tab::{added_button, chip_button, Plays};
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
+use crate::step_panel::action_hit;
 use crate::step_table::StepEdit;
 use crate::ui::{AppWindow, Diagnostics};
 use crate::worker::{Command, Event, Failure};
@@ -588,9 +589,10 @@ fn wire_macros(
         let (Ok(step), Ok(chip)) = (usize::try_from(step), usize::try_from(chip)) else { return };
         c(&|s| s.toggle_step_button(macro_slot(n), step, chip));
     });
-    ui.on_macro_hit(move |view, n, x, y| {
+    ui.on_macro_hit(move |view, n, step, x, y| {
         let view = usize::try_from(view).unwrap_or(usize::MAX);
-        action_hit(&state.borrow(), view, macro_slot(n), x, y)
+        let step = usize::try_from(step).unwrap_or(usize::MAX);
+        action_hit(&state.borrow(), view, macro_slot(n), step, x, y)
     });
     let c = change.clone();
     ui.on_macro_created(move |n| c(&|s| s.new_macro(macro_slot(n))));
@@ -625,20 +627,6 @@ fn wire_macros(
                 s.remove_macro_button(macro_slot(n), &button);
             }
         });
-    });
-    let c = change.clone();
-    let weak = ui.as_weak();
-    ui.on_macro_view_clicked(move |n, row| {
-        let Ok(row) = usize::try_from(row) else { return };
-        let open = Cell::new(None);
-        c(&|s| match view_click(s, macro_slot(n), row) {
-            Some(ViewClick::Open(other)) => open.set(Some(other)),
-            Some(ViewClick::Add(button)) => s.add_macro_button(macro_slot(n), &button),
-            None => {}
-        });
-        if let (Some(other), Some(ui)) = (open.get(), weak.upgrade()) {
-            ui.set_selected_macro(i32::from(other));
-        }
     });
 }
 

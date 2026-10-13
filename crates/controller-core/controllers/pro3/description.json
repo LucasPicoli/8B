@@ -598,10 +598,12 @@
   "views": [
     {
       "id": "front",
+      "label": "Front",
       "svg": "front.svg"
     },
     {
       "id": "back",
+      "label": "Back",
       "svg": "back.svg"
     }
   ]

@@ -112,6 +112,7 @@
   "views": [
     {
       "id": "front",
+      "label": "Front",
       "svg": "front.svg"
     }
   ]

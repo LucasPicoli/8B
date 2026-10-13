@@ -90,12 +90,13 @@ The rules:
 
 ## 4. List the views and embed the files
 
-List each view in `description.json`, in display order:
+List each view in `description.json`, in display order. The `label` is the caption
+the editor draws over the view:
 
 ```json
 "views": [
-  { "id": "front", "svg": "front.svg" },
-  { "id": "back", "svg": "back.svg" }
+  { "id": "front", "label": "Front", "svg": "front.svg" },
+  { "id": "back", "label": "Back", "svg": "back.svg" }
 ]
 ```
 

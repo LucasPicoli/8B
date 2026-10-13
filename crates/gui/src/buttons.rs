@@ -252,6 +252,7 @@ pub fn views(description: &ControllerDescription, line: Color, fill: Color) -> V
             let [width, height] = v.view_box;
             PadView {
                 image: Image::load_from_svg_data(svg.as_bytes()).unwrap_or_default(),
+                label: v.label.as_str().into(),
                 width: f32::from(width),
                 height: f32::from(height),
             }

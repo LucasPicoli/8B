@@ -52,6 +52,8 @@ const CURVE_TOLERANCE: f64 = 0.1;
 pub struct View {
     /// View name, unique within the description. Never shown.
     pub id: String,
+    /// The caption the editor draws over the view, such as "Front" or "Back".
+    pub label: String,
     /// File name of the SVG, next to `description.json`.
     pub svg: String,
     /// The SVG's file contents, drawn in [`VIEW_LINE_COLOR`] and [`VIEW_FILL_COLOR`] only.
@@ -179,6 +181,7 @@ mod tests {
     fn attach(svg: &'static str) -> Result<View, String> {
         let mut view = View {
             id: "front".to_owned(),
+            label: "Front".to_owned(),
             svg: "front.svg".to_owned(),
             svg_data: "",
             view_box: [0, 0],

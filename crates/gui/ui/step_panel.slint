@@ -91,7 +91,7 @@ export component StepPanel inherits Frame {
                     vertical-alignment: center;
                 }
                 Rectangle {
-                    width: 8px;
+                    horizontal-stretch: 1;
                 }
                 Text {
                     text: "Duration";
@@ -113,9 +113,6 @@ export component StepPanel inherits Frame {
                     text: "ms";
                     color: Theme.fg;
                     vertical-alignment: center;
-                }
-                Rectangle {
-                    horizontal-stretch: 1;
                 }
             }
             Rectangle {

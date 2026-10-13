@@ -195,10 +195,9 @@ export component AppWindow inherits Window {
     callback macro-plays-picked(int, int);
     callback macro-count-changed(int, int);
     callback macro-pause-changed(int, int);
-    // An entry of the "Add a button…" picker, a chip, and a button row on a view.
+    // An entry of the "Add a button…" picker, and a chip.
     callback macro-button-added(int, int);
     callback macro-button-removed(int, int);
-    callback macro-view-clicked(int, int);
     // Another macro is shown: its steps need drawing.
     callback macro-shown;
     // A step edit: the macro slot, the step, and the edit (see `StepTable.edited`).
@@ -239,8 +238,9 @@ export component AppWindow inherits Window {
     callback close-discard;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
-    // The same, only when a click there acts on macro slot `macro` (0-based).
-    pure callback macro-hit(int, int, float, float) -> int;
+    // The chip of "Buttons held" under (x, y) in view `view`, when a click there toggles
+    // it in step `step` of macro slot `macro` (0-based), or -1.
+    pure callback macro-hit(int, int, int, float, float) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
     callback theme-changed;
     property <bool> dark: Theme.dark;
@@ -504,7 +504,7 @@ export component AppWindow inherits Window {
                         step-duration-changed(n, i, v) => { root.step-duration-changed(n, i, v); }
                         step-chip-toggled(n, i, c) => { root.step-chip-toggled(n, i, c); }
                         hit(v, x, y) => { return root.hit(v, x, y); }
-                        action-hit(v, n, x, y) => { return root.macro-hit(v, n, x, y); }
+                        action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         created(n) => { root.macro-created(n); }
                         deleted(n) => { root.macro-deleted(n); }
                         renamed(n, t) => { root.macro-renamed(n, t); }
@@ -513,7 +513,6 @@ export component AppWindow inherits Window {
                         pause-changed(n, v) => { root.macro-pause-changed(n, v); }
                         button-added(n, c) => { root.macro-button-added(n, c); }
                         button-removed(n, c) => { root.macro-button-removed(n, c); }
-                        view-clicked(n, row) => { root.macro-view-clicked(n, row); }
                     }
                     if root.tab >= root.first-page: SettingsTab {
                         page: root.pages[root.tab - root.first-page];
