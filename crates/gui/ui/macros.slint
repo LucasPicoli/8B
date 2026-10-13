@@ -273,14 +273,14 @@ component MacroHeader inherits Frame {
                     HorizontalLayout {
                         spacing: 4px;
                         Button {
-                            text: "Revert macro";
+                            text: "Revert";
                             icon: Icons.discard;
                             flat: true;
                             enabled: root.editable && root.item.unsaved;
                             clicked => { root.reverted(); }
                         }
                         Button {
-                            text: "Delete macro";
+                            text: "Delete";
                             icon: Icons.clear;
                             flat: true;
                             enabled: root.editable;
@@ -420,13 +420,13 @@ component MacroHeader inherits Frame {
                 }
             }
             if root.item.plays != 0: Field {
-                label: "Pause between plays";
+                label: "Interval";
                 NumberEdit {
                     value: root.item.pause;
                     minimum: 0;
                     maximum: root.pause-max;
                     enabled: root.editable;
-                    accessible-name: "Pause between plays in milliseconds";
+                    accessible-name: "Interval between plays in milliseconds";
                     committed(v) => { root.pause-changed(v); }
                 }
                 FieldLabel {
@@ -624,13 +624,23 @@ export component MacrosTab {
                     spacing: 12px;
                     alignment: center;
                     Text {
-                        text: "Macro " + root.current.number + " is empty";
+                        // A staged delete: the controller still holds the macro.
+                        text: root.current.unsaved
+                            ? "Macro " + root.current.number + " will be deleted when you write"
+                            : "Macro " + root.current.number + " is empty";
                         font-size: Theme.text-placeholder;
                         color: Theme.fg;
                         horizontal-alignment: center;
                     }
                     HorizontalLayout {
                         alignment: center;
+                        spacing: 8px;
+                        if root.current.unsaved: Button {
+                            text: "Undo";
+                            icon: Icons.discard;
+                            enabled: root.editable;
+                            clicked => { root.reverted(root.selected); }
+                        }
                         Button {
                             text: "New macro";
                             primary: true;

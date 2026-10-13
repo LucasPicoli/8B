@@ -1,5 +1,6 @@
-//! "Revert macro": puts one macro of the selected slot back as the controller holds it,
-//! with the buttons that start it, and leaves the slot's other edits.
+//! "Revert" in the macro header, and "Undo" on a deleted macro: put one macro of the
+//! selected slot back as the controller holds it, with the buttons that start it, and
+//! leave the slot's other edits.
 
 use controller_core::model::CanonicalProfile;
 

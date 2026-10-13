@@ -1054,6 +1054,17 @@ fn macros_tab() -> AppState {
 }
 
 #[test]
+fn a_deleted_macro_offers_undo() {
+    let mut s = macros_tab();
+    s.delete_macro(1);
+    let ui = window(&s);
+    ui.set_tab(1);
+    ui.set_selected_macro(1);
+    render(&s, &ui);
+    save("macros-deleted", &ui);
+}
+
+#[test]
 fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
     let s = macros_tab();
     for dark in [false, true] {

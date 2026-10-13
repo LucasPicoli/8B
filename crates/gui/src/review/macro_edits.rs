@@ -173,10 +173,7 @@ impl AppState {
                     ));
                 }
                 if old.interval_ms != new.interval_ms {
-                    parts.push(format!(
-                        "pause between plays {} to {} ms",
-                        old.interval_ms, new.interval_ms
-                    ));
+                    parts.push(format!("interval {} to {} ms", old.interval_ms, new.interval_ms));
                 }
                 if old.trigger_buttons != new.trigger_buttons {
                     parts.push(format!(
@@ -313,7 +310,7 @@ mod tests {
             [
                 "Jump (Macro 1) changed: steps edited",
                 "Dash (Macro 2) changed: renamed “”, plays once to until pressed again, \
-                 pause between plays 0 to 200 ms",
+                 interval 0 to 200 ms",
             ]
         );
     }

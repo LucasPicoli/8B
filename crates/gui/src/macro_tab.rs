@@ -188,7 +188,7 @@ impl AppState {
         });
     }
 
-    /// Sets the pause between plays of the macro in macro slot `n`, within the
+    /// Sets the interval between plays of the macro in macro slot `n`, within the
     /// controller's range.
     pub fn set_play_pause(&mut self, n: u8, ms: i32) {
         let range = self.description().limits.macro_interval_ms;
@@ -376,10 +376,7 @@ mod tests {
         s.set_play_count(0, 3);
         s.set_play_pause(0, 100);
         let line = s.review_info((XINPUT, 2)).macro_changes.row_data(0).unwrap();
-        assert_eq!(
-            line,
-            "Jump (Macro 1) changed: plays once to 3 times, pause between plays 0 to 100 ms"
-        );
+        assert_eq!(line, "Jump (Macro 1) changed: plays once to 3 times, interval 0 to 100 ms");
         s.set_play_count(0, 1000);
         s.set_play_pause(0, -5);
         assert_eq!((row(&s, 0).count, row(&s, 0).pause), (99, 0));
