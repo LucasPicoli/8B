@@ -15,8 +15,8 @@ component StickPad {
     callback set(int, int, bool);
     callback dragged(float, float);
     callback glided(bool);
-    // Why Glide is off shows under the gate, unless the panel says it once for both.
-    in property <bool> show-reason: true;
+    // A drag near a marked rim point lands on it; the points show only then.
+    in property <bool> snap;
     // The gate's size, and the reach of a full deflection from its centre.
     property <length> size: 120px;
     property <length> r: 52px;
@@ -36,13 +36,23 @@ component StickPad {
             Rectangle {
                 horizontal-stretch: 1;
             }
-            glide := CheckBox {
-                text: "Glide";
-                checked: root.stick.at.glide;
-                enabled: root.enabled && root.stick.can-glide;
-                accessible-label: root.stick.label + " glide";
-                accessible-description: root.stick.glide-reason;
-                toggled => { root.glided(self.checked); }
+            // What a glide does, or why it cannot, on hover. A tooltip cannot sit in a
+            // layout, so the box gets a frame.
+            Rectangle {
+                horizontal-stretch: 0;
+                HorizontalLayout {
+                    glide := CheckBox {
+                        text: "Glide";
+                        checked: root.stick.at.glide;
+                        enabled: root.enabled && root.stick.can-glide;
+                        accessible-label: root.stick.label + " glide";
+                        accessible-description: root.stick.glide-tip;
+                        toggled => { root.glided(self.checked); }
+                    }
+                }
+                Tooltip {
+                    text: @markdown("\{root.stick.glide-tip}");
+                }
             }
             Button {
                 text: "Centre";
@@ -82,8 +92,8 @@ component StickPad {
                     height: 1px;
                     background: Theme.line-soft;
                 }
-                // The 8 snap points on the rim.
-                for k in 8: Rectangle {
+                // The 8 snap points on the rim, while a drag snaps to them.
+                for k in root.snap ? 8 : 0: Rectangle {
                     x: root.c + root.r * cos(k * 45deg) - 2px;
                     y: root.c + root.r * sin(k * 45deg) - 2px;
                     width: 4px;
@@ -177,12 +187,6 @@ component StickPad {
                 }
             }
         }
-        if root.show-reason && root.enabled && !root.stick.can-glide: Text {
-            text: root.stick.glide-reason;
-            font-size: Theme.text-small;
-            color: Theme.fg-muted;
-            wrap: word-wrap;
-        }
     }
 }
 
@@ -195,15 +199,14 @@ export component StepPanel inherits Frame {
     in property <bool> narrow;
     // Each edit names the stick (0 left, 1 right) first.
     callback stick-set(int, int, int, bool);
-    callback stick-dragged(int, float, float);
+    callback stick-dragged(int, float, float, bool);
     callback stick-glided(int, bool);
     // Asks the page to scroll the panel into view (absolute y, height).
     callback reveal(length, length);
     changed step => { root.reveal(self.absolute-position.y, self.height); }
 
-    // Both pads give the same reason, such as on the last step: the panel says it once.
-    property <bool> shared-reason: root.sticks.length == 2 && !root.sticks[0].can-glide
-        && root.sticks[0].glide-reason == root.sticks[1].glide-reason;
+    // A drag snaps to the edges and corners marked on the rim. For the session, both pads.
+    in-out property <bool> snap: true;
 
     VerticalLayout {
         padding: 12px;
@@ -215,10 +218,10 @@ export component StepPanel inherits Frame {
             for s[i] in root.sticks: StickPad {
                 stick: s;
                 enabled: root.enabled;
-                show-reason: !root.shared-reason;
+                snap: root.snap;
                 min-width: 260px;
                 set(x, y, apart) => { root.stick-set(i, x, y, apart); }
-                dragged(x, y) => { root.stick-dragged(i, x, y); }
+                dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
                 glided(on) => { root.stick-glided(i, on); }
             }
         }
@@ -231,25 +234,17 @@ export component StepPanel inherits Frame {
                 StickPad {
                     stick: s;
                     enabled: root.enabled;
-                    show-reason: !root.shared-reason;
+                    snap: root.snap;
                     min-width: 260px;
                     set(x, y, apart) => { root.stick-set(i, x, y, apart); }
-                    dragged(x, y) => { root.stick-dragged(i, x, y); }
+                    dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
                     glided(on) => { root.stick-glided(i, on); }
                 }
             }
         }
-        if root.enabled && root.shared-reason: Text {
-            text: root.sticks[0].glide-reason;
-            font-size: Theme.text-small;
-            color: Theme.fg-muted;
-            wrap: word-wrap;
-        }
-        Text {
-            text: "X and Y: 0 is left or up, 127 is the centre, 255 is right or down.";
-            font-size: Theme.text-small;
-            color: Theme.fg-muted;
-            wrap: word-wrap;
+        CheckBox {
+            text: "Snap to edges and corners";
+            checked <=> root.snap;
         }
     }
 }

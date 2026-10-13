@@ -484,7 +484,7 @@ export component MacrosTab {
     // the stick (0 left, 1 right) first.
     in property <[PadStick]> step-sticks;
     callback stick-set(int, int, int, int, int, bool);
-    callback stick-dragged(int, int, int, float, float);
+    callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
     // A stick the macro moves sits under the dead zone floor: the bar's words and its
     // action, which raises the low ends of macro slot n to the floor.
@@ -648,7 +648,7 @@ export component MacrosTab {
                 step: root.selected-step;
                 narrow: root.narrow;
                 stick-set(k, x, y, apart) => { root.stick-set(root.selected, root.selected-step, k, x, y, apart); }
-                stick-dragged(k, x, y) => { root.stick-dragged(root.selected, root.selected-step, k, x, y); }
+                stick-dragged(k, x, y, snap) => { root.stick-dragged(root.selected, root.selected-step, k, x, y, snap); }
                 stick-glided(k, on) => { root.stick-glided(root.selected, root.selected-step, k, on); }
                 reveal(y, h) => { root.reveal(y, h); }
             }

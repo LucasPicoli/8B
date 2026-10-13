@@ -650,9 +650,9 @@ fn wire_macros(
         c(&|s| s.set_stick(macro_slot(n), step, stick, [x, y], apart));
     });
     let c = change.clone();
-    ui.on_stick_dragged(move |n, step, stick, x, y| {
+    ui.on_stick_dragged(move |n, step, stick, x, y, snap| {
         let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
-        c(&|s| s.drag_stick(macro_slot(n), step, stick, x, y));
+        c(&|s| s.drag_stick(macro_slot(n), step, stick, [x, y], snap));
     });
     let c = change.clone();
     ui.on_stick_glided(move |n, step, stick, on| {

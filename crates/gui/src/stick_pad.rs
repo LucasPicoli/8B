@@ -37,18 +37,18 @@ fn value(u: f32) -> u8 {
 }
 
 /// The values at (`x`, `y`) on the gate, in gate radii from its centre: the inverse of
-/// [`disc`]. A point outside the gate goes to its rim, and one near a rim snap point
-/// lands on it.
+/// [`disc`]. A point outside the gate goes to its rim, and with `snap` one near a rim
+/// snap point lands on it.
 #[must_use]
-pub fn from_disc(x: f32, y: f32) -> [u8; 2] {
+pub fn from_disc(x: f32, y: f32, snap: bool) -> [u8; 2] {
     let reach = x.hypot(y);
     let (x, y) = if reach > 1.0 { (x / reach, y / reach) } else { (x, y) };
     let near = |&[sx, sy]: &[u8; 2]| {
         let (gx, gy) = disc(sx, sy);
         (gx - x).hypot(gy - y) < SNAP
     };
-    if let Some(snap) = RIM.iter().find(|v| near(v)) {
-        return *snap;
+    if let Some(point) = RIM.iter().find(|v| snap && near(v)) {
+        return *point;
     }
     // The inverse of the elliptical grid mapping `disc` uses, for one axis `along`.
     let root8 = 8.0_f32.sqrt();
@@ -61,14 +61,23 @@ pub fn from_disc(x: f32, y: f32) -> [u8; 2] {
     [value(axis(x, y)), value(axis(y, x))]
 }
 
-/// Why `control` of step `i` cannot glide, or nothing when it can.
-fn no_glide(steps: &[MacroStep], i: usize, control: GlideControl) -> &'static str {
+/// Whether `control` of step `i` can glide, and the tip of its Glide box: what a glide
+/// does, or why it cannot.
+fn glide_tip(steps: &[MacroStep], i: usize, control: GlideControl) -> (bool, String) {
     match (steps.get(i), steps.get(i + 1)) {
-        (_, None) => "The last step cannot glide.",
-        (Some(s), Some(n)) if axes(s, control) == axes(n, control) => {
-            "The next step holds the same position."
-        }
-        _ => "",
+        (_, None) => (false, "The last step cannot glide: no step comes after it.".to_owned()),
+        (Some(s), Some(n)) if axes(s, control) == axes(n, control) => (
+            false,
+            format!("Step {} holds the same position, so there is nothing to glide to.", i + 2),
+        ),
+        (s, _) => (
+            true,
+            format!(
+                "Moves in a straight line to step {}'s position over this step's {} ms.",
+                i + 2,
+                s.map_or(0, |s| s.duration_ms)
+            ),
+        ),
     }
 }
 
@@ -84,9 +93,9 @@ impl AppState {
     }
 
     /// Sets stick `stick` of step `step` of macro slot `n` to the point (`x`, `y`) on its
-    /// gate, see [`from_disc`].
-    pub fn drag_stick(&mut self, n: u8, step: usize, stick: usize, x: f32, y: f32) {
-        let [vx, vy] = from_disc(x, y);
+    /// gate, snapping to the rim with `snap`, see [`from_disc`].
+    pub fn drag_stick(&mut self, n: u8, step: usize, stick: usize, [x, y]: [f32; 2], snap: bool) {
+        let [vx, vy] = from_disc(x, y, snap);
         self.set_stick(n, step, stick, [i32::from(vx), i32::from(vy)], false);
     }
 
@@ -113,14 +122,14 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
         .iter()
         .map(|&(control, label)| {
             let [x, y] = steps.get(step).map_or([STICK_CENTER; 2], |s| axes(s, control));
-            let reason = no_glide(&steps, step, control);
+            let (can_glide, tip) = glide_tip(&steps, step, control);
             PadStick {
                 label: label.into(),
                 value_x: i32::from(x),
                 value_y: i32::from(y),
                 at: stick(&steps, step, control),
-                can_glide: reason.is_empty(),
-                glide_reason: reason.into(),
+                can_glide,
+                glide_tip: tip.into(),
             }
         })
         .collect()
@@ -208,7 +217,7 @@ mod tests {
         for x in (0..=255).step_by(15) {
             for y in (0..=255).step_by(15) {
                 let (dx, dy) = disc(x, y);
-                let [a, b] = from_disc(dx, dy);
+                let [a, b] = from_disc(dx, dy, true);
                 let near_rim = RIM.contains(&[a, b]);
                 assert!(
                     near_rim || (a.abs_diff(x) <= 1 && b.abs_diff(y) <= 1),
@@ -216,15 +225,16 @@ mod tests {
                 );
             }
         }
-        assert_eq!(from_disc(0.0, 0.0), [127, 127]);
+        assert_eq!(from_disc(0.0, 0.0, true), [127, 127]);
     }
 
     #[test]
-    fn a_drag_past_the_rim_or_near_a_snap_point_lands_on_it() {
-        assert_eq!(from_disc(3.0, 0.0), [255, 127], "past the rim, east");
-        assert_eq!(from_disc(0.68, -0.75), [255, 0], "near the north-east corner");
-        assert_eq!(from_disc(-0.05, 0.95), [127, 255], "near south");
-        let [a, _] = from_disc(0.5, 0.0);
+    fn a_drag_past_the_rim_or_near_a_snap_point_lands_on_it_while_snapping() {
+        assert_eq!(from_disc(3.0, 0.0, false), [255, 127], "past the rim, east");
+        assert_eq!(from_disc(0.68, -0.75, true), [255, 0], "near the north-east corner");
+        assert_ne!(from_disc(0.68, -0.75, false), [255, 0], "snapping off");
+        assert_eq!(from_disc(-0.05, 0.95, true), [127, 255], "near south");
+        let [a, _] = from_disc(0.5, 0.0, true);
         assert!((180..=200).contains(&a), "halfway east is {a}");
     }
 
@@ -233,7 +243,7 @@ mod tests {
         let glide =
             MacroStep { left_stick_x: 0, glide: [GlideControl::LeftStick].into(), ..step(100) };
         let mut s = holding(vec![glide, step(100)]);
-        s.drag_stick(0, 1, 0, 0.5, 0.0);
+        s.drag_stick(0, 1, 0, [0.5, 0.0], true);
         s.set_stick(0, 1, 0, [0, 127], false);
         let steps = s.macro_steps(0).unwrap();
         assert_eq!((steps[1].left_stick_x, steps[1].left_stick_y), (0, 127));
@@ -262,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn pads_show_values_and_glide_reasons() {
+    fn pads_show_values_and_glide_tips() {
         let moved = MacroStep { left_stick_x: 255, left_stick_y: 0, ..step(100) };
         let s = holding(vec![step(100), moved.clone(), moved]);
         let pads = stick_pads(&s, 0, 1);
@@ -271,10 +281,19 @@ mod tests {
             (pads[0].value_x, pads[0].value_y, pads[0].label.as_str()),
             (255, 0, "Left stick")
         );
-        assert_eq!(pads[0].glide_reason, "The next step holds the same position.");
-        assert!(!pads[1].can_glide);
-        assert_eq!(stick_pads(&s, 0, 2)[0].glide_reason, "The last step cannot glide.");
-        assert!(stick_pads(&s, 0, 0)[0].can_glide);
+        assert!(!pads[0].can_glide && !pads[1].can_glide);
+        assert_eq!(
+            pads[0].glide_tip,
+            "Step 3 holds the same position, so there is nothing to glide to."
+        );
+        let last = &stick_pads(&s, 0, 2)[0];
+        assert!(!last.can_glide && last.glide_tip.starts_with("The last step cannot glide"));
+        let first = &stick_pads(&s, 0, 0)[0];
+        assert!(first.can_glide);
+        assert_eq!(
+            first.glide_tip,
+            "Moves in a straight line to step 2's position over this step's 100 ms."
+        );
         assert!(stick_pads(&s, 0, 3).is_empty(), "no step 4");
     }
 

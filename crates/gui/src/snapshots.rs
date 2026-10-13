@@ -1252,8 +1252,9 @@ fn stick_pads_at(step: i32) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
     slint::platform::update_timers_and_animations();
     let to = |v: i32| usize::try_from(v).unwrap();
     let (s, weak) = (Rc::clone(&state), ui.as_weak());
-    ui.on_stick_dragged(move |slot, step, stick, dx, dy| {
-        s.borrow_mut().drag_stick(u8::try_from(slot).unwrap(), to(step), to(stick), dx, dy);
+    ui.on_stick_dragged(move |slot, step, stick, dx, dy, snap| {
+        let slot = u8::try_from(slot).unwrap();
+        s.borrow_mut().drag_stick(slot, to(step), to(stick), [dx, dy], snap);
         render(&s.borrow(), &weak.upgrade().unwrap());
     });
     let (s, weak) = (Rc::clone(&state), ui.as_weak());
@@ -1276,12 +1277,12 @@ fn a_quick_stick_drag_survives_the_render_after_each_move() {
     // the page to decide on a pan.
     let at = |x: f32, y: f32| slint::LogicalPosition::new(x, y);
     let button = PointerEventButton::Left;
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 628.0) });
-    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 628.0), button });
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 628.0) });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 646.0) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 646.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 646.0) });
     let first = left();
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 602.0) });
-    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 602.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 620.0) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 620.0), button });
     assert!(first.0 > 180 && first.1 == 127, "halfway right: {first:?}");
     assert!(left().1 < 127, "the drag stopped after one render: {:?}", left());
 }
@@ -1301,12 +1302,12 @@ fn the_glide_box_follows_the_selected_step() {
     // The left stick's Glide box at this size. Step 3 glides: a click stops it. Step 4
     // does not: a click starts it. Back on step 3 the box must show off again, or the
     // next click sends "off" and nothing changes.
-    click(&ui, 728.0, 545.0);
+    click(&ui, 754.0, 563.0);
     pick(3);
-    click(&ui, 728.0, 545.0);
+    click(&ui, 754.0, 563.0);
     assert!(!glides(2) && glides(3));
     pick(2);
-    click(&ui, 728.0, 545.0);
+    click(&ui, 754.0, 563.0);
     assert!(glides(2), "the box kept step 4's tick");
 }
 

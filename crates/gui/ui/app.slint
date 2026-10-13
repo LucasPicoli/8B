@@ -217,9 +217,10 @@ export component AppWindow inherits Window {
     callback step-duration-changed(int, int, int);
     callback step-chip-toggled(int, int, int);
     // A stick pad edit: the macro slot, the step, the stick (0 left, 1 right), then the
-    // values and whether the edit is its own undo; the point on the gate; or the glide.
+    // values and whether the edit is its own undo; the point on the gate and whether it
+    // snaps to the rim; or the glide.
     callback stick-set(int, int, int, int, int, bool);
-    callback stick-dragged(int, int, int, float, float);
+    callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
     callback floor-raised(int);
     callback start-from-default;
@@ -523,7 +524,7 @@ export component AppWindow inherits Window {
                         floor-action: root.floor-action;
                         floor-raised(n) => { root.floor-raised(n); }
                         stick-set(n, i, k, x, y, apart) => { root.stick-set(n, i, k, x, y, apart); }
-                        stick-dragged(n, i, k, x, y) => { root.stick-dragged(n, i, k, x, y); }
+                        stick-dragged(n, i, k, x, y, snap) => { root.stick-dragged(n, i, k, x, y, snap); }
                         stick-glided(n, i, k, on) => { root.stick-glided(n, i, k, on); }
                         reveal(abs-y, h) => {
                             let top = abs-y - page.absolute-position.y;
