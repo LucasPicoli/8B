@@ -205,16 +205,8 @@ export component MacroImportDialog inherits DialogShell {
     if root.ok && root.info.glides != "": Bullet {
         text: "Trigger glides that " + root.info.to-mode + " cannot play are dropped: " + root.info.glides + ".";
     }
-    if root.ok && root.info.dropped.length > 0: Text {
-        text: "Left out of “Starts with”, as each already has a job in this slot:";
-        color: Theme.fg;
-        wrap: word-wrap;
-    }
-    if root.ok && root.info.dropped.length > 0: VerticalLayout {
-        spacing: 4px;
-        for d in root.info.dropped: Bullet {
-            text: d;
-        }
+    for d in root.ok ? root.info.dropped : []: Bullet {
+        text: d;
     }
     if root.ok: Text {
         text: "Nothing reaches the controller until you write.";

@@ -28,8 +28,8 @@ pub struct ReadyImport {
     pub def: MacroDefinition,
     /// The mode the file was made for.
     pub from: Mode,
-    /// Each button the macro cannot start here, with why, such as "PR starts Jump
-    /// (Macro 1)".
+    /// Each button the macro cannot start here, with why, such as "PR is imported
+    /// unmapped, as Jump (Macro 1) already uses it.".
     pub dropped: Vec<String>,
     /// Each trigger glide the slot's mode cannot play, such as "ZL in step 3".
     pub glides: Vec<String>,
@@ -96,11 +96,11 @@ impl AppState {
         let mut dropped = Vec::new();
         file.trigger_buttons.retain(|b| {
             let why = match (slot.macro_started_by(b).filter(|&o| o != n), self.mapped_to(b)) {
-                (Some(other), _) => format!("starts {}", label(&macros, other)),
-                (None, Some(output)) => format!("is mapped to {output}"),
+                (Some(other), _) => format!("{} already uses it", label(&macros, other)),
+                (None, Some(output)) => format!("this slot gives it the output {output}"),
                 (None, None) => return true,
             };
-            dropped.push(format!("{} {why}", output_label(d, mode, b)));
+            dropped.push(format!("{} is imported unmapped, as {why}.", output_label(d, mode, b)));
             false
         });
         // The buttons are already checked against the slot, so the bank refuses none.
@@ -297,7 +297,11 @@ mod tests {
         let r = ready(&s);
         assert_eq!(
             r.dropped,
-            ["R4 starts Dash (Macro 3)", "L4 is mapped to A", "PR starts Jump (Macro 1)"]
+            [
+                "R4 is imported unmapped, as Dash (Macro 3) already uses it.",
+                "L4 is imported unmapped, as this slot gives it the output A.",
+                "PR is imported unmapped, as Jump (Macro 1) already uses it."
+            ]
         );
         assert_eq!(r.def.trigger_buttons, ["r3"]);
         assert_eq!(r.def.macro_slot, Some(1));
