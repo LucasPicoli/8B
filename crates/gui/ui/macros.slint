@@ -525,12 +525,11 @@ export component MacrosTab {
                 height: 6px;
             }
             SmallHead {
-                text: root.has-step ? "Buttons held in step \{root.selected-step + 1}" : "Buttons held";
+                text: "Buttons held";
             }
-            // What a click does, or why it does nothing.
-            Text {
-                text: root.live ? "Click a button to hold it in this step. Click it again to let go."
-                    : !root.current.filled ? "Create a macro to choose the buttons its steps hold."
+            // Why a click does nothing.
+            if !root.live: Text {
+                text: !root.current.filled ? "Create a macro to choose the buttons its steps hold."
                     : !root.steps-ready || !root.editable ? "The buttons show once the steps are read."
                     : "Pick a step in the table to see the buttons it holds.";
                 font-size: Theme.text-small;
@@ -601,11 +600,8 @@ export component MacrosTab {
                 duration: root.panel-duration;
                 duration-min: root.step-ms-min;
                 duration-max: root.step-ms-max;
-                chips: root.panel-chips;
                 editable: root.editable;
                 duration-changed(v) => { root.step-duration-changed(root.selected, root.selected-step, v); }
-                chip-toggled(c) => { root.step-chip-toggled(root.selected, root.selected-step, c); }
-                undone => { root.step-undone(root.selected); }
             }
             if !root.current.filled: Frame {
                 VerticalLayout {
