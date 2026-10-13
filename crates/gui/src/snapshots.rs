@@ -1108,6 +1108,30 @@ fn a_deleted_macro_offers_undo() {
     save("macros-deleted", &ui);
 }
 
+/// The Macros tab of [`macros_tab`] at macro slot `n`, saved as `name`.
+fn macros_at(name: &str, s: &AppState, n: i32) {
+    let ui = window(s);
+    ui.set_tab(1);
+    ui.set_selected_macro(n);
+    render(s, &ui);
+    save(name, &ui);
+}
+
+#[test]
+fn a_macro_file_shows_what_changes_before_it_imports() {
+    let mut s = macros_tab();
+    let mut def = macro_def(1, "Ramp from Switch", &["r4", "l4", "rp", "l3"], 40);
+    def.mode = SWITCH;
+    def.steps[0].pressed_buttons = vec!["bottom face".to_owned()];
+    let text = crate::macro_files::macro_text(&def, "8bitdo-pro3").unwrap();
+    s.import_macro(1, "switch-slot1-macro1-Ramp_from_Switch.json", Ok(text));
+    macros_at("macro-import", &s, 1);
+    s.import_macro(1, "bad.json", Ok("{}".to_owned()));
+    macros_at("macro-import-failed", &s, 1);
+    s.cancel_macro_import();
+    macros_at("macros-empty-slot", &s, 3);
+}
+
 #[test]
 fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
     let s = macros_tab();

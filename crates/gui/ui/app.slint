@@ -6,13 +6,13 @@ import { ButtonsTab } from "buttons.slint";
 import { MacrosTab } from "macros.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
+import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -119,6 +119,7 @@ export component AppWindow inherits Window {
     in-out property <string> dialog;
     // A file for another mode waits for a yes.
     in property <ImportWarning> import-warning;
+    in property <MacroImportInfo> macro-import;
     // Unplugged controllers whose edits a newly plugged one may take.
     in property <[string]> move-from;
     // Slots whose stored profile changed under their edits.
@@ -188,6 +189,11 @@ export component AppWindow inherits Window {
     callback discard;
     // Macros tab edits, each for a macro slot (0-based).
     callback macro-created(int);
+    // Open and save dialogs for one macro file, and the answer to the import dialog.
+    callback macro-import-file(int);
+    callback macro-export-file(int);
+    callback macro-import-confirmed;
+    callback macro-import-cancelled;
     callback macro-reverted(int);
     callback macro-deleted(int);
     callback macro-renamed(int, string);
@@ -503,6 +509,8 @@ export component AppWindow inherits Window {
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         created(n) => { root.macro-created(n); }
+                        imported(n) => { root.macro-import-file(n); }
+                        exported(n) => { root.macro-export-file(n); }
                         reverted(n) => { root.macro-reverted(n); }
                         deleted(n) => { root.macro-deleted(n); }
                         renamed(n, t) => { root.macro-renamed(n, t); }
@@ -578,6 +586,12 @@ export component AppWindow inherits Window {
         warning: root.import-warning;
         accepted => { root.import-confirmed(); }
         cancelled => { root.import-cancelled(); }
+    }
+
+    if root.macro-import.shown: MacroImportDialog {
+        info: root.macro-import;
+        accepted => { root.macro-import-confirmed(); }
+        cancelled => { root.macro-import-cancelled(); }
     }
 
     if root.changed-slots.length > 0: ChangedDialog {

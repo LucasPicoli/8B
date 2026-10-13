@@ -239,6 +239,10 @@ component MacroHeader inherits Frame {
     in property <int> count-min;
     in property <int> count-max;
     in property <int> pause-max;
+    // A narrow window: Import and Export show their icons only.
+    in property <bool> narrow;
+    callback imported;
+    callback exported;
     callback reverted;
     callback deleted;
     callback renamed(string);
@@ -271,6 +275,22 @@ component MacroHeader inherits Frame {
                     alignment: center;
                     HorizontalLayout {
                         spacing: 4px;
+                        Button {
+                            text: "Import macro…";
+                            icon: Icons.import;
+                            icon-only: root.narrow;
+                            flat: true;
+                            enabled: root.editable;
+                            clicked => { root.imported(); }
+                        }
+                        Button {
+                            text: "Export macro…";
+                            icon: Icons.export;
+                            icon-only: root.narrow;
+                            flat: true;
+                            enabled: root.editable;
+                            clicked => { root.exported(); }
+                        }
                         Button {
                             text: "Revert";
                             icon: Icons.discard;
@@ -466,6 +486,8 @@ export component MacrosTab {
     pure callback action-hit(int, int, int, float, float) -> int;
     // Each takes the selected macro slot (0-based) first.
     callback created(int);
+    callback imported(int);
+    callback exported(int);
     callback reverted(int);
     callback deleted(int);
     callback renamed(int, string);
@@ -571,6 +593,9 @@ export component MacrosTab {
                 count-min: root.count-min;
                 count-max: root.count-max;
                 pause-max: root.pause-max;
+                narrow: root.narrow;
+                imported => { root.imported(root.selected); }
+                exported => { root.exported(root.selected); }
                 reverted => { root.reverted(root.selected); }
                 deleted => { root.deleted(root.selected); }
                 renamed(t) => { root.renamed(root.selected, t); }
@@ -617,6 +642,12 @@ export component MacrosTab {
                             icon: Icons.discard;
                             enabled: root.editable;
                             clicked => { root.reverted(root.selected); }
+                        }
+                        Button {
+                            text: "Import macro…";
+                            icon: Icons.import;
+                            enabled: root.editable;
+                            clicked => { root.imported(root.selected); }
                         }
                         Button {
                             text: "New macro";

@@ -258,6 +258,7 @@ impl AppState {
         if self.active().map(|c| &c.port) != Some(&port) {
             self.notice = None;
             self.pending_import = None;
+            self.pending_macro_import = None;
             self.write.reading_for = None;
             self.drop_waiting_batch();
         }

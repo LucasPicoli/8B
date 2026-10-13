@@ -1,7 +1,7 @@
 // Review, clear, cross-mode import, failed write, close with edits.
 import { Theme, Button, ComboBox, LineEdit, Spinner } from "look/breeze/widgets.slint";
 import { Icons, DialogShell, ChangeTable, ChangeRow, Disclosure, Frame, CopyButton, MessageBar, NoteRow } from "parts.slint";
-import { Change, ImportWarning, ReviewInfo, ClearInfo, FailedInfo, CloseInfo, CloseSlot } from "types.slint";
+import { Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, CloseInfo, CloseSlot } from "types.slint";
 
 export component Bullet {
     in property <string> text;
@@ -149,6 +149,59 @@ export component ImportDialog inherits DialogShell {
         text: "The file’s macro references are skipped. The macros stored on the controller stay.";
     }
     Text {
+        text: "Nothing reaches the controller until you write.";
+        color: Theme.fg-muted;
+    }
+}
+
+// A macro file picked for a macro slot: what it holds and what changes, or why it
+// cannot be imported.
+export component MacroImportDialog inherits DialogShell {
+    in property <MacroImportInfo> info;
+    property <bool> ok: info.error == "";
+    icon: ok ? Icons.info : Icons.error;
+    alarm: !ok;
+    title: ok
+        ? "Import “" + info.name + "” into Macro " + info.number + "?"
+        : "Could not import “" + info.file-name + "”";
+    subtitle: ok
+        ? "“" + info.file-name + "”, made in " + info.from-mode + " mode: " + info.steps + ", started by " + (info.buttons != "" ? info.buttons : "no button") + "."
+        : info.error;
+    // One button closes a bad file's dialog, as in the other one-button dialogs.
+    accept-text: ok ? "Import" : "Close";
+    cancel-text: ok ? "Cancel" : "";
+    if root.ok && root.info.replaces != "": Bullet {
+        text: "It replaces " + root.info.replaces + ".";
+    }
+    if root.ok && root.info.replaces-unsaved: Bullet {
+        text: "Your edits to Macro " + root.info.number + ", not written yet, are discarded.";
+    }
+    if root.ok && root.info.from-mode != root.info.to-mode: Bullet {
+        text: "Each button keeps its place on the controller and takes its " + root.info.to-mode + " label.";
+    }
+    if root.ok && root.info.letters != "": Bullet {
+        text: "Some printed letters name another button: " + root.info.letters + ".";
+    }
+    if root.ok && root.info.full-presses > 0: Bullet {
+        text: root.info.to-mode + " triggers are on or off, so "
+            + (root.info.full-presses == 1 ? "1 step presses its trigger" : root.info.full-presses + " steps press their triggers")
+            + " fully.";
+    }
+    if root.ok && root.info.glides != "": Bullet {
+        text: "Trigger glides that " + root.info.to-mode + " cannot play are dropped: " + root.info.glides + ".";
+    }
+    if root.ok && root.info.dropped.length > 0: Text {
+        text: "Left out of “Starts with”, as each already has a job in this slot:";
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    if root.ok && root.info.dropped.length > 0: VerticalLayout {
+        spacing: 4px;
+        for d in root.info.dropped: Bullet {
+            text: d;
+        }
+    }
+    if root.ok: Text {
         text: "Nothing reaches the controller until you write.";
         color: Theme.fg-muted;
     }

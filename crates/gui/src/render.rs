@@ -11,6 +11,7 @@ use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
 use crate::buttons::{render_buttons, render_views};
 use crate::closing::render_close;
 use crate::files::render_files;
+use crate::macro_files::render_macro_files;
 use crate::macro_tab::render_macros;
 use crate::review::render_writes;
 use crate::settings::render_settings;
@@ -172,6 +173,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_panel(state, ui);
     render_settings(state, ui);
     render_files(state, ui);
+    render_macro_files(state, ui);
     render_writes(state, ui);
     render_close(state, ui);
     ui.set_worker_stopped(state.worker_stopped);

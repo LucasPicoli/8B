@@ -117,6 +117,35 @@ export struct SettingsPage {
 }
 
 // The warning before importing a file made for another mode.
+// A macro file picked for a macro slot, shown before it joins the edits.
+export struct MacroImportInfo {
+    shown: bool,
+    // Why the file cannot be imported, or "" when it can.
+    error: string,
+    file-name: string,
+    // The macro slot, 1-based.
+    number: int,
+    name: string,
+    from-mode: string,
+    to-mode: string,
+    // "12 steps".
+    steps: string,
+    // The buttons that start it here, such as "PR, PL", or "" for none.
+    buttons: string,
+    // The macro it replaces, such as "“Dash”", or "".
+    replaces: string,
+    // The macro it replaces has edits not yet written.
+    replaces-unsaved: bool,
+    // Letters that name another button in the slot's mode, or "".
+    letters: string,
+    // Steps whose trigger press becomes full.
+    full-presses: int,
+    // Trigger glides the slot's mode cannot play, such as "ZL in step 3", or "".
+    glides: string,
+    // Each button left out, with why, such as "PR starts Jump (Macro 1)".
+    dropped: [string],
+}
+
 export struct ImportWarning {
     shown: bool,
     slot-title: string,

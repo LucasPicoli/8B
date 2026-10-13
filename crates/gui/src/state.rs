@@ -204,6 +204,8 @@ pub struct AppState {
     pub notice: Option<Notice>,
     /// A file for another mode, waiting for the user's yes.
     pub pending_import: Option<PendingImport>,
+    /// A macro file picked in the Macros tab, waiting for the user's yes.
+    pub pending_macro_import: Option<crate::macro_files::PendingMacroImport>,
     /// The review, the clear question and the write in flight.
     pub write: WriteState,
     /// The window was asked to close over unsaved edits: the question is open.
@@ -283,6 +285,7 @@ impl AppState {
             fix_install: Install::Idle,
             notice: None,
             pending_import: None,
+            pending_macro_import: None,
             write: WriteState::default(),
             closing: false,
             worker_stopped: false,

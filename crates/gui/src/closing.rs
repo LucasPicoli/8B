@@ -61,6 +61,7 @@ impl AppState {
     pub fn can_write_before_close(&self) -> bool {
         self.can_write_all()
             && self.pending_import.is_none()
+            && self.pending_macro_import.is_none()
             && self.changed_slots().is_empty()
             && self.move_candidates().is_empty()
     }

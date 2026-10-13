@@ -13,6 +13,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod logging;
+mod macro_files;
 mod macro_revert;
 mod macro_steps;
 mod macro_tab;
@@ -56,6 +57,7 @@ use std::thread;
 use std::time::Duration;
 
 use controller_core::devices;
+use controller_core::model::macros::macro_file_name;
 use controller_core::model::Mode;
 use controller_core::service::read::{leftover_macros, macro_summaries};
 use controller_core::Error;
@@ -231,15 +233,7 @@ fn no_dialog(e: &str) -> Notice {
 /// Asks for a file and loads it into slot `slot`'s edits.
 fn import(ui: Weak<AppWindow>, jobs: Sender<Job>, slot: (Mode, u8)) {
     on_thread(ui, jobs, move || {
-        let picked = chooser::open_json("Import a profile");
-        let read = picked.map(|p| {
-            p.map(|p| {
-                (
-                    files::display_name(&p),
-                    std::fs::read_to_string(&p).map_err(|e| sentence(&e.to_string())),
-                )
-            })
-        });
+        let read = chooser::open_json("Import a profile").map(|p| p.as_deref().map(read_file));
         Box::new(move |state: &mut AppState| match read {
             Ok(None) => {}
             Ok(Some((name, text))) => state.import(slot, &name, text),
@@ -270,6 +264,48 @@ fn export(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState) {
     });
 }
 
+/// The file name and text of `path`, or why it could not be read.
+fn read_file(path: &std::path::Path) -> (String, Result<String, String>) {
+    (files::display_name(path), std::fs::read_to_string(path).map_err(|e| sentence(&e.to_string())))
+}
+
+/// Asks for a macro file and shows what it holds before it joins macro slot `n`.
+fn import_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, n: u8) {
+    on_thread(ui, jobs, move || {
+        let read = chooser::open_json("Import a macro").map(|p| p.as_deref().map(read_file));
+        Box::new(move |state: &mut AppState| match read {
+            Ok(None) => {}
+            Ok(Some((name, text))) => state.import_macro(n, &name, text),
+            Err(e) => state.notice = Some(no_dialog(&e)),
+        })
+    });
+}
+
+/// Asks where to save the macro in macro slot `n`, as shown, and saves it under the
+/// name the CLI's `export` gives it.
+fn export_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState, n: u8) {
+    let Some((mode, number)) = state.selected_slot() else { return };
+    let slot = state.slot(mode, number);
+    let (Some(def), Some(default)) = (slot.shown_macro(n), state.defaults().get(&mode)) else {
+        return;
+    };
+    let (text, unsaved) = (macro_files::macro_text(def, &default.device), slot.macro_unsaved(n));
+    let name = macro_file_name(mode, number, def);
+    on_thread(ui, jobs, move || {
+        let saved = chooser::save_json("Export the macro", &name).map(|p| {
+            p.map(|p| {
+                text.and_then(|t| std::fs::write(&p, t).map_err(|e| sentence(&e.to_string())))
+                    .map(|()| files::display_name(&p))
+            })
+        });
+        Box::new(move |state: &mut AppState| match saved {
+            Ok(None) => {}
+            Ok(Some(result)) => state.exported_macro(n, unsaved, result),
+            Err(e) => state.notice = Some(no_dialog(&e)),
+        })
+    });
+}
+
 /// Wires Import and Export: each dialog runs on a short thread, and its answer
 /// comes back through `file-done`. Returns the sender other slow jobs use to do the
 /// same.
@@ -294,6 +330,12 @@ fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) -> Sender<Job> {
     let (weak, s) = (ui.as_weak(), Rc::clone(state));
     let tx = jobs_tx.clone();
     ui.on_export_file(move || export(weak.clone(), tx.clone(), &s.borrow()));
+    let (weak, tx) = (ui.as_weak(), jobs_tx.clone());
+    ui.on_macro_import_file(move |n| import_macro(weak.clone(), tx.clone(), macro_slot(n)));
+    let (weak, s, tx) = (ui.as_weak(), Rc::clone(state), jobs_tx.clone());
+    ui.on_macro_export_file(move |n| {
+        export_macro(weak.clone(), tx.clone(), &s.borrow(), macro_slot(n));
+    });
     jobs_tx
 }
 
@@ -539,6 +581,10 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     ui.on_import_confirmed(move || c(&AppState::confirm_import));
     let c = change.clone();
     ui.on_import_cancelled(move || c(&AppState::cancel_import));
+    let c = change.clone();
+    ui.on_macro_import_confirmed(move || c(&AppState::confirm_macro_import));
+    let c = change.clone();
+    ui.on_macro_import_cancelled(move || c(&AppState::cancel_macro_import));
     let c = change.clone();
     ui.on_notice_closed(move || c(&|s| s.notice = None));
     let c = change.clone();

@@ -11,8 +11,9 @@ use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 const RESPONSE_OK: u32 = 0;
 /// Numbers each request, so two open dialogs get different handle paths.
 static REQUESTS: AtomicU32 = AtomicU32::new(0);
-/// The filter both dialogs offer: name, then (glob kind, pattern).
-const JSON_FILTER: (&str, &[(u32, &str)]) = ("Profile JSON", &[(0, "*.json")]);
+/// The filter both dialogs offer, for profile and macro files: name, then (glob kind,
+/// pattern).
+const JSON_FILTER: (&str, &[(u32, &str)]) = ("JSON files", &[(0, "*.json")]);
 
 #[allow(missing_docs, unreachable_pub)]
 mod proxy {
@@ -60,7 +61,7 @@ enum Kind {
     Save,
 }
 
-/// Asks for a profile file to open. `None` when the user cancelled.
+/// Asks for a JSON file to open. `None` when the user cancelled.
 ///
 /// # Errors
 /// Returns why the portal could not show the dialog.
@@ -68,7 +69,7 @@ pub fn open_json(title: &str) -> Result<Option<PathBuf>, String> {
     choose(Kind::Open, title, None).map_err(|e| e.to_string())
 }
 
-/// Asks where to save a profile file, suggesting `name`. `None` when the user
+/// Asks where to save a JSON file, suggesting `name`. `None` when the user
 /// cancelled.
 ///
 /// # Errors

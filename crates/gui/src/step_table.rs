@@ -70,7 +70,7 @@ const fn trigger(step: &MacroStep, side: TriggerSide) -> u8 {
 }
 
 /// The glide control of trigger `side`.
-const fn trigger_control(side: TriggerSide) -> GlideControl {
+pub const fn trigger_control(side: TriggerSide) -> GlideControl {
     match side {
         TriggerSide::Left => GlideControl::LeftTrigger,
         TriggerSide::Right => GlideControl::RightTrigger,

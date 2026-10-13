@@ -10,7 +10,7 @@ use controller_core::convert::{convert_profile, ConversionLoss};
 use controller_core::description::{ControllerDescription, DISABLED_OUTPUT};
 use controller_core::device::Model;
 use controller_core::model::{CanonicalProfile, Mode};
-use controller_core::service::validation::validate_profile;
+use controller_core::service::validation::{validate_profile, ValidationError};
 use serde_json::Value;
 use slint::{ModelRc, VecModel};
 
@@ -62,22 +62,47 @@ pub fn display_name(path: &Path) -> String {
         .map_or_else(|| path.display().to_string(), |n| n.to_string_lossy().into_owned())
 }
 
-/// The profile in `text`, checked as a profile of `model`.
-fn parse(model: Option<&dyn Model>, text: &str) -> Result<CanonicalProfile, String> {
+/// The JSON in `text`, and the model that checks it.
+///
+/// # Errors
+/// Returns why `text` is not JSON, or that `model` is missing.
+pub fn parse_json<'a>(
+    model: Option<&'a dyn Model>,
+    text: &str,
+) -> Result<(Value, &'a dyn Model), String> {
     let value: Value =
         serde_json::from_str(text).map_err(|e| sentence(&format!("it is not JSON: {e}")))?;
     let model = model.ok_or_else(|| sentence("this controller model cannot check files"))?;
+    Ok((value, model))
+}
+
+/// The first of `errors`, such as "It is not a valid profile. /name: …", with a count
+/// of the rest. `None` when there are none.
+#[must_use]
+pub fn first_error(kind: &str, errors: &[ValidationError]) -> Option<String> {
+    let first = errors.first()?;
+    let more = match errors.len() - 1 {
+        0 => String::new(),
+        n => format!(" ({n} more problems)"),
+    };
+    let mut reason: String = first.reason.chars().take(REASON_MAX).collect();
+    if reason.len() < first.reason.len() {
+        reason.push('…');
+    }
+    // A pointer to the whole file, "/", says nothing to the user.
+    let at = match first.path.as_str() {
+        "" | "/" => String::new(),
+        path => format!("{path}: "),
+    };
+    Some(format!("It is not a valid {kind}. {at}{reason}{more}"))
+}
+
+/// The profile in `text`, checked as a profile of `model`.
+fn parse(model: Option<&dyn Model>, text: &str) -> Result<CanonicalProfile, String> {
+    let (value, model) = parse_json(model, text)?;
     let check = validate_profile(model, &value).map_err(|e| sentence(&e.to_string()))?;
-    if let Some(first) = check.errors.first() {
-        let more = match check.errors.len() - 1 {
-            0 => String::new(),
-            n => format!(" ({n} more problems)"),
-        };
-        let mut reason: String = first.reason.chars().take(REASON_MAX).collect();
-        if reason.len() < first.reason.len() {
-            reason.push('…');
-        }
-        return Err(format!("It is not a valid profile. {}: {reason}{more}", first.path));
+    if let Some(e) = first_error("profile", &check.errors) {
+        return Err(e);
     }
     serde_json::from_value(value).map_err(|e| sentence(&e.to_string()))
 }
