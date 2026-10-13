@@ -166,7 +166,7 @@ export component MacroImportDialog inherits DialogShell {
         : "Could not import “" + info.file-name + "”";
     subtitle: ok
         ? "“" + info.file-name + "”, made in " + info.from-mode + " mode: " + info.steps + ", started by " + (info.buttons != "" ? info.buttons : "no button") + "."
-        : "Nothing was imported.";
+        : "";
     // One button closes a bad file's dialog, as in the other one-button dialogs.
     accept-text: ok ? "Import" : "Close";
     cancel-text: ok ? "Cancel" : "";
