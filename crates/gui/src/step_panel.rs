@@ -1,5 +1,5 @@
-//! The step panel of the Macros tab: the selected step's duration and the buttons it
-//! holds, which the controller views also show and toggle. Which buttons can be in a
+//! The selected step's duration and the buttons it holds, which the controller views of
+//! the Macros tab show and toggle. Which buttons can be in a
 //! step, and which of them a trigger value holds, come from the controller description.
 
 use std::rc::Rc;
@@ -164,28 +164,17 @@ pub fn action_hit(state: &AppState, view: usize, n: u8, step: usize, x: f32, y: 
         .unwrap_or(-1)
 }
 
-/// Pushes the step panel of the step the table selects. A step past the end gets an
-/// empty title, which hides the panel.
+/// Pushes the buttons the step the table selects holds, for the controller views, and
+/// the range of a step's duration. A step past the end holds none.
 pub fn render_panel(state: &AppState, ui: &AppWindow) {
     let n = u8::try_from(ui.get_selected_macro()).unwrap_or(0);
     let at = usize::try_from(ui.get_selected_step()).unwrap_or(0);
     let steps = state.macro_steps(n).unwrap_or_default();
     let mode = state.selected_slot().map(|(m, _)| m);
-    let (title, duration, list) = match (steps.get(at), mode) {
-        (Some(step), Some(mode)) => (
-            format!(
-                "Step {} of {} · starts at {} ms",
-                at + 1,
-                steps.len(),
-                steps.iter().take(at).map(|s| u32::from(s.duration_ms)).sum::<u32>()
-            ),
-            i32::from(step.duration_ms),
-            chips(state, mode, step),
-        ),
-        _ => (String::new(), 0, Vec::new()),
+    let list = match (steps.get(at), mode) {
+        (Some(step), Some(mode)) => chips(state, mode, step),
+        _ => Vec::new(),
     };
-    ui.set_panel_title(title.into());
-    ui.set_panel_duration(duration);
     ui.set_panel_chips(ModelRc::from(Rc::new(VecModel::from(list))));
     ui.set_macro_spots(ModelRc::from(Rc::new(VecModel::from(macro_spots(state)))));
     let range = state.description().limits.macro_step_ms;

@@ -4,7 +4,6 @@ import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Dot, Frame, Icons, NumberEdit, SmallHead, ViewTip } from "parts.slint";
 import { ChipInfo, MacroRow, MacroSpot, PadView, StepInfo } from "types.slint";
 import { StepTable } from "steps.slint";
-import { StepPanel } from "step_panel.slint";
 
 // A button that starts a macro, as a filled pill.
 component ButtonChip inherits Rectangle {
@@ -454,8 +453,6 @@ export component MacrosTab {
     callback step-edited(int, int, int);
     callback step-undone(int);
     // The step panel of the selected step: its title, duration and held buttons.
-    in property <string> panel-title;
-    in property <int> panel-duration;
     in property <int> step-ms-min;
     in property <int> step-ms-max;
     in property <[ChipInfo]> panel-chips;
@@ -594,13 +591,8 @@ export component MacrosTab {
                 can-undo: root.can-undo-step;
                 edited(e) => { root.step-edited(root.selected, root.selected-step, e); }
                 undone => { root.step-undone(root.selected); }
-            }
-            if root.current.filled && root.steps-ready && root.panel-title != "": StepPanel {
-                title: root.panel-title;
-                duration: root.panel-duration;
                 duration-min: root.step-ms-min;
                 duration-max: root.step-ms-max;
-                editable: root.editable;
                 duration-changed(v) => { root.step-duration-changed(root.selected, root.selected-step, v); }
             }
             if !root.current.filled: Frame {

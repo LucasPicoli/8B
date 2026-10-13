@@ -1084,6 +1084,20 @@ fn number_field_arrows_and_keys_step_to_the_next_multiple() {
 }
 
 #[test]
+fn the_selected_step_edits_its_duration_in_the_table() {
+    let s = macros_tab();
+    let ui = window(&s);
+    ui.set_tab(1);
+    render(&s, &ui);
+    let got = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let g = Rc::clone(&got);
+    ui.on_step_duration_changed(move |n, step, ms| g.borrow_mut().push((n, step, ms)));
+    // The up arrow of the field in the first row, at this size.
+    click(&ui, 1223.0, 412.0);
+    assert_eq!(*got.borrow(), [(0, 0, 105)]);
+}
+
+#[test]
 fn a_deleted_macro_offers_undo() {
     let mut s = macros_tab();
     s.delete_macro(1);

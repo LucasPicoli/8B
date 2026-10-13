@@ -76,8 +76,6 @@ export component AppWindow inherits Window {
     // Ctrl+Z can take back the last step edit of the shown macro.
     in property <bool> can-undo-step;
     // The step panel of the selected step. Rust reads `selected-step` to fill it.
-    in property <string> panel-title;
-    in property <int> panel-duration;
     in property <int> step-ms-min;
     in property <int> step-ms-max;
     in property <[ChipInfo]> panel-chips;
@@ -497,8 +495,6 @@ export component AppWindow inherits Window {
                         can-undo-step: root.can-undo-step;
                         step-edited(n, i, e) => { root.step-edited(n, i, e); }
                         step-undone(n) => { root.step-undone(n); }
-                        panel-title: root.panel-title;
-                        panel-duration: root.panel-duration;
                         step-ms-min: root.step-ms-min;
                         step-ms-max: root.step-ms-max;
                         panel-chips: root.panel-chips;

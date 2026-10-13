@@ -1,7 +1,7 @@
 // The step table of the Macros tab: the toolbar, then one row per step of the selected
 // macro, with a lane per button it holds and its two sticks.
 import { Theme, Button, ScrollView, Spinner } from "look/breeze/widgets.slint";
-import { Frame, Icons, SmallHead } from "parts.slint";
+import { Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
 import { LaneInfo, StepInfo, StickInfo } from "types.slint";
 
 // Column widths: step number, start time, each stick, duration. The lanes share the
@@ -10,7 +10,8 @@ global Columns {
     out property <length> number: 44px;
     out property <length> start: 80px;
     out property <length> stick: 64px;
-    out property <length> duration: 80px;
+    // Wide enough for the selected row's number field and its arrows.
+    out property <length> duration: 124px;
     out property <length> lane-max: 36px;
     out property <length> lane-min: 22px;
     out property <length> row: 40px;
@@ -117,12 +118,17 @@ component Lanes inherits Rectangle {
     clip: true;
 }
 
-// One step: number, start time, lanes, sticks (or "Pause"), duration.
+// One step: number, start time, lanes, sticks (or "Pause"), duration. The selected
+// row edits its duration in place.
 component StepRow inherits Rectangle {
     in property <StepInfo> step;
     in property <bool> selected;
     in property <bool> focused;
+    in property <bool> editable;
+    in property <int> duration-min;
+    in property <int> duration-max;
     callback picked;
+    callback duration-changed(int);
     height: Columns.row;
     background: root.selected ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
     accessible-role: list-item;
@@ -188,12 +194,34 @@ component StepRow inherits Rectangle {
                 stick: root.step.right;
             }
         }
-        Text {
+        if !root.selected: Text {
             width: Columns.duration;
             text: root.step.duration;
             color: Theme.fg;
             horizontal-alignment: right;
             vertical-alignment: center;
+        }
+        if root.selected: HorizontalLayout {
+            width: Columns.duration;
+            alignment: end;
+            spacing: 4px;
+            VerticalLayout {
+                alignment: center;
+                NumberEdit {
+                    value: root.step.duration-ms;
+                    minimum: root.duration-min;
+                    maximum: root.duration-max;
+                    enabled: root.editable;
+                    step: 5;
+                    accessible-name: "Step " + root.step.number + " duration in milliseconds";
+                    committed(v) => { root.duration-changed(v); }
+                }
+            }
+            Text {
+                text: "ms";
+                color: Theme.fg;
+                vertical-alignment: center;
+            }
         }
     }
     if root.selected && root.focused: Rectangle {
@@ -221,10 +249,15 @@ export component StepTable inherits Frame {
     in-out property <int> selected: 0;
     // The last step edit can be taken back.
     in property <bool> can-undo;
+    // The range of a step's duration, in milliseconds.
+    in property <int> duration-min;
+    in property <int> duration-max;
     // An edit of the selected step: 0 add, 1 duplicate, 2 split, 3 up, 4 down, 5 delete.
     callback edited(int);
     // Ctrl+Z: take back the last step edit.
     callback undone;
+    // The selected step's new duration.
+    callback duration-changed(int);
     property <bool> can: root.ready && root.editable;
     property <int> last: root.rows.length - 1;
 
@@ -429,6 +462,10 @@ export component StepTable inherits Frame {
                         step: r;
                         selected: i == root.selected;
                         focused: fs.has-focus;
+                        editable: root.editable;
+                        duration-min: root.duration-min;
+                        duration-max: root.duration-max;
+                        duration-changed(v) => { root.duration-changed(v); }
                         picked => {
                             root.selected = i;
                             fs.focus();
