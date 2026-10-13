@@ -244,6 +244,8 @@ export struct MacroRow {
     // A macro is in the macro slot.
     filled: bool,
     name: string,
+    // "Jump (Macro 2)", or "Macro 2" with no name or no macro.
+    title: string,
     // Such as "4 steps".
     steps: string,
     // The labels of the buttons that start it, the first of them for the list row,

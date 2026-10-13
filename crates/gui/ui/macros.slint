@@ -134,13 +134,15 @@ component MacroSlotRow inherits Rectangle {
     }
 }
 
-// One controller view. This macro's buttons are in the accent with a "Macro n" tip,
-// other macros' buttons grey, mapped buttons an outline. Under the pointer, a button a
-// click acts on lights up, and a tip says what the click does.
+// One controller view. This macro's buttons are in the accent, other macros' buttons
+// grey, mapped buttons an outline. Under the pointer, a button a click acts on lights
+// up, and a tip names its macro or says what the click does.
 component MacroViewArt {
     in property <PadView> view;
     in property <int> index;
     in property <[MacroSpot]> spots;
+    // The macro slots, for the macro names in the tips.
+    in property <[MacroRow]> rows;
     // The selected macro slot (0-based).
     in property <int> selected;
     // The button row under (x, y) in viewBox units, or -1; and the same only when a
@@ -181,8 +183,8 @@ component MacroViewArt {
     // Right of the shape, or left of it where the right side has no room.
     for s in root.spots: Rectangle {
         property <bool> own: s.owner >= 0 && s.owner == root.selected;
-        property <bool> pointed: s.row == root.hover && (s.row == root.action || s.mapped-to != "");
-        visible: s.view == root.index && (self.own || self.pointed);
+        // Under the pointer only: a tip that stays covers the buttons beside it.
+        visible: s.view == root.index && s.row == root.hover && (self.own || s.row == root.action || s.mapped-to != "");
         property <length> right: s.x1 * root.scale * 1px + 6px;
         x: round((self.right + self.width <= root.width ? self.right : s.x0 * root.scale * 1px - 6px - self.width) / 1phx) * 1phx;
         y: round(((s.y0 + s.y1) / 2 * root.scale * 1px - self.height / 2) / 1phx) * 1phx;
@@ -196,7 +198,7 @@ component MacroViewArt {
         drop-shadow-offset-y: 1px;
         drop-shadow-color: Theme.shadow;
         tip := Text {
-            text: parent.own ? "Macro " + (s.owner + 1) : s.owner >= 0 ? "Open Macro " + (s.owner + 1) : s.mapped-to != "" ? "Mapped to " + s.mapped-to : "Add to Macro " + (root.selected + 1);
+            text: parent.own ? root.rows[s.owner].title : s.owner >= 0 ? "Open " + root.rows[s.owner].title : s.mapped-to != "" ? "Mapped to " + s.mapped-to : "Add to " + root.rows[root.selected].title;
             font-size: Theme.text-small;
             color: Theme.fg;
         }
@@ -534,6 +536,7 @@ export component MacrosTab {
                         view: v;
                         index: i;
                         spots: root.spots;
+                        rows: root.rows;
                         selected: root.selected;
                         hit(x, y) => { return root.hit(i, x, y); }
                         action-hit(x, y) => { return root.action-hit(i, root.selected, x, y); }

@@ -8,6 +8,7 @@ use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
 use slint::{ModelRc, SharedString, VecModel};
 
 use crate::buttons::{hit, output_label, target};
+use crate::macros::title;
 use crate::review::macro_edits::steps;
 use crate::state::{AppState, SlotState};
 use crate::ui::{AppWindow, MacroRow, MacroSpot};
@@ -231,6 +232,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
             let Some(m) = slot.shown_macro(n) else {
                 return MacroRow {
                     number: i32::from(n) + 1,
+                    title: format!("Macro {}", u16::from(n) + 1).into(),
                     unsaved: slot.macro_unsaved(n),
                     ..MacroRow::default()
                 };
@@ -246,6 +248,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 number: i32::from(n) + 1,
                 filled: true,
                 name: m.name.as_str().into(),
+                title: title(m, n).into(),
                 steps: steps(m.steps.len()).into(),
                 buttons: strings(m.trigger_buttons.iter().map(label)),
                 first_buttons: strings(m.trigger_buttons.iter().take(ROW_CHIPS).map(label)),
@@ -402,6 +405,7 @@ mod tests {
         let rows = macro_rows(&s);
         assert_eq!(rows.len(), usize::from(s.description().macro_slot_count));
         assert_eq!((rows[0].name.as_str(), rows[0].steps.as_str()), ("Jump", "12 steps"));
+        assert_eq!((rows[0].title.as_str(), rows[1].title.as_str()), ("Jump (Macro 1)", "Macro 2"));
         assert_eq!(list(&rows[0].buttons), ["PR", "PL"]);
         assert!(!rows[1].filled && rows[1].number == 2);
         assert_eq!((rows[2].steps.as_str(), rows[2].plays), ("1 step", 0));

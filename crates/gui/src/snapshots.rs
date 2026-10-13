@@ -1070,6 +1070,27 @@ fn macros_tab_shows_each_macro_slot_and_the_selected_header() {
             save(&format!("macros-{name}-{theme}"), &ui);
         }
     }
+    // R4 on the front view, under the pointer: its tip names the macro.
+    let ui = window(&s);
+    let state = Rc::new(macros_tab());
+    let st = Rc::clone(&state);
+    ui.on_hit(move |v, x, y| {
+        crate::buttons::hit(st.description(), usize::try_from(v).unwrap(), x, y)
+    });
+    ui.on_macro_hit(move |v, n, x, y| {
+        crate::macro_tab::action_hit(
+            &state,
+            usize::try_from(v).unwrap(),
+            u8::try_from(n).unwrap(),
+            x,
+            y,
+        )
+    });
+    ui.set_tab(1);
+    ui.set_selected_macro(1);
+    let at = slint::LogicalPosition::new(472.0, 375.0);
+    ui.window().dispatch_event(slint::platform::WindowEvent::PointerMoved { position: at });
+    save("macros-hover", &ui);
     // The smallest window still fits the header of a macro that plays a number of times.
     let ui = window(&s);
     ui.window().set_size(PhysicalSize::new(1024, 640));
