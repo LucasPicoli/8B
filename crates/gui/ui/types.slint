@@ -164,8 +164,10 @@ export struct ImportWarning {
     // One sentence each about the file's macros: what they lose here, or that the
     // macro files it names are skipped.
     macro-notes: [string],
-    // The slot holds edits not written yet, which the import replaces.
-    has-edits: bool,
+    // What Import without macros keeps, and each button it takes off a macro, or "".
+    keep-note: string,
+    // One sentence per kind of unwritten edit the import discards.
+    edit-notes: [string],
 }
 
 // The review before a write.

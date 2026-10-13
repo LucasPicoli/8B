@@ -595,6 +595,8 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     let c = change.clone();
     ui.on_import_cancelled(move || c(&AppState::cancel_import));
     let c = change.clone();
+    ui.on_import_without_macros(move || c(&AppState::import_without_macros));
+    let c = change.clone();
     ui.on_macro_import_confirmed(move || c(&AppState::confirm_macro_import));
     let c = change.clone();
     ui.on_macro_import_cancelled(move || c(&AppState::cancel_macro_import));

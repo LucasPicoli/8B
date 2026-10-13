@@ -15,7 +15,7 @@ use serde_json::Value;
 use slint::{ModelRc, VecModel};
 
 use crate::buttons::{output_label, target};
-use crate::embedded::{file_macros, refs_note, replace_note, STEPS_UNREAD};
+use crate::embedded::{file_macros, kept_note, refs_note, replace_note, STEPS_UNREAD};
 use crate::macro_files::strings;
 use crate::macros::label;
 use crate::render::sentence;
@@ -26,7 +26,8 @@ use crate::ui::{AppWindow, Change, ImportWarning};
 /// offending value.
 const REASON_MAX: usize = 160;
 
-/// A file made for another mode, converted and waiting for the user's yes.
+/// An import waiting for the user's yes: a file made for another mode, converted, or one
+/// that loses something on the slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PendingImport {
     /// The slot it goes into: mode and 1-based number.
@@ -147,7 +148,8 @@ impl AppState {
     }
 
     /// Loads file `file_name`, read as `text` (or not), into slot `slot`'s edits. A
-    /// file for another mode waits in `pending_import` for the user's yes.
+    /// file for another mode, or one that loses something on the slot, waits in
+    /// `pending_import` for the user's yes.
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
         let parsed = text.and_then(|t| parse(self.model(), &t));
         let converted = parsed.and_then(|mut p| {
@@ -187,8 +189,9 @@ impl AppState {
                 });
             }
             Ok(pending) => {
-                if pending.from == slot.0 {
-                    self.apply_import(pending);
+                let loses = macro_lead(self, &pending).is_some() || replaces_edits(self, &pending);
+                if pending.from == slot.0 && !loses {
+                    self.apply_import(pending, false, String::new());
                 } else {
                     self.pending_import = Some(pending);
                 }
@@ -199,7 +202,17 @@ impl AppState {
     /// The user said yes to the waiting import.
     pub fn confirm_import(&mut self) {
         if let Some(pending) = self.pending_import.take() {
-            self.apply_import(pending);
+            self.apply_import(pending, true, String::new());
+        }
+    }
+
+    /// The user chose the waiting import without the file's macros: the profile only,
+    /// the slot keeps its macros.
+    pub fn import_without_macros(&mut self) {
+        if let Some(mut pending) = self.pending_import.take() {
+            let kept = pending.macros.take().and_then(|m| kept_note(&m));
+            pending.macro_notes.clear();
+            self.apply_import(pending, true, kept.map(|k| k + " ").unwrap_or_default());
         }
     }
 
@@ -208,52 +221,58 @@ impl AppState {
         self.pending_import = None;
     }
 
-    /// Takes each button of the selected slot that starts a macro off it when the import
-    /// gives the button another output than the mode's default, which a macro button
-    /// keeps. Returns the sentence naming each button and its macro, or nothing.
-    fn leave_for_import(&mut self) -> String {
-        let Some((mode, number)) = self.selected_slot() else { return String::new() };
-        let slot = self.slot(mode, number);
-        let (Some(imported), Some(default)) = (slot.edited.as_ref(), self.defaults().get(&mode))
-        else {
-            return String::new();
-        };
+    /// Each button of slot `key` that starts a macro there but that `imported` gives
+    /// another output than the mode's default, which a macro button keeps, with the
+    /// sentence that says so.
+    fn remapped_starters(
+        &self,
+        key: (Mode, u8),
+        imported: &CanonicalProfile,
+    ) -> Vec<(String, String)> {
+        let Some(default) = self.defaults().get(&key.0) else { return Vec::new() };
+        let slot = self.slot(key.0, key.1);
         let d = self.description();
         let macros = slot.shown_macros();
-        let (buttons, names): (Vec<String>, Vec<String>) = d
-            .buttons
+        d.buttons
             .iter()
             .filter_map(|b| {
                 let n = slot.macro_started_by(&b.id)?;
-                (target(imported, &b.id) != target(default, &b.id)).then(|| {
-                    (
-                        b.id.clone(),
-                        format!("{} left {}", output_label(d, mode, &b.id), label(&macros, n)),
-                    )
+                let output = target(imported, &b.id);
+                (output != target(default, &b.id)).then(|| {
+                    let button = output_label(d, key.0, &b.id);
+                    let to = output_label(d, key.0, output);
+                    let name = label(&macros, n);
+                    let sentence = format!(
+                        "The file maps {button} to {to}, so {button} no longer starts {name}."
+                    );
+                    (b.id.clone(), sentence)
                 })
             })
-            .unzip();
+            .collect()
+    }
+
+    /// Takes each button of the selected slot that starts a macro off it when the import
+    /// gives the button another output than the mode's default. Returns one sentence per
+    /// button, each followed by a space, or nothing.
+    fn leave_for_import(&mut self) -> String {
+        let Some(key) = self.selected_slot() else { return String::new() };
+        let Some(imported) = self.slot(key.0, key.1).edited else { return String::new() };
+        let (buttons, sentences): (Vec<String>, Vec<String>) =
+            self.remapped_starters(key, &imported).into_iter().unzip();
         if buttons.is_empty() {
             return String::new();
         }
-        let them = if buttons.len() == 1 { "it" } else { "them" };
-        let sentence =
-            format!("{} because the file gives {them} another output. ", names.join(", "));
         self.leave_macros(&buttons);
-        sentence
+        sentences.into_iter().map(|s| s + " ").collect()
     }
 
     /// Puts an import into its slot's edits and shows that slot. The slot keeps its
     /// own id. The file's macros replace the slot's; a file with none leaves the slot's.
-    fn apply_import(&mut self, pending: PendingImport) {
+    /// `said` is true when the dialog was shown, which the notice does not repeat;
+    /// `lead` opens the notice.
+    fn apply_import(&mut self, pending: PendingImport, said: bool, lead: String) {
         let PendingImport {
-            slot: (mode, number),
-            file_name,
-            from,
-            mut profile,
-            macros,
-            macro_notes,
-            ..
+            slot: (mode, number), file_name, mut profile, macros, macro_notes, ..
         } = pending;
         let active = self.active().map(|c| c.port.clone());
         let default = self.defaults().get(&mode).cloned();
@@ -262,7 +281,6 @@ impl AppState {
         };
         let state = c.slots.entry((mode, number)).or_default();
         let replaced = macros.is_some();
-        let discarded = state.profile_unsaved() || (replaced && state.macros_unsaved());
         let base = state.pad.as_ref().or(default.as_ref());
         profile.id = base.map(|b| b.id.clone()).unwrap_or_default();
         profile.preferred_slot = base.and_then(|b| b.preferred_slot);
@@ -275,14 +293,9 @@ impl AppState {
             self.select(i, usize::from(number).saturating_sub(1));
         }
         let left = if replaced { String::new() } else { self.leave_for_import() };
-        // A cross-mode import said these in its dialog already.
-        let said = from != mode;
         let mut notes: Vec<String> = self.import_lines((mode, number));
-        if !said || !replaced {
+        if !said {
             notes.extend(macro_notes);
-        }
-        if discarded && !said {
-            notes.push("Your edits to this slot, not written yet, are replaced.".to_owned());
         }
         let notes: String = notes.into_iter().map(|n| n + " ").collect();
         self.notice = Some(Notice {
@@ -291,7 +304,7 @@ impl AppState {
                 "Imported “{file_name}” into {} slot {number}.",
                 self.description().mode_label(mode)
             ),
-            body: left + &notes + "Nothing reaches the controller until you write.",
+            body: lead + &left + &notes + "Nothing reaches the controller until you write.",
         });
     }
 }
@@ -316,13 +329,60 @@ pub fn swapped_letters(description: &ControllerDescription, from: Mode, to: Mode
         .join(", ")
 }
 
-/// The warning before a cross-mode import, empty when none waits.
+/// Which of the slot's macros the file's replace, each named. `None` for a file with no
+/// `macros`, or when neither holds a macro.
+fn macro_lead(state: &AppState, p: &PendingImport) -> Option<String> {
+    let slot = state.slot(p.slot.0, p.slot.1);
+    p.macros.as_ref().and_then(|m| replace_note(m, &slot.shown_macros()))
+}
+
+/// Whether `p` replaces edits to its slot not written yet.
+fn replaces_edits(state: &AppState, p: &PendingImport) -> bool {
+    let slot = state.slot(p.slot.0, p.slot.1);
+    slot.profile_unsaved() || (p.macros.is_some() && slot.macros_unsaved())
+}
+
+/// What Import without macros does, which the dialog offers when `lead` names the
+/// macros Import replaces: the slot's macros stay, less each button the file maps
+/// elsewhere. Empty with no `lead`.
+fn keep_note(state: &AppState, p: &PendingImport, lead: Option<&String>) -> String {
+    let (Some(_), Some(file)) = (lead, &p.macros) else { return String::new() };
+    let held = state.slot(p.slot.0, p.slot.1).shown_macros().len();
+    let kept = match (held, file.len()) {
+        (0, 1) => "Import without macros leaves it out.".to_owned(),
+        (0, _) => "Import without macros leaves them out.".to_owned(),
+        (1, _) => "Import without macros keeps the slot’s macro.".to_owned(),
+        (h, _) => format!("Import without macros keeps the slot’s {h} macros."),
+    };
+    state.remapped_starters(p.slot, &p.profile).into_iter().fold(kept, |all, (_, s)| all + " " + &s)
+}
+
+/// One sentence per kind of unwritten edit `p` discards, saying which choice keeps it.
+fn edit_notes(state: &AppState, p: &PendingImport, lead: Option<&String>) -> Vec<String> {
+    let slot = state.slot(p.slot.0, p.slot.1);
+    let title = format!("{} slot {}", state.description().mode_label(p.slot.0), p.slot.1);
+    let mut notes = Vec::new();
+    if slot.profile_unsaved() {
+        notes.push(format!("Your profile edits to {title}, not written yet, are discarded."));
+    }
+    if p.macros.is_some() && slot.macros_unsaved() {
+        notes.push(if lead.is_some() {
+            "Import discards your macro edits, not written yet. Import without macros keeps them."
+                .to_owned()
+        } else {
+            "Your macro edits, not written yet, are discarded.".to_owned()
+        });
+    }
+    notes
+}
+
+/// The dialog before an import that waits, empty when none waits.
 #[must_use]
 pub fn import_warning(state: &AppState) -> ImportWarning {
     let Some(p) = &state.pending_import else { return ImportWarning::default() };
     let d = state.description();
-    let slot = state.slot(p.slot.0, p.slot.1);
     let (from, to) = (p.from, p.slot.0);
+    let lead = macro_lead(state, p);
     let lost: Vec<Change> = p
         .losses
         .iter()
@@ -344,14 +404,10 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
         lost: ModelRc::from(Rc::new(VecModel::from(lost))),
         reset: reset_groups(&p.losses).into(),
         letters: swapped_letters(d, from, to).into(),
-        macro_lead: p
-            .macros
-            .as_ref()
-            .and_then(|m| replace_note(m, &slot.shown_macros()))
-            .unwrap_or_default()
-            .into(),
+        keep_note: keep_note(state, p, lead.as_ref()).into(),
+        edit_notes: strings(&edit_notes(state, p, lead.as_ref())),
+        macro_lead: lead.unwrap_or_default().into(),
         macro_notes: strings(&p.macro_notes),
-        has_edits: slot.profile_unsaved() || (p.macros.is_some() && slot.macros_unsaved()),
     }
 }
 
@@ -450,6 +506,23 @@ mod tests {
     }
 
     #[test]
+    fn a_same_mode_file_waits_when_it_replaces_unwritten_edits() {
+        let mut s = connected(XINPUT);
+        s.select(0, 1);
+        s.set_output("r1", "disabled");
+        let text = file(&s, XINPUT, 1, |p| p.name = "From file".to_owned());
+        s.import((XINPUT, 2), "a.json", Ok(text));
+        let w = import_warning(&s);
+        let notes: Vec<String> = w.edit_notes.iter().map(Into::into).collect();
+        assert!(w.shown);
+        assert_eq!(notes, ["Your profile edits to XInput slot 2, not written yet, are discarded."]);
+        assert_eq!((w.macro_lead.as_str(), w.keep_note.as_str()), ("", ""), "no keep choice");
+        s.confirm_import();
+        assert_eq!(s.slot(XINPUT, 2).edited.unwrap().name, "From file");
+        assert!(!s.notice.unwrap().body.contains("not written"), "the dialog said it");
+    }
+
+    #[test]
     fn a_file_with_the_dpad_swap_and_an_inverted_left_stick_is_refused() {
         let mut s = connected(XINPUT);
         let text = file(&s, XINPUT, 1, |p| {
@@ -483,7 +556,7 @@ mod tests {
         assert_eq!(refs.len(), 1, "the macro stays");
         assert_eq!(refs[0].trigger_buttons, ["lp"]);
         let body = s.notice.unwrap().body;
-        assert!(body.starts_with("PR left Jump (Macro 1)"), "{body}");
+        assert!(body.starts_with("The file maps PR to B, so PR no longer starts Jump"), "{body}");
     }
 
     #[test]
@@ -500,7 +573,7 @@ mod tests {
         s.import((XINPUT, 1), "a.json", Ok(text));
         assert!(s.notice.as_ref().is_some_and(|n| !n.error), "{:?}", s.notice);
         assert_eq!(s.slot(XINPUT, 1).macro_started_by("rp"), Some(0));
-        assert!(!s.notice.unwrap().body.contains("left"));
+        assert!(!s.notice.unwrap().body.contains("no longer starts"));
     }
 
     #[test]

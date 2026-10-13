@@ -123,21 +123,33 @@ export component ClearDialog inherits DialogShell {
     }
 }
 
+// A same-mode import opens it only when the slot loses something; the conversion
+// lines stay empty then.
 export component ImportDialog inherits DialogShell {
     in property <ImportWarning> warning;
-    icon: Icons.info;
-    title: "Import the " + warning.from-mode + " profile into " + warning.slot-title + "?";
-    subtitle: "“" + warning.file-name + "” comes from " + warning.from-mode + " mode. Each button keeps its place on the controller.";
+    property <bool> cross-mode: warning.from-mode != warning.to-mode;
+    icon: warning.edit-notes.length > 0 ? Icons.warning : Icons.info;
+    title: cross-mode
+        ? "Import the " + warning.from-mode + " profile into " + warning.slot-title + "?"
+        : "Import “" + warning.file-name + "” into " + warning.slot-title + "?";
+    subtitle: cross-mode ? "“" + warning.file-name + "” comes from " + warning.from-mode + " mode. Each button keeps its place on the controller." : "";
     accept-text: "Import";
-    if root.warning.has-edits: Bullet {
-        text: "Your edits to " + root.warning.slot-title + ", not written yet, are discarded.";
-    }
+    // Keeps the slot's macros; offered whenever the macro lead says what Import replaces.
+    extra-text: warning.macro-lead != "" ? "Import without macros" : "";
     if root.warning.macro-lead != "": Text {
         text: root.warning.macro-lead;
         color: Theme.fg;
         wrap: word-wrap;
     }
     for note in root.warning.macro-notes: Bullet {
+        text: note;
+    }
+    if root.warning.keep-note != "": Text {
+        text: root.warning.keep-note;
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    for note in root.warning.edit-notes: Bullet {
         text: note;
     }
     if root.warning.lost.length > 0: Text {

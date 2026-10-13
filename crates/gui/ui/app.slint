@@ -229,6 +229,7 @@ export component AppWindow inherits Window {
     callback export-file;
     callback import-confirmed;
     callback import-cancelled;
+    callback import-without-macros;
     callback notice-closed;
     callback read-again;
     callback write-clicked;
@@ -614,6 +615,7 @@ export component AppWindow inherits Window {
         warning: root.import-warning;
         accepted => { root.import-confirmed(); }
         cancelled => { root.import-cancelled(); }
+        extra => { root.import-without-macros(); }
     }
 
     if root.macro-import.shown: MacroImportDialog {

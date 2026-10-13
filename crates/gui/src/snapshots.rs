@@ -548,6 +548,29 @@ fn import_warning_with_macros() {
     shoot("import-done-macros", &s);
 }
 
+/// An `XInput` file with one macro that maps R4 to A, waiting to go into `XInput` slot
+/// 2, whose macro R4 starts and which has an unwritten rename: the same-mode dialog
+/// with Import without macros.
+#[test]
+fn import_same_mode_with_macros() {
+    let mut s = connected(XINPUT);
+    hold_macros(&mut s, (XINPUT, 2), &[macro_def(0, "Dash", &["r4"], 2)]);
+    s.select(0, 1);
+    s.set_name("Edited");
+    let mut p = s.defaults().get(&XINPUT).unwrap().clone();
+    "xinput-slot-1-index-0".clone_into(&mut p.id);
+    "Racing".clone_into(&mut p.name);
+    if let Some(m) = p.button_mappings.iter_mut().find(|m| m.source == "r4") {
+        "bottom face".clone_into(&mut m.target);
+    }
+    p.macros = Some(vec![macro_def(0, "Ramp", &["r3"], 3)]);
+    let text = crate::files::export_text(&p).unwrap();
+    s.import((XINPUT, 2), "profile-xinput-slot-1-index-0.json", Ok(text));
+    assert!(s.pending_import.is_some());
+    tab("import-same-mode-macros", &s, 0, false);
+    tab("import-same-mode-macros", &s, 0, true);
+}
+
 /// The left and right edge of the drawing's frame, along a row through the views.
 fn frame_edges(ui: &AppWindow) -> (usize, usize) {
     let shot = ui.window().take_snapshot().unwrap();
