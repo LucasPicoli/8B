@@ -1,0 +1,374 @@
+//! The macros a profile file carries in `macros`. An export embeds the slot's macros
+//! as shown; an import makes the file's macros the slot's, in the slot's mode. Pure:
+//! the dialogs live in `chooser`.
+
+use controller_core::convert_macro::{convert_macro, TargetBank};
+use controller_core::description::ControllerDescription;
+use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
+
+use crate::buttons::{output_label, target};
+use crate::files::export_text;
+use crate::macro_files::content_losses;
+use crate::macros::title;
+use crate::render::sentence;
+use crate::review::macro_edits::steps;
+use crate::state::SlotState;
+
+/// Why a slot cannot be exported, or take a file's macros, yet.
+pub const STEPS_UNREAD: &str =
+    "The slot’s macro steps are still being read from the controller. Try again in a moment.";
+
+/// The export file of `slot`: the profile on screen, with the macros on screen in
+/// `macros` and no macro references. `None` for an empty slot.
+///
+/// # Errors
+/// Returns [`STEPS_UNREAD`] while the slot's macro steps are being read, or why the
+/// profile could not be turned into JSON.
+pub fn export_file(slot: &SlotState) -> Option<Result<String, String>> {
+    let mut profile = slot.shown()?.clone();
+    let Some(macros) = slot.macros_as_shown() else {
+        return Some(Err(STEPS_UNREAD.to_owned()));
+    };
+    profile.macro_refs.clear();
+    profile.macros = Some(macros);
+    Some(export_text(&profile))
+}
+
+/// "1 macro" or "n macros".
+fn macros(n: usize) -> String {
+    if n == 1 {
+        "1 macro".to_owned()
+    } else {
+        format!("{n} macros")
+    }
+}
+
+/// What an import says about a file with `refs` macro references and no `macros`.
+#[must_use]
+pub fn refs_note(refs: usize) -> String {
+    let held = if refs == 1 {
+        "macro sits in a separate file".to_owned()
+    } else {
+        format!("{refs} macros sit in separate files")
+    };
+    format!(
+        "The file’s {held} that 8B cannot read, so the slot keeps its macros. The command \
+         line’s upload --with-macros reads them."
+    )
+}
+
+/// `items` joined for a sentence: "A", "A and B", "A, B and C".
+fn and_list(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
+/// The titles of `defs`, such as "Jump (Macro 1) and Dash (Macro 3)".
+fn titles<'a>(defs: impl IntoIterator<Item = &'a MacroDefinition>) -> String {
+    let titles: Vec<String> =
+        defs.into_iter().map(|m| title(m, m.macro_slot.unwrap_or_default())).collect();
+    and_list(&titles)
+}
+
+/// What an import says first about a file whose macros are `file`, into a slot that
+/// shows the macros `held`: the file's macros replace the slot's, each named.
+#[must_use]
+pub fn replace_note(file: &[MacroDefinition], held: &[&MacroDefinition]) -> Option<String> {
+    let (old, new) = (titles(held.iter().copied()), titles(file));
+    match (file.len(), held.len()) {
+        (0, 0) => None,
+        (0, 1) => Some(format!("The file holds no macros, so the slot’s macro {old} is removed.")),
+        (0, h) => {
+            Some(format!("The file holds no macros, so the slot’s {h} macros, {old}, are removed."))
+        }
+        (n, 0) => Some(format!("The file brings {}: {new}.", macros(n))),
+        (n, h) => {
+            let file = if n == 1 {
+                format!("macro {new} replaces")
+            } else {
+                format!("{n} macros, {new}, replace")
+            };
+            let slot = if h == 1 { format!("macro {old}") } else { format!("{h} macros, {old}") };
+            Some(format!("The file’s {file} the slot’s {slot}."))
+        }
+    }
+}
+
+/// The file's macros `file` made for a slot of mode `to` that takes `profile`, in
+/// macro-slot order, and one sentence per loss. A trigger button that `profile` gives
+/// another output than `default` does is left out, as the controller would send the
+/// output, and a macro of another mode is converted.
+///
+/// # Errors
+/// Returns why a macro cannot be converted, such as a step button `to` lacks.
+pub fn file_macros(
+    d: &ControllerDescription,
+    file: &[MacroDefinition],
+    to: Mode,
+    profile: &CanonicalProfile,
+    default: &CanonicalProfile,
+) -> Result<(Vec<MacroDefinition>, Vec<String>), String> {
+    let mode = d.mode_label(to);
+    let triggers: Vec<String> = d
+        .buttons
+        .iter()
+        .filter(|b| b.step_trigger_value.is_some())
+        .map(|b| output_label(d, to, &b.id))
+        .collect();
+    let (mut notes, mut out) = (Vec::new(), Vec::new());
+    for m in file {
+        let name = title(m, m.macro_slot.unwrap_or_default());
+        let mut kept = m.clone();
+        kept.trigger_buttons.retain(|b| {
+            let output = target(profile, b);
+            if output == target(default, b) {
+                return true;
+            }
+            let button = output_label(d, to, b);
+            notes.push(format!(
+                "The file maps {button} to {}, so {button} cannot start {name}.",
+                output_label(d, to, output)
+            ));
+            false
+        });
+        // The buttons are already checked against the profile, so the bank refuses none.
+        let bank = TargetBank { others: &[], profile: default, default };
+        let (def, _) = convert_macro(d, &kept, to, &bank).map_err(|e| sentence(&e.to_string()))?;
+        let (glides, full) = content_losses(d, to, &kept, &def);
+        let mut lost = Vec::new();
+        if full > 0 {
+            lost.push(format!("presses them fully in {}", steps(full)));
+        }
+        if !glides.is_empty() {
+            let its = if glides.len() == 1 { "its glide" } else { "its glides" };
+            lost.push(format!("drops {its} on {}", and_list(&glides)));
+        }
+        if !lost.is_empty() {
+            notes.push(format!(
+                "{mode}’s {} are on or off, so {name} {}.",
+                and_list(&triggers),
+                lost.join(" and ")
+            ));
+        }
+        out.push(def);
+    }
+    out.sort_by_key(|m| m.macro_slot);
+    Ok((out, notes))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use controller_core::devices::pro3::{SWITCH, XINPUT};
+    use controller_core::model::GlideControl;
+    use controller_core::service::validation::validate_profile;
+    use serde_json::Value;
+    use slint::Model as _;
+
+    use super::*;
+    use crate::files::import_warning;
+    use crate::macros::PadMacro;
+    use crate::state::tests::{connected, hold_macros, macro_def, PORT};
+    use crate::state::AppState;
+
+    /// `XInput` slot 2 selected, holding "Jump" in macro slot 0 on PR and PL, and "Dash"
+    /// in macro slot 2 on R4.
+    fn held() -> AppState {
+        let mut s = connected(XINPUT);
+        let macros = [macro_def(0, "Jump", &["rp", "lp"], 3), macro_def(2, "Dash", &["r4"], 1)];
+        hold_macros(&mut s, (XINPUT, 2), &macros);
+        s.select(0, 1);
+        s
+    }
+
+    /// The export of slot `number` of `mode`.
+    fn export(s: &AppState, mode: Mode, number: u8) -> String {
+        export_file(&s.slot(mode, number)).unwrap().unwrap()
+    }
+
+    /// `text` with its `macros` replaced by `macros`.
+    fn with_macros(text: &str, macros: &[MacroDefinition]) -> String {
+        let mut p: CanonicalProfile = serde_json::from_str(text).unwrap();
+        p.macros = Some(macros.to_vec());
+        export_text(&p).unwrap()
+    }
+
+    #[test]
+    fn an_export_embeds_the_macros_on_screen_and_is_a_valid_profile() {
+        let mut s = held();
+        s.rename_macro(2, "Sprint");
+        let text = export(&s, XINPUT, 2);
+        let value: Value = serde_json::from_str(&text).unwrap();
+        assert!(validate_profile(s.model().unwrap(), &value).unwrap().valid, "{text}");
+        assert_eq!(value["macro_refs"], serde_json::json!([]));
+        let p: CanonicalProfile = serde_json::from_value(value).unwrap();
+        let names: Vec<_> = p.macros.unwrap().into_iter().map(|m| m.name).collect();
+        assert_eq!(names, ["Jump", "Sprint"]);
+    }
+
+    #[test]
+    fn an_export_leaves_out_a_button_the_edits_remapped() {
+        let mut s = held();
+        let pad = s.controller_mut(PORT).unwrap().slots.get_mut(&(XINPUT, 2)).unwrap();
+        pad.pad.as_mut().unwrap().macro_refs = vec![controller_core::model::MacroRef {
+            trigger_buttons: vec!["rp".to_owned(), "lp".to_owned()],
+            path: "j.json".to_owned(),
+        }];
+        s.set_output("rp", "bottom face");
+        let p: CanonicalProfile = serde_json::from_str(&export(&s, XINPUT, 2)).unwrap();
+        assert_eq!(p.macros.unwrap()[0].trigger_buttons, ["lp"]);
+    }
+
+    #[test]
+    fn an_export_or_a_macro_import_waits_for_the_steps() {
+        let mut s = held();
+        let slot = s.controller_mut(PORT).unwrap().slots.get_mut(&(XINPUT, 2)).unwrap();
+        let text = export_file(slot).unwrap().unwrap();
+        slot.pad_macros[0] = PadMacro { loaded: false, ..slot.pad_macros[0].clone() };
+        assert_eq!(export_file(slot), Some(Err(STEPS_UNREAD.to_owned())));
+        assert_eq!(export_file(&s.slot(XINPUT, 3)), None, "an empty slot");
+
+        let before = s.slot(XINPUT, 2);
+        s.import((XINPUT, 2), "a.json", Ok(text));
+        let n = s.notice.take().unwrap();
+        assert!(n.error && n.body == STEPS_UNREAD, "{n:?}");
+        assert_eq!(s.slot(XINPUT, 2), before);
+    }
+
+    #[test]
+    fn an_export_imports_back_unchanged() {
+        let mut s = held();
+        let text = export(&s, XINPUT, 2);
+        s.import((XINPUT, 2), "a.json", Ok(text));
+        assert!(!s.slot(XINPUT, 2).unsaved(), "{:?}", s.slot(XINPUT, 2).edited_macros);
+    }
+
+    #[test]
+    fn a_file_with_macros_replaces_the_slots_macros() {
+        let mut s = held();
+        let mut hop = macro_def(0, "Hop", &["rp", "lp"], 3);
+        hop.repeat_count = 2;
+        let run = macro_def(1, "Run", &["r3"], 2);
+        let text = with_macros(&export(&s, XINPUT, 2), &[run.clone(), hop.clone()]);
+        s.import((XINPUT, 2), "a.json", Ok(text));
+        let slot = s.slot(XINPUT, 2);
+        assert_eq!(slot.edited_macros, Some(vec![hop, run]), "in macro-slot order");
+        assert_eq!(slot.macro_started_by("r4"), None, "Dash is gone");
+        assert!(slot.edited.unwrap().macros.is_none(), "the edits hold no copy");
+        let body = s.notice.unwrap().body;
+        assert!(
+            body.starts_with(
+                "Hop replaces Jump in Macro 1. Run is added in Macro 2. Dash is removed from \
+                 Macro 3. Nothing"
+            ),
+            "{body}"
+        );
+    }
+
+    #[test]
+    fn an_import_says_it_replaces_edits_not_written_yet() {
+        let mut s = held();
+        s.rename_macro(0, "Leap");
+        let text = export(&s, XINPUT, 1);
+        s.import((XINPUT, 2), "a.json", Ok(text.clone()));
+        let body = s.notice.take().unwrap().body;
+        assert!(body.contains("Your edits to this slot, not written yet, are replaced."), "{body}");
+
+        // A file of another mode asks first, and the dialog says it.
+        s.rename_macro(0, "Leap");
+        let mut switch: CanonicalProfile = serde_json::from_str(&text).unwrap();
+        switch = controller_core::convert::convert_profile(
+            s.description(),
+            &switch,
+            &s.defaults()[&XINPUT],
+            &s.defaults()[&SWITCH],
+        )
+        .unwrap()
+        .0;
+        switch.macros = Some(vec![]);
+        s.import((XINPUT, 2), "s.json", Ok(export_text(&switch).unwrap()));
+        assert!(import_warning(&s).has_edits);
+    }
+
+    #[test]
+    fn an_empty_macros_list_clears_the_slots_macros() {
+        let mut s = held();
+        let text = with_macros(&export(&s, XINPUT, 2), &[]);
+        s.import((XINPUT, 2), "a.json", Ok(text));
+        assert_eq!(s.slot(XINPUT, 2).edited_macros, Some(vec![]));
+        assert!(s.notice.unwrap().body.contains("Dash is removed from Macro 3."));
+    }
+
+    #[test]
+    fn a_macro_button_the_file_remaps_does_not_start_the_macro() {
+        let mut s = held();
+        let mut p: CanonicalProfile = serde_json::from_str(&export(&s, XINPUT, 2)).unwrap();
+        p.button_mappings.iter_mut().find(|m| m.source == "r3").unwrap().target =
+            "bottom face".to_owned();
+        p.macros = Some(vec![macro_def(1, "Run", &["r3", "r4"], 2)]);
+        s.import((XINPUT, 2), "a.json", Ok(export_text(&p).unwrap()));
+        let edited = s.slot(XINPUT, 2).edited_macros.unwrap();
+        assert_eq!(edited[0].trigger_buttons, ["r4"]);
+        let body = s.notice.unwrap().body;
+        assert!(
+            body.contains("The file maps RS to A, so RS cannot start Run (Macro 2)."),
+            "{body}"
+        );
+    }
+
+    #[test]
+    fn a_file_of_another_mode_converts_its_macros_after_a_yes() {
+        let mut s = connected(SWITCH);
+        let mut ramp = macro_def(0, "Ramp", &["r3"], 3);
+        ramp.steps[0].trigger_left = 100;
+        ramp.steps[0].glide = [GlideControl::LeftTrigger].into();
+        ramp.steps[1].trigger_left = 255;
+        let text = with_macros(&export(&s, XINPUT, 1), &[ramp]);
+        s.import((SWITCH, 1), "x.json", Ok(text));
+        assert_eq!(s.slot(SWITCH, 1).edited_macros, None, "nothing before the yes");
+        let w = import_warning(&s);
+        assert_eq!(w.macro_lead, "The file brings 1 macro: Ramp (Macro 1).");
+        assert!(!w.has_edits);
+        let notes: Vec<String> = w.macro_notes.iter().map(|n| n.to_string()).collect();
+        assert_eq!(
+            notes,
+            ["Switch’s ZL and ZR are on or off, so Ramp (Macro 1) presses them fully in 1 step \
+                 and drops its glide on ZL in step 1."]
+        );
+        s.confirm_import();
+        let body = s.notice.take().unwrap().body;
+        assert_eq!(
+            body,
+            "Ramp is added in Macro 1. Nothing reaches the controller until you write."
+        );
+        let edited = s.slot(SWITCH, 1).edited_macros.unwrap();
+        assert_eq!((edited[0].mode, edited[0].steps[0].trigger_left), (SWITCH, 255));
+    }
+
+    #[test]
+    fn notes_count_macros_and_files() {
+        let one = macro_def(1, "Hop", &[], 1);
+        assert_eq!(
+            replace_note(std::slice::from_ref(&one), &[&one, &one]).unwrap(),
+            "The file’s macro Hop (Macro 2) replaces the slot’s 2 macros, Hop (Macro 2) and Hop \
+             (Macro 2)."
+        );
+        let (jump, dash) = (macro_def(0, "Jump", &[], 1), macro_def(2, "", &[], 1));
+        assert_eq!(replace_note(&[], &[]), None);
+        assert_eq!(
+            replace_note(&[jump.clone(), dash.clone()], &[&jump]).unwrap(),
+            "The file’s 2 macros, Jump (Macro 1) and Macro 3, replace the slot’s macro \
+             Jump (Macro 1)."
+        );
+        assert_eq!(
+            replace_note(&[], &[&jump, &dash]).unwrap(),
+            "The file holds no macros, so the slot’s 2 macros, Jump (Macro 1) and Macro 3, are \
+             removed."
+        );
+        assert!(refs_note(1).starts_with("The file’s macro sits in a separate file"));
+        assert!(refs_note(3).contains("3 macros sit in separate files"));
+    }
+}

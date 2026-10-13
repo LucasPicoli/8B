@@ -129,6 +129,17 @@ export component ImportDialog inherits DialogShell {
     title: "Import the " + warning.from-mode + " profile into " + warning.slot-title + "?";
     subtitle: "“" + warning.file-name + "” comes from " + warning.from-mode + " mode. Each button keeps its place on the controller.";
     accept-text: "Import";
+    if root.warning.has-edits: Bullet {
+        text: "Your edits to " + root.warning.slot-title + ", not written yet, are discarded.";
+    }
+    if root.warning.macro-lead != "": Text {
+        text: root.warning.macro-lead;
+        color: Theme.fg;
+        wrap: word-wrap;
+    }
+    for note in root.warning.macro-notes: Bullet {
+        text: note;
+    }
     if root.warning.lost.length > 0: Text {
         text: root.warning.lost.length == 1
             ? "1 button has no " + root.warning.to-mode + " match and becomes Disabled:"
@@ -144,9 +155,6 @@ export component ImportDialog inherits DialogShell {
     }
     if root.warning.letters != "": Bullet {
         text: "Some printed letters name another button: " + root.warning.letters + ".";
-    }
-    if root.warning.skipped-macros > 0: Bullet {
-        text: "The file’s macro references are skipped. The macros stored on the controller stay.";
     }
     Text {
         text: "Nothing reaches the controller until you write.";

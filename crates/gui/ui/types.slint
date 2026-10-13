@@ -159,7 +159,13 @@ export struct ImportWarning {
     reset: string,
     // Letters that name another button in the target mode, or empty.
     letters: string,
-    skipped-macros: int,
+    // Which macros the file's replace, each named, or "" for a file with no `macros`.
+    macro-lead: string,
+    // One sentence each about the file's macros: what they lose here, or that the
+    // macro files it names are skipped.
+    macro-notes: [string],
+    // The slot holds edits not written yet, which the import replaces.
+    has-edits: bool,
 }
 
 // The review before a write.

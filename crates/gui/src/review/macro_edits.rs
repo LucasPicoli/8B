@@ -193,6 +193,42 @@ impl AppState {
         }
     }
 
+    /// One sentence per macro of `slot` that an import adds, replaces or removes, in
+    /// macro slot order, such as "Ramp replaces Dash in Macro 1.".
+    pub(crate) fn import_lines(&self, slot: (Mode, u8)) -> Vec<String> {
+        let name = |d: &MacroDefinition| {
+            if d.name.is_empty() {
+                "a macro without a name".to_owned()
+            } else {
+                d.name.clone()
+            }
+        };
+        self.slot(slot.0, slot.1)
+            .macro_changes()
+            .iter()
+            .filter(|c| c.edited)
+            .map(|c| {
+                let n = u16::from(c.slot) + 1;
+                match (&c.old, &c.new) {
+                    (None, Some(new)) => format!("{} is added in Macro {n}.", name(new)),
+                    (Some(old), None) => format!("{} is removed from Macro {n}.", name(old)),
+                    (Some(old), Some(new)) if old.name == new.name => {
+                        format!("The file’s {} replaces the one in Macro {n}.", name(new))
+                    }
+                    (old, new) => format!(
+                        "{} replaces {} in Macro {n}.",
+                        new.as_ref().map(name).unwrap_or_default(),
+                        old.as_ref().map(name).unwrap_or_default()
+                    ),
+                }
+            })
+            .map(|line| {
+                let mut chars = line.chars();
+                chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+            })
+            .collect()
+    }
+
     /// One line per macro of `slot` that the write adds, changes or removes, in macro
     /// slot order. A button that joins or leaves a macro reads under that macro.
     pub(super) fn macro_lines(&self, slot: (Mode, u8)) -> Vec<SharedString> {

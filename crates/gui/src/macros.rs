@@ -146,8 +146,33 @@ impl SlotState {
     /// the steps of its macros are read, as an edit copies them.
     #[must_use]
     pub fn macros_editable(&self) -> bool {
-        self.shown().is_some()
-            && (self.edited_macros.is_some() || self.pad_macros.iter().all(|m| m.loaded))
+        self.shown().is_some() && self.macros_read()
+    }
+
+    /// Whether the steps of the slot's macros as shown are known: the macros are edited,
+    /// or the controller's are read.
+    #[must_use]
+    pub fn macros_read(&self) -> bool {
+        self.edited_macros.is_some() || self.pad_macros.iter().all(|m| m.loaded)
+    }
+
+    /// The slot's macros as shown, steps included: the edited ones, else the
+    /// controller's minus the buttons the edited profile took off. `None` while their
+    /// steps are being read.
+    #[must_use]
+    pub fn macros_as_shown(&self) -> Option<Vec<MacroDefinition>> {
+        if let Some(edited) = &self.edited_macros {
+            return Some(edited.clone());
+        }
+        if !self.macros_read() {
+            return None;
+        }
+        let dropped = self.dropped_buttons();
+        let mut macros: Vec<_> = self.pad_macros.iter().map(|m| m.def.clone()).collect();
+        for m in &mut macros {
+            m.trigger_buttons.retain(|b| !dropped.contains(b));
+        }
+        Some(macros)
     }
 
     /// Takes the edited macros of `from`, a slot of an unplugged controller, when it
@@ -264,19 +289,7 @@ impl AppState {
         if slot.shown().is_none() {
             return;
         }
-        let macros = match &slot.edited_macros {
-            Some(edited) => edited.clone(),
-            None if slot.pad_macros.iter().all(|m| m.loaded) => {
-                let dropped = slot.dropped_buttons();
-                let mut macros: Vec<_> = slot.pad_macros.iter().map(|m| m.def.clone()).collect();
-                for m in &mut macros {
-                    m.trigger_buttons.retain(|b| !dropped.contains(b));
-                }
-                macros
-            }
-            None => return,
-        };
-        let mut macros = macros;
+        let Some(mut macros) = slot.macros_as_shown() else { return };
         change(&mut macros);
         slot.edited_macros = Some(macros);
     }

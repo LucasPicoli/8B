@@ -6,6 +6,7 @@
 use std::rc::Rc;
 
 use controller_core::convert_macro::{convert_macro, TargetBank};
+use controller_core::description::ControllerDescription;
 use controller_core::model::macros::macro_from_json;
 use controller_core::model::macros::macro_to_json;
 use controller_core::model::{MacroDefinition, Mode};
@@ -122,24 +123,7 @@ impl AppState {
         let (mut def, _) =
             convert_macro(d, &file, mode, &bank).map_err(|e| one(sentence(&e.to_string())))?;
         def.macro_slot = Some(n);
-
-        let mut glides = Vec::new();
-        for (i, (was, is)) in file.steps.iter().zip(&def.steps).enumerate() {
-            for b in &d.buttons {
-                let Some(control) = b.step_trigger_value.map(trigger_control) else { continue };
-                if was.glide.contains(&control) && !is.glide.contains(&control) {
-                    glides.push(format!("{} in step {}", output_label(d, mode, &b.id), i + 1));
-                }
-            }
-        }
-        let full_presses = file
-            .steps
-            .iter()
-            .zip(&def.steps)
-            .filter(|(was, is)| {
-                (was.trigger_left, was.trigger_right) != (is.trigger_left, is.trigger_right)
-            })
-            .count();
+        let (glides, full_presses) = content_losses(d, mode, &file, &def);
         Ok(ReadyImport { def, from: file.mode, dropped, glides, full_presses })
     }
 
@@ -190,8 +174,37 @@ impl AppState {
     }
 }
 
+/// What putting `file` into `mode` as `def` lost: each trigger glide `mode` cannot play,
+/// such as "ZL in step 3", and how many steps press a trigger part way that `mode`
+/// presses fully.
+pub fn content_losses(
+    d: &ControllerDescription,
+    mode: Mode,
+    file: &MacroDefinition,
+    def: &MacroDefinition,
+) -> (Vec<String>, usize) {
+    let mut glides = Vec::new();
+    for (i, (was, is)) in file.steps.iter().zip(&def.steps).enumerate() {
+        for b in &d.buttons {
+            let Some(control) = b.step_trigger_value.map(trigger_control) else { continue };
+            if was.glide.contains(&control) && !is.glide.contains(&control) {
+                glides.push(format!("{} in step {}", output_label(d, mode, &b.id), i + 1));
+            }
+        }
+    }
+    let full_presses = file
+        .steps
+        .iter()
+        .zip(&def.steps)
+        .filter(|(was, is)| {
+            (was.trigger_left, was.trigger_right) != (is.trigger_left, is.trigger_right)
+        })
+        .count();
+    (glides, full_presses)
+}
+
 /// A list model of strings.
-fn strings(items: &[String]) -> ModelRc<SharedString> {
+pub fn strings(items: &[String]) -> ModelRc<SharedString> {
     ModelRc::from(Rc::new(items.iter().map(SharedString::from).collect::<VecModel<_>>()))
 }
 

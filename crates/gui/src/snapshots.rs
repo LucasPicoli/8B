@@ -512,6 +512,42 @@ fn imported_with_a_note() {
     shoot("import-failed", &s);
 }
 
+/// An `XInput` file with two macros, one started by a button it remaps and one with a
+/// trigger glide, waiting to go into Switch slot 2, which holds a macro.
+fn cross_mode_macros_import() -> AppState {
+    use controller_core::model::GlideControl;
+    let mut s = connected(XINPUT);
+    crate::state::tests::hold_macros(
+        &mut s,
+        (SWITCH, 2),
+        &[crate::state::tests::macro_def(0, "Dash", &["r4"], 2)],
+    );
+    let mut p = s.defaults().get(&XINPUT).unwrap().clone();
+    "xinput-slot-1-index-0".clone_into(&mut p.id);
+    "Racing".clone_into(&mut p.name);
+    if let Some(m) = p.button_mappings.iter_mut().find(|m| m.source == "r4") {
+        "bottom face".clone_into(&mut m.target);
+    }
+    let mut ramp = crate::state::tests::macro_def(0, "Ramp", &["r4", "r3"], 3);
+    ramp.steps[0].trigger_left = 100;
+    ramp.steps[0].glide = [GlideControl::LeftTrigger].into();
+    ramp.steps[1].trigger_left = 255;
+    p.macros = Some(vec![ramp, crate::state::tests::macro_def(1, "Hop", &["lp"], 2)]);
+    let text = crate::files::export_text(&p).unwrap();
+    s.import((SWITCH, 2), "profile-xinput-slot-1-index-0.json", Ok(text));
+    assert!(s.pending_import.is_some());
+    s
+}
+
+#[test]
+fn import_warning_with_macros() {
+    let mut s = cross_mode_macros_import();
+    tab("import-warning-macros", &s, 0, false);
+    tab("import-warning-macros", &s, 0, true);
+    s.confirm_import();
+    shoot("import-done-macros", &s);
+}
+
 /// The left and right edge of the drawing's frame, along a row through the views.
 fn frame_edges(ui: &AppWindow) -> (usize, usize) {
     let shot = ui.window().take_snapshot().unwrap();

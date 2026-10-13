@@ -8,6 +8,7 @@ mod buttons;
 mod chooser;
 mod closing;
 mod controllers;
+mod embedded;
 mod files;
 mod fix;
 mod holders;
@@ -243,20 +244,24 @@ fn import(ui: Weak<AppWindow>, jobs: Sender<Job>, slot: (Mode, u8)) {
     });
 }
 
-/// Asks where to save the selected slot's profile, as shown, and saves it.
+/// Asks where to save the selected slot's profile and macros, as shown, and saves them.
+/// While the macro steps are being read, it says so and opens no dialog.
 fn export(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState) {
     let Some(slot) = state.selected_slot() else { return };
     let shown = state.slot(slot.0, slot.1);
-    let Some(profile) = shown.shown() else { return };
-    let (text, unsaved, name) =
-        (files::export_text(profile), shown.unsaved(), files::file_name(slot.0, slot.1));
+    let Some(text) = embedded::export_file(&shown) else { return };
+    let (unsaved, name) = (shown.unsaved(), files::file_name(slot.0, slot.1));
     on_thread(ui, jobs, move || {
-        let saved = chooser::save_json("Export the profile", &name).map(|p| {
-            p.map(|p| {
-                text.and_then(|t| std::fs::write(&p, t).map_err(|e| sentence(&e.to_string())))
-                    .map(|()| files::display_name(&p))
-            })
-        });
+        let saved = match text {
+            Err(e) => Ok(Some(Err(e))),
+            Ok(t) => chooser::save_json("Export the profile", &name).map(|p| {
+                p.map(|p| {
+                    std::fs::write(&p, t)
+                        .map_err(|e| sentence(&e.to_string()))
+                        .map(|()| files::display_name(&p))
+                })
+            }),
+        };
         Box::new(move |state: &mut AppState| match saved {
             Ok(None) => {}
             Ok(Some(result)) => state.exported(slot, unsaved, result),

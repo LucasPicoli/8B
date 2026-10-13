@@ -9,12 +9,14 @@ use std::rc::Rc;
 use controller_core::convert::{convert_profile, ConversionLoss};
 use controller_core::description::{ControllerDescription, DISABLED_OUTPUT};
 use controller_core::device::Model;
-use controller_core::model::{CanonicalProfile, Mode};
+use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use controller_core::service::validation::{validate_profile, ValidationError};
 use serde_json::Value;
 use slint::{ModelRc, VecModel};
 
 use crate::buttons::{output_label, target};
+use crate::embedded::{file_macros, refs_note, replace_note, STEPS_UNREAD};
+use crate::macro_files::strings;
 use crate::macros::label;
 use crate::render::sentence;
 use crate::state::{AppState, Notice};
@@ -37,8 +39,12 @@ pub struct PendingImport {
     pub profile: CanonicalProfile,
     /// What the conversion changed.
     pub losses: Vec<ConversionLoss>,
-    /// How many macro references the file carried.
-    pub skipped_macros: usize,
+    /// The file's macros, in the slot's mode, which replace the slot's. `None` when
+    /// the file has no `macros`: the slot keeps its own.
+    pub macros: Option<Vec<MacroDefinition>>,
+    /// One sentence per thing to say about the macros: what the file's lose in the
+    /// slot's mode, or that its macro references are skipped.
+    pub macro_notes: Vec<String>,
 }
 
 /// The name an export suggests, as the CLI's `export` names its files.
@@ -144,12 +150,33 @@ impl AppState {
     /// file for another mode waits in `pending_import` for the user's yes.
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
         let parsed = text.and_then(|t| parse(self.model(), &t));
-        let converted = parsed.and_then(|p| {
+        let converted = parsed.and_then(|mut p| {
             let default = |m| self.defaults().get(&m).ok_or("This controller has no such mode.");
+            let file = p.macros.take();
             let (profile, losses) =
                 convert_profile(self.description(), &p, default(p.mode)?, default(slot.0)?)
                     .map_err(|e| sentence(&e.to_string()))?;
-            Ok((p.mode, p.macro_refs.len(), profile, losses))
+            let target = self.slot(slot.0, slot.1);
+            let (macros, macro_notes) = match file {
+                None if p.macro_refs.is_empty() => (None, Vec::new()),
+                None => (None, vec![refs_note(p.macro_refs.len())]),
+                // The old steps tell an unchanged macro from a changed one in the review.
+                Some(_) if !target.macros_read() => return Err(STEPS_UNREAD.to_owned()),
+                Some(file) => {
+                    let (macros, losses) =
+                        file_macros(self.description(), &file, slot.0, &profile, default(slot.0)?)?;
+                    (Some(macros), losses)
+                }
+            };
+            Ok(PendingImport {
+                slot,
+                file_name: file_name.to_owned(),
+                from: p.mode,
+                profile,
+                losses,
+                macros,
+                macro_notes,
+            })
         });
         match converted {
             Err(body) => {
@@ -159,16 +186,8 @@ impl AppState {
                     body,
                 });
             }
-            Ok((from, skipped_macros, profile, losses)) => {
-                let pending = PendingImport {
-                    slot,
-                    file_name: file_name.to_owned(),
-                    from,
-                    profile,
-                    losses,
-                    skipped_macros,
-                };
-                if from == slot.0 {
+            Ok(pending) => {
+                if pending.from == slot.0 {
                     self.apply_import(pending);
                 } else {
                     self.pending_import = Some(pending);
@@ -225,37 +244,54 @@ impl AppState {
     }
 
     /// Puts an import into its slot's edits and shows that slot. The slot keeps its
-    /// own id and the macros stored on the controller; the file's are skipped.
+    /// own id. The file's macros replace the slot's; a file with none leaves the slot's.
     fn apply_import(&mut self, pending: PendingImport) {
-        let PendingImport { slot: (mode, number), file_name, mut profile, skipped_macros, .. } =
-            pending;
+        let PendingImport {
+            slot: (mode, number),
+            file_name,
+            from,
+            mut profile,
+            macros,
+            macro_notes,
+            ..
+        } = pending;
         let active = self.active().map(|c| c.port.clone());
         let default = self.defaults().get(&mode).cloned();
         let Some(c) = self.controllers.iter_mut().find(|c| Some(&c.port) == active.as_ref()) else {
             return;
         };
         let state = c.slots.entry((mode, number)).or_default();
+        let replaced = macros.is_some();
+        let discarded = state.profile_unsaved() || (replaced && state.macros_unsaved());
         let base = state.pad.as_ref().or(default.as_ref());
         profile.id = base.map(|b| b.id.clone()).unwrap_or_default();
         profile.preferred_slot = base.and_then(|b| b.preferred_slot);
         profile.macro_refs = state.pad.as_ref().map(|p| p.macro_refs.clone()).unwrap_or_default();
         state.edited = Some(profile);
+        if replaced {
+            state.edited_macros = macros;
+        }
         if let Some(i) = self.description().modes.iter().position(|m| m.id == mode) {
             self.select(i, usize::from(number).saturating_sub(1));
         }
-        let left = self.leave_for_import();
-        let skipped = match skipped_macros {
-            0 => String::new(),
-            1 => "The file’s macro reference was skipped. The macros stored on the controller stay. ".to_owned(),
-            n => format!("The file’s {n} macro references were skipped. The macros stored on the controller stay. "),
-        };
+        let left = if replaced { String::new() } else { self.leave_for_import() };
+        // A cross-mode import said these in its dialog already.
+        let said = from != mode;
+        let mut notes: Vec<String> = self.import_lines((mode, number));
+        if !said || !replaced {
+            notes.extend(macro_notes);
+        }
+        if discarded && !said {
+            notes.push("Your edits to this slot, not written yet, are replaced.".to_owned());
+        }
+        let notes: String = notes.into_iter().map(|n| n + " ").collect();
         self.notice = Some(Notice {
             error: false,
             title: format!(
                 "Imported “{file_name}” into {} slot {number}.",
                 self.description().mode_label(mode)
             ),
-            body: left + &skipped + "Nothing reaches the controller until you write.",
+            body: left + &notes + "Nothing reaches the controller until you write.",
         });
     }
 }
@@ -285,6 +321,7 @@ pub fn swapped_letters(description: &ControllerDescription, from: Mode, to: Mode
 pub fn import_warning(state: &AppState) -> ImportWarning {
     let Some(p) = &state.pending_import else { return ImportWarning::default() };
     let d = state.description();
+    let slot = state.slot(p.slot.0, p.slot.1);
     let (from, to) = (p.from, p.slot.0);
     let lost: Vec<Change> = p
         .losses
@@ -307,7 +344,14 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
         lost: ModelRc::from(Rc::new(VecModel::from(lost))),
         reset: reset_groups(&p.losses).into(),
         letters: swapped_letters(d, from, to).into(),
-        skipped_macros: i32::try_from(p.skipped_macros).unwrap_or(i32::MAX),
+        macro_lead: p
+            .macros
+            .as_ref()
+            .and_then(|m| replace_note(m, &slot.shown_macros()))
+            .unwrap_or_default()
+            .into(),
+        macro_notes: strings(&p.macro_notes),
+        has_edits: slot.profile_unsaved() || (p.macros.is_some() && slot.macros_unsaved()),
     }
 }
 
@@ -460,7 +504,7 @@ mod tests {
     }
 
     #[test]
-    fn macro_refs_in_the_file_are_skipped_with_a_note() {
+    fn macro_refs_in_the_file_are_skipped_and_named_as_files_8b_cannot_read() {
         let mut s = connected(DINPUT);
         let text = file(&s, DINPUT, 1, |p| {
             p.macro_refs = vec![MacroRef {
@@ -471,7 +515,9 @@ mod tests {
         s.import((DINPUT, 3), "m.json", Ok(text));
         let edited = s.slot(DINPUT, 3).edited.unwrap();
         assert!(edited.macro_refs.is_empty(), "an empty slot holds no macros");
-        assert!(s.notice.unwrap().body.starts_with("The file’s macro reference was skipped."));
+        let body = s.notice.unwrap().body;
+        assert!(body.starts_with("The file’s macro sits in a separate file"), "{body}");
+        assert!(body.contains("upload --with-macros"), "{body}");
     }
 
     #[test]
