@@ -239,3 +239,56 @@ fn macro_errors(
 
     errors
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use serde_json::json;
+
+    use super::*;
+    use crate::device::{ControllerSpec as _, ProtocolCodec as _};
+    use crate::devices::pro3::{Pro3, XINPUT};
+    use crate::devices::test_pad::{TestPad, STANDARD};
+    use crate::model::MacroDefinition;
+
+    /// A one-step macro in `mode` and `macro_slot`, started by no button.
+    fn tap(mode: crate::model::Mode, macro_slot: u8) -> MacroDefinition {
+        MacroDefinition {
+            name: "Tap".to_owned(),
+            mode,
+            trigger_buttons: Vec::new(),
+            unknown_trigger_bits: 0,
+            repeat_count: 1,
+            interval_ms: 0,
+            steps: vec![crate::model::MacroStep { duration_ms: 50, ..Default::default() }],
+            macro_slot: Some(macro_slot),
+        }
+    }
+
+    /// The Pro 3 schema stops a macro slot above 3, so only this reaches the rule.
+    #[test]
+    fn a_macro_slot_the_controller_lacks_is_refused() {
+        let description = Pro3.description().unwrap();
+        let profile = CanonicalProfile {
+            macros: Some(vec![tap(XINPUT, 3), tap(XINPUT, 4)]),
+            ..Pro3.default_profile(XINPUT)
+        };
+        let errors = macro_errors(description, &profile);
+        assert_eq!(
+            errors,
+            [error("/macros/1/macro_slot", "This controller has 4 macro slots, 0 to 3.")]
+        );
+    }
+
+    #[test]
+    fn a_controller_with_no_macro_slots_takes_no_embedded_macro() {
+        let mut profile = serde_json::to_value(TestPad.default_profile(STANDARD)).unwrap();
+        profile["macros"] = json!([]);
+        assert_eq!(embedded_macro_errors(&TestPad, &profile).unwrap(), []);
+        profile["macros"] = json!([{ "mode": "standard", "macro_slot": 0 }]);
+        let errors = embedded_macro_errors(&TestPad, &profile).unwrap();
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert_eq!(errors[0].path, "/macros/0");
+        assert!(errors[0].reason.ends_with("has no macro slots."), "{errors:?}");
+    }
+}

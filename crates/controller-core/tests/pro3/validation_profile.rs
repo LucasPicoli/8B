@@ -374,3 +374,111 @@ fn macros_and_macro_refs_together_are_refused() {
         )]
     );
 }
+
+/// [`two_macros`] for a `mode` profile. Switch triggers are on or off, so there the
+/// second macro glides only the left stick.
+fn two_macros_in(mode: &str) -> Value {
+    let mut macros = two_macros();
+    for entry in macros.as_array_mut().unwrap() {
+        entry["mode"] = json!(mode);
+    }
+    if mode == "switch" {
+        macros[1]["steps"][0]["glide"] = json!(["left_stick"]);
+    }
+    macros
+}
+
+#[test]
+fn embedded_macros_round_trip_in_every_mode() {
+    let mut dinput = make_valid_xinput_profile();
+    dinput["mode"] = json!("dinput");
+    for (mode, mut p) in [
+        ("xinput", make_valid_xinput_profile()),
+        ("switch", make_valid_switch_profile()),
+        ("dinput", dinput),
+    ] {
+        p["macros"] = two_macros_in(mode);
+        assert_eq!(errors(&p), [], "{mode}");
+        let profile: CanonicalProfile = serde_json::from_value(p.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&profile).unwrap(), p, "{mode}");
+    }
+}
+
+#[test]
+fn a_switch_macro_cannot_glide_a_trigger() {
+    let mut p = make_valid_switch_profile();
+    p["macros"] = two_macros_in("switch");
+    p["macros"][1]["steps"][0]["glide"] = json!(["right_trigger"]);
+    assert_eq!(
+        errors(&p),
+        [(
+            "/macros/1/steps/0/glide".to_owned(),
+            "Step 0: right_trigger cannot glide in Switch mode, its triggers are on or off."
+                .to_owned()
+        )]
+    );
+}
+
+#[test]
+fn a_pasted_macro_file_is_an_entry_and_loses_its_version_and_device() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][0]["version"] = json!(1);
+    p["macros"][0]["device"] = json!("8bitdo-pro3");
+    assert_eq!(errors(&p), []);
+    let written = serde_json::to_value(serde_json::from_value::<CanonicalProfile>(p).unwrap());
+    let entry = &written.unwrap()["macros"][0];
+    assert_eq!((entry.get("version"), entry.get("device")), (None, None));
+}
+
+#[test]
+fn a_pasted_macro_file_for_another_device_is_refused() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    p["macros"][0]["device"] = json!("8bitdo-ultimate");
+    let errs = errors(&p);
+    assert!(errs.iter().any(|(path, _)| path == "/macros/0/device"), "{errs:?}");
+}
+
+#[test]
+fn an_embedded_macro_may_hold_the_legacy_trigger() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    let entry = p["macros"][0].as_object_mut().unwrap();
+    entry.remove("trigger_buttons");
+    entry.insert("trigger".to_owned(), json!("rp"));
+    assert_eq!(errors(&p), []);
+    let profile: CanonicalProfile = serde_json::from_value(p).unwrap();
+    assert_eq!(profile.macros.as_ref().unwrap()[0].trigger_buttons, ["rp"]);
+    let written = serde_json::to_value(&profile).unwrap();
+    assert_eq!(written["macros"][0]["trigger_buttons"], json!(["rp"]));
+    assert_eq!(written["macros"][0].get("trigger"), None);
+}
+
+#[test]
+fn a_macros_list_that_is_not_a_list_of_macros_is_refused() {
+    let mut five = two_macros().as_array().unwrap().clone();
+    five.extend(two_macros().as_array().unwrap().clone());
+    five.push(two_macros()[0].clone());
+    for (i, slot) in [0, 1, 2, 3, 0].into_iter().enumerate() {
+        five[i]["macro_slot"] = json!(slot);
+        five[i]["trigger_buttons"] = json!([]);
+    }
+    for macros in [json!(five), Value::Null, json!(["Tap"]), json!({ "0": two_macros()[0] })] {
+        let mut p = make_valid_xinput_profile();
+        p["macros"] = macros.clone();
+        assert!(!validate_profile(&Pro3, &p).unwrap().valid, "{macros}");
+    }
+}
+
+#[test]
+fn a_macro_with_no_slot_writes_a_file_that_does_not_validate() {
+    let mut p = make_valid_xinput_profile();
+    p["macros"] = two_macros();
+    let mut profile: CanonicalProfile = serde_json::from_value(p).unwrap();
+    profile.macros.as_mut().unwrap()[0].macro_slot = None;
+    let written = serde_json::to_value(&profile).unwrap();
+    let r = validate_profile(&Pro3, &written).unwrap();
+    assert!(r.errors.iter().any(|e| e.path == "/macros/0/macro_slot"), "{:?}", r.errors);
+    assert!(serde_json::from_value::<CanonicalProfile>(written).is_err());
+}
