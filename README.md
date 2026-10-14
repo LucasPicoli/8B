@@ -10,13 +10,18 @@
 
 ![8B editing a DInput profile: saved remaps in blue, unsaved edits in orange](docs/images/screenshot.png)
 
+![8B editing a macro: the step table, with a step's stick and trigger values below](docs/images/screenshot-macros.png)
+
 </div>
 
 ## Supported devices
 
-| Controller | Supported features |
-| --- | --- |
-| 8BitDo Pro 3 | Edit button mapping, sticks, triggers and vibration in every slot of XInput, Switch and DInput. Clear slots. Import and export profiles as JSON. See which button starts each macro. Macro steps cannot be viewed or edited yet, and remapping a macro's button removes the macro. |
+### Pro 3
+
+- Edit buttons, sticks, triggers and vibration in every XInput, Switch and DInput slot
+- Create and edit macros, step by step
+- Import and export profiles as JSON
+- Clear slots
 
 On the Pro 3, a stick you touch by hand takes over from a macro's move of that stick. In XInput and Switch, a macro cannot move a stick whose dead zone low end is below 2 % (seen on firmware 2.02).
 
@@ -25,9 +30,11 @@ then see [Adding a controller](docs/adding-a-controller.md).
 
 ## Roadmap
 
-- [ ] Macro creation and editing
+- [ ] Accessibility
+- [x] Macro creation and editing
 - [ ] Support for more controllers
 - [ ] Internationalization (translated interface)
+- [ ] Firmware upgrades
 
 ## Download
 
