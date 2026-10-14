@@ -179,6 +179,8 @@ component MacroViewArt {
     property <int> action: ta.has-hover ? root.action-hit(self.mx, self.my) : -1;
     // The chip the keyboard focus is on, or -1.
     property <int> focused-chip: -1;
+    // The focus came from Tab or an arrow key, not a click: the frame shows.
+    property <bool> keyboard-focus;
     // Whole pixels, so the next view starts on one.
     height: round(self.width * view.height / view.width / 1phx) * 1phx;
 
@@ -216,7 +218,7 @@ component MacroViewArt {
     // The button the keyboard is on: a frame round its bounds, so it reads as focus and
     // not as the outline of a held button.
     for s in root.spots: Rectangle {
-        visible: fs.has-focus && root.live && s.view == root.index && s.chip >= 0 && s.chip == root.focused-chip;
+        visible: fs.has-focus && root.keyboard-focus && root.live && s.view == root.index && s.chip >= 0 && s.chip == root.focused-chip;
         x: round((s.x0 * root.scale * 1px - 4px) / 1phx) * 1phx;
         y: round((s.y0 * root.scale * 1px - 4px) / 1phx) * 1phx;
         width: round(((s.x1 - s.x0) * root.scale * 1px + 8px) / 1phx) * 1phx;
@@ -248,15 +250,16 @@ component MacroViewArt {
         clicked => {
             if (root.action >= 0) {
                 root.focused-chip = root.action;
+                root.keyboard-focus = false;
                 root.clicked(root.action);
                 fs.focus();
             }
         }
     }
-    // The view takes the keyboard on Tab or a click. Arrow keys move between its buttons,
-    // Space and Enter toggle the one with the frame, and Ctrl+Z undoes a toggle. The
-    // screen reader hears the view as a group, and the button with the ring as its
-    // description.
+    // The view takes the keyboard on Tab or a click, and frames its button after Tab or an
+    // arrow key only. Arrow keys move between its buttons, Space and Enter toggle the one
+    // the focus is on, and Ctrl+Z undoes a toggle. The screen reader hears the view as a
+    // group, and the button the focus is on as its description.
     fs := FocusScope {
         width: parent.width;
         height: parent.height;
@@ -264,11 +267,13 @@ component MacroViewArt {
         accessible-role: groupbox;
         accessible-label: "Buttons held, " + root.view.label + " view";
         accessible-description: !root.live || root.focused-chip < 0 ? "" : root.chips[root.focused-chip].spoken + (root.chips[root.focused-chip].on ? ", held" : ", not held");
-        focus-gained => {
+        focus-gained(reason) => {
+            root.keyboard-focus = reason == FocusReason.tab-navigation;
             if (root.focused-chip < 0 && root.live) {
                 root.focused-chip = root.neighbour(-1, 4);
             }
         }
+        focus-lost => { root.keyboard-focus = false; }
         key-pressed(e) => {
             if (e.modifiers.control && (e.text == "z" || e.text == "Z")) {
                 root.undone();
@@ -280,6 +285,7 @@ component MacroViewArt {
             if (e.text == Key.LeftArrow || e.text == Key.RightArrow || e.text == Key.UpArrow || e.text == Key.DownArrow) {
                 let dir = e.text == Key.LeftArrow ? 0 : e.text == Key.RightArrow ? 1 : e.text == Key.UpArrow ? 2 : 3;
                 root.focused-chip = root.neighbour(root.focused-chip, dir);
+                root.keyboard-focus = true;
                 return accept;
             }
             if ((e.text == " " || e.text == Key.Return) && root.focused-chip >= 0) {

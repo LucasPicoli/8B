@@ -2058,6 +2058,10 @@ fn views_at() -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
     ui.set_tab(1);
     render(&state.borrow(), &ui);
     let st = Rc::clone(&state);
+    ui.on_hit(move |v, x, y| {
+        crate::buttons::hit(st.borrow().description(), usize::try_from(v).unwrap(), x, y)
+    });
+    let st = Rc::clone(&state);
     ui.on_macro_hit(move |v, n, i, x, y| {
         let (v, n, i) = (usize::try_from(v).unwrap(), u8::try_from(n).unwrap(), usize::try_from(i));
         crate::step_panel::action_hit(&st.borrow(), v, n, i.unwrap(), x, y)
@@ -2090,7 +2094,8 @@ fn the_views_take_the_keyboard() {
     };
     let held = || state.borrow().macro_steps(0).unwrap()[0].pressed_buttons.clone();
     assert_eq!(held(), ["bottom face"]);
-    // A click on A in the front view releases it and leaves the ring there.
+    // A click on A in the front view releases it and gives the view the keyboard, with
+    // no frame drawn.
     click_drawn(&ui, 518.0, 486.0);
     assert_eq!(held(), Vec::<String>::new());
     save("views-keyboard-ring", &ui);
@@ -2101,6 +2106,54 @@ fn the_views_take_the_keyboard() {
     press(Key::LeftArrow.into());
     press(Key::Return.into());
     assert_eq!(held(), ["top face", "left face"]);
+}
+
+/// Whether the keyboard focus frame of the front view's button named `label` shows: the
+/// row 3px above its bounds, inside the frame's 2px border, is all `Theme.accent`.
+fn frame_round(ui: &AppWindow, label: &str) -> bool {
+    use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    let button = ElementHandle::find_by_accessible_label(ui, label)
+        .find(|e| e.accessible_role() == Some(AccessibleRole::Checkbox))
+        .unwrap();
+    let (at, size) = (button.absolute_position(), button.size());
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = usize::try_from(shot.width()).unwrap();
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let (x0, x1, y) = (at.x as usize, (at.x + size.width) as usize, (at.y - 3.0).floor() as usize);
+    shot.as_slice()[y * width + x0..y * width + x1]
+        .iter()
+        .all(|p| (p.r, p.g, p.b) == (0x3d, 0xae, 0xe9))
+}
+
+#[test]
+fn the_view_frames_a_button_for_the_keyboard_only() {
+    use slint::platform::{Key, WindowEvent};
+    let (_state, ui) = views_at();
+    let press = |key: Key| {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+        ui.window().take_snapshot().unwrap();
+    };
+    // Off the views, so no tip covers a frame.
+    let away = || {
+        let position = slint::LogicalPosition::new(10.0, 790.0);
+        ui.window().dispatch_event(WindowEvent::PointerMoved { position });
+    };
+    // A click on A in the front view.
+    click_drawn(&ui, 518.0, 486.0);
+    away();
+    assert!(!frame_round(&ui, "A"), "a click drew the frame");
+    // Right from there frames B.
+    press(Key::RightArrow);
+    assert!(frame_round(&ui, "B"), "no frame after an arrow key");
+    // A second click takes the frame away again.
+    click_drawn(&ui, 518.0, 486.0);
+    away();
+    assert!(!frame_round(&ui, "A") && !frame_round(&ui, "B"), "a click kept the frame");
+    // Out and back in with the keyboard.
+    press(Key::Backtab);
+    press(Key::Tab);
+    assert!(frame_round(&ui, "A"), "no frame after Tab");
 }
 
 #[test]
