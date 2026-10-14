@@ -509,11 +509,14 @@ component MacroHeader inherits Frame {
             }
             Field {
                 label: "Plays";
-                HorizontalLayout {
+                fill: true;
+                // The picker, then the count: on a second line when both do not fit.
+                FlexboxLayout {
                     spacing: 8px;
-                    alignment: start;
+                    cross-axis-alignment: center;
                     plays-box := ComboBox {
-                        width: 180px;
+                        // "A number of times" at any font size.
+                        width: max(180px, 13.5rem);
                         model: ["Once", "A number of times", "Until pressed again"];
                         current-index: root.item.plays;
                         enabled: root.editable;
@@ -533,6 +536,7 @@ component MacroHeader inherits Frame {
                         committed(v) => { root.count-changed(v); }
                     }
                     if root.item.plays == 1: FieldLabel {
+                        height: Theme.control-height;
                         text: "times";
                     }
                 }

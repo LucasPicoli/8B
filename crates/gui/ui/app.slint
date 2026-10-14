@@ -97,6 +97,8 @@ export component AppWindow inherits Window {
     in property <bool> can-read-again;
     // The last read failed: the status dot shows it.
     in property <bool> read-failed;
+    // One `rem`, the desktop font size: Rust widens the compact limit with it.
+    out property <length> rem-px: 1rem;
     // Narrow window: toolbar buttons drop their text, like KDE toolbars.
     // Set from Rust: bound to the window width here, it forms a layout loop.
     in property <bool> compact;

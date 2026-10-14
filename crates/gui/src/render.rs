@@ -236,13 +236,25 @@ fn render_fix(state: &AppState, ui: &AppWindow) {
     ui.set_fix_unit_path(KEEPALIVE_UNIT_PATH.into());
 }
 
-/// Narrower than this, in logical pixels, toolbar buttons show only their icon.
+/// Narrower than this, in logical pixels, at the 10 pt desktop font, toolbar buttons show
+/// only their icon.
 const COMPACT_BELOW: f32 = 1200.0;
 
-/// Sets the toolbar compact or not from the window's current width.
+/// One `rem` at 10 pt, the desktop font `COMPACT_BELOW` was set for.
+const BASE_REM: f32 = 40.0 / 3.0;
+
+/// The window width, in logical pixels, below which the toolbar is compact when one `rem`
+/// is `rem_px` wide. The same words need more room in a larger font, so the limit grows
+/// with it; a smaller font keeps the 10 pt limit.
+fn compact_below(rem_px: f32) -> f32 {
+    COMPACT_BELOW * (rem_px / BASE_REM).max(1.0)
+}
+
+/// Sets the toolbar compact or not from the window's current width and font.
 pub fn fit_toolbar(ui: &AppWindow) {
     let window = ui.window();
-    ui.set_compact(window.size().to_logical(window.scale_factor()).width < COMPACT_BELOW);
+    let width = window.size().to_logical(window.scale_factor()).width;
+    ui.set_compact(width < compact_below(ui.get_rem_px()));
 }
 
 #[cfg(test)]
@@ -259,6 +271,14 @@ mod tests {
         s.presence(PORT, Some(mode));
         s.read_finished(PORT, Ok(full_read()));
         s
+    }
+
+    #[test]
+    fn the_compact_limit_grows_with_the_font_and_never_shrinks() {
+        assert_eq!(compact_below(12.0), 1200.0, "a small font keeps the 10 pt limit");
+        assert_eq!(compact_below(BASE_REM), 1200.0);
+        // 150 %: 15 pt, 20px.
+        assert_eq!(compact_below(20.0), 1800.0);
     }
 
     #[test]
