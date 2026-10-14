@@ -96,6 +96,7 @@ pub fn chips(state: &AppState, mode: Mode, step: &MacroStep) -> Vec<ChipInfo> {
         .into_iter()
         .map(|b| ChipInfo {
             label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
+            spoken: b.spoken_label(mode).into(),
             on: holds(step, b),
         })
         .collect()
@@ -126,6 +127,7 @@ pub fn macro_spots(state: &AppState) -> Vec<MacroSpot> {
                 commands: h.path.as_str().into(),
                 chip: chip.and_then(|c| i32::try_from(c).ok()).unwrap_or(-1),
                 label: output_label(description, mode, &h.button).into(),
+                spoken: description.button(&h.button).map_or("", |b| b.spoken_label(mode)).into(),
                 x0,
                 y0,
                 x1,
@@ -148,6 +150,68 @@ pub fn view_chip(state: &AppState, n: u8, step: usize, row: usize) -> Option<usi
     let button = state.description().buttons.get(row)?;
     state.macro_steps(n).filter(|s| step < s.len())?;
     step_buttons(state).iter().position(|b| b.id == button.id)
+}
+
+/// A direction for [`view_neighbour`].
+const LEFT: i32 = 0;
+const RIGHT: i32 = 1;
+const UP: i32 = 2;
+const DOWN: i32 = 3;
+/// The first button of a view, in reading order.
+const FIRST: i32 = 4;
+/// How much a sideways offset counts against a button when moving, against the same
+/// distance along the key's direction.
+const SIDEWAYS_WEIGHT: f32 = 3.0;
+
+/// The chip the arrow key `dir` (0 left, 1 right, 2 up, 3 down, 4 first) moves the
+/// keyboard focus to in view `view`, from chip `from`. The buttons are the ones a step
+/// can hold, as the view draws them. The focus stays on `from` when no button lies
+/// that way, and goes to the first button when `from` is not in the view. -1 when the
+/// view has no such button.
+#[must_use]
+pub fn view_neighbour(state: &AppState, view: usize, from: i32, dir: i32) -> i32 {
+    let chips = step_buttons(state);
+    let Some(view) = state.description().views.get(view) else { return -1 };
+    let mut found: Vec<(i32, f32, f32)> = Vec::new();
+    for h in &view.hotspots {
+        let Some(chip) = chips.iter().position(|b| b.id == h.button) else { continue };
+        let [x0, y0, x1, y1] = h.bounds();
+        #[allow(clippy::cast_possible_truncation)]
+        found.push((
+            i32::try_from(chip).unwrap_or(-1),
+            ((x0 + x1) / 2.0) as f32,
+            ((y0 + y1) / 2.0) as f32,
+        ));
+    }
+    let Some(&(_, fx, fy)) = found.iter().find(|(c, ..)| *c == from) else {
+        let reading = |a: &&(i32, f32, f32), b: &&(i32, f32, f32)| {
+            a.2.total_cmp(&b.2).then(a.1.total_cmp(&b.1))
+        };
+        return found.iter().min_by(reading).map_or(-1, |f| f.0);
+    };
+    if dir == FIRST {
+        return from;
+    }
+    // Only a button within 45 degrees of the key's direction counts. The nearest wins, a
+    // sideways offset weighing `SIDEWAYS_WEIGHT` times its length, so a button straight
+    // ahead beats a nearer one on the diagonal.
+    let ahead = |&&(c, x, y): &&(i32, f32, f32)| -> Option<(i32, f32)> {
+        let (dx, dy) = (x - fx, y - fy);
+        let (along, across) = match dir {
+            LEFT => (-dx, dy),
+            RIGHT => (dx, dy),
+            UP => (-dy, dx),
+            DOWN => (dy, dx),
+            _ => return None,
+        };
+        (c != from && along > across.abs())
+            .then_some((c, along.mul_add(along, (SIDEWAYS_WEIGHT * across).powi(2))))
+    };
+    found
+        .iter()
+        .filter_map(|f| ahead(&f))
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map_or(from, |(c, _)| c)
 }
 
 /// The chip under (`x`, `y`) in view `view`, in viewBox units, when a click there
@@ -182,7 +246,7 @@ pub fn render_panel(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use controller_core::devices::pro3::XINPUT;
+    use controller_core::devices::pro3::{SWITCH, XINPUT};
 
     use super::*;
     use crate::state::tests::{connected, hold_macros, macro_def};
@@ -257,6 +321,47 @@ mod tests {
         assert_eq!((of("l2").chip, of("l2").label.as_str()), (lt, "LT"));
         assert_eq!((of("r4").chip, of("r4").label.as_str()), (-1, "R4"), "not a step button");
         assert_eq!(of("home/guide").chip, -1);
+    }
+
+    #[test]
+    fn arrow_keys_move_between_the_buttons_of_a_view() {
+        let s = holding(vec![step(100)]);
+        let c = |id: &str| i32::try_from(chip(&s, id)).unwrap();
+        let go = |from: &str, dir: i32| view_neighbour(&s, 0, c(from), dir);
+        assert_eq!(go("bottom face", UP), c("top face"), "straight ahead beats the diagonal");
+        assert_eq!(go("bottom face", LEFT), c("left face"), "nearest ahead");
+        assert_eq!(go("right face", LEFT), c("left face"));
+        assert_eq!(go("top face", DOWN), c("bottom face"));
+        assert_eq!(go("d-pad up", DOWN), c("d-pad down"), "through the d-pad's centre");
+        assert_eq!(go("d-pad left", RIGHT), c("d-pad right"));
+        assert_eq!(go("l1", UP), c("l1"), "nothing above: the focus stays");
+        assert_eq!(go("r1", RIGHT), c("r1"), "nothing to the right");
+        assert_ne!(go("r1", LEFT), c("top face"), "a button mostly below is not to the left");
+    }
+
+    #[test]
+    fn the_first_button_is_the_top_left_one_and_a_foreign_chip_lands_on_it() {
+        let s = holding(vec![step(100)]);
+        let first = view_neighbour(&s, 0, -1, FIRST);
+        assert_eq!(first, i32::try_from(chip(&s, "l1")).unwrap());
+        // L2 is on the back view only: from there, the front view starts over.
+        let l2 = i32::try_from(chip(&s, "l2")).unwrap();
+        assert_eq!(view_neighbour(&s, 0, l2, RIGHT), first);
+        assert_eq!(view_neighbour(&s, 9, -1, FIRST), -1, "no such view");
+    }
+
+    #[test]
+    fn symbol_labels_are_spoken_from_the_description() {
+        let mut s = connected(SWITCH);
+        hold_macros(&mut s, (SWITCH, 2), &[macro_def(0, "Jump", &["rp"], 1)]);
+        s.select(1, 1);
+        let spot = |id: &str| {
+            let row = i32::try_from(row(&s, id)).unwrap();
+            macro_spots(&s).into_iter().find(|p| p.row == row).unwrap()
+        };
+        assert_eq!(spot("select/back").spoken.as_str(), "Minus");
+        assert_eq!(spot("select/back").label.as_str(), "−");
+        assert_eq!(spot("d-pad up").spoken.as_str(), "D-pad up");
     }
 
     #[test]

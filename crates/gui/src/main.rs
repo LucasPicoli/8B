@@ -76,7 +76,7 @@ use crate::macro_tab::{added_button, chip_button, Plays};
 use crate::macros::named;
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
-use crate::step_panel::action_hit;
+use crate::step_panel::{action_hit, view_neighbour};
 use crate::step_table::StepEdit;
 use crate::ui::{AppWindow, Diagnostics};
 use crate::worker::{Command, Event, Failure};
@@ -617,13 +617,28 @@ fn macro_slot(n: i32) -> u8 {
     u8::try_from(n).unwrap_or(u8::MAX)
 }
 
-/// Wires the Macros tab: each edit names the macro slot it is for. The hit test reads
-/// `state` outside a change.
+/// Wires what the controller views on the Macros tab ask of `state`: the button a click
+/// toggles, and where an arrow key moves the focus. Both read `state` outside a change.
+fn wire_views(ui: &AppWindow, state: Rc<RefCell<AppState>>) {
+    let neighbour_state = Rc::clone(&state);
+    ui.on_macro_hit(move |view, n, step, x, y| {
+        let view = usize::try_from(view).unwrap_or(usize::MAX);
+        let step = usize::try_from(step).unwrap_or(usize::MAX);
+        action_hit(&state.borrow(), view, macro_slot(n), step, x, y)
+    });
+    ui.on_macro_neighbour(move |view, from, dir| {
+        let view = usize::try_from(view).unwrap_or(usize::MAX);
+        view_neighbour(&neighbour_state.borrow(), view, from, dir)
+    });
+}
+
+/// Wires the Macros tab: each edit names the macro slot it is for.
 fn wire_macros(
     ui: &AppWindow,
     change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
     state: Rc<RefCell<AppState>>,
 ) {
+    wire_views(ui, state);
     let c = change.clone();
     ui.on_macro_shown(move || c(&|_| {}));
     let c = change.clone();
@@ -682,11 +697,6 @@ fn wire_macros(
     });
     let c = change.clone();
     ui.on_floor_raised(move |n| c(&|s| s.raise_to_stick_floor(macro_slot(n))));
-    ui.on_macro_hit(move |view, n, step, x, y| {
-        let view = usize::try_from(view).unwrap_or(usize::MAX);
-        let step = usize::try_from(step).unwrap_or(usize::MAX);
-        action_hit(&state.borrow(), view, macro_slot(n), step, x, y)
-    });
     let c = change.clone();
     ui.on_macro_created(move |n| c(&|s| s.new_macro(macro_slot(n))));
     let c = change.clone();

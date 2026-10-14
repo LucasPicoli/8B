@@ -319,6 +319,30 @@ mod tests {
         assert_eq!(hit(1, 365.0, 165.0), ["lp"]);
     }
 
+    /// A label made of a symbol is read aloud from the description; a word label is its own
+    /// spoken label.
+    #[test]
+    fn pro3_symbol_labels_have_spoken_labels() {
+        let d = Pro3.description().unwrap();
+        let spoken = |id: &str, mode| d.button(id).unwrap().spoken_label(mode);
+        assert_eq!(spoken("select/back", SWITCH), "Minus");
+        assert_eq!(spoken("start/menu", SWITCH), "Plus");
+        assert_eq!(spoken("select/back", XINPUT), "View", "no entry: the label");
+        for mode in [XINPUT, SWITCH, DINPUT] {
+            assert_eq!(spoken("d-pad up", mode), "D-pad up");
+            assert_eq!(spoken("d-pad right", mode), "D-pad right");
+        }
+        // Every label with a character outside letters and digits has an entry.
+        for b in &d.buttons {
+            for (mode, label) in &b.labels {
+                if label.chars().all(char::is_alphanumeric) {
+                    continue;
+                }
+                assert!(b.spoken_labels.contains_key(mode), "{} in {mode}: {label}", b.id);
+            }
+        }
+    }
+
     #[test]
     fn pro3_description_matches_its_schema() {
         let schema: Value = serde_json::from_str(include_str!(

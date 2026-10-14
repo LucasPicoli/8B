@@ -270,6 +270,7 @@ export component AppWindow inherits Window {
     // The chip of "Buttons held" under (x, y) in view `view`, when a click there toggles
     // it in step `step` of macro slot `macro` (0-based), or -1.
     pure callback macro-hit(int, int, int, float, float) -> int;
+    pure callback macro-neighbour(int, int, int) -> int;
     // Rust only: the light or dark colours changed, so the views need recolouring.
     callback theme-changed;
     property <bool> dark: Theme.dark;
@@ -550,6 +551,7 @@ export component AppWindow inherits Window {
                         stick-glided(n, i, k, on) => { root.stick-glided(n, i, k, on); }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
+                        neighbour(v, from, dir) => { return root.macro-neighbour(v, from, dir); }
                         created(n) => { root.macro-created(n); }
                         imported(n) => { root.macro-import-file(n); }
                         exported(n) => { root.macro-export-file(n); }

@@ -1926,3 +1926,57 @@ fn shift_tab_from_a_row_leaves_the_table() {
     press(Key::DownArrow);
     assert_eq!(ui.get_selected_step(), 1);
 }
+
+/// The step tab of `steps_tab` at 1280×800 with the controller views wired to the state,
+/// as the app wires them.
+fn views_at() -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
+    let state = Rc::new(std::cell::RefCell::new(steps_tab()));
+    let ui = window(&state.borrow());
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    render(&state.borrow(), &ui);
+    let st = Rc::clone(&state);
+    ui.on_macro_hit(move |v, n, i, x, y| {
+        let (v, n, i) = (usize::try_from(v).unwrap(), u8::try_from(n).unwrap(), usize::try_from(i));
+        crate::step_panel::action_hit(&st.borrow(), v, n, i.unwrap(), x, y)
+    });
+    let st = Rc::clone(&state);
+    ui.on_macro_neighbour(move |v, from, dir| {
+        crate::step_panel::view_neighbour(&st.borrow(), usize::try_from(v).unwrap(), from, dir)
+    });
+    let (st, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_step_chip_toggled(move |n, step, chip| {
+        let (n, step, chip) = (
+            u8::try_from(n).unwrap(),
+            usize::try_from(step).unwrap(),
+            usize::try_from(chip).unwrap(),
+        );
+        st.borrow_mut().toggle_step_button(n, step, chip);
+        render(&st.borrow(), &weak.upgrade().unwrap());
+    });
+    (state, ui)
+}
+
+#[test]
+fn the_views_take_the_keyboard() {
+    use slint::platform::{Key, WindowEvent};
+    let (state, ui) = views_at();
+    let press = |text: slint::SharedString| {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text });
+        ui.window().take_snapshot().unwrap();
+    };
+    let held = || state.borrow().macro_steps(0).unwrap()[0].pressed_buttons.clone();
+    assert_eq!(held(), ["bottom face"]);
+    // A click on A in the front view releases it and leaves the ring there.
+    click_drawn(&ui, 518.0, 438.0);
+    assert_eq!(held(), Vec::<String>::new());
+    save("views-keyboard-ring", &ui);
+    // Up goes to Y, Space holds it; Left goes to X, Enter holds it.
+    press(Key::UpArrow.into());
+    press(" ".into());
+    assert_eq!(held(), ["top face"]);
+    press(Key::LeftArrow.into());
+    press(Key::Return.into());
+    assert_eq!(held(), ["top face", "left face"]);
+}

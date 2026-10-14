@@ -131,3 +131,21 @@ Copy `pro3_hotspots_sit_on_their_buttons` from
 `crates/controller-core/src/devices/pro3/mod.rs` and click real points: a button's
 centre, the d-pad centre (no button), the body beside a bumper (no button), and a
 button seen from behind. Pick the points from the coordinates in your SVG.
+
+## 6. Give a symbol label a spoken label
+
+A button whose `labels` entry is a symbol, such as the Switch "−" and "+" or the
+Pro 3 d-pad arrows, is read badly by a screen reader. Add `spoken_labels` to that
+button with the words to say, per mode:
+
+```json
+"labels": { "xinput": "↑", "switch": "↑", "dinput": "↑" },
+"spoken_labels": { "xinput": "D-pad up", "switch": "D-pad up", "dinput": "D-pad up" }
+```
+
+The list is sparse: a mode with no entry is read from its `labels` value. A mode
+the button has no label in fails the load. The editor reads the spoken label on
+the controller views, on the Buttons tab and wherever else it names the button to
+a screen reader. The views also take the keyboard on their own: Tab focuses a view,
+the arrow keys move between the buttons a macro step can hold, and Space or Enter
+toggles one. They follow the hotspots, so a new model needs nothing more.

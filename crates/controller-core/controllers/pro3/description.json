@@ -241,6 +241,9 @@
         "switch": "−",
         "dinput": "Select"
       },
+      "spoken_labels": {
+        "switch": "Minus"
+      },
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
@@ -252,6 +255,9 @@
         "xinput": "Menu",
         "switch": "+",
         "dinput": "Start"
+      },
+      "spoken_labels": {
+        "switch": "Plus"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -289,6 +295,11 @@
         "switch": "↑",
         "dinput": "↑"
       },
+      "spoken_labels": {
+        "xinput": "D-pad up",
+        "switch": "D-pad up",
+        "dinput": "D-pad up"
+      },
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
@@ -300,6 +311,11 @@
         "xinput": "↓",
         "switch": "↓",
         "dinput": "↓"
+      },
+      "spoken_labels": {
+        "xinput": "D-pad down",
+        "switch": "D-pad down",
+        "dinput": "D-pad down"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -313,6 +329,11 @@
         "switch": "←",
         "dinput": "←"
       },
+      "spoken_labels": {
+        "xinput": "D-pad left",
+        "switch": "D-pad left",
+        "dinput": "D-pad left"
+      },
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
@@ -324,6 +345,11 @@
         "xinput": "→",
         "switch": "→",
         "dinput": "→"
+      },
+      "spoken_labels": {
+        "xinput": "D-pad right",
+        "switch": "D-pad right",
+        "dinput": "D-pad right"
       },
       "can_be_remapped": true,
       "can_be_output": true,

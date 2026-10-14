@@ -198,6 +198,7 @@ export component ButtonsTab {
                                         Text {
                                             text: r.label;
                                             color: Theme.fg;
+                                            accessible-label: r.spoken;
                                         }
                                     }
                                 }
@@ -216,7 +217,7 @@ export component ButtonsTab {
                                                 small: true;
                                                 model: r.outputs;
                                                 current-index <=> r.output;
-                                                accessible-name: "Output for " + r.label;
+                                                accessible-name: "Output for " + r.spoken;
                                                 focused => { root.selected = i; }
                                                 selected => { root.output-picked(i, self.current-index); }
                                             }

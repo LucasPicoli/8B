@@ -266,6 +266,10 @@ pub struct Button {
     pub id: String,
     /// Name shown to the user, one per mode.
     pub labels: BTreeMap<Mode, String>,
+    /// What a screen reader says for a label that is a symbol, such as "Minus" for "−".
+    /// Sparse: a mode without an entry is read from its label.
+    #[serde(default)]
+    pub spoken_labels: BTreeMap<Mode, String>,
     /// A button mapping may give this button an output other than its own press.
     pub can_be_remapped: bool,
     /// This button's press may be the output of another button. A button can
@@ -293,6 +297,18 @@ pub enum TriggerSide {
     Left,
     /// `MacroStep::trigger_right`.
     Right,
+}
+
+impl Button {
+    /// What a screen reader says for this button in `mode`: its spoken label, else its
+    /// label, else its id.
+    #[must_use]
+    pub fn spoken_label(&self, mode: Mode) -> &str {
+        self.spoken_labels
+            .get(&mode)
+            .or_else(|| self.labels.get(&mode))
+            .map_or(self.id.as_str(), String::as_str)
+    }
 }
 
 impl ControllerDescription {
@@ -470,6 +486,12 @@ impl ControllerDescription {
             }
             if !button.labels.keys().copied().eq(modes.iter().copied()) {
                 return Err(format!("button '{}' needs one label per listed mode", button.id));
+            }
+            if !button.spoken_labels.keys().all(|m| button.labels.contains_key(m)) {
+                return Err(format!(
+                    "button '{}' has a spoken label for a mode it lacks a label in",
+                    button.id
+                ));
             }
         }
         self.check_macro_buttons()?;
@@ -754,7 +776,7 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 27] = [
+        let cases: [fn(&mut Value); 28] = [
             |v| v["buttons"][1]["step_trigger_value"] = json!("left"),
             |v| {
                 v["buttons"][0]["step_trigger_value"] = json!("right");
@@ -774,6 +796,7 @@ mod tests {
             |v| {
                 v["buttons"][0]["labels"].as_object_mut().unwrap().remove("switch");
             },
+            |v| v["buttons"][0]["spoken_labels"] = json!({ "dinput": "Ay" }),
             |v| v["limits"]["macro_steps"] = json!({ "min": 2, "max": 1 }),
             |v| v["limits"]["macro_repeat_count"] = json!({ "min": 99, "max": 1 }),
             |v| v["limits"]["glide_step_ms"] = json!(0),

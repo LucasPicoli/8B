@@ -171,6 +171,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
             let list = choices(state, mode, &b.id, &current);
             MapRow {
                 label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
+                spoken: b.spoken_label(mode).into(),
                 output: list
                     .iter()
                     .position(|(id, _)| *id == current)

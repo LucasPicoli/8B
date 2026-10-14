@@ -288,6 +288,16 @@
             "dinput": { "type": "string", "minLength": 1 }
           }
         },
+        "spoken_labels": {
+          "description": "What a screen reader says for a label that is a symbol, such as Minus for \u2212 or Up arrow for \u2191. Sparse: a listed mode without an entry is read from its label. The loader rejects a mode the button has no label in.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "xinput": { "type": "string", "minLength": 1 },
+            "switch": { "type": "string", "minLength": 1 },
+            "dinput": { "type": "string", "minLength": 1 }
+          }
+        },
         "can_be_remapped": {
           "description": "A button mapping may give this button an output other than its own press.",
           "type": "boolean"

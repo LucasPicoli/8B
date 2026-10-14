@@ -143,6 +143,9 @@ component MacroViewArt {
     // toggles, or -1.
     pure callback hit(float, float) -> int;
     pure callback action-hit(float, float) -> int;
+    // The chip an arrow key moves the focus to from a chip (or -1) in this view: 0 left,
+    // 1 right, 2 up, 3 down, 4 the first one.
+    pure callback neighbour(int, int) -> int;
     callback clicked(int);
     // Ctrl+Z after a click.
     callback undone;
@@ -151,6 +154,8 @@ component MacroViewArt {
     property <float> my: ta.mouse-y / 1px / scale;
     property <int> hover: ta.has-hover ? root.hit(self.mx, self.my) : -1;
     property <int> action: ta.has-hover ? root.action-hit(self.mx, self.my) : -1;
+    // The chip the keyboard focus is on, or -1.
+    property <int> focused-chip: -1;
     // Whole pixels, so the next view starts on one.
     height: round(self.width * view.height / view.width / 1phx) * 1phx;
 
@@ -185,25 +190,77 @@ component MacroViewArt {
         view-width: root.width;
         view-height: root.height;
     }
+    // The button the keyboard is on: a frame round its bounds, so it reads as focus and
+    // not as the outline of a held button.
+    for s in root.spots: Rectangle {
+        visible: fs.has-focus && root.live && s.view == root.index && s.chip >= 0 && s.chip == root.focused-chip;
+        x: round((s.x0 * root.scale * 1px - 4px) / 1phx) * 1phx;
+        y: round((s.y0 * root.scale * 1px - 4px) / 1phx) * 1phx;
+        width: round(((s.x1 - s.x0) * root.scale * 1px + 8px) / 1phx) * 1phx;
+        height: round(((s.y1 - s.y0) * root.scale * 1px + 8px) / 1phx) * 1phx;
+        border-radius: Theme.radius;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+    // One item per button for a screen reader, which reads the spoken label and whether
+    // the step holds it.
+    for s in root.spots: Rectangle {
+        visible: s.view == root.index && s.chip >= 0;
+        x: s.x0 * root.scale * 1px;
+        y: s.y0 * root.scale * 1px;
+        width: (s.x1 - s.x0) * root.scale * 1px;
+        height: (s.y1 - s.y0) * root.scale * 1px;
+        accessible-role: checkbox;
+        accessible-label: s.spoken;
+        accessible-checked: s.chip >= 0 && root.chips[s.chip].on;
+        accessible-enabled: root.live;
+        accessible-action-default => {
+            if (root.live) {
+                root.clicked(s.chip);
+            }
+        }
+    }
     ta := TouchArea {
         mouse-cursor: root.action >= 0 ? MouseCursor.pointer : MouseCursor.default;
         clicked => {
             if (root.action >= 0) {
+                root.focused-chip = root.action;
                 root.clicked(root.action);
                 fs.focus();
             }
         }
     }
-    // A click takes the keyboard, so Ctrl+Z undoes it. Tab skips the views: the chips of
-    // the step panel are their keyboard path.
+    // The view takes the keyboard on Tab or a click. Arrow keys move between its buttons,
+    // Space and Enter toggle the one with the frame, and Ctrl+Z undoes a toggle. The
+    // screen reader hears the view as a group, and the button with the ring as its
+    // description.
     fs := FocusScope {
-        width: 0;
-        height: 0;
+        width: parent.width;
+        height: parent.height;
         focus-on-click: false;
-        focus-on-tab-navigation: false;
+        accessible-role: groupbox;
+        accessible-label: "Buttons held, " + root.view.label + " view";
+        accessible-description: !root.live || root.focused-chip < 0 ? "" : root.chips[root.focused-chip].spoken + (root.chips[root.focused-chip].on ? ", held" : ", not held");
+        focus-gained => {
+            if (root.focused-chip < 0 && root.live) {
+                root.focused-chip = root.neighbour(-1, 4);
+            }
+        }
         key-pressed(e) => {
             if (e.modifiers.control && (e.text == "z" || e.text == "Z")) {
                 root.undone();
+                return accept;
+            }
+            if (!root.live || e.modifiers.control || e.modifiers.alt || e.modifiers.meta) {
+                return reject;
+            }
+            if (e.text == Key.LeftArrow || e.text == Key.RightArrow || e.text == Key.UpArrow || e.text == Key.DownArrow) {
+                let dir = e.text == Key.LeftArrow ? 0 : e.text == Key.RightArrow ? 1 : e.text == Key.UpArrow ? 2 : 3;
+                root.focused-chip = root.neighbour(root.focused-chip, dir);
+                return accept;
+            }
+            if ((e.text == " " || e.text == Key.Return) && root.focused-chip >= 0) {
+                root.clicked(root.focused-chip);
                 return accept;
             }
             reject
@@ -524,6 +581,9 @@ export component MacrosTab {
     // (0-based), or -1.
     pure callback hit(int, float, float) -> int;
     pure callback action-hit(int, int, int, float, float) -> int;
+    // The chip an arrow key moves the focus to in view `view` from a chip (or -1): the
+    // direction is 0 left, 1 right, 2 up, 3 down, 4 the first one.
+    pure callback neighbour(int, int, int) -> int;
     // Each takes the selected macro slot (0-based) first.
     callback created(int);
     callback imported(int);
@@ -615,6 +675,7 @@ export component MacrosTab {
                             opacity: root.live ? 1 : 0.45;
                             hit(x, y) => { return root.hit(i, x, y); }
                             action-hit(x, y) => { return root.action-hit(i, root.selected, root.selected-step, x, y); }
+                            neighbour(from, dir) => { return root.neighbour(i, from, dir); }
                             clicked(c) => { root.step-chip-toggled(root.selected, root.selected-step, c); }
                             undone => { root.step-undone(root.selected); }
                         }
