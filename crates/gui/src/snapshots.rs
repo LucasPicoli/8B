@@ -1980,3 +1980,34 @@ fn the_views_take_the_keyboard() {
     press(Key::Return.into());
     assert_eq!(held(), ["top face", "left face"]);
 }
+
+#[test]
+fn typing_a_duration_in_the_table_survives_the_render_after_each_digit() {
+    use slint::platform::{Key, WindowEvent};
+    let (state, ui) = steps_at(1280, 1200);
+    let s = Rc::clone(&state);
+    let weak = ui.as_weak();
+    ui.on_step_duration_changed(move |n, step, ms| {
+        s.borrow_mut().set_step_duration(
+            u8::try_from(n).unwrap(),
+            usize::try_from(step).unwrap(),
+            ms,
+        );
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let ms = || state.borrow().macro_steps(0).unwrap()[0].duration_ms;
+    // The first row's field holds 300; its text, at this size.
+    click_drawn(&ui, 1180.0, 382.0);
+    let type_key = |text: &str| {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: text.into() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: text.into() });
+        ui.window().take_snapshot().unwrap();
+    };
+    for key in [Key::End, Key::Backspace, Key::Backspace, Key::Backspace] {
+        type_key(&String::from(char::from(key)));
+    }
+    for (digit, want) in [("4", 4), ("5", 45), ("6", 456)] {
+        type_key(digit);
+        assert_eq!(ms(), want, "the field lost its focus after {digit}");
+    }
+}
