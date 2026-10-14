@@ -216,6 +216,7 @@ export component ButtonsTab {
                                             ComboBox {
                                                 small: true;
                                                 model: r.outputs;
+                                                spoken: r.spoken-outputs;
                                                 current-index <=> r.output;
                                                 accessible-name: "Output for " + r.spoken;
                                                 focused => { root.selected = i; }

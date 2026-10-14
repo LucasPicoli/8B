@@ -176,6 +176,17 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                     .iter()
                     .position(|(id, _)| *id == current)
                     .map_or(0, |i| i32::try_from(i).unwrap_or(0)),
+                spoken_outputs: ModelRc::from(Rc::new(
+                    list.iter()
+                        .map(|(id, l)| {
+                            let spoken = state
+                                .description()
+                                .button(id)
+                                .map(|o| o.spoken_label(mode).to_owned());
+                            SharedString::from(spoken.as_deref().unwrap_or(l))
+                        })
+                        .collect::<VecModel<_>>(),
+                )),
                 outputs: ModelRc::from(Rc::new(
                     list.into_iter().map(|(_, l)| SharedString::from(l)).collect::<VecModel<_>>(),
                 )),
@@ -405,6 +416,20 @@ mod tests {
             row("r1").outputs.row_data(usize::try_from(row("r1").output).unwrap()).unwrap(),
             "Disabled"
         );
+    }
+
+    #[test]
+    fn picker_options_speak_symbol_labels() {
+        let s = read(SWITCH);
+        let row = &rows(&s)[row_of(&s, "l1")];
+        let list = choices(&s, SWITCH, "l1", "l1");
+        let at = |id: &str| ids(&list).iter().position(|o| *o == id).unwrap();
+        let (minus, up) = (at("select/back"), at("d-pad up"));
+        assert_eq!(row.outputs.row_data(minus).unwrap(), "−");
+        assert_eq!(row.spoken_outputs.row_data(minus).unwrap(), "Minus");
+        assert_eq!(row.outputs.row_data(up).unwrap(), "↑");
+        assert_eq!(row.spoken_outputs.row_data(up).unwrap(), "D-pad up");
+        assert_eq!(row.spoken_outputs.row_data(0).unwrap(), "A", "a word label is its own");
     }
 
     /// `XInput` slot 1 with macro slot 0, `Buttons`, on `rp`, as on the test pad.

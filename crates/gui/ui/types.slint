@@ -32,6 +32,8 @@ export struct MapRow {
     spoken: string,
     // The outputs the picker offers, and the one in use.
     outputs: [string],
+    // What a screen reader says for each output.
+    spoken-outputs: [string],
     output: int,
     // Cannot be remapped: no picker.
     fixed: bool,
@@ -375,7 +377,7 @@ export struct StepInfo {
     duration-ms: int,
     // No button, no trigger, both sticks at rest.
     pause: bool,
-    // What the step holds, such as "A, LT 128 to 255", or "".
+    // What a screen reader says the step holds, such as "A, LT 128 to 255", or "".
     held: string,
     lanes: [LaneInfo],
     left: StickInfo,

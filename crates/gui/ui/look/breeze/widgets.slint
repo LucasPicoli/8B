@@ -160,6 +160,8 @@ export component LineEdit {
 
 export component ComboBox {
     in property <[string]> model;
+    // What a screen reader says for each entry of `model`, where it differs.
+    in property <[string]> spoken;
     in-out property <int> current-index;
     out property <string> current-value: model[current-index];
     in property <bool> enabled: true;
@@ -176,8 +178,12 @@ export component ComboBox {
     min-width: 120px;
     accessible-role: combobox;
     accessible-label: accessible-name;
-    accessible-value: current-value;
+    accessible-value: root.said(current-index);
     forward-focus: fs;
+
+    pure function said(i: int) -> string {
+        i < spoken.length ? spoken[i] : model[i]
+    }
 
     function pick(i: int) {
         if (i >= 0 && i < model.length && (i != current-index || menu)) {
@@ -278,6 +284,10 @@ export component ComboBox {
                 height: 26px;
                 border-radius: 3px;
                 background: i == root.current-index ? Theme.accent-wash : item-ta.has-hover ? Theme.hover : transparent;
+                accessible-role: list-item;
+                accessible-label: root.said(i);
+                accessible-item-selected: i == root.current-index;
+                accessible-action-default => { root.pick(i); }
                 Text {
                     x: 8px;
                     text: item;

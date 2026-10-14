@@ -265,18 +265,17 @@ fn bar(step: &MacroStep, button: &Button, kind: TriggerKind) -> f32 {
     }
 }
 
-/// How `step` holds `button` in `mode`: its label, with the pressure in an analog mode,
-/// and where a gliding pressure goes in `next`. Such as "A" or "LT 128 to 255".
+/// How `step` holds `button`, named `label`: the label, with the pressure in an analog
+/// mode, and where a gliding pressure goes in `next`. Such as "A" or "LT 128 to 255".
 fn held_text(
     step: &MacroStep,
     next: Option<&MacroStep>,
     button: &Button,
-    mode: Mode,
+    label: &str,
     kind: TriggerKind,
 ) -> String {
-    let label = button.labels.get(&mode).cloned().unwrap_or_default();
     let Some(side) = button.step_trigger_value.filter(|_| kind == TriggerKind::Analog) else {
-        return label;
+        return label.to_owned();
     };
     let now = trigger(step, side);
     next.filter(|_| step.glide.contains(&trigger_control(side))).map_or_else(
@@ -336,7 +335,8 @@ pub fn step_rows(
                         top,
                         bottom: next.filter(|_| glides).map_or(top, |n| bar(n, b, kind)),
                         tip: if on {
-                            held_text(step, next, b, mode, kind).into()
+                            let label = b.labels.get(&mode).map_or("", String::as_str);
+                            held_text(step, next, b, label, kind).into()
                         } else {
                             "".into()
                         },
@@ -346,7 +346,7 @@ pub fn step_rows(
             let held_list: Vec<String> = lanes
                 .iter()
                 .filter(|b| holds(step, b))
-                .map(|b| held_text(step, next, b, mode, kind))
+                .map(|b| held_text(step, next, b, b.spoken_label(mode), kind))
                 .collect();
             StepInfo {
                 number: i32::try_from(i + 1).unwrap_or(i32::MAX),
@@ -445,6 +445,19 @@ mod tests {
         assert_eq!(lt.tip, "LT 0 to 255");
         assert_eq!(rows[0].held, "LT 0 to 255");
         assert!(!rows[0].pause && !rows[2].pause, "both glide away from rest");
+    }
+
+    #[test]
+    fn a_row_speaks_symbol_labels_and_draws_the_symbols() {
+        let held = |b: &[&str]| MacroStep {
+            pressed_buttons: b.iter().map(|&b| b.to_owned()).collect(),
+            ..step(100)
+        };
+        let s = holding(vec![held(&["select/back", "d-pad up"])]);
+        let (lanes, rows) = step_rows(&s, SWITCH, &s.macro_steps(0).unwrap());
+        assert_eq!(rows[0].held, "Minus, D-pad up");
+        assert_eq!(lanes.iter().filter(|l| ["−", "↑"].contains(&l.as_str())).count(), 2);
+        assert_eq!(rows[0].lanes.row_data(0).unwrap().tip.as_str(), lanes[0]);
     }
 
     #[test]
