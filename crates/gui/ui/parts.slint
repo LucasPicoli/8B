@@ -584,14 +584,16 @@ export component DialogShell inherits Rectangle {
     }
 }
 
-// Two knobs on one groove: a low and a high end. Left and Right move the low end,
-// with Shift the high end. Each callback names the knob that moved.
+// Two knobs on one groove: a low and a high end. The arrow keys, Home, End, PageUp and
+// PageDown move the low end, with Shift the high end. Each callback names the knob that
+// moved. While focused, both knobs carry the focus frame.
 export component RangeSlider {
     in-out property <float> low;
     in-out property <float> high: 100;
     in property <float> minimum: 0;
     in property <float> maximum: 100;
     in property <string> accessible-name;
+    in property <bool> enabled: true;
     callback low-changed(float);
     callback high-changed(float);
     min-height: 22px;
@@ -599,21 +601,40 @@ export component RangeSlider {
     min-width: 120px;
     accessible-role: slider;
     accessible-label: accessible-name;
+    accessible-enabled: root.enabled;
     accessible-value: round(low) + " to " + round(high);
     forward-focus: fs;
+    opacity: root.enabled ? 1 : 0.45;
     property <length> knob: 18px;
     property <length> span: self.width - knob;
+    // PageUp and PageDown move a tenth of the range.
+    property <float> page: max(1, round((maximum - minimum) / 10));
 
     function at(v: float) -> length {
         (v - minimum) / (maximum - minimum) * span
     }
+    // A move that keeps the value sends nothing.
     function set-low(v: float) {
-        low = clamp(round(v), minimum, high);
-        low-changed(low);
+        let next = clamp(round(v), minimum, high);
+        if (next != low) {
+            low = next;
+            low-changed(low);
+        }
     }
     function set-high(v: float) {
-        high = clamp(round(v), low, maximum);
-        high-changed(high);
+        let next = clamp(round(v), low, maximum);
+        if (next != high) {
+            high = next;
+            high-changed(high);
+        }
+    }
+    // Moves the end the keys address: the low end, or with Shift the high end.
+    function move-end(shift: bool, v: float) {
+        if (shift) {
+            set-high(v);
+        } else {
+            set-low(v);
+        }
     }
     // Moves the knob nearer to the pointer.
     function drag(x: length) {
@@ -626,15 +647,27 @@ export component RangeSlider {
     }
 
     fs := FocusScope {
+        enabled: root.enabled;
         key-pressed(e) => {
-            let d = e.text == Key.LeftArrow ? -1 : e.text == Key.RightArrow ? 1 : 0;
-            if (d == 0) {
+            let now = e.modifiers.shift ? root.high : root.low;
+            // A scope that was focused when it got disabled keeps the focus.
+            if (!root.enabled) {
                 return reject;
             }
-            if (e.modifiers.shift) {
-                root.set-high(root.high + d);
+            if (e.text == Key.Home) {
+                root.move-end(e.modifiers.shift, root.minimum);
+            } else if (e.text == Key.End) {
+                root.move-end(e.modifiers.shift, root.maximum);
+            } else if (e.text == Key.PageDown) {
+                root.move-end(e.modifiers.shift, now - root.page);
+            } else if (e.text == Key.PageUp) {
+                root.move-end(e.modifiers.shift, now + root.page);
+            } else if (e.text == Key.LeftArrow || e.text == Key.DownArrow) {
+                root.move-end(e.modifiers.shift, now - 1);
+            } else if (e.text == Key.RightArrow || e.text == Key.UpArrow) {
+                root.move-end(e.modifiers.shift, now + 1);
             } else {
-                root.set-low(root.low + d);
+                return reject;
             }
             accept
         }
@@ -660,12 +693,23 @@ export component RangeSlider {
         border-radius: root.knob / 2;
         background: Theme.button;
         border-width: 1px;
-        border-color: fs.has-focus ? Theme.accent : Theme.line;
+        border-color: root.enabled && fs.has-focus ? Theme.accent : Theme.line;
         drop-shadow-blur: 2px;
         drop-shadow-offset-y: 1px;
         drop-shadow-color: Theme.shadow;
     }
+    // The focus frame, as on `Slider`: 2px of accent, 2px outside each knob.
+    for v in fs.has-focus && root.enabled ? [root.low, root.high] : []: Rectangle {
+        x: root.at(v) - 4px;
+        y: (parent.height - root.knob) / 2 - 4px;
+        width: root.knob + 8px;
+        height: root.knob + 8px;
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
     TouchArea {
+        enabled: root.enabled;
         // ponytail: drag moves the nearer knob, no hand-off when knobs meet.
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down) {

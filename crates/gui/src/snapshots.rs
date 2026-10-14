@@ -1095,6 +1095,114 @@ fn enter_does_not_accept_a_destructive_dialog() {
     assert_eq!(ui.get_accepted(), 0);
 }
 
+slint::slint! {
+    import { RangeSlider } from "ui/parts.slint";
+    export component RangeShell inherits Window {
+        width: 300px;
+        height: 100px;
+        in-out property <float> low: 40;
+        in-out property <float> high: 60;
+        in property <bool> enabled: true;
+        in-out property <int> moves;
+        public function focus-slider() { r.focus(); }
+        r := RangeSlider {
+            x: 20px;
+            y: 30px;
+            width: 200px;
+            low <=> root.low;
+            high <=> root.high;
+            enabled: root.enabled;
+            low-changed(_) => { root.moves += 1; }
+            high-changed(_) => { root.moves += 1; }
+        }
+    }
+}
+
+fn range_shell() -> RangeShell {
+    let _ = slint::platform::set_platform(Box::new(Headless));
+    let ui = RangeShell::new().unwrap();
+    ui.show().unwrap();
+    ui.window().set_size(PhysicalSize::new(300, 100));
+    ui.invoke_focus_slider();
+    ui
+}
+
+/// Presses and releases `key`, held with Shift when `shift`.
+fn press_key(ui: &RangeShell, key: slint::platform::Key, shift: bool) {
+    use slint::platform::{Key, WindowEvent};
+    let shift_text: slint::SharedString = Key::Shift.into();
+    if shift {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: shift_text.clone() });
+    }
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+    if shift {
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: shift_text });
+    }
+}
+
+#[test]
+fn the_range_slider_jumps_by_key() {
+    use slint::platform::Key;
+    let ui = range_shell();
+    let ends = || (ui.get_low(), ui.get_high());
+    // Without Shift the keys move the low end, with Shift the high end. A page is a
+    // tenth of the range.
+    press_key(&ui, Key::PageDown, false);
+    assert_eq!(ends(), (30.0, 60.0));
+    press_key(&ui, Key::PageUp, false);
+    assert_eq!(ends(), (40.0, 60.0));
+    press_key(&ui, Key::Home, false);
+    assert_eq!(ends(), (0.0, 60.0));
+    press_key(&ui, Key::End, false);
+    assert_eq!(ends(), (60.0, 60.0), "the low end stops at the high end");
+    press_key(&ui, Key::End, true);
+    assert_eq!(ends(), (60.0, 100.0));
+    press_key(&ui, Key::PageDown, true);
+    assert_eq!(ends(), (60.0, 90.0));
+    press_key(&ui, Key::Home, true);
+    assert_eq!(ends(), (60.0, 60.0), "the high end stops at the low end");
+}
+
+#[test]
+fn the_range_slider_sends_nothing_for_a_move_that_keeps_its_value() {
+    use slint::platform::Key;
+    let ui = range_shell();
+    press_key(&ui, Key::Home, false);
+    assert_eq!(ui.get_moves(), 1);
+    press_key(&ui, Key::Home, false);
+    press_key(&ui, Key::LeftArrow, false);
+    assert_eq!(ui.get_moves(), 1);
+}
+
+#[test]
+fn a_disabled_range_slider_ignores_keys() {
+    use slint::platform::Key;
+    let ui = range_shell();
+    ui.set_enabled(false);
+    press_key(&ui, Key::Home, false);
+    assert_eq!((ui.get_low(), ui.get_moves()), (40.0, 0));
+}
+
+#[test]
+fn a_focused_range_slider_frames_both_knobs() {
+    let ui = range_shell();
+    ui.set_low(0.0);
+    ui.set_high(100.0);
+    // The frame is 2px wide and starts 2px outside a knob: its centre is 3px out. The
+    // low knob spans x 20 to 38 and the high knob x 202 to 220, both centred on y 41.
+    let pixel = |ui: &RangeShell, x: u32, y: u32| {
+        let shot = ui.window().take_snapshot().unwrap();
+        shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()]
+    };
+    let framed = (pixel(&ui, 17, 41), pixel(&ui, 223, 41));
+    ui.set_enabled(false);
+    let bare = (pixel(&ui, 17, 41), pixel(&ui, 223, 41));
+    assert_ne!(framed.0, bare.0, "no frame left of the low knob");
+    assert_ne!(framed.1, bare.1, "no frame right of the high knob");
+    assert_eq!(bare.0, bare.1);
+}
+
 /// The dialog card sits on whole physical pixels at any window size, scale and content
 /// height. A half-pixel offset blurs its text.
 #[test]
