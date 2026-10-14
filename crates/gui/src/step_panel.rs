@@ -2,13 +2,10 @@
 //! the Macros tab show and toggle. Which buttons can be in a
 //! step, and which of them a trigger value holds, come from the controller description.
 
-use std::rc::Rc;
-
 use controller_core::description::{Button, TriggerSide};
 use controller_core::model::{GlideControl, MacroStep, Mode};
-use slint::{ModelRc, VecModel};
 
-use crate::buttons::{hit, output_label};
+use crate::buttons::{hit, output_label, push_model};
 use crate::macro_steps::prune_glides;
 use crate::state::AppState;
 use crate::ui::{AppWindow, ChipInfo, MacroSpot};
@@ -175,8 +172,8 @@ pub fn render_panel(state: &AppState, ui: &AppWindow) {
         (Some(step), Some(mode)) => chips(state, mode, step),
         _ => Vec::new(),
     };
-    ui.set_panel_chips(ModelRc::from(Rc::new(VecModel::from(list))));
-    ui.set_macro_spots(ModelRc::from(Rc::new(VecModel::from(macro_spots(state)))));
+    push_model(&ui.get_panel_chips(), list, |m| ui.set_panel_chips(m));
+    push_model(&ui.get_macro_spots(), macro_spots(state), |m| ui.set_macro_spots(m));
     let range = state.description().limits.macro_step_ms;
     ui.set_step_ms_min(range.min);
     ui.set_step_ms_max(range.max);

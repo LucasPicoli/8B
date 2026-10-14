@@ -5,9 +5,9 @@
 use std::rc::Rc;
 
 use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{Model as _, ModelRc, SharedString, VecModel};
 
-use crate::buttons::{output_label, target};
+use crate::buttons::{keep_same, output_label, push_model, target};
 use crate::review::macro_edits::steps;
 use crate::state::{AppState, SlotState};
 use crate::ui::{AppWindow, MacroRow};
@@ -283,7 +283,15 @@ pub fn render_macros(state: &AppState, ui: &AppWindow) {
     let description = state.description();
     let limits = description.limits;
     ui.set_has_macros(description.macro_slot_count > 0);
-    ui.set_macro_rows(ModelRc::from(Rc::new(VecModel::from(macro_rows(state)))));
+    // A row keeps its lists while they hold, so only a changed row is redone.
+    let current = ui.get_macro_rows();
+    let mut rows = macro_rows(state);
+    for (old, row) in current.iter().zip(&mut rows) {
+        keep_same(&old.buttons, &mut row.buttons);
+        keep_same(&old.first_buttons, &mut row.first_buttons);
+        keep_same(&old.addable, &mut row.addable);
+    }
+    push_model(&current, rows, |m| ui.set_macro_rows(m));
     ui.set_macros_editable(
         state.selected_slot().is_some_and(|(m, n)| state.slot(m, n).macros_editable()),
     );
@@ -297,7 +305,6 @@ pub fn render_macros(state: &AppState, ui: &AppWindow) {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use controller_core::devices::pro3::XINPUT;
-    use slint::Model as _;
 
     use super::*;
     use crate::state::tests::{connected, hold_macros, macro_def};

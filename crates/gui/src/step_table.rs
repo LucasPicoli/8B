@@ -8,8 +8,9 @@ use std::rc::Rc;
 use controller_core::description::{Button, TriggerKind, TriggerSide};
 use controller_core::model::glide::expanded_len;
 use controller_core::model::{GlideControl, MacroStep, Mode};
-use slint::{ModelRc, SharedString, VecModel};
+use slint::{Model as _, ModelRc, SharedString, VecModel};
 
+use crate::buttons::{keep_same, push_model};
 use crate::macro_steps::{add_after, delete, duplicate, move_step, split};
 use crate::state::AppState;
 use crate::ui::{AppWindow, LaneInfo, StepInfo, StickInfo};
@@ -395,10 +396,15 @@ pub fn render_steps(state: &AppState, ui: &AppWindow) {
     ui.set_steps_ready(steps.is_some());
     ui.set_steps_full(steps.as_ref().is_some_and(|s| state.steps_full(s)));
     ui.set_step_count(steps.as_ref().map(|s| step_count(state, s)).unwrap_or_default().into());
-    ui.set_step_lanes(ModelRc::from(Rc::new(
-        lanes.into_iter().map(SharedString::from).collect::<VecModel<_>>(),
-    )));
-    ui.set_step_rows(ModelRc::from(Rc::new(VecModel::from(rows))));
+    let lanes = lanes.into_iter().map(SharedString::from).collect();
+    push_model(&ui.get_step_lanes(), lanes, |m| ui.set_step_lanes(m));
+    // A row keeps its lanes model while the lanes hold, so only a changed row is redone.
+    let current = ui.get_step_rows();
+    let mut rows = rows;
+    for (old, row) in current.iter().zip(&mut rows) {
+        keep_same(&old.lanes, &mut row.lanes);
+    }
+    push_model(&current, rows, |m| ui.set_step_rows(m));
     ui.set_can_undo_step(state.can_undo_step(n));
 }
 
@@ -406,7 +412,6 @@ pub fn render_steps(state: &AppState, ui: &AppWindow) {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing, clippy::float_cmp)]
 mod tests {
     use controller_core::devices::pro3::{SWITCH, XINPUT};
-    use slint::Model as _;
 
     use super::*;
     use crate::state::tests::{connected, hold_macros, macro_def};

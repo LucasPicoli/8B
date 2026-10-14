@@ -2,14 +2,11 @@
 //! button that holds a trigger value, and its glide. Only in a mode whose triggers are
 //! analog; an on/off trigger is the controller views' to set.
 
-use std::rc::Rc;
-
 use controller_core::description::{Button, TriggerKind, TriggerSide};
 use controller_core::model::glide::{axes, set_axes};
 use controller_core::model::GlideControl;
-use slint::{ModelRc, VecModel};
 
-use crate::buttons::set_in_place;
+use crate::buttons::push_model;
 use crate::state::AppState;
 use crate::stick_pad::{glide_box, glides_in_from};
 use crate::ui::{AppWindow, PadTrigger};
@@ -94,9 +91,7 @@ pub fn trigger_pads(state: &AppState, n: u8, step: usize) -> Vec<PadTrigger> {
 pub fn render_triggers(state: &AppState, ui: &AppWindow) {
     let n = u8::try_from(ui.get_selected_macro()).unwrap_or(0);
     let at = usize::try_from(ui.get_selected_step()).unwrap_or(0);
-    if let Some(pads) = set_in_place(&ui.get_step_triggers(), trigger_pads(state, n, at)) {
-        ui.set_step_triggers(ModelRc::from(Rc::new(VecModel::from(pads))));
-    }
+    push_model(&ui.get_step_triggers(), trigger_pads(state, n, at), |m| ui.set_step_triggers(m));
 }
 
 #[cfg(test)]

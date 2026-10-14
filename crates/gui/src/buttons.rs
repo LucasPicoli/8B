@@ -269,12 +269,18 @@ pub fn render_views(description: &ControllerDescription, ui: &AppWindow) {
 }
 
 /// Sets `rows` into `current` in place when the row count holds, so each row's controls
-/// keep their focus and a drag in progress. Gives the rows back when it cannot.
-pub fn set_in_place<T: Clone + 'static>(current: &ModelRc<T>, rows: Vec<T>) -> Option<Vec<T>> {
+/// keep their focus and a drag in progress. A row that did not change is left alone, so
+/// Slint redoes nothing for it. Gives the rows back when it cannot.
+pub fn set_in_place<T: Clone + PartialEq + 'static>(
+    current: &ModelRc<T>,
+    rows: Vec<T>,
+) -> Option<Vec<T>> {
     match current.as_any().downcast_ref::<VecModel<T>>() {
         Some(model) if model.row_count() == rows.len() => {
             for (i, row) in rows.into_iter().enumerate() {
-                model.set_row_data(i, row);
+                if model.row_data(i).as_ref() != Some(&row) {
+                    model.set_row_data(i, row);
+                }
             }
             None
         }
@@ -282,19 +288,32 @@ pub fn set_in_place<T: Clone + 'static>(current: &ModelRc<T>, rows: Vec<T>) -> O
     }
 }
 
-/// Replaces the rows in place when their count holds, so each row's picker keeps
-/// its focus.
-fn push_rows(ui: &AppWindow, rows: Vec<MapRow>) {
-    if let Some(rows) = set_in_place(&ui.get_rows(), rows) {
-        ui.set_rows(ModelRc::from(Rc::new(VecModel::from(rows))));
+/// Pushes `rows` into `current` in place when it can (see [`set_in_place`]), else
+/// through `set` as a new model.
+pub fn push_model<T: Clone + PartialEq + 'static>(
+    current: &ModelRc<T>,
+    rows: Vec<T>,
+    set: impl FnOnce(ModelRc<T>),
+) {
+    if let Some(rows) = set_in_place(current, rows) {
+        set(ModelRc::from(Rc::new(VecModel::from(rows))));
+    }
+}
+
+/// Points `new` at `old` when they hold the same rows. A row whose nested list is new
+/// differs from its old self even with the same rows, as lists compare by identity;
+/// keeping the old list lets [`push_model`] leave an unchanged row alone.
+pub fn keep_same<T: PartialEq>(old: &ModelRc<T>, new: &mut ModelRc<T>) {
+    if old.row_count() == new.row_count() && old.iter().zip(new.iter()).all(|(a, b)| a == b) {
+        new.clone_from(old);
     }
 }
 
 /// Pushes the tab strip, the button shapes and the mapping table.
 pub fn render_buttons(state: &AppState, ui: &AppWindow) {
-    ui.set_sections(ModelRc::from(Rc::new(VecModel::from(sections(state)))));
-    ui.set_spots(ModelRc::from(Rc::new(VecModel::from(spots(state)))));
-    push_rows(ui, rows(state));
+    push_model(&ui.get_sections(), sections(state), |m| ui.set_sections(m));
+    push_model(&ui.get_spots(), spots(state), |m| ui.set_spots(m));
+    push_model(&ui.get_rows(), rows(state), |m| ui.set_rows(m));
 }
 
 #[cfg(test)]

@@ -2,15 +2,12 @@
 //! glide. Also the Macros tab's bar for a stick whose dead zone hides the macro's moves. A pad drawn as a round gate maps to the square of
 //! values the way the step table's glyph does ([`disc`]).
 
-use std::rc::Rc;
-
 use controller_core::model::glide::{axes, set_axes};
 use controller_core::model::macros::STICK_CENTER;
 use controller_core::model::{GlideControl, MacroStep};
 use controller_core::service::validation::{moved_low_sticks, LowStick};
-use slint::{ModelRc, VecModel};
 
-use crate::buttons::set_in_place;
+use crate::buttons::push_model;
 use crate::state::AppState;
 use crate::step_table::{disc, stick};
 use crate::ui::{AppWindow, PadStick};
@@ -204,9 +201,7 @@ pub fn render_sticks(state: &AppState, ui: &AppWindow) {
     ui.set_floor_title(title.into());
     ui.set_floor_body(body.into());
     ui.set_floor_action(action.into());
-    if let Some(pads) = set_in_place(&ui.get_step_sticks(), stick_pads(state, n, at)) {
-        ui.set_step_sticks(ModelRc::from(Rc::new(VecModel::from(pads))));
-    }
+    push_model(&ui.get_step_sticks(), stick_pads(state, n, at), |m| ui.set_step_sticks(m));
 }
 
 #[cfg(test)]

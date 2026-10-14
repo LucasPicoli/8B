@@ -6,9 +6,9 @@ use std::rc::Rc;
 use controller_core::transport::udev::{
     keepalive_command, manual_command, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT_PATH, UDEV_RULE_PATH,
 };
-use slint::{ComponentHandle as _, ModelRc, SharedString, VecModel};
+use slint::{ComponentHandle as _, Model as _, ModelRc, SharedString, VecModel};
 
-use crate::buttons::{render_buttons, render_views};
+use crate::buttons::{keep_same, push_model, render_buttons, render_views};
 use crate::closing::render_close;
 use crate::files::render_files;
 use crate::macro_files::render_macro_files;
@@ -69,11 +69,6 @@ pub fn device_status(state: &AppState) -> String {
         }
         Some(mode) => format!("Connected over USB · {}", state.description().mode_label(mode)),
     }
-}
-
-/// A list model of strings.
-fn strings(items: Vec<String>) -> ModelRc<SharedString> {
-    ModelRc::from(Rc::new(items.into_iter().map(SharedString::from).collect::<VecModel<_>>()))
 }
 
 /// Each unplugged controller whose edits the new one may take, with how many slots
@@ -149,14 +144,23 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     }
     ui.set_has_controller(state.has_controller());
     ui.set_device_name(state.description().short_name.as_str().into());
-    ui.set_controllers(strings(state.controller_labels()));
+    let text = |items: Vec<String>| items.into_iter().map(SharedString::from).collect();
+    push_model(&ui.get_controllers(), text(state.controller_labels()), |m| {
+        ui.set_controllers(m);
+    });
     ui.set_current_controller(i32::try_from(state.active_index()).unwrap_or(0));
-    ui.set_move_from(strings(move_from(state)));
-    ui.set_changed_slots(strings(changed_slots(state)));
-    ui.set_changed_keep(ModelRc::from(Rc::new(VecModel::from(state.changed_choices()))));
+    push_model(&ui.get_move_from(), text(move_from(state)), |m| ui.set_move_from(m));
+    push_model(&ui.get_changed_slots(), text(changed_slots(state)), |m| ui.set_changed_slots(m));
+    push_model(&ui.get_changed_keep(), state.changed_choices(), |m| ui.set_changed_keep(m));
     ui.set_device_status(device_status(state).into());
     ui.set_connected(state.current_mode().is_some());
-    ui.set_groups(ModelRc::from(Rc::new(VecModel::from(groups(state)))));
+    // A group keeps its slots model while its slots hold, so only a changed one is redone.
+    let current = ui.get_groups();
+    let mut rows = groups(state);
+    for (old, row) in current.iter().zip(&mut rows) {
+        keep_same(&old.slots, &mut row.slots);
+    }
+    push_model(&current, rows, |m| ui.set_groups(m));
     ui.set_selected_mode(i32::try_from(state.selected.0).unwrap_or(0));
     ui.set_selected_slot(i32::try_from(state.selected.1).unwrap_or(0));
     ui.set_slot_title(slot_title(state).into());
@@ -247,7 +251,6 @@ pub fn fit_toolbar(ui: &AppWindow) {
 mod tests {
     use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use controller_core::model::Mode;
-    use slint::Model as _;
 
     use super::*;
     use crate::state::tests::{full_read, new_state, PORT};
