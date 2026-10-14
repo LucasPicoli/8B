@@ -16,7 +16,9 @@ use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 
 use crate::buttons::render_views;
 use crate::render::{fit_toolbar, render};
-use crate::state::tests::{connected, full_read, hold_macros, macro_def, new_state, PORT};
+use crate::state::tests::{
+    connected, full_read, hold_macros, macro_def, new_state, test_pad_read, PORT,
+};
 use crate::state::{AppState, Rule};
 use crate::ui::{AppWindow, Change, Diagnostics};
 
@@ -443,6 +445,25 @@ fn settings_tabs() {
             tab(&format!("{name}-clean"), &clean, i, dark);
             tab(&format!("{name}-edited"), &edited, i, dark);
         }
+    }
+}
+
+#[test]
+fn the_last_settings_tab_stays_open_across_a_render() {
+    use controller_core::devices::test_pad::{TestPad, STANDARD};
+    let pro3 = connected(XINPUT);
+    let mut pad = connected(XINPUT);
+    pad.presence("3-1", Some(STANDARD));
+    pad.set_model("3-1", &TestPad);
+    pad.read_finished("3-1", Ok(test_pad_read("Pad")));
+    pad.pick_controller(1);
+    pad.select(0, 0);
+    // Pro 3: Buttons, Macros, Sticks, Triggers, Vibration. Test pad: Buttons, Feel.
+    for (state, last) in [(&pro3, 4), (&pad, 1)] {
+        let ui = window(state);
+        ui.set_tab(last);
+        render(state, &ui);
+        assert_eq!(ui.get_tab(), last, "{}", state.description().short_name);
     }
 }
 

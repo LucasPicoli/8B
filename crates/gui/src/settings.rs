@@ -187,9 +187,12 @@ fn copy_rows<T: Clone + PartialEq + 'static>(old: &ModelRc<T>, new: &ModelRc<T>)
 pub fn render_settings(state: &AppState, ui: &AppWindow) {
     let new = pages(state);
     // Another model can have fewer tabs: fall back to Buttons. An empty slot has no pages
-    // but keeps its tabs, so count the tabs the description gives the mode.
-    let tabs = state.selected_slot().map_or(0, |(mode, _)| state.description().pages(mode).count());
-    if usize::try_from(ui.get_tab()).is_ok_and(|tab| tab > tabs) {
+    // but keeps its tabs, so count the tabs the description gives the mode. The pages
+    // follow Buttons, and Macros on a model with macro slots (`first-page` in `app.slint`).
+    let description = state.description();
+    let first_page = 1 + usize::from(description.macro_slot_count > 0);
+    let pages = state.selected_slot().map_or(0, |(mode, _)| description.pages(mode).count());
+    if usize::try_from(ui.get_tab()).is_ok_and(|tab| tab >= first_page + pages) {
         ui.set_tab(0);
     }
     let old = ui.get_pages();

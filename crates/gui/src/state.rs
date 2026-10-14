@@ -708,6 +708,26 @@ pub mod tests {
         s
     }
 
+    /// A read of the test pad: slot 1 named `name`, slot 2 empty.
+    pub fn test_pad_read(name: &str) -> ProfileReadResult {
+        use controller_core::devices::test_pad::{self, TestPad};
+        let summary = |number: u8, name: &str| {
+            let mut canonical = TestPad.default_profile(test_pad::STANDARD);
+            canonical.name = name.to_owned();
+            let id =
+                if name.is_empty() { String::new() } else { format!("standard-slot-{number}") };
+            CanonicalProfileSummary {
+                id,
+                name: name.to_owned(),
+                mode: test_pad::STANDARD,
+                source_slot: number,
+                source_profile_index: number - 1,
+                canonical,
+            }
+        };
+        ProfileReadResult { profiles: vec![summary(1, name), summary(2, "")], raw_blobs: vec![] }
+    }
+
     /// A macro of `XInput` in macro slot `slot` (0-based) named `name`, started by
     /// `buttons`, with `steps` steps of 100 ms each.
     pub fn macro_def(slot: u8, name: &str, buttons: &[&str], steps: usize) -> MacroDefinition {

@@ -439,30 +439,9 @@ impl AppState {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::state::tests::{connected, full_read, new_state, PORT};
+    use crate::state::tests::{connected, full_read, new_state, test_pad_read, PORT};
     use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
     use controller_core::devices::test_pad::STANDARD;
-
-    /// A read of the test pad: slot 1 named `name`, slot 2 empty.
-    fn test_pad_read(name: &str) -> ProfileReadResult {
-        use controller_core::device::ProtocolCodec as _;
-        use controller_core::devices::test_pad::TestPad;
-        let summary = |number: u8, name: &str| {
-            let mut canonical = TestPad.default_profile(STANDARD);
-            canonical.name = name.to_owned();
-            let id =
-                if name.is_empty() { String::new() } else { format!("standard-slot-{number}") };
-            controller_core::model::CanonicalProfileSummary {
-                id,
-                name: name.to_owned(),
-                mode: STANDARD,
-                source_slot: number,
-                source_profile_index: number - 1,
-                canonical,
-            }
-        };
-        ProfileReadResult { profiles: vec![summary(1, name), summary(2, "")], raw_blobs: vec![] }
-    }
 
     #[test]
     fn each_controller_shows_its_own_model() {
