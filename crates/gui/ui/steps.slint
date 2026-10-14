@@ -137,14 +137,25 @@ component StickGlyph inherits Rectangle {
     }
 }
 
-// The lane cells of a row or the lane heads, left to right in the space they share.
-// A lane is at least `lane-min` wide: lanes past the space are cut off.
+// The lane cells of a row or the lane heads, left to right in the space they share. A
+// lane is at least `lane-min` wide: lanes past the space scroll sideways by `offset`, the
+// same for the heads and every row.
 component Lanes inherits Rectangle {
     in property <int> count;
-    out property <length> lane: self.count > 0 ? round(clamp(self.width / self.count, Columns.lane-min, Columns.lane-max) / 1phx) * 1phx : 0;
+    // How far the lanes are scrolled: 0 or less, in whole physical pixels.
+    in property <length> offset;
+    // Rounded down, so lanes that fit never add up to more than the space.
+    out property <length> lane: self.count > 0 ? floor(clamp(self.width / self.count, Columns.lane-min, Columns.lane-max) / 1phx) * 1phx : 0;
+    // How far the lanes reach past the space, which is as far as they can scroll.
+    out property <length> range: max(0px, self.count * self.lane - self.width);
     horizontal-stretch: 1;
     min-width: 0;
     clip: true;
+    Rectangle {
+        x: round(root.offset / 1phx) * 1phx;
+        width: root.count * root.lane;
+        @children
+    }
 }
 
 // One step: number, start time, lanes, sticks (or "Pause"), duration. The selected
@@ -156,8 +167,11 @@ component StepRow inherits Rectangle {
     in property <bool> editable;
     in property <int> duration-min;
     in property <int> duration-max;
+    in property <length> lane-x;
     callback picked;
     callback duration-changed(int);
+    // A scroll over the row: true when the lanes took it.
+    callback scrolled(PointerScrollEvent) -> bool;
     height: Columns.row;
     background: root.selected ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
     accessible-role: list-item;
@@ -172,6 +186,7 @@ component StepRow inherits Rectangle {
     }
     ta := TouchArea {
         clicked => { root.picked(); }
+        scroll-event(e) => { root.scrolled(e) ? accept : reject }
     }
     HorizontalLayout {
         padding-left: 10px;
@@ -192,6 +207,7 @@ component StepRow inherits Rectangle {
         }
         lanes := Lanes {
             count: root.step.lanes.length;
+            offset: root.lane-x;
             for cell[i] in root.step.lanes: LaneCell {
                 x: i * lanes.lane;
                 width: lanes.lane;
@@ -291,6 +307,35 @@ export component StepTable inherits Frame {
     callback duration-changed(int);
     property <bool> can: root.ready && root.editable;
     property <int> last: root.rows.length - 1;
+    // The lanes' sideways scroll, 0 or less. The heads and every row share it. Picking a
+    // step leaves it alone.
+    in-out property <length> lane-x: 0;
+    // How far the lanes can scroll: 0 while they fit.
+    property <length> range: heads.range;
+    property <length> shown-x: max(root.lane-x, -root.range);
+    // A window that widens again must not bring back a scroll it had to cut short.
+    changed range => { root.lane-x = max(root.lane-x, -root.range); }
+
+    function scroll-by(dx: length) {
+        root.lane-x = clamp(root.shown-x + dx, -root.range, 0);
+    }
+
+    // A scroll over the table: the lanes take a sideways swipe, and a wheel turn with
+    // Shift. Anything else goes on to the page.
+    function scrolled(e: PointerScrollEvent) -> bool {
+        if (root.range <= 0) {
+            return false;
+        }
+        if (e.delta-x != 0 && abs(e.delta-x) >= abs(e.delta-y)) {
+            root.scroll-by(e.delta-x);
+            return true;
+        }
+        if (e.delta-x == 0 && e.delta-y != 0 && e.modifiers.shift) {
+            root.scroll-by(e.delta-y);
+            return true;
+        }
+        return false;
+    }
 
     // Scrolls the selected row into view.
     function reveal() {
@@ -379,6 +424,9 @@ export component StepTable inherits Frame {
         Rectangle {
             height: 30px;
             background: Theme.window;
+            TouchArea {
+                scroll-event(e) => { root.scrolled(e) ? accept : reject }
+            }
             HorizontalLayout {
                 padding-left: 10px;
                 padding-right: 10px;
@@ -394,6 +442,7 @@ export component StepTable inherits Frame {
                 }
                 heads := Lanes {
                     count: root.lanes.length;
+                    offset: root.shown-x;
                     for name[i] in root.lanes: SmallHead {
                         x: i * heads.lane;
                         width: heads.lane;
@@ -461,6 +510,10 @@ export component StepTable inherits Frame {
                     }
                     return accept;
                 }
+                if ((e.text == Key.LeftArrow || e.text == Key.RightArrow) && root.range > 0) {
+                    root.scroll-by((e.text == Key.LeftArrow ? 1 : -1) * Columns.lane-max);
+                    return accept;
+                }
                 if (e.text == Key.Home || e.text == Key.End) {
                     root.selected = e.text == Key.Home ? 0 : root.last;
                     return accept;
@@ -506,12 +559,57 @@ export component StepTable inherits Frame {
                         editable: root.editable;
                         duration-min: root.duration-min;
                         duration-max: root.duration-max;
+                        lane-x: root.shown-x;
+                        scrolled(e) => { root.scrolled(e) }
                         duration-changed(v) => { root.duration-changed(v); }
                         picked => {
                             root.selected = i;
                             cursor.focus();
                         }
                     }
+                }
+            }
+        }
+        // The bar of the lanes, under their column, only while they do not fit.
+        Rectangle {
+            visible: root.ready && root.range > 0;
+            height: self.visible ? 12px : 0;
+            HorizontalLayout {
+                padding-left: 10px;
+                padding-right: 10px;
+                Rectangle {
+                    width: Columns.number + Columns.start;
+                }
+                bar := Rectangle {
+                    horizontal-stretch: 1;
+                    min-width: 0;
+                    property <length> thumb: max(28px, self.width * self.width / (self.width + root.range));
+                    // The track, so the thumb reads as a bar and not a stray mark.
+                    Rectangle {
+                        y: (parent.height - self.height) / 2;
+                        height: 2px;
+                        background: Theme.line-soft;
+                    }
+                    Rectangle {
+                        height: bar-ta.has-hover || bar-ta.pressed ? 8px : 4px;
+                        y: (parent.height - self.height) / 2;
+                        x: round(-root.shown-x / root.range * (parent.width - parent.thumb) / 1phx) * 1phx;
+                        width: parent.thumb;
+                        border-radius: self.height / 2;
+                        background: bar-ta.pressed ? Theme.accent : Theme.fg-muted.with-alpha(bar-ta.has-hover ? 0.7 : 0.45);
+                        animate height { duration: 120ms; }
+                    }
+                    bar-ta := TouchArea {
+                        moved => {
+                            if (self.pressed) {
+                                root.lane-x = -clamp((self.mouse-x - bar.thumb / 2) / (bar.width - bar.thumb), 0, 1) * root.range;
+                            }
+                        }
+                        scroll-event(e) => { root.scrolled(e) ? accept : reject }
+                    }
+                }
+                Rectangle {
+                    width: Columns.stick * 2 + Columns.duration;
                 }
             }
         }

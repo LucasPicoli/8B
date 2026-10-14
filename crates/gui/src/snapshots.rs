@@ -2011,3 +2011,175 @@ fn typing_a_duration_in_the_table_survives_the_render_after_each_digit() {
         assert_eq!(ms(), want, "the field lost its focus after {digit}");
     }
 }
+
+/// `XInput` slot 2 holding a macro whose first step holds only the last button a step
+/// can hold, then one step per button that can be held: every lane of the table is held.
+fn every_lane_tab() -> AppState {
+    use controller_core::description::TriggerSide;
+    use controller_core::model::MacroStep;
+    let mut s = connected(XINPUT);
+    let held: Vec<_> =
+        s.description().buttons.iter().filter(|b| b.can_be_in_macro_step).cloned().collect();
+    let press = |b: &controller_core::description::Button| {
+        let mut step = MacroStep { duration_ms: 100, ..MacroStep::default() };
+        match b.step_trigger_value {
+            Some(TriggerSide::Left) => step.trigger_left = 255,
+            Some(TriggerSide::Right) => step.trigger_right = 255,
+            None => step.pressed_buttons.push(b.id.clone()),
+        }
+        step
+    };
+    let mut def = macro_def(0, "Everything", &["lp"], 0);
+    def.steps = held.last().into_iter().chain(&held).map(press).collect();
+    hold_macros(&mut s, (XINPUT, 2), &[def]);
+    s.select(0, 1);
+    s
+}
+
+/// The Macros tab of `s` at the narrowest layout, 1024×768, with the duration edit wired
+/// to the state and a render after it, as the app does.
+fn lanes_at_narrow(s: AppState) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
+    let state = Rc::new(std::cell::RefCell::new(s));
+    let ui = window(&state.borrow());
+    ui.window().set_size(PhysicalSize::new(1024, 768));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    render(&state.borrow(), &ui);
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_step_duration_changed(move |n, step, ms| {
+        let (n, step) = (u8::try_from(n).unwrap(), usize::try_from(step).unwrap());
+        s.borrow_mut().set_step_duration(n, step, ms);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    (state, ui)
+}
+
+/// The mean x of the pixels in the window's `x` columns and `y` rows that are the table's
+/// bar blue, if any.
+fn blue_at(ui: &AppWindow, x: std::ops::Range<usize>, y: std::ops::Range<usize>) -> Option<usize> {
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = usize::try_from(shot.width()).unwrap();
+    let hits: Vec<usize> = y
+        .flat_map(|row| x.clone().map(move |col| (col, row)))
+        .filter(|&(col, row)| {
+            let p = shot.as_slice()[row * width + col];
+            p.r < 80 && p.b > 130
+        })
+        .map(|(col, _)| col)
+        .collect();
+    (!hits.is_empty()).then(|| hits.iter().sum::<usize>() / hits.len())
+}
+
+/// The x of the middle of the grey text pixels in the window's `x` columns and `y` rows.
+fn text_at(ui: &AppWindow, x: std::ops::Range<usize>, y: std::ops::Range<usize>) -> Option<usize> {
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = usize::try_from(shot.width()).unwrap();
+    let hits: Vec<usize> = y
+        .flat_map(|row| x.clone().map(move |col| (col, row)))
+        .filter(|&(col, row)| {
+            let p = shot.as_slice()[row * width + col];
+            p.r < 150 && p.r.abs_diff(p.b) < 30
+        })
+        .map(|(col, _)| col)
+        .collect();
+    (!hits.is_empty()).then(|| hits.iter().sum::<usize>() / hits.len())
+}
+
+/// Scrolls the pointer over the lanes of the first row by (`dx`, `dy`).
+fn scroll_lanes(ui: &AppWindow, dx: f32, dy: f32) {
+    ui.window().dispatch_event(slint::platform::WindowEvent::PointerScrolled {
+        position: slint::LogicalPosition::new(690.0, 382.0),
+        delta_x: dx,
+        delta_y: dy,
+    });
+}
+
+/// The window columns and rows of the first step's lanes and of the lane heads at the
+/// narrowest layout.
+const ROW_X: std::ops::Range<usize> = 600..790;
+const ROW_Y: std::ops::Range<usize> = 365..400;
+const HEAD_Y: std::ops::Range<usize> = 336..358;
+
+#[test]
+fn lanes_that_do_not_fit_scroll_sideways_with_their_heads() {
+    let (_state, ui) = lanes_at_narrow(every_lane_tab());
+    // The first step holds the last lane only, which is past the space.
+    assert_eq!(blue_at(&ui, ROW_X, ROW_Y), None, "the last lane starts out of sight");
+    save("steps-all-lanes-narrow", &ui);
+    // A sideways swipe: the last lane comes into view, and its head with it.
+    scroll_lanes(&ui, -2000.0, 0.0);
+    let bar = blue_at(&ui, ROW_X, ROW_Y).expect("the last lane is reachable");
+    let head = text_at(&ui, (bar - 10)..(bar + 10), HEAD_Y).expect("its head");
+    assert!(head.abs_diff(bar) < 3, "head at {head}, bar at {bar}");
+    save("steps-all-lanes-narrow-scrolled", &ui);
+    // And back.
+    scroll_lanes(&ui, 2000.0, 0.0);
+    assert_eq!(blue_at(&ui, ROW_X, ROW_Y), None);
+}
+
+#[test]
+fn the_wheel_with_shift_and_the_bar_scroll_the_lanes() {
+    use slint::platform::{Key, WindowEvent};
+    let (_state, ui) = lanes_at_narrow(every_lane_tab());
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Shift.into() });
+    scroll_lanes(&ui, 0.0, -2000.0);
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Shift.into() });
+    assert!(blue_at(&ui, ROW_X, ROW_Y).is_some(), "Shift and the wheel");
+    scroll_lanes(&ui, 2000.0, 0.0);
+    assert_eq!(blue_at(&ui, ROW_X, ROW_Y), None);
+    // A drag of the bar under the lanes, from its start to the end of its track.
+    let drag = |from: f32, to: f32| {
+        let button = slint::platform::PointerEventButton::Left;
+        let at = |x: f32| slint::LogicalPosition::new(x, 606.0);
+        ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(from) });
+        ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(from), button });
+        ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(to) });
+        ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(to), button });
+    };
+    drag(660.0, 760.0);
+    assert!(blue_at(&ui, ROW_X, ROW_Y).is_some(), "the bar");
+    drag(740.0, 600.0);
+    assert_eq!(blue_at(&ui, ROW_X, ROW_Y), None, "the bar back to the start");
+}
+
+#[test]
+fn picking_a_step_leaves_the_lanes_where_they_are() {
+    use slint::platform::{Key, WindowEvent};
+    let (_state, ui) = lanes_at_narrow(every_lane_tab());
+    scroll_lanes(&ui, -2000.0, 0.0);
+    let before = blue_at(&ui, ROW_X, ROW_Y).unwrap();
+    click_drawn(&ui, 650.0, 462.0);
+    assert_eq!(ui.get_selected_step(), 2);
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::DownArrow.into() });
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::DownArrow.into() });
+    assert_eq!(ui.get_selected_step(), 3);
+    assert_eq!(blue_at(&ui, ROW_X, ROW_Y), Some(before));
+}
+
+#[test]
+fn the_selected_duration_stays_editable_while_the_lanes_scroll() {
+    let (state, ui) = lanes_at_narrow(every_lane_tab());
+    scroll_lanes(&ui, -2000.0, 0.0);
+    // The up arrow of the first row's field.
+    click(&ui, 968.0, 374.0);
+    assert_eq!(state.borrow().macro_steps(0).unwrap()[0].duration_ms, 105);
+}
+
+#[test]
+fn lanes_that_fit_show_no_bar_and_do_not_scroll() {
+    let (_state, ui) = lanes_at_narrow(steps_tab());
+    let before = ui.window().take_snapshot().unwrap();
+    scroll_lanes(&ui, -2000.0, 0.0);
+    let after = ui.window().take_snapshot().unwrap();
+    assert!(before.as_slice() == after.as_slice(), "nothing moved");
+    // Under the five rows, where the bar would be: the same as under the Step column.
+    let width = usize::try_from(after.width()).unwrap();
+    let pixels = after.as_slice();
+    let colours = |cols: std::ops::Range<usize>| -> HashSet<_> {
+        (562..578)
+            .flat_map(|row| cols.clone().map(move |col| pixels[row * width + col]))
+            .map(|p| (p.r, p.g, p.b))
+            .collect()
+    };
+    assert_eq!(colours(640..760), colours(540..600), "no bar");
+}
