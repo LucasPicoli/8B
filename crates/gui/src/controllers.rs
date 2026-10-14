@@ -349,13 +349,15 @@ impl AppState {
             self.active_port = Some(to.clone());
             self.keep_selection();
         }
+        let fallback = self.fallback_description;
         let Some(c) = self.controller_mut(&to) else { return };
+        let glide_step_ms = c.description.unwrap_or(fallback).limits.glide_step_ms;
         for (key, slot) in old.slots {
             if !slot.unsaved() {
                 continue;
             }
             let fresh = c.slots.entry(key).or_default();
-            let macros_changed = fresh.take_macro_edits(&slot);
+            let macros_changed = fresh.take_macro_edits(&slot, glide_step_ms);
             if (slot.profile_unsaved() && ![&slot.pad, &slot.edited].contains(&&fresh.pad))
                 || macros_changed
             {
