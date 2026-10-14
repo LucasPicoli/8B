@@ -4,7 +4,7 @@ jobs:
   lint:
     runs-on: ubuntu-24.04
     steps:
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfontconfig-dev
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libfontconfig-dev fonts-noto-core
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
