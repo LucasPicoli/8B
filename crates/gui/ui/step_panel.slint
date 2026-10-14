@@ -18,8 +18,10 @@ component StickPad {
     callback glided(bool);
     // The note on an arriving step was clicked: select the step that glides in (0-based).
     callback step-picked(int);
-    // A drag near a marked rim point lands on it; the points show only then.
+    // A drag near a marked rim point lands on it; the points show only then. The box under
+    // the gate turns it on or off for this stick.
     in property <bool> snap;
+    callback snap-toggled(bool);
     // The gate's size, and the reach of a full deflection from its centre.
     property <length> size: PadSize.gate;
     property <length> r: 52px;
@@ -29,6 +31,7 @@ component StickPad {
     property <bool> at-rest: root.stick.value-x == 127 && root.stick.value-y == 127;
     // A click sets the box's own `checked`, which ends its binding: follow the data.
     changed stick => { glide.checked = root.stick.at.glide; }
+    changed snap => { snap-box.checked = root.snap; }
 
     VerticalLayout {
         spacing: 8px;
@@ -210,6 +213,15 @@ component StickPad {
                 }
             }
         }
+        HorizontalLayout {
+            alignment: start;
+            snap-box := CheckBox {
+                text: "Snap to edges and corners";
+                checked: root.snap;
+                accessible-label: root.stick.label + ", snap to edges and corners";
+                toggled => { root.snap-toggled(self.checked); }
+            }
+        }
     }
 
     // The Glide tip while the box has focus from the keyboard, as the hover tooltip shows
@@ -259,57 +271,61 @@ export component StepPanel inherits Frame {
     callback reveal(length, length);
     changed step => { root.reveal(self.absolute-position.y, self.height); }
 
-    // A drag snaps to the edges and corners marked on the rim. For the session, both pads.
-    in-out property <bool> snap: true;
+    // A drag of each stick snaps to the edges and corners marked on its rim. For the
+    // session.
+    in-out property <bool> snap-left: true;
+    in-out property <bool> snap-right: true;
 
     VerticalLayout {
         padding: 12px;
         spacing: 16px;
-        // The sticks side by side and Snap under them, then each trigger under its stick,
-        // in two equal columns so each side's controls group apart. One under the other in
-        // a narrow window, each pad at its own width. Every pad in a column starts from
-        // the same width, so the trigger rows line up with the sticks.
-        VerticalLayout {
-            spacing: 8px;
-            if !root.narrow: HorizontalLayout {
-                spacing: 16px;
-                for s[i] in root.sticks: StickPad {
-                    horizontal-stretch: 1;
-                    stick: s;
-                    enabled: root.enabled;
-                    snap: root.snap;
-                    min-width: 260px;
-                    preferred-width: 260px;
-                    set(x, y, apart) => { root.stick-set(i, x, y, apart); }
-                    dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
-                    glided(on) => { root.stick-glided(i, on); }
-                    step-picked(n) => { root.step-picked(n); }
-                }
-            }
-            if root.narrow: VerticalLayout {
-                spacing: 16px;
-                alignment: start;
-                for s[i] in root.sticks: HorizontalLayout {
-                    alignment: start;
-                    StickPad {
-                        stick: s;
-                        enabled: root.enabled;
-                        snap: root.snap;
-                        min-width: 260px;
-                        set(x, y, apart) => { root.stick-set(i, x, y, apart); }
-                        dragged(x, y) => { root.stick-dragged(i, x, y, root.snap); }
-                        glided(on) => { root.stick-glided(i, on); }
-                        step-picked(n) => { root.step-picked(n); }
+        // The sticks side by side, then each trigger under its stick, in two equal
+        // columns so each side's controls group apart. One under the other in a narrow
+        // window, each pad at its own width. Every pad in a column starts from the same
+        // width, so the trigger rows line up with the sticks.
+        if !root.narrow: HorizontalLayout {
+            spacing: 16px;
+            for s[i] in root.sticks: StickPad {
+                horizontal-stretch: 1;
+                stick: s;
+                enabled: root.enabled;
+                snap: i == 0 ? root.snap-left : root.snap-right;
+                snap-toggled(on) => {
+                    if (i == 0) {
+                        root.snap-left = on;
+                    } else {
+                        root.snap-right = on;
                     }
                 }
+                min-width: 260px;
+                preferred-width: 260px;
+                set(x, y, apart) => { root.stick-set(i, x, y, apart); }
+                dragged(x, y) => { root.stick-dragged(i, x, y, self.snap); }
+                glided(on) => { root.stick-glided(i, on); }
+                step-picked(n) => { root.step-picked(n); }
             }
-            // A drag snaps to the edges and corners marked on the rim: a stick option, so
-            // it sits with the sticks.
-            HorizontalLayout {
+        }
+        if root.narrow: VerticalLayout {
+            spacing: 16px;
+            alignment: start;
+            for s[i] in root.sticks: HorizontalLayout {
                 alignment: start;
-                CheckBox {
-                    text: "Snap to edges and corners";
-                    checked <=> root.snap;
+                StickPad {
+                    stick: s;
+                    enabled: root.enabled;
+                    snap: i == 0 ? root.snap-left : root.snap-right;
+                    snap-toggled(on) => {
+                        if (i == 0) {
+                            root.snap-left = on;
+                        } else {
+                            root.snap-right = on;
+                        }
+                    }
+                    min-width: 260px;
+                    set(x, y, apart) => { root.stick-set(i, x, y, apart); }
+                    dragged(x, y) => { root.stick-dragged(i, x, y, self.snap); }
+                    glided(on) => { root.stick-glided(i, on); }
+                    step-picked(n) => { root.step-picked(n); }
                 }
             }
         }

@@ -1414,6 +1414,34 @@ fn the_arriving_trigger_links_back_to_the_step_that_glides_in() {
 }
 
 #[test]
+fn each_stick_has_its_own_snap() {
+    use slint::platform::{PointerEventButton, WindowEvent};
+    let (state, ui) = stick_pads_at(2);
+    let press = |x: f32, y: f32| {
+        let position = slint::LogicalPosition::new(x, y);
+        let button = PointerEventButton::Left;
+        ui.window().dispatch_event(WindowEvent::PointerMoved { position });
+        ui.window().dispatch_event(WindowEvent::PointerPressed { position, button });
+        ui.window().dispatch_event(WindowEvent::PointerReleased { position, button });
+    };
+    let at = |left: bool| {
+        let step = &state.borrow().macro_steps(0).unwrap()[2];
+        if left {
+            [step.left_stick_x, step.left_stick_y]
+        } else {
+            [step.right_stick_x, step.right_stick_y]
+        }
+    };
+    // The right stick's box off, then a press near each gate's north-east corner, at this
+    // size.
+    click(&ui, 955.0, 628.0);
+    press(1043.0, 510.0);
+    press(723.0, 510.0);
+    assert_ne!(at(false), [255, 0], "the right stick no longer snaps");
+    assert_eq!(at(true), [255, 0], "the left one still does");
+}
+
+#[test]
 fn the_glide_box_follows_the_selected_step() {
     use controller_core::model::GlideControl;
     let (state, ui) = stick_pads_at(2);
