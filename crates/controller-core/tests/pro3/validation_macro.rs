@@ -196,7 +196,7 @@ fn button_in_both_press_and_release_fails() {
     assert!(errors.iter().any(|e| e.reason.contains("both press and release")));
     // Exact message + path.
     assert!(errors.iter().any(|e| e.path == "/steps/0/actions/buttons"
-        && e.reason == "Step 0: 'bottom face' appears in both press and release."));
+        && e.reason == "Step 1: 'bottom face' appears in both press and release."));
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn error_message_includes_step_index() {
     m["steps"] = Value::Array(vec![m["steps"][0].clone(), a_valid_step(), a_valid_step()]);
     let m = set_step_buttons(m, 2, json!(["left face"]), json!(["left face"]));
     let errors = validate_macro(&m).unwrap();
-    assert!(errors.iter().any(|e| e.reason.contains("Step 2")));
+    assert!(errors.iter().any(|e| e.reason.contains("Step 3")));
 }
 
 #[test]
@@ -217,8 +217,8 @@ fn multiple_semantic_errors_reported() {
     let m = set_step_buttons(m, 1, json!(["right face"]), json!(["right face"]));
     let errors = validate_macro(&m).unwrap();
     assert!(errors.len() >= 2);
-    assert!(errors.iter().any(|e| e.reason.contains("Step 0")));
     assert!(errors.iter().any(|e| e.reason.contains("Step 1")));
+    assert!(errors.iter().any(|e| e.reason.contains("Step 2")));
 }
 
 // --- Schema-specific cases --------------------------------------------------

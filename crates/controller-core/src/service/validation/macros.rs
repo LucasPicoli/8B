@@ -96,6 +96,7 @@ fn glide_errors(
     let mode = description.mode_label(def.mode);
     let steps = def.steps.iter().zip(def.steps.iter().skip(1).map(Some).chain([None]));
     for (i, (step, next)) in steps.enumerate() {
+        let n = i + 1; // the Macros tab numbers steps from 1; `path` stays 0-based
         let mut error = |reason: String| {
             errors.push(ValidationError { path: format!("/steps/{i}/glide"), reason });
         };
@@ -104,12 +105,12 @@ fn glide_errors(
             let is_trigger =
                 matches!(control, GlideControl::LeftTrigger | GlideControl::RightTrigger);
             match next {
-                None => error(format!("Step {i}: {name} cannot glide, there is no next step.")),
+                None => error(format!("Step {n}: {name} cannot glide, there is no next step.")),
                 _ if is_trigger && on_off => error(format!(
-                    "Step {i}: {name} cannot glide in {mode} mode, its triggers are on or off."
+                    "Step {n}: {name} cannot glide in {mode} mode, its triggers are on or off."
                 )),
                 Some(next) if axes(step, control) == axes(next, control) => {
-                    error(format!("Step {i}: {name} has the same value in the next step."));
+                    error(format!("Step {n}: {name} has the same value in the next step."));
                 }
                 _ => {}
             }
@@ -179,6 +180,7 @@ fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
     // 2. Per-step checks.
     if let Some(steps) = macro_json.get("steps").and_then(Value::as_array) {
         for (i, step) in steps.iter().enumerate() {
+            let n = i + 1; // the Macros tab numbers steps from 1; `path` stays 0-based
             let buttons = step.get("actions").and_then(|a| a.get("buttons"));
             let press = buttons.and_then(|b| b.get("press")).and_then(Value::as_array);
             let release = buttons.and_then(|b| b.get("release")).and_then(Value::as_array);
@@ -190,7 +192,7 @@ fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
                 if press_set.contains(btn) {
                     errors.push(ValidationError {
                         path: format!("/steps/{i}/actions/buttons"),
-                        reason: format!("Step {i}: '{btn}' appears in both press and release."),
+                        reason: format!("Step {n}: '{btn}' appears in both press and release."),
                     });
                 }
             }
