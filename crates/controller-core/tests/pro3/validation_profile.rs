@@ -413,8 +413,7 @@ fn a_switch_macro_cannot_glide_a_trigger() {
         errors(&p),
         [(
             "/macros/1/steps/0/glide".to_owned(),
-            "Step 0: right_trigger cannot glide in Switch mode, its triggers are on or off."
-                .to_owned()
+            "Step 0: ZR cannot glide in Switch mode, its triggers are on or off.".to_owned()
         )]
     );
 }

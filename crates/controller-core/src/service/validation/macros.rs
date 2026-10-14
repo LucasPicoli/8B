@@ -4,12 +4,12 @@ use std::collections::BTreeSet;
 
 use serde_json::Value;
 
-use crate::description::{ControllerDescription, TriggerKind};
+use crate::description::{ControllerDescription, MacroStick, TriggerKind, TriggerSide};
 use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::model::glide::{axes, expanded_len};
 use crate::model::macros::macro_from_json;
-use crate::model::{GlideControl, MacroDefinition};
+use crate::model::{GlideControl, MacroDefinition, Mode};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
 
 /// Validates a canonical macro JSON object for `model` (schema first, then semantics).
@@ -100,7 +100,7 @@ fn glide_errors(
             errors.push(ValidationError { path: format!("/steps/{i}/glide"), reason });
         };
         for &control in &step.glide {
-            let name = control.as_str();
+            let name = control_label(description, def.mode, control);
             let is_trigger =
                 matches!(control, GlideControl::LeftTrigger | GlideControl::RightTrigger);
             match next {
@@ -132,6 +132,31 @@ fn glide_errors(
         errors.push(ValidationError { path: "/steps".to_owned(), reason });
     }
     errors
+}
+
+/// What the user calls `control` in `mode`: the title of its stick's settings frame
+/// (`Left stick`) or the label of its trigger button (`LT`). The schema id when the
+/// description names neither.
+fn control_label(description: &ControllerDescription, mode: Mode, control: GlideControl) -> String {
+    let (stick, side) = match control {
+        GlideControl::LeftStick => (Some(MacroStick::LeftStick), None),
+        GlideControl::RightStick => (Some(MacroStick::RightStick), None),
+        GlideControl::LeftTrigger => (None, Some(TriggerSide::Left)),
+        GlideControl::RightTrigger => (None, Some(TriggerSide::Right)),
+    };
+    let label = stick
+        .and_then(|stick| {
+            description
+                .pages(mode)
+                .flat_map(|p| &p.frames)
+                .find(|f| f.sliders.iter().any(|s| s.macro_stick == Some(stick)))
+                .map(|f| f.title.clone())
+        })
+        .or_else(|| {
+            let button = description.buttons.iter().find(|b| b.step_trigger_value == side)?;
+            button.labels.get(&mode).cloned()
+        });
+    label.unwrap_or_else(|| control.as_str().to_owned())
 }
 
 /// Accumulates every semantic error but the name's, see [`name_errors`].

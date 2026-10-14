@@ -280,7 +280,7 @@ fn a_glide_needs_a_next_step_and_a_value_that_moves() {
     let errors = validate_macro(&last).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(errors[0].path, "/steps/1/glide");
-    assert!(errors[0].reason.contains("no next step"), "{}", errors[0].reason);
+    assert!(errors[0].reason.contains("Left stick cannot glide, there is no next step"));
 
     let same = a_glide(
         "xinput",
@@ -289,8 +289,8 @@ fn a_glide_needs_a_next_step_and_a_value_that_moves() {
     );
     let errors = validate_macro(&same).unwrap();
     assert_eq!(errors.len(), 2, "{errors:?}");
-    assert!(errors[0].reason.contains("left_stick has the same value"), "{}", errors[0].reason);
-    assert!(errors[1].reason.contains("right_stick has the same value"), "{}", errors[1].reason);
+    assert!(errors[0].reason.contains("Left stick has the same value"), "{}", errors[0].reason);
+    assert!(errors[1].reason.contains("Right stick has the same value"), "{}", errors[1].reason);
 }
 
 #[test]
@@ -299,7 +299,7 @@ fn a_trigger_cannot_glide_in_an_on_off_mode() {
     let m = a_glide("switch", &json!(["left_trigger"]), &end);
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(errors[0].reason.contains("cannot glide in Switch mode"), "{}", errors[0].reason);
+    assert!(errors[0].reason.contains("ZL cannot glide in Switch mode"), "{}", errors[0].reason);
     assert_eq!(validate_macro(&a_glide("xinput", &json!(["left_trigger"]), &end)).unwrap(), []);
 }
 
