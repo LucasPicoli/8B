@@ -77,11 +77,13 @@ pub const fn trigger_control(side: TriggerSide) -> GlideControl {
     }
 }
 
-/// Whether `step` holds `button`: among its pressed buttons, or in its trigger value.
+/// Whether `step` holds `button`: among its pressed buttons, or in its trigger value. A
+/// trigger that glides from 0 holds it too, as it presses on the way.
 fn holds(step: &MacroStep, button: &Button) -> bool {
-    button
-        .step_trigger_value
-        .map_or_else(|| step.pressed_buttons.contains(&button.id), |side| trigger(step, side) > 0)
+    button.step_trigger_value.map_or_else(
+        || step.pressed_buttons.contains(&button.id),
+        |side| trigger(step, side) > 0 || step.glide.contains(&trigger_control(side)),
+    )
 }
 
 /// How many step edits Ctrl+Z can take back, over every macro.
@@ -282,9 +284,11 @@ fn held_text(
     )
 }
 
-/// Whether a step holds nothing: no button, no trigger, both sticks at rest.
+/// Whether a step holds nothing: no button, no trigger, both sticks at rest, and nothing
+/// gliding away from there.
 fn is_pause(step: &MacroStep) -> bool {
-    step.pressed_buttons.is_empty()
+    step.glide.is_empty()
+        && step.pressed_buttons.is_empty()
         && step.trigger_left == 0
         && step.trigger_right == 0
         && [step.left_stick_x, step.left_stick_y, step.right_stick_x, step.right_stick_y]
@@ -419,6 +423,23 @@ mod tests {
 
     fn step(ms: u16) -> MacroStep {
         MacroStep { duration_ms: ms, ..MacroStep::default() }
+    }
+
+    #[test]
+    fn a_glide_from_rest_is_held_and_not_a_pause() {
+        let up = MacroStep { glide: [GlideControl::LeftTrigger].into(), ..step(100) };
+        let full = MacroStep { trigger_left: 255, ..step(100) };
+        let away = MacroStep { glide: [GlideControl::RightStick].into(), ..step(100) };
+        let moved = MacroStep { right_stick_x: 255, ..step(100) };
+        let s = holding(vec![up, full, away, moved]);
+        let (labels, rows) = step_rows(&s, XINPUT, &s.macro_steps(0).unwrap());
+        assert_eq!(labels, ["LT"]);
+        let lt = rows[0].lanes.row_data(0).unwrap();
+        assert!(lt.held, "LT glides up from 0");
+        assert!((lt.top - TRIGGER_BAR_MIN).abs() < f32::EPSILON && lt.bottom > lt.top);
+        assert_eq!(lt.tip, "LT 0 to 255");
+        assert_eq!(rows[0].held, "LT 0 to 255");
+        assert!(!rows[0].pause && !rows[2].pause, "both glide away from rest");
     }
 
     #[test]
