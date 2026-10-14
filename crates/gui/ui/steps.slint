@@ -493,10 +493,16 @@ export component StepTable inherits Frame {
             }
         }
         // Takes the keys that the focused row passes up. Tab reaches the row, not this.
+        // It is the "Steps" list too: the focus scope inside it is its nearest accessible
+        // node, so a screen reader hears the list and the selected row it delegates to.
         fs := FocusScope {
             visible: root.ready;
             focus-on-click: false;
             focus-on-tab-navigation: false;
+            accessible-role: list;
+            accessible-label: "Steps";
+            accessible-item-count: root.rows.length;
+            accessible-delegate-focus: root.selected;
             height: root.ready ? min(root.rows.length, Columns.shown-rows) * Columns.row : 0;
             key-pressed(e) => {
                 if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
@@ -550,8 +556,6 @@ export component StepTable inherits Frame {
                     focus-on-click: false;
                 }
                 VerticalLayout {
-                    accessible-role: list;
-                    accessible-label: "Steps";
                     for r[i] in root.rows: StepRow {
                         step: r;
                         selected: i == root.selected;

@@ -934,7 +934,9 @@ export component NumberEdit {
             root.step-by(e.delta-y > 0);
             accept
         }
+        // Only catches the arrows on their way to the field: Tab goes to the field.
         FocusScope {
+            focus-on-tab-navigation: false;
             capture-key-pressed(e) => {
                 if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
                     root.step-by(e.text == Key.UpArrow);

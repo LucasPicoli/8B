@@ -30,6 +30,8 @@ controller-core = { path = "../controller-core", features = ["test-utils"] }
 # Snapshot tests draw into memory, with no display.
 slint = { version = "1.18", default-features = false, features = ["renderer-software", "software-renderer-systemfonts"] }
 tempfile = "3"
+# Reads the accessible tree that a screen reader gets. Slint's own crate, at Slint's version.
+i-slint-backend-testing = "=1.18.1"
 
 [lints]
 workspace = true

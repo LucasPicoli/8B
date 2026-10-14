@@ -1849,6 +1849,7 @@ version = "0.1.1"
 dependencies = [
  "controller-core",
  "env_logger",
+ "i-slint-backend-testing",
  "log",
  "serde_json",
  "slint",

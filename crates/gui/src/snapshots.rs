@@ -1927,6 +1927,40 @@ fn shift_tab_from_a_row_leaves_the_table() {
     assert_eq!(ui.get_selected_step(), 1);
 }
 
+#[test]
+fn the_step_table_focus_is_inside_the_steps_list() {
+    use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    let (_state, ui) = stick_pads_at(1);
+    // A screen reader names the focus by its nearest accessible ancestor. The row-sized
+    // focus scope must sit in the "Steps" list, which hands the focus to the selected row.
+    let lists: Vec<_> = ElementHandle::find_by_accessible_label(&ui, "Steps").collect();
+    assert_eq!(lists.len(), 1);
+    let list = &lists[0];
+    assert_eq!(list.accessible_role(), Some(AccessibleRole::List));
+    assert_eq!(list.accessible_item_count(), Some(5));
+    let cursor = list.query_descendants().match_id("StepTable::cursor").find_all();
+    assert_eq!(cursor.len(), 1, "the focus scope is outside the list");
+}
+
+#[test]
+fn every_tab_stop_after_the_table_shows_its_focus() {
+    use slint::platform::{Key, WindowEvent};
+    let (_state, ui) = stick_pads_at(1);
+    // Nothing holds the focus yet: a stop that draws no mark looks just like this.
+    let unfocused = ui.window().take_snapshot().unwrap();
+    click_drawn(&ui, 650.0, 422.0);
+    // From the selected row through the step panel and past its last trigger field.
+    let dead: Vec<usize> = (1..=30)
+        .filter(|_| {
+            ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Tab.into() });
+            ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Tab.into() });
+            slint::platform::update_timers_and_animations();
+            ui.window().take_snapshot().unwrap().as_slice() == unfocused.as_slice()
+        })
+        .collect();
+    assert!(dead.is_empty(), "Tabs {dead:?} showed no focus");
+}
+
 /// The step tab of `steps_tab` at 1280×800 with the controller views wired to the state,
 /// as the app wires them.
 fn views_at() -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
