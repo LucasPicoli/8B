@@ -15,6 +15,7 @@ use slint::{Model as _, ModelRc, SharedString, VecModel};
 use crate::batch::{render_batch, Batch};
 use crate::buttons::{current, held_current, output_text};
 use crate::controllers::Controller;
+use crate::macros::{descriptor, named, PadMacro};
 use crate::settings::pages_of;
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, Change, ClearInfo, FailedInfo, ReviewInfo};
@@ -297,15 +298,26 @@ impl AppState {
             });
             return;
         }
+        let glide_step_ms = self.description().limits.glide_step_ms;
         if let Some(slot) = self.controller_mut(port).and_then(|c| c.slots.get_mut(&key)) {
             match job.op {
-                // A job with only macro edits leaves the profile. The read that
-                // follows gives the macros the controller holds now.
+                // A job with only macro edits leaves the profile. The written macros
+                // show as descriptors until the read that follows, which reads their
+                // steps back from the controller.
                 WriteOp::Upload { .. } => {
                     if let Some(edited) = slot.edited.take() {
                         slot.pad = Some(edited);
                     }
-                    slot.edited_macros = None;
+                    if let Some(written) = slot.edited_macros.take() {
+                        slot.pad_macros = written
+                            .into_iter()
+                            .filter(|m| m.macro_slot.is_some())
+                            .map(|m| PadMacro {
+                                def: descriptor(&named(m), glide_step_ms),
+                                loaded: false,
+                            })
+                            .collect();
+                    }
                 }
                 WriteOp::Clear => *slot = SlotState::default(),
             }

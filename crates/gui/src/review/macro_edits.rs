@@ -405,6 +405,11 @@ mod tests {
         let slot = s.slot(XINPUT, 2);
         assert_eq!(slot.edited_macros, None);
         assert_eq!(slot.pad.unwrap().name, "Racing", "a macro-only job leaves the profile");
+        // Until the next read, the slot shows what was written as a descriptor, its
+        // steps to read again: as many as the controller holds.
+        let run = &slot.pad_macros[1];
+        assert_eq!((run.def.name.as_str(), run.loaded), ("Run", false));
+        assert!(run.def.steps.iter().all(|st| *st == MacroStep::default()));
     }
 
     #[test]
