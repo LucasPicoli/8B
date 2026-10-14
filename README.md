@@ -16,17 +16,9 @@
 
 ## Supported devices
 
-### Pro 3
-
-- Edit buttons, sticks, triggers and vibration in every XInput, Switch and DInput slot
-- Create and edit macros, step by step
-- Import and export profiles as JSON
-- Clear slots
-
-On the Pro 3, a stick you touch by hand takes over from a macro's move of that stick. In XInput and Switch, a macro cannot move a stick whose dead zone low end is below 2 % (seen on firmware 2.02).
-
-To add another controller, start with [Reverse engineering a controller](docs/reverse-engineering.md),
-then see [Adding a controller](docs/adding-a-controller.md).
+Device|Features
+---|---
+Pro 3|- Edit button mappings, sticks, triggers and vibration settings in every XInput, Switch and DInput slot</br>- Create and edit macros</br>- Import and export profiles as JSON
 
 ## Roadmap
 
