@@ -277,6 +277,12 @@ export component StepPanel inherits Frame {
     // A field in the panel reads out this group's name, so the step is spoken on entry.
     accessible-role: groupbox;
     accessible-label: root.heading;
+    // One under the other: a narrow window, or a font so large that two pads side by side
+    // overflow the panel, 568px wide at 1200px, the narrowest window that is not narrow.
+    // A pad's width: its header (head, Glide box, Centre) fits one line at a larger desktop
+    // font.
+    property <length> pad-w: max(260px, 19rem);
+    property <bool> stacked: root.narrow || 2 * root.pad-w + 40px > 568px;
     property <string> heading: "Step " + root.step + " of " + root.steps;
 
     VerticalLayout {
@@ -296,7 +302,7 @@ export component StepPanel inherits Frame {
         // columns so each side's controls group apart. One under the other in a narrow
         // window, each pad at its own width. Every pad in a column starts from the same
         // width, so the trigger rows line up with the sticks.
-        if !root.narrow: HorizontalLayout {
+        if !root.stacked: HorizontalLayout {
             spacing: 16px;
             for s[i] in root.sticks: StickPad {
                 horizontal-stretch: 1;
@@ -310,15 +316,15 @@ export component StepPanel inherits Frame {
                         root.snap-right = on;
                     }
                 }
-                min-width: 260px;
-                preferred-width: 260px;
+                min-width: root.pad-w;
+                preferred-width: root.pad-w;
                 set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                 dragged(x, y) => { root.stick-dragged(i, x, y, self.snap); }
                 glided(on) => { root.stick-glided(i, on); }
                 step-picked(n) => { root.step-picked(n); }
             }
         }
-        if root.narrow: VerticalLayout {
+        if root.stacked: VerticalLayout {
             spacing: 16px;
             alignment: start;
             for s[i] in root.sticks: HorizontalLayout {
@@ -334,7 +340,7 @@ export component StepPanel inherits Frame {
                             root.snap-right = on;
                         }
                     }
-                    min-width: 260px;
+                    min-width: root.pad-w;
                     set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                     dragged(x, y) => { root.stick-dragged(i, x, y, self.snap); }
                     glided(on) => { root.stick-glided(i, on); }
@@ -343,12 +349,12 @@ export component StepPanel inherits Frame {
             }
         }
         // None in a mode whose triggers are on or off.
-        if !root.narrow && root.triggers.length > 0: HorizontalLayout {
+        if !root.stacked && root.triggers.length > 0: HorizontalLayout {
             spacing: 16px;
             for t[k] in root.triggers: TriggerPad {
                 horizontal-stretch: 1;
-                min-width: 260px;
-                preferred-width: 260px;
+                min-width: root.pad-w;
+                preferred-width: root.pad-w;
                 trigger: t;
                 enabled: root.enabled;
                 set(v, apart) => { root.trigger-set(k, v, apart); }
@@ -358,13 +364,13 @@ export component StepPanel inherits Frame {
         }
         // Stacked, the panel scrolls with the page, so a trigger keeps no empty line for
         // its link.
-        if root.narrow && root.triggers.length > 0: VerticalLayout {
+        if root.stacked && root.triggers.length > 0: VerticalLayout {
             spacing: 16px;
             alignment: start;
             for t[k] in root.triggers: HorizontalLayout {
                 alignment: start;
                 TriggerPad {
-                    width: 260px;
+                    width: root.pad-w;
                     trigger: t;
                     enabled: root.enabled;
                     keep-link-line: false;

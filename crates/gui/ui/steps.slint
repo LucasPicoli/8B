@@ -168,6 +168,8 @@ component StepRow inherits Rectangle {
     in property <int> duration-min;
     in property <int> duration-max;
     in property <length> lane-x;
+    // The Step column's width, which the table sets from its head.
+    in property <length> number-w: Columns.number;
     callback picked;
     callback duration-changed(int);
     // A scroll over the row: true when the lanes took it.
@@ -192,7 +194,7 @@ component StepRow inherits Rectangle {
         padding-left: 10px;
         padding-right: 10px;
         Text {
-            width: Columns.number;
+            width: root.number-w;
             text: root.step.number;
             font-size: Theme.text-small;
             color: Theme.fg-muted;
@@ -305,6 +307,10 @@ export component StepTable inherits Frame {
     callback undone;
     // The selected step's new duration.
     callback duration-changed(int);
+    // The Step column grows to its head at a larger desktop font; a stick head that no
+    // longer fits its column is shortened to "L stick" and "R stick".
+    property <length> number-w: max(Columns.number, step-head.preferred-width + 12px);
+    property <bool> short-heads: stick-head.preferred-width > Columns.stick;
     property <bool> can: root.ready && root.editable;
     property <int> last: root.rows.length - 1;
     // The lanes' sideways scroll, 0 or less. The heads and every row share it. Picking a
@@ -348,6 +354,16 @@ export component StepTable inherits Frame {
     }
     changed selected => { root.reveal(); }
 
+    // Unseen: the width each head needs.
+    step-head := SmallHead {
+        visible: false;
+        text: "Step";
+    }
+    stick-head := SmallHead {
+        visible: false;
+        text: "Right stick";
+    }
+
     VerticalLayout {
         Rectangle {
             height: 44px;
@@ -355,6 +371,7 @@ export component StepTable inherits Frame {
                 padding-left: 10px;
                 padding-right: 12px;
                 spacing: 4px;
+                alignment: start;
                 // A tooltip cannot sit in a layout, so each button gets a frame. Focus
                 // goes back to the rows after a click, so the keys keep working.
                 Rectangle {
@@ -405,15 +422,6 @@ export component StepTable inherits Frame {
                         text: @markdown("\{tool.text}");
                     }
                 }
-                Text {
-                    horizontal-stretch: 1;
-                    text: root.count + (root.over ? ", too many" : root.full ? ", full" : "");
-                    font-size: Theme.text-small;
-                    color: root.over ? Theme.negative-ink : root.full ? Theme.fg : Theme.fg-muted;
-                    horizontal-alignment: right;
-                    vertical-alignment: center;
-                    overflow: elide;
-                }
             }
             Rectangle {
                 y: parent.height - 1px;
@@ -431,7 +439,7 @@ export component StepTable inherits Frame {
                 padding-left: 10px;
                 padding-right: 10px;
                 SmallHead {
-                    width: Columns.number;
+                    width: root.number-w;
                     text: "Step";
                     vertical-alignment: center;
                 }
@@ -455,13 +463,15 @@ export component StepTable inherits Frame {
                 }
                 SmallHead {
                     width: Columns.stick;
-                    text: "Left stick";
+                    text: root.short-heads ? "L stick" : "Left stick";
+                    accessible-label: "Left stick";
                     vertical-alignment: center;
                     overflow: elide;
                 }
                 SmallHead {
                     width: Columns.stick;
-                    text: "Right stick";
+                    text: root.short-heads ? "R stick" : "Right stick";
+                    accessible-label: "Right stick";
                     vertical-alignment: center;
                     overflow: elide;
                 }
@@ -564,6 +574,7 @@ export component StepTable inherits Frame {
                         duration-min: root.duration-min;
                         duration-max: root.duration-max;
                         lane-x: root.shown-x;
+                        number-w: root.number-w;
                         scrolled(e) => { root.scrolled(e) }
                         duration-changed(v) => { root.duration-changed(v); }
                         picked => {
@@ -582,7 +593,7 @@ export component StepTable inherits Frame {
                 padding-left: 10px;
                 padding-right: 10px;
                 Rectangle {
-                    width: Columns.number + Columns.start;
+                    width: root.number-w + Columns.start;
                 }
                 bar := Rectangle {
                     horizontal-stretch: 1;
@@ -615,6 +626,21 @@ export component StepTable inherits Frame {
                 Rectangle {
                     width: Columns.stick * 2 + Columns.duration;
                 }
+            }
+        }
+        // The count, under the table, where its whole line fits at any font size.
+        Rectangle {
+            visible: root.ready;
+            height: self.visible ? 28px : 0;
+            count-line := Text {
+                x: 10px;
+                width: parent.width - 20px;
+                height: parent.height;
+                text: root.count + (root.over ? ", too many" : root.full ? ", full" : "");
+                font-size: Theme.text-small;
+                color: root.over ? Theme.negative-ink : root.full ? Theme.fg : Theme.fg-muted;
+                vertical-alignment: center;
+                overflow: elide;
             }
         }
     }

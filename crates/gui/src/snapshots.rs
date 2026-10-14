@@ -1577,9 +1577,10 @@ fn step_table_shows_lanes_glides_and_pauses() {
     save("steps-narrow", &ui);
 }
 
-/// How far the step panel's heading pushes the panel's controls down, in logical pixels:
-/// its 18px line and the panel's 16px spacing.
-const PANEL_HEADING: f32 = 34.0;
+/// How far the step panel's controls sit lower than they would with no heading and no table
+/// footer, in logical pixels: the heading's 18px line and the panel's 16px spacing, and
+/// the 28px count under the table.
+const PANEL_HEADING: f32 = 34.0 + 28.0;
 
 /// The Macros tab of [`steps_tab`] at step `step`, with the stick pad edits wired to
 /// the state and a render after each, as the app does.
@@ -1774,7 +1775,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
     let after = ui.window().take_snapshot().unwrap();
     // The tip sits under the box, over the right gate: its area changes after Tab.
     let area = |shot: &slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
-        (655..682_u32)
+        (683..710_u32)
             .flat_map(|y| (1010..1250_u32).map(move |x| (x, y)))
             .map(|(x, y)| shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()])
             .collect::<Vec<_>>()
@@ -2069,7 +2070,7 @@ fn the_views_take_the_keyboard() {
     let held = || state.borrow().macro_steps(0).unwrap()[0].pressed_buttons.clone();
     assert_eq!(held(), ["bottom face"]);
     // A click on A in the front view releases it and leaves the ring there.
-    click_drawn(&ui, 518.0, 438.0);
+    click_drawn(&ui, 518.0, 486.0);
     assert_eq!(held(), Vec::<String>::new());
     save("views-keyboard-ring", &ui);
     // Up goes to Y, Space holds it; Left goes to X, Enter holds it.
@@ -2272,14 +2273,74 @@ fn lanes_that_fit_show_no_bar_and_do_not_scroll() {
     scroll_lanes(&ui, -2000.0, 0.0);
     let after = ui.window().take_snapshot().unwrap();
     assert!(before.as_slice() == after.as_slice(), "nothing moved");
-    // Under the five rows, where the bar would be: the same as under the Step column.
+    // Under the five rows, where the bar would be, above the count's text: the same as
+    // beside the count.
     let width = usize::try_from(after.width()).unwrap();
     let pixels = after.as_slice();
     let colours = |cols: std::ops::Range<usize>| -> HashSet<_> {
-        (562..578)
+        (562..569)
             .flat_map(|row| cols.clone().map(move |col| pixels[row * width + col]))
             .map(|p| (p.r, p.g, p.b))
             .collect()
     };
-    assert_eq!(colours(640..760), colours(540..600), "no bar");
+    assert_eq!(colours(654..745), colours(760..990), "no bar");
+}
+
+/// The Macros tab of `s` at the narrowest window, 1024×768, with macro slot 2 selected.
+fn macros_at_narrow(s: &AppState) -> AppWindow {
+    let ui = window(s);
+    ui.window().set_size(PhysicalSize::new(1024, 768));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    ui.set_selected_macro(1);
+    render(s, &ui);
+    ui
+}
+
+/// How many pixels differ between two pictures of the same size in the window's `x`
+/// columns and `y` rows.
+fn differing(
+    a: &slint::SharedPixelBuffer<slint::Rgba8Pixel>,
+    b: &slint::SharedPixelBuffer<slint::Rgba8Pixel>,
+    x: std::ops::Range<usize>,
+    y: std::ops::Range<usize>,
+) -> usize {
+    let width = usize::try_from(a.width()).unwrap();
+    y.flat_map(|row| x.clone().map(move |col| row * width + col))
+        .filter(|&i| a.as_slice()[i] != b.as_slice()[i])
+        .count()
+}
+
+#[test]
+fn the_unsaved_dots_move_no_label() {
+    let mut s = connected(XINPUT);
+    let held = [macro_def(0, "Jump combo", &["rp", "lp"], 12), macro_def(1, "Dash", &["r4"], 3)];
+    hold_macros(&mut s, (XINPUT, 2), &held);
+    s.select(0, 1);
+    let before = macros_at_narrow(&s).window().take_snapshot().unwrap();
+    // An edit no row and no tab shows in words: only the dots may appear.
+    s.edit_macro(0, |m| m.steps[0].duration_ms += 1);
+    let after = macros_at_narrow(&s).window().take_snapshot().unwrap();
+    // A dot is 7px across: 38 pixels of colour at most.
+    let tabs = differing(&before, &after, 264..1024, 52..88);
+    let slots = differing(&before, &after, 281..503, 125..335);
+    assert!((1..=49).contains(&tabs), "the tab bar changed {tabs} pixels");
+    assert!((1..=49).contains(&slots), "the macro slot list changed {slots} pixels");
+}
+
+#[test]
+fn a_macro_slot_name_and_the_step_count_get_a_line_of_their_own() {
+    use i_slint_backend_testing::ElementHandle;
+    let state = macros_tab();
+    let ui = macros_at_narrow(&state);
+    // Chips and the step count sit under the name, so the name keeps the row's width less
+    // the number box and the two status slots; the count has the table's whole width.
+    let names: Vec<_> = ElementHandle::find_by_element_id(&ui, "MacroSlotRow::name-line").collect();
+    assert_eq!(names.len(), 4);
+    for name in &names {
+        assert!(name.size().width >= 130.0, "a slot name has {}px", name.size().width);
+    }
+    let counts: Vec<_> = ElementHandle::find_by_element_id(&ui, "StepTable::count-line").collect();
+    assert_eq!(counts.len(), 1);
+    assert!(counts[0].size().width >= 450.0, "the count has {}px", counts[0].size().width);
 }

@@ -29,7 +29,8 @@ component ButtonChip inherits Rectangle {
     }
 }
 
-// One macro slot in the list: number, name or "Empty", step count, buttons, unsaved dot.
+// One macro slot in the list: number, name or "Empty" with the unsaved dot, then the step
+// count and the buttons.
 component MacroSlotRow inherits Rectangle {
     in property <MacroRow> item;
     in property <bool> selected;
@@ -37,7 +38,8 @@ component MacroSlotRow inherits Rectangle {
     // The list has keyboard focus: the selected row shows the focus frame.
     in property <bool> focused;
     callback picked;
-    height: 40px;
+    // Two lines: the name, then the step count and the chips.
+    height: round(max(52px, 3.6rem) / 1phx) * 1phx;
     background: root.selected ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
     border-width: root.selected ? 1px : 0;
     border-color: Theme.accent;
@@ -70,45 +72,66 @@ component MacroSlotRow inherits Rectangle {
                 vertical-alignment: center;
             }
         }
-        Text {
+        // The name has a line of its own, so the chips and the step count never take its
+        // room, at any font size. The status mark keeps its slot whether it shows or not,
+        // so nothing moves on the first edit.
+        VerticalLayout {
             horizontal-stretch: 1;
-            // A macro with no name is written as "Macro n": shown muted, as in the field.
-            text: !root.item.filled ? "Empty" : root.item.name != "" ? root.item.name : "Macro " + root.item.number;
-            color: root.item.filled && root.item.name != "" ? Theme.fg : Theme.fg-muted;
-            font-italic: !root.item.filled || root.item.name == "";
-            vertical-alignment: center;
-            overflow: elide;
-        }
-        if root.item.filled: Text {
-            text: root.item.steps;
-            font-size: Theme.text-small;
-            color: Theme.fg-muted;
-            vertical-alignment: center;
-        }
-        for b in root.item.first-buttons: ButtonChip {
-            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
-            text: b;
-        }
-        if root.item.more > 0: ButtonChip {
-            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
-            text: "+" + root.item.more;
-            muted: true;
-        }
-        if root.item.filled && root.item.buttons.length == 0: ButtonChip {
-            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
-            text: "No button";
-            muted: true;
-        }
-        if root.item.error != "" || root.item.warned: Image {
-            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
-            source: root.item.error != "" ? Icons.error : Icons.warning;
-            colorize: root.item.error != "" ? Theme.negative : Theme.neutral;
-            width: 14px;
-            height: 14px;
-        }
-        // A macro the controller would refuse is always unsaved: its icon stands for the dot.
-        if root.item.unsaved && root.item.error == "": Dot {
-            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+            alignment: center;
+            spacing: 3px;
+            HorizontalLayout {
+                spacing: 6px;
+                name-line := Text {
+                    horizontal-stretch: 1;
+                    // A macro with no name is written as "Macro n": shown muted, as in the field.
+                    text: !root.item.filled ? "Empty" : root.item.name != "" ? root.item.name : "Macro " + root.item.number;
+                    color: root.item.filled && root.item.name != "" ? Theme.fg : Theme.fg-muted;
+                    font-italic: !root.item.filled || root.item.name == "";
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+                Rectangle {
+                    width: 14px;
+                    if root.item.error != "" || root.item.warned: Image {
+                        y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                        source: root.item.error != "" ? Icons.error : Icons.warning;
+                        colorize: root.item.error != "" ? Theme.negative : Theme.neutral;
+                        width: 14px;
+                        height: 14px;
+                    }
+                }
+                Rectangle {
+                    width: 7px;
+                    // A macro the controller would refuse is always unsaved: its icon stands for the dot.
+                    if root.item.unsaved && root.item.error == "": Dot {
+                        y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                    }
+                }
+            }
+            if root.item.filled: HorizontalLayout {
+                alignment: start;
+                spacing: 8px;
+                Text {
+                    text: root.item.steps;
+                    font-size: Theme.text-small;
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                }
+                for b in root.item.first-buttons: ButtonChip {
+                    y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                    text: b;
+                }
+                if root.item.more > 0: ButtonChip {
+                    y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                    text: "+" + root.item.more;
+                    muted: true;
+                }
+                if root.item.buttons.length == 0: ButtonChip {
+                    y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                    text: "No button";
+                    muted: true;
+                }
+            }
         }
     }
     if !root.last: Rectangle {

@@ -287,9 +287,6 @@ export component TabBar inherits Rectangle {
                     font-weight: on ? 600 : 400;
                     vertical-alignment: center;
                 }
-                if section.unsaved && !section.error: Dot {
-                    y: (parent.height - self.height) / 2;
-                }
                 if section.error: Image {
                     y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
                     source: Icons.error;
@@ -313,6 +310,12 @@ export component TabBar inherits Rectangle {
                         }
                     }
                 }
+            }
+            // The unsaved dot sits in the corner, over the tab's right padding, so the first
+            // edit moves no label.
+            if section.unsaved && !section.error: Dot {
+                x: parent.width - 11px;
+                y: 8px;
             }
             // Selected tab: accent underline over the bar's bottom border.
             Rectangle {
