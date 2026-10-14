@@ -1693,3 +1693,19 @@ fn the_table_keys_work_after_a_row_click() {
     assert_eq!(ui.get_selected_step(), 10);
     save("steps-keyboard-end", &ui);
 }
+
+#[test]
+fn shift_tab_from_a_row_leaves_the_table() {
+    use slint::platform::{Key, WindowEvent};
+    let (_state, ui) = steps_at(1024, 768);
+    let press = |key: Key| {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+        ui.window().take_snapshot().unwrap();
+    };
+    // The table takes keys only while its selected row shows the focus frame.
+    click_drawn(&ui, 650.0, 422.0);
+    press(Key::Backtab);
+    press(Key::DownArrow);
+    assert_eq!(ui.get_selected_step(), 1);
+}

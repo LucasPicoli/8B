@@ -443,10 +443,11 @@ export component StepTable inherits Frame {
                 vertical-alignment: center;
             }
         }
-        // Takes the keys that the focused row passes up.
+        // Takes the keys that the focused row passes up. Tab reaches the row, not this.
         fs := FocusScope {
             visible: root.ready;
             focus-on-click: false;
+            focus-on-tab-navigation: false;
             height: root.ready ? min(root.rows.length, Columns.shown-rows) * Columns.row : 0;
             key-pressed(e) => {
                 if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
