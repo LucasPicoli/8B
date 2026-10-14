@@ -986,6 +986,115 @@ slint::slint! {
     }
 }
 
+slint::slint! {
+    import { DialogShell } from "ui/parts.slint";
+    import { Button, LineEdit } from "ui/look/breeze/widgets.slint";
+    export component EnterShell inherits Window {
+        in property <string> accept-text: "OK";
+        in property <bool> accept-enabled: true;
+        in property <bool> destructive;
+        in-out property <int> accepted;
+        in-out property <int> pressed;
+        in-out property <string> field;
+        public function focus-field() { le.focus(); }
+        public function focus-button() { b.focus(); }
+        DialogShell {
+            title: "t";
+            accept-text: root.accept-text;
+            accept-enabled: root.accept-enabled;
+            destructive: root.destructive;
+            accepted => { root.accepted += 1; }
+            VerticalLayout {
+                le := LineEdit { text <=> root.field; }
+                b := Button { text: "Inner"; clicked => { root.pressed += 1; } }
+            }
+        }
+    }
+}
+
+/// Presses Enter in `ui`, then releases it. The main Enter key and the keypad's both
+/// send `Key.Return`. With `repeat`, the key also auto-repeats once while held.
+fn enter(ui: &EnterShell, repeat: bool) {
+    use slint::platform::{Key, WindowEvent};
+    let text: slint::SharedString = Key::Return.into();
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+    if repeat {
+        ui.window().dispatch_event(WindowEvent::KeyPressRepeated { text: text.clone() });
+    }
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text });
+}
+
+fn enter_shell() -> EnterShell {
+    let _ = slint::platform::set_platform(Box::new(Headless));
+    let ui = EnterShell::new().unwrap();
+    ui.show().unwrap();
+    ui.window().set_size(PhysicalSize::new(800, 600));
+    ui
+}
+
+#[test]
+fn enter_accepts_a_dialog() {
+    let ui = enter_shell();
+    enter(&ui, false);
+    assert_eq!(ui.get_accepted(), 1);
+}
+
+#[test]
+fn enter_does_nothing_while_accept_is_disabled() {
+    let ui = enter_shell();
+    ui.set_accept_enabled(false);
+    enter(&ui, false);
+    assert_eq!(ui.get_accepted(), 0);
+}
+
+#[test]
+fn enter_does_nothing_without_an_accept_button() {
+    let ui = enter_shell();
+    ui.set_accept_text("".into());
+    enter(&ui, false);
+    assert_eq!(ui.get_accepted(), 0);
+}
+
+#[test]
+fn enter_closes_a_one_button_close_dialog() {
+    let ui = enter_shell();
+    ui.set_accept_text("Close".into());
+    enter(&ui, false);
+    assert_eq!(ui.get_accepted(), 1);
+}
+
+#[test]
+fn enter_in_a_field_stays_in_the_field() {
+    let ui = enter_shell();
+    ui.invoke_focus_field();
+    enter(&ui, false);
+    assert_eq!(ui.get_accepted(), 0);
+}
+
+#[test]
+fn enter_on_a_focused_button_presses_that_button() {
+    let ui = enter_shell();
+    ui.invoke_focus_button();
+    enter(&ui, false);
+    assert_eq!((ui.get_pressed(), ui.get_accepted()), (1, 0));
+}
+
+#[test]
+fn a_held_enter_accepts_once() {
+    let ui = enter_shell();
+    // The key that opened a dialog may still be held: its repeats must not confirm.
+    enter(&ui, true);
+    assert_eq!(ui.get_accepted(), 1, "the press, not its repeat");
+}
+
+#[test]
+fn enter_does_not_accept_a_destructive_dialog() {
+    let ui = enter_shell();
+    ui.set_destructive(true);
+    enter(&ui, false);
+    assert_eq!(ui.get_accepted(), 0);
+}
+
 /// The dialog card sits on whole physical pixels at any window size, scale and content
 /// height. A half-pixel offset blurs its text.
 #[test]

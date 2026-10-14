@@ -432,7 +432,7 @@ export component Placeholder {
     }
 }
 
-// Modal sheet over the window. Escape cancels.
+// Modal sheet over the window. Escape cancels. Enter accepts, unless `destructive`.
 export component DialogShell inherits Rectangle {
     in property <string> title;
     in property <string> subtitle;
@@ -474,6 +474,13 @@ export component DialogShell inherits Rectangle {
                 if (root.cancel-enabled) {
                     root.cancelled();
                 }
+                return accept;
+            }
+            // Enter accepts, as in a KDE dialog. A focused control keeps its own Enter:
+            // it never reaches this scope. A destructive dialog needs a click, and a held
+            // key that opened the dialog must not confirm it by repeating.
+            if (e.text == Key.Return && !e.repeat && !root.destructive && root.accept-text != "" && root.accept-enabled) {
+                root.accepted();
                 return accept;
             }
             reject
