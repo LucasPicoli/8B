@@ -52,7 +52,10 @@ component LaneCell inherits Rectangle {
         border-bottom-right-radius: root.cell.joins-down ? 0 : self.width / 2;
     }
     // A glide: a trapezoid from this pressure to the next, with a square cap at each end
-    // that joins a bar. The trapezoid runs 1px into each cap, so no seam shows.
+    // that joins a bar. The app's renderer smooths a slanted edge by spreading it about
+    // one physical pixel outward, so the trapezoid is drawn that much in from each side
+    // and from each cap, and its smoothing lands on the true width.
+    property <length> spread: 1phx;
     if root.cell.held && root.cell.top != root.cell.bottom: Path {
         x: 0;
         y: 0;
@@ -60,11 +63,13 @@ component LaneCell inherits Rectangle {
         height: root.height;
         viewbox-width: root.width / 1px;
         viewbox-height: root.height / 1px;
-        property <float> ya: (root.cell.joins-up ? root.y0 + root.cap - 1px : root.y0) / 1px;
-        property <float> yb: (root.cell.joins-down ? root.y1 - root.cap + 1px : root.y1) / 1px;
-        property <float> tl: root.left(root.top) / 1px;
-        property <float> bl: root.left(root.bottom) / 1px;
-        commands: "M " + self.tl + " " + self.ya + " L " + (self.tl + root.top / 1px) + " " + self.ya + " L " + (self.bl + root.bottom / 1px) + " " + self.yb + " L " + self.bl + " " + self.yb + " Z";
+        property <float> ya: (root.cell.joins-up ? root.y0 + root.cap : root.y0 + root.spread) / 1px;
+        property <float> yb: (root.cell.joins-down ? root.y1 - root.cap : root.y1 - root.spread) / 1px;
+        property <float> tl: (root.left(root.top) + root.spread) / 1px;
+        property <float> bl: (root.left(root.bottom) + root.spread) / 1px;
+        property <float> tw: max(0, (root.top - 2 * root.spread) / 1px);
+        property <float> bw: max(0, (root.bottom - 2 * root.spread) / 1px);
+        commands: "M " + self.tl + " " + self.ya + " L " + (self.tl + self.tw) + " " + self.ya + " L " + (self.bl + self.bw) + " " + self.yb + " L " + self.bl + " " + self.yb + " Z";
         fill: root.ink;
     }
     if root.cell.held && root.cell.top != root.cell.bottom && root.cell.joins-up: Rectangle {
