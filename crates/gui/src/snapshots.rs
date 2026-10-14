@@ -1354,10 +1354,10 @@ fn step_table_shows_lanes_glides_and_pauses() {
 fn stick_pads_at(step: i32) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
     let state = Rc::new(std::cell::RefCell::new(steps_tab()));
     let ui = window(&state.borrow());
+    // Tall enough to show the whole panel: picking a step leaves the page still.
+    ui.window().set_size(PhysicalSize::new(1280, 1200));
     ui.set_tab(1);
     render(&state.borrow(), &ui);
-    // Drawn once, so picking the step scrolls the panel into view.
-    ui.window().take_snapshot().unwrap();
     ui.set_selected_step(step);
     render(&state.borrow(), &ui);
     slint::platform::update_timers_and_animations();
@@ -1393,12 +1393,12 @@ fn a_quick_stick_drag_survives_the_render_after_each_move() {
     // the page to decide on a pan.
     let at = |x: f32, y: f32| slint::LogicalPosition::new(x, y);
     let button = PointerEventButton::Left;
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 549.0) });
-    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 549.0), button });
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 549.0) });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 684.0) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 684.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 684.0) });
     let first = left();
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 523.0) });
-    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 523.0), button });
+    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 658.0) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 658.0), button });
     assert!(first.0 > 180 && first.1 == 127, "halfway right: {first:?}");
     assert!(left().1 < 127, "the drag stopped after one render: {:?}", left());
 }
@@ -1409,7 +1409,7 @@ fn a_trigger_slider_drag_survives_the_render_after_each_move() {
     let (state, ui) = stick_pads_at(2);
     let lt = || state.borrow().macro_steps(0).unwrap()[2].trigger_left;
     // Along the LT slider at this size, right, then right again.
-    let at = |x: f32| slint::LogicalPosition::new(x, 695.0);
+    let at = |x: f32| slint::LogicalPosition::new(x, 830.0);
     let button = PointerEventButton::Left;
     ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(640.0) });
     ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(640.0), button });
@@ -1435,7 +1435,7 @@ fn the_trigger_slider_moves_by_key() {
         ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
     };
     // A click on the LT knob, at its full press, focuses the slider and keeps 255.
-    click(&ui, 739.0, 699.0);
+    click(&ui, 739.0, 834.0);
     assert_eq!(lt(), 255);
     press(Key::Home);
     assert_eq!(lt(), 0);
@@ -1451,7 +1451,7 @@ fn the_trigger_slider_moves_by_key() {
 fn the_arriving_trigger_links_back_to_the_step_that_glides_in() {
     let (_state, ui) = stick_pads_at(2);
     // "Glides in from step 2" under LT, at this size.
-    click(&ui, 686.0, 731.0);
+    click(&ui, 686.0, 866.0);
     assert_eq!(ui.get_selected_step(), 1);
 }
 
@@ -1476,9 +1476,9 @@ fn each_stick_has_its_own_snap() {
     };
     // The right stick's box off, then a press near each gate's north-east corner, at this
     // size.
-    click(&ui, 955.0, 628.0);
-    press(1043.0, 510.0);
-    press(723.0, 510.0);
+    click(&ui, 955.0, 763.0);
+    press(1043.0, 645.0);
+    press(723.0, 645.0);
     assert_ne!(at(false), [255, 0], "the right stick no longer snaps");
     assert_eq!(at(true), [255, 0], "the left one still does");
 }
@@ -1498,12 +1498,12 @@ fn the_glide_box_follows_the_selected_step() {
     // The left stick's Glide box at this size. Step 3 glides: a click stops it. Step 4
     // does not: a click starts it. Back on step 3 the box must show off again, or the
     // next click sends "off" and nothing changes.
-    click(&ui, 694.0, 466.0);
+    click(&ui, 694.0, 601.0);
     pick(3);
-    click(&ui, 694.0, 466.0);
+    click(&ui, 694.0, 601.0);
     assert!(!glides(2) && glides(3));
     pick(2);
-    click(&ui, 694.0, 466.0);
+    click(&ui, 694.0, 601.0);
     assert!(glides(2), "the box kept step 4's tick");
 }
 
@@ -1511,7 +1511,7 @@ fn the_glide_box_follows_the_selected_step() {
 fn the_arriving_step_links_back_to_the_step_that_glides_in() {
     let (_state, ui) = stick_pads_at(3);
     // "Glides in from step 3" under the left pad, at this size.
-    click(&ui, 822.0, 595.0);
+    click(&ui, 822.0, 730.0);
     assert_eq!(ui.get_selected_step(), 2);
 }
 
@@ -1524,7 +1524,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
         ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Tab.into() });
     };
     // A click on the right stick's disabled Glide box, then Tab back from Centre.
-    click(&ui, 1015.0, 466.0);
+    click(&ui, 1015.0, 601.0);
     let before = ui.window().take_snapshot().unwrap();
     tab();
     ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Backtab.into() });
@@ -1533,7 +1533,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
     let after = ui.window().take_snapshot().unwrap();
     // The tip sits under the box, over the right gate: its area changes after Tab.
     let area = |shot: &slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
-        (486..513_u32)
+        (621..648_u32)
             .flat_map(|y| (1010..1250_u32).map(move |x| (x, y)))
             .map(|(x, y)| shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()])
             .collect::<Vec<_>>()
@@ -1554,9 +1554,6 @@ fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
         }
         ui.set_tab(1);
         render(&s, &ui);
-        // Picking a step scrolls the panel into view, once it is drawn and the change
-        // handlers run.
-        ui.window().take_snapshot().unwrap();
         ui.set_selected_step(2);
         render(&s, &ui);
         slint::platform::update_timers_and_animations();
@@ -1572,7 +1569,6 @@ fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
     fit_toolbar(&ui);
     ui.set_tab(1);
     render(&s, &ui);
-    ui.window().take_snapshot().unwrap();
     ui.set_selected_step(3);
     render(&s, &ui);
     slint::platform::update_timers_and_animations();
@@ -1601,4 +1597,99 @@ fn a_trigger_glide_meets_the_next_bar_edge_to_edge() {
     let (end, next) = (width(440), width(442));
     assert!((end - next).abs() < 0.01, "the glide ends {end}px wide, the bar is {next}px");
     assert!((next - 10.0).abs() < 0.01, "a whole pixel width: {next}");
+}
+
+/// The Macros tab of [`steps_tab`] at `w`×`h`, with step edits wired to the state and a
+/// render after each, as the app does.
+fn steps_at(w: u32, h: u32) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
+    let state = Rc::new(std::cell::RefCell::new(steps_tab()));
+    let ui = window(&state.borrow());
+    ui.window().set_size(PhysicalSize::new(w, h));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    render(&state.borrow(), &ui);
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_step_edited(move |n, step, edit| {
+        let edit = crate::step_table::StepEdit::at(edit).unwrap();
+        let step = usize::try_from(step).unwrap();
+        let picked = s.borrow_mut().edit_step(u8::try_from(n).unwrap(), step, edit);
+        let ui = weak.upgrade().unwrap();
+        ui.set_selected_step(i32::try_from(picked.unwrap()).unwrap());
+        render(&s.borrow(), &ui);
+    });
+    (state, ui)
+}
+
+/// Clicks (`x`, `y`) and lets the change handlers run, as a drawn frame does.
+fn click_drawn(ui: &AppWindow, x: f32, y: f32) {
+    ui.window().take_snapshot().unwrap();
+    click(ui, x, y);
+    slint::platform::update_timers_and_animations();
+    ui.window().take_snapshot().unwrap();
+}
+
+#[test]
+fn add_step_stays_under_the_pointer() {
+    for (w, h) in [(1024, 768), (1280, 1200)] {
+        let (state, ui) = steps_at(w, h);
+        // "Add step" in the table's toolbar, at this size.
+        let x = if w < 1280 { 576.0 } else { 672.0 };
+        for _ in 0..6 {
+            click_drawn(&ui, x, 310.0);
+        }
+        assert_eq!(state.borrow().macro_steps(0).unwrap().len(), 11, "at {w}×{h}");
+    }
+}
+
+#[test]
+fn picking_a_step_keeps_the_page_still() {
+    for (w, h) in [(1024, 768), (1280, 1200)] {
+        let (_state, ui) = steps_at(w, h);
+        // Every row of the table, out of order, at both sizes.
+        for (row, y) in [(1, 422.0), (3, 502.0), (4, 542.0), (0, 382.0), (2, 462.0)] {
+            click_drawn(&ui, 650.0, y);
+            assert_eq!(ui.get_selected_step(), row, "at {w}×{h}");
+        }
+    }
+}
+
+#[test]
+fn picking_a_step_from_the_panel_keeps_the_page_still() {
+    use slint::platform::WindowEvent;
+    let (_state, ui) = steps_at(1024, 768);
+    // Focus in the left stick's X field, then the page scrolled until the table's top
+    // rows are under the tab bar: taking focus back must not scroll the page to show
+    // the whole table.
+    click_drawn(&ui, 727.0, 665.0);
+    let position = slint::LogicalPosition::new(760.0, 500.0);
+    ui.window().dispatch_event(WindowEvent::PointerScrolled {
+        position,
+        delta_x: 0.0,
+        delta_y: -300.0,
+    });
+    click_drawn(&ui, 650.0, 162.0);
+    assert_eq!(ui.get_selected_step(), 2);
+    click_drawn(&ui, 650.0, 202.0);
+    assert_eq!(ui.get_selected_step(), 3);
+}
+
+#[test]
+fn the_table_keys_work_after_a_row_click() {
+    use slint::platform::{Key, WindowEvent};
+    let (state, ui) = steps_at(1024, 768);
+    let press = |key: Key| {
+        ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+        ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+        ui.window().take_snapshot().unwrap();
+    };
+    click_drawn(&ui, 650.0, 422.0);
+    press(Key::DownArrow);
+    assert_eq!(ui.get_selected_step(), 2);
+    for _ in 0..6 {
+        press(Key::Insert);
+    }
+    assert_eq!(state.borrow().macro_steps(0).unwrap().len(), 11);
+    press(Key::End);
+    assert_eq!(ui.get_selected_step(), 10);
+    save("steps-keyboard-end", &ui);
 }

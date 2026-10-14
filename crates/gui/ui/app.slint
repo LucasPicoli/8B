@@ -548,14 +548,6 @@ export component AppWindow inherits Window {
                         stick-set(n, i, k, x, y, apart) => { root.stick-set(n, i, k, x, y, apart); }
                         stick-dragged(n, i, k, x, y, snap) => { root.stick-dragged(n, i, k, x, y, snap); }
                         stick-glided(n, i, k, on) => { root.stick-glided(n, i, k, on); }
-                        reveal(abs-y, h) => {
-                            let top = abs-y - page.absolute-position.y;
-                            if (top < 0) {
-                                page.content-y -= top;
-                            } else if (top + h > page.visible-height) {
-                                page.content-y -= top + h - page.visible-height;
-                            }
-                        }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         created(n) => { root.macro-created(n); }

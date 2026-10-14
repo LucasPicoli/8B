@@ -322,7 +322,7 @@ export component StepTable inherits Frame {
                             enabled: root.can && !root.full;
                             clicked => {
                                 root.edited(0);
-                                fs.focus();
+                                cursor.focus();
                             }
                         }
                     }
@@ -352,7 +352,7 @@ export component StepTable inherits Frame {
                                 } else {
                                     root.edited(tool.edit);
                                 }
-                                fs.focus();
+                                cursor.focus();
                             }
                         }
                     }
@@ -443,8 +443,10 @@ export component StepTable inherits Frame {
                 vertical-alignment: center;
             }
         }
+        // Takes the keys that the focused row passes up.
         fs := FocusScope {
             visible: root.ready;
+            focus-on-click: false;
             height: root.ready ? min(root.rows.length, Columns.shown-rows) * Columns.row : 0;
             key-pressed(e) => {
                 if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
@@ -486,20 +488,27 @@ export component StepTable inherits Frame {
             sv := ScrollView {
                 width: parent.width;
                 height: parent.height;
+                // The focus sits on the selected row, not on the table: Slint scrolls
+                // the page to show a newly focused item, and the row is on screen.
+                cursor := FocusScope {
+                    y: root.selected * Columns.row;
+                    height: Columns.row;
+                    focus-on-click: false;
+                }
                 VerticalLayout {
                     accessible-role: list;
                     accessible-label: "Steps";
                     for r[i] in root.rows: StepRow {
                         step: r;
                         selected: i == root.selected;
-                        focused: fs.has-focus;
+                        focused: cursor.has-focus;
                         editable: root.editable;
                         duration-min: root.duration-min;
                         duration-max: root.duration-max;
                         duration-changed(v) => { root.duration-changed(v); }
                         picked => {
                             root.selected = i;
-                            fs.focus();
+                            cursor.focus();
                         }
                     }
                 }

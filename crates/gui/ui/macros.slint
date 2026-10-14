@@ -519,8 +519,6 @@ export component MacrosTab {
     in property <string> floor-body;
     in property <string> floor-action;
     callback floor-raised(int);
-    // Asks the page to scroll the step panel into view (absolute y, height).
-    callback reveal(length, length);
     // The button row under (x, y) in view `view`'s viewBox units, or -1; and the chip of
     // "Buttons held" there, when a click toggles it in step `step` of macro slot `macro`
     // (0-based), or -1.
@@ -681,13 +679,11 @@ export component MacrosTab {
                 trigger-set(k, v, apart) => { root.trigger-set(root.selected, root.selected-step, k, v, apart); }
                 trigger-glided(k, on) => { root.trigger-glided(root.selected, root.selected-step, k, on); }
                 enabled: root.live;
-                step: root.selected-step;
                 narrow: root.narrow;
                 stick-set(k, x, y, apart) => { root.stick-set(root.selected, root.selected-step, k, x, y, apart); }
                 stick-dragged(k, x, y, snap) => { root.stick-dragged(root.selected, root.selected-step, k, x, y, snap); }
                 stick-glided(k, on) => { root.stick-glided(root.selected, root.selected-step, k, on); }
                 step-picked(n) => { root.selected-step = n; }
-                reveal(y, h) => { root.reveal(y, h); }
             }
             if !root.current.filled: Frame {
                 VerticalLayout {

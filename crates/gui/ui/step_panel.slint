@@ -254,8 +254,6 @@ export component StepPanel inherits Frame {
     in property <[PadStick]> sticks;
     in property <[PadTrigger]> triggers;
     in property <bool> enabled;
-    // The selected step: picking another scrolls the panel into view.
-    in property <int> step;
     // A narrow window, set by Rust: the panel's own width would form a layout loop.
     in property <bool> narrow;
     // A trigger edit names the trigger (its place in the panel) first.
@@ -267,9 +265,6 @@ export component StepPanel inherits Frame {
     callback stick-glided(int, bool);
     // A pad asks to select step n (0-based).
     callback step-picked(int);
-    // Asks the page to scroll the panel into view (absolute y, height).
-    callback reveal(length, length);
-    changed step => { root.reveal(self.absolute-position.y, self.height); }
 
     // A drag of each stick snaps to the edges and corners marked on its rim. For the
     // session.
