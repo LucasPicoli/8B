@@ -127,9 +127,7 @@ pub fn restore_pages(dev: &HidrawDevice, pages: &[(Mode, u8, Vec<u8>)]) {
         }
         Ok::<_, controller_core::Error>(())
     })();
-    if let Some(mode) = back_to {
-        dev.end_write(mode).unwrap();
-    }
+    dev.end_write(back_to).unwrap();
     sent.unwrap();
 }
 

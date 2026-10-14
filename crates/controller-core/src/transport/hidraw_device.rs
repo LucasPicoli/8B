@@ -17,7 +17,7 @@ use crate::protocol::wire::{
 };
 use crate::protocol::wire_write::MACRO_PAGE_LEN;
 use crate::transport::hidraw_write;
-use crate::transport::session::{Session, Target, READ_TIMEOUT};
+use crate::transport::session::{Session, Target, READ_TIMEOUT, WRITE_TIMEOUT};
 use crate::transport::write_input::PROFILE_CHUNK as UPLOAD_CHUNK;
 use crate::transport::MacroStream;
 
@@ -36,6 +36,9 @@ pub struct HidrawDevice {
     /// The model the last read session identified, for [`DeviceIo::model`]. Each read
     /// refreshes it, so another pad plugged into the same port is seen.
     model: Mutex<Option<&'static dyn Model>>,
+    /// The session of the write job in progress, from [`DeviceIo::begin_write`] to
+    /// [`DeviceIo::end_write`]. Every call uses it while it is held.
+    held: Mutex<Option<Session>>,
 }
 
 impl HidrawDevice {
@@ -43,14 +46,14 @@ impl HidrawDevice {
     /// operation is performed.
     #[must_use]
     pub const fn first() -> Self {
-        Self { port: None, model: Mutex::new(None) }
+        Self { port: None, model: Mutex::new(None), held: Mutex::new(None) }
     }
 
     /// A handle to the controller on USB port path `port`, such as `8-5`. Nothing
     /// is opened until an operation is performed.
     #[must_use]
     pub fn at(port: &str) -> Self {
-        Self { port: Some(port.to_owned()), model: Mutex::new(None) }
+        Self { port: Some(port.to_owned()), model: Mutex::new(None), held: Mutex::new(None) }
     }
 
     fn target(&self) -> Target<'_> {
@@ -63,7 +66,7 @@ impl HidrawDevice {
     /// Returns [`Error::Write`] on empty data, a transfer failure or a rejected response.
     /// Returns a connection error if the device cannot be opened.
     pub fn write_patch(&self, offset: u16, data: &[u8]) -> Result<()> {
-        hidraw_write::write_patch(self.target(), offset, data)
+        self.write_with(|s| hidraw_write::write_patch(s, offset, data))
     }
 
     /// Sends `QUERY_STATUS`. Disrupts joydev input until the device is reconnected.
@@ -72,7 +75,7 @@ impl HidrawDevice {
     /// Returns [`Error::Timeout`] on a transfer failure, [`Error::Write`] on a rejected
     /// response, or a connection error if the device cannot be opened.
     pub fn query_status(&self) -> Result<()> {
-        hidraw_write::query_status(self.target())
+        self.write_with(hidraw_write::query_status)
     }
 
     /// Erases the 4096-byte flash page of one macro slot.
@@ -80,7 +83,7 @@ impl HidrawDevice {
     /// # Errors
     /// Same as [`Self::query_status`].
     pub fn erase_macro(&self, mode: Mode, profile_slot: Slot, macro_slot: MacroSlot) -> Result<()> {
-        hidraw_write::erase_macro(self.target(), mode, profile_slot, macro_slot)
+        self.write_with(|s| hidraw_write::erase_macro(s, mode, profile_slot, macro_slot))
     }
 
     /// Opens a read session and remembers the model it identified. A failed open
@@ -90,6 +93,36 @@ impl HidrawDevice {
         let model = opened.as_ref().ok().map(Session::model).transpose()?;
         *self.model.lock().unwrap_or_else(PoisonError::into_inner) = model;
         opened
+    }
+
+    /// Runs `send` on the held write session, or else on a session from `open`. An
+    /// error drops the held session, which resumes input, so the next call (a
+    /// rollback) opens a fresh one.
+    fn with_session<T>(
+        &self,
+        open: impl FnOnce() -> Result<Session>,
+        send: impl FnOnce(&mut Session) -> Result<T>,
+    ) -> Result<T> {
+        let mut held = self.held.lock().unwrap_or_else(PoisonError::into_inner);
+        if let Some(session) = held.as_mut() {
+            let result = send(session);
+            if result.is_err() {
+                *held = None;
+            }
+            return result;
+        }
+        drop(held);
+        send(&mut open()?)
+    }
+
+    /// [`Self::with_session`] for a write command.
+    fn write_with<T>(&self, send: impl FnOnce(&mut Session) -> Result<T>) -> Result<T> {
+        self.with_session(|| hidraw_write::open(self.target()), send)
+    }
+
+    /// [`Self::with_session`] for a read.
+    fn read_with<T>(&self, read: impl FnOnce(&mut Session) -> Result<T>) -> Result<T> {
+        self.with_session(|| self.read_session(), read)
     }
 }
 
@@ -182,6 +215,41 @@ fn select_current_bank(session: &mut Session) -> Result<()> {
     Ok(())
 }
 
+/// Reads every bank in the model's mode order, then selects the current mode's bank.
+fn read_all_banks(session: &mut Session) -> Result<ProfileReadResult> {
+    let model = session.model()?;
+    let description = model.description()?;
+
+    let mut profiles = Vec::new();
+    let mut raw_blobs = Vec::new();
+
+    for target_mode in description.modes.iter().map(|m| m.id) {
+        let slot_select = model.slot_select_value(target_mode)?;
+        let _ = session.send_recv(&build_slot_select(slot_select))?;
+        let blob = read_blob_chunks(session)?;
+
+        for source_slot in 1..=description.slot_count {
+            let slot = Slot::new(source_slot)?;
+            if !model.slot_active(&blob, slot)? {
+                profiles.push(empty_summary(model, target_mode, source_slot));
+                continue;
+            }
+            let raw = RawProfilePayload {
+                payload: blob.clone(),
+                source_slot,
+                source_profile_index: source_slot - 1,
+                mode_hint: target_mode,
+            };
+            profiles.push(model.map_profile(&raw)?);
+        }
+
+        raw_blobs.push(blob);
+    }
+
+    select_current_bank(session)?;
+    Ok(ProfileReadResult { profiles, raw_blobs })
+}
+
 // ---------------------------------------------------------------------------
 // Empty-slot placeholder
 // ---------------------------------------------------------------------------
@@ -221,39 +289,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
     /// Returns [`Error::NoDevice`], [`Error::Usb`], [`Error::Timeout`],
     /// [`Error::Disconnected`] or [`Error::Decode`] on failure.
     fn read_all_profiles(&self) -> Result<ProfileReadResult> {
-        // The session sends `START_CONFIG` once, to identify the model.
-        let mut session = self.read_session()?;
-        let model = session.model()?;
-        let description = model.description()?;
-
-        let mut profiles = Vec::new();
-        let mut raw_blobs = Vec::new();
-
-        for target_mode in description.modes.iter().map(|m| m.id) {
-            let slot_select = model.slot_select_value(target_mode)?;
-            let _ = session.send_recv(&build_slot_select(slot_select))?;
-            let blob = read_blob_chunks(&mut session)?;
-
-            for source_slot in 1..=description.slot_count {
-                let slot = Slot::new(source_slot)?;
-                if !model.slot_active(&blob, slot)? {
-                    profiles.push(empty_summary(model, target_mode, source_slot));
-                    continue;
-                }
-                let raw = RawProfilePayload {
-                    payload: blob.clone(),
-                    source_slot,
-                    source_profile_index: source_slot - 1,
-                    mode_hint: target_mode,
-                };
-                profiles.push(model.map_profile(&raw)?);
-            }
-
-            raw_blobs.push(blob);
-        }
-
-        select_current_bank(&mut session)?;
-        Ok(ProfileReadResult { profiles, raw_blobs })
+        self.read_with(read_all_banks)
     }
 
     /// Reads every stream in one session: `START_CONFIG`, then the chunk reads.
@@ -271,8 +307,7 @@ impl crate::transport::DeviceIo for HidrawDevice {
         if streams.iter().all(|s| s.step_count == 0) {
             return Ok(vec![Vec::new(); streams.len()]);
         }
-        let mut session = self.read_session()?;
-        streams.iter().map(|s| read_stream_chunks(&mut session, s)).collect()
+        self.read_with(|session| streams.iter().map(|s| read_stream_chunks(session, s)).collect())
     }
 
     /// Probes device readiness: sysfs scan followed by a live active-slot check.
@@ -350,24 +385,38 @@ impl crate::transport::DeviceIo for HidrawDevice {
         Ok(readiness)
     }
 
+    /// Opens the session the write job runs in and holds it until [`Self::end_write`].
     fn begin_write(&self) -> Result<Option<Mode>> {
-        hidraw_write::begin_write(self.target())
+        let (back_to, session) = hidraw_write::begin_write(self.target())?;
+        *self.held.lock().unwrap_or_else(PoisonError::into_inner) = Some(session);
+        Ok(back_to)
     }
 
-    fn end_write(&self, back_to: Mode) -> Result<()> {
-        hidraw_write::end_write(self.target(), back_to)
+    /// Sends the close through the held session, or a fresh one when an error dropped
+    /// it. With no mode to go back to, drops the held session, which resumes input.
+    fn end_write(&self, back_to: Option<Mode>) -> Result<()> {
+        let held = self.held.lock().unwrap_or_else(PoisonError::into_inner).take();
+        let Some(back_to) = back_to else {
+            drop(held);
+            return Ok(());
+        };
+        let session = match held {
+            Some(session) => session,
+            None => Session::open(self.target(), WRITE_TIMEOUT)?,
+        };
+        hidraw_write::end_write(self.target(), session, back_to)
     }
 
     fn write_full_profile(&self, _mode: Mode, blob: &[u8]) -> Result<()> {
-        hidraw_write::write_full_profile(self.target(), blob)
+        self.write_with(|s| hidraw_write::write_full_profile(s, blob))
     }
 
     fn send_slot_select(&self, mode: Mode) -> Result<()> {
-        hidraw_write::send_slot_select(self.target(), mode)
+        self.write_with(|s| hidraw_write::send_slot_select(s, mode))
     }
 
     fn send_apply(&self, _mode: Mode) -> Result<()> {
-        hidraw_write::send_apply(self.target())
+        self.write_with(hidraw_write::send_apply)
     }
 
     fn write_macro_stream(
@@ -377,7 +426,9 @@ impl crate::transport::DeviceIo for HidrawDevice {
         macro_slot: MacroSlot,
         stream: &[u8],
     ) -> Result<()> {
-        hidraw_write::write_macro_stream(self.target(), mode, profile_slot, macro_slot, stream)
+        self.write_with(|s| {
+            hidraw_write::write_macro_stream(s, mode, profile_slot, macro_slot, stream)
+        })
     }
 }
 

@@ -148,15 +148,13 @@ impl ProfileWriteOrchestrator<'_> {
             }
             self.read_back(&mut banks);
             let mut results = collect(jobs, &banks, outcomes);
-            if let Some(back_to) = back_to {
-                if let Err(e) = self.dev.end_write(back_to) {
-                    for r in &mut results {
-                        r.message = format!(
-                            "{} The controller did not return to {back_to} mode ({e}); \
-                             unplug it and plug it back in.",
-                            r.message
-                        );
-                    }
+            if let (Err(e), Some(back_to)) = (self.dev.end_write(back_to), back_to) {
+                for r in &mut results {
+                    r.message = format!(
+                        "{} The controller did not return to {back_to} mode ({e}); \
+                         unplug it and plug it back in.",
+                        r.message
+                    );
                 }
             }
             return results;

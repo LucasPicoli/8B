@@ -1,8 +1,10 @@
 //! Write operations of the real hidraw transport.
 //!
-//! Each function opens its own session, builds packets with
+//! Each function sends on a session the caller gives it, builds packets with
 //! [`crate::protocol::wire_write`], and maps failures to categories: transfer failure on
 //! a simple command is [`Error::Timeout`], a rejected response is [`Error::Write`].
+//! [`begin_write`] opens the session that one write job runs in, and [`end_write`] ends
+//! it with the close.
 
 use std::time::Duration;
 
@@ -38,7 +40,7 @@ const RETURN_SETTLE: Duration = Duration::from_secs(2);
 
 /// Opens a write session. Refuses in a current mode that takes no writes in place:
 /// [`begin_write`] must flip the controller first.
-fn open(to: Target<'_>) -> Result<Session> {
+pub(super) fn open(to: Target<'_>) -> Result<Session> {
     let session = Session::open(to, WRITE_TIMEOUT)?;
     if let Some(via) = session.write_via {
         return Err(Error::write(format!(
@@ -50,11 +52,12 @@ fn open(to: Target<'_>) -> Result<Session> {
 }
 
 /// Flips the controller to the mode its config port names in `write_via`, if any,
-/// and waits for it. Returns the mode to send it back to.
-pub(super) fn begin_write(to: Target<'_>) -> Result<Option<Mode>> {
+/// and waits for it. Returns the mode to send it back to, and the session the write
+/// job runs in: the one it opened, or a new one on the flipped node.
+pub(super) fn begin_write(to: Target<'_>) -> Result<(Option<Mode>, Session)> {
     let session = Session::open(to, WRITE_TIMEOUT)?;
     let Some(via) = session.write_via else {
-        return Ok(None);
+        return Ok((None, session));
     };
     let back_to = session.current_mode;
     let flip = session.model()?.mode_flip_command(via).ok_or_else(|| {
@@ -66,12 +69,12 @@ pub(super) fn begin_write(to: Target<'_>) -> Result<Option<Mode>> {
             "the controller did not come back in {via} mode ({e}); unplug it and plug it back in"
         ))
     })?;
-    Ok(Some(back_to))
+    Ok((Some(back_to), open(to)?))
 }
 
-/// Sends the close command, then waits for the controller to come back in `back_to`.
-pub(super) fn end_write(to: Target<'_>, back_to: Mode) -> Result<()> {
-    let session = Session::open(to, WRITE_TIMEOUT)?;
+/// Sends the close command through `session`, then waits for the controller to come
+/// back in `back_to`.
+pub(super) fn end_write(to: Target<'_>, session: Session, back_to: Mode) -> Result<()> {
     let close = session.model()?.mode_close_command().ok_or_else(|| {
         Error::write(format!(
             "this controller cannot go back to {back_to} mode; unplug it and plug it back in"
@@ -110,8 +113,7 @@ fn exchange(
     validate(&resp).inspect_err(|e| session.log_failure(packet, e))
 }
 
-pub(super) fn write_full_profile(to: Target<'_>, blob: &[u8]) -> Result<()> {
-    let mut session = open(to)?;
+pub(super) fn write_full_profile(session: &mut Session, blob: &[u8]) -> Result<()> {
     let blob_size = session.model()?.blob_size();
     check_profile_blob(blob, blob_size)?;
     let total_len = len_u16(blob_size)?;
@@ -124,39 +126,25 @@ pub(super) fn write_full_profile(to: Target<'_>, blob: &[u8]) -> Result<()> {
             let size16 = len_u16(size)?;
             exchange(session, &packet, |r| validate_write_response(r, offset, size16))
         };
-        send(&mut session).map_err(|e| chunk_failure(i, total, "profile chunk", &e))?;
+        send(session).map_err(|e| chunk_failure(i, total, "profile chunk", &e))?;
     }
     Ok(())
 }
 
-pub(super) fn write_patch(to: Target<'_>, offset: u16, data: &[u8]) -> Result<()> {
+pub(super) fn write_patch(session: &mut Session, offset: u16, data: &[u8]) -> Result<()> {
     check_patch(data)?;
     let size = len_u16(data.len())?;
-    let mut session = open(to)?;
     let packet = build_write_packet(offset, data, len_u16(session.model()?.blob_size())?);
     for i in 0..PATCH_PACKETS {
-        exchange(&mut session, &packet, |r| validate_write_response(r, offset, size))
+        exchange(session, &packet, |r| validate_write_response(r, offset, size))
             .map_err(|e| chunk_failure(i, PATCH_PACKETS, "patch packet", &e))?;
     }
     Ok(())
 }
 
-/// Opens a session, sends one simple command and checks its echo.
-fn command(to: Target<'_>, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
-    command_with(to, |_| Ok(*packet), echo, what)
-}
-
-/// [`command`] with a packet built from the open session, for a command whose bytes
-/// depend on the model.
-fn command_with(
-    to: Target<'_>,
-    build: impl FnOnce(&Session) -> Result<[u8; PACKET_LEN]>,
-    echo: u8,
-    what: &str,
-) -> Result<()> {
-    let mut session = open(to)?;
-    let packet = build(&session)?;
-    exchange(&mut session, &packet, |r| validate_command_response(r, echo)).map_err(|e| {
+/// Sends one simple command and checks its echo.
+fn command(session: &mut Session, packet: &[u8; PACKET_LEN], echo: u8, what: &str) -> Result<()> {
+    exchange(session, packet, |r| validate_command_response(r, echo)).map_err(|e| {
         if matches!(e, Error::Decode(_)) {
             rejected(what, &e)
         } else {
@@ -165,17 +153,17 @@ fn command_with(
     })
 }
 
-pub(super) fn send_slot_select(to: Target<'_>, mode: Mode) -> Result<()> {
-    let build = |s: &Session| Ok(build_slot_select(s.model()?.slot_select_value(mode)?));
-    command_with(to, build, CMD_SLOT_SELECT, "slot select")
+pub(super) fn send_slot_select(session: &mut Session, mode: Mode) -> Result<()> {
+    let packet = build_slot_select(session.model()?.slot_select_value(mode)?);
+    command(session, &packet, CMD_SLOT_SELECT, "slot select")
 }
 
-pub(super) fn send_apply(to: Target<'_>) -> Result<()> {
-    command(to, &build_apply(), CMD_APPLY, "apply")
+pub(super) fn send_apply(session: &mut Session) -> Result<()> {
+    command(session, &build_apply(), CMD_APPLY, "apply")
 }
 
-pub(super) fn query_status(to: Target<'_>) -> Result<()> {
-    command(to, &build_query_status(), CMD_QUERY_STATUS, "query status")
+pub(super) fn query_status(session: &mut Session) -> Result<()> {
+    command(session, &build_query_status(), CMD_QUERY_STATUS, "query status")
 }
 
 /// Wire profile slot: 0-based.
@@ -183,7 +171,7 @@ const fn profile_slot0(profile_slot: Slot) -> u8 {
     profile_slot.get().saturating_sub(1)
 }
 
-fn erase_in_session(
+pub(super) fn erase_macro(
     session: &mut Session,
     mode: Mode,
     profile_slot: Slot,
@@ -204,18 +192,8 @@ fn erase_in_session(
     })
 }
 
-pub(super) fn erase_macro(
-    to: Target<'_>,
-    mode: Mode,
-    profile_slot: Slot,
-    macro_slot: MacroSlot,
-) -> Result<()> {
-    let mut session = open(to)?;
-    erase_in_session(&mut session, mode, profile_slot, macro_slot)
-}
-
 pub(super) fn write_macro_stream(
-    to: Target<'_>,
+    session: &mut Session,
     mode: Mode,
     profile_slot: Slot,
     macro_slot: MacroSlot,
@@ -224,9 +202,8 @@ pub(super) fn write_macro_stream(
     check_macro_stream(stream, macro_slot)?;
     let total_len = macro_total_len(stream.len(), macro_slot)?;
     let base = macro_flash_base(macro_slot)?;
-    let mut session = open(to)?;
     let gamepad_mode = session.model()?.macro_gamepad_mode(mode)?;
-    erase_in_session(&mut session, mode, profile_slot, macro_slot)?;
+    erase_macro(session, mode, profile_slot, macro_slot)?;
 
     let total = stream.len() / MACRO_CHUNK_LEN;
     for (i, data) in stream.chunks(MACRO_CHUNK_LEN).enumerate() {
@@ -244,7 +221,7 @@ pub(super) fn write_macro_stream(
             );
             exchange(session, &packet, validate_write_macro_response)
         };
-        send(&mut session).map_err(|e| chunk_failure(i, total, "macro chunk", &e))?;
+        send(session).map_err(|e| chunk_failure(i, total, "macro chunk", &e))?;
     }
     Ok(())
 }

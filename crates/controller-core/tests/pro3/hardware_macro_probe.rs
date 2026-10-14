@@ -149,9 +149,7 @@ fn hex(bytes: &[u8]) -> String {
 fn with_write<T>(dev: &HidrawDevice, packets: impl FnOnce() -> controller_core::Result<T>) -> T {
     let back_to = dev.begin_write().unwrap();
     let sent = packets();
-    if let Some(mode) = back_to {
-        dev.end_write(mode).unwrap();
-    }
+    dev.end_write(back_to).unwrap();
     sent.unwrap()
 }
 

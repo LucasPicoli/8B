@@ -199,7 +199,13 @@ fn upload_into_an_empty_slot_runs_the_full_pipeline() {
     assert_eq!((r.mode, r.slot), (XINPUT, 3));
     assert_eq!(
         ops(&dev),
-        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
+        [
+            MockOp::BeginWrite,
+            MockOp::SlotSelect,
+            MockOp::WriteFullProfile,
+            MockOp::Apply,
+            MockOp::EndWrite
+        ]
     );
 
     let written = writes(&dev).remove(0);
@@ -386,7 +392,13 @@ fn deactivate_clears_only_the_flag_and_reseals_the_crc() {
     assert!(r.success, "{}", r.message);
     assert_eq!(
         ops(&dev),
-        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
+        [
+            MockOp::BeginWrite,
+            MockOp::SlotSelect,
+            MockOp::WriteFullProfile,
+            MockOp::Apply,
+            MockOp::EndWrite
+        ]
     );
     let written = writes(&dev).remove(0);
     assert!(is_slot_active(&written, slot(1)).unwrap());
@@ -656,7 +668,7 @@ fn slot_select_failure_stops_before_any_write() {
     let r = upload_over_slot1(&dev, dir.path());
     assert_failed(&r, ErrorCategory::ConnectionFailure);
     assert!(r.message.starts_with("Slot select failed"), "{}", r.message);
-    assert_eq!(ops(&dev), [MockOp::BeginWrite, MockOp::SlotSelect]);
+    assert_eq!(ops(&dev), [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::EndWrite]);
 }
 
 #[test]
@@ -677,7 +689,8 @@ fn failed_write_is_rolled_back_with_the_readback() {
             MockOp::SlotSelect,
             MockOp::WriteFullProfile,
             MockOp::WriteFullProfile,
-            MockOp::Apply
+            MockOp::Apply,
+            MockOp::EndWrite
         ]
     );
     let sent = writes(&dev);
@@ -718,7 +731,10 @@ fn failed_write_into_an_empty_slot_needs_no_rollback() {
     );
     assert_failed(&r, ErrorCategory::WriteFailure);
     assert!(!r.rollback_attempted);
-    assert_eq!(ops(&dev), [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile]);
+    assert_eq!(
+        ops(&dev),
+        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::EndWrite]
+    );
 }
 
 #[test]
@@ -732,7 +748,10 @@ fn write_that_never_reached_the_device_is_not_rolled_back() {
     let r = upload_over_slot1(&dev, dir.path());
     assert_failed(&r, ErrorCategory::ConnectionFailure);
     assert!(!r.rollback_attempted && r.backup_file_path.is_none());
-    assert_eq!(ops(&dev), [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile]);
+    assert_eq!(
+        ops(&dev),
+        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::EndWrite]
+    );
 }
 
 #[test]
@@ -745,7 +764,13 @@ fn apply_failure_after_a_good_write_is_reported_without_rollback() {
     assert!(!r.rollback_attempted);
     assert_eq!(
         ops(&dev),
-        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
+        [
+            MockOp::BeginWrite,
+            MockOp::SlotSelect,
+            MockOp::WriteFullProfile,
+            MockOp::Apply,
+            MockOp::EndWrite
+        ]
     );
 }
 
@@ -768,7 +793,13 @@ fn dinput_remap_on_the_official_blob_changes_one_entry() {
     assert!(r.success, "{}", r.message);
     assert_eq!(
         ops(&dev),
-        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
+        [
+            MockOp::BeginWrite,
+            MockOp::SlotSelect,
+            MockOp::WriteFullProfile,
+            MockOp::Apply,
+            MockOp::EndWrite
+        ]
     );
     let written = writes(&dev).remove(0);
     // Slot 3's l4 now holds the DInput bottom face value of a vendor-default slot.
@@ -791,7 +822,7 @@ fn a_flipped_write_flips_back_once_after_apply() {
     assert!(r.success, "{}", r.message);
     assert_eq!(
         dev.calls().first().zip(dev.calls().last()),
-        Some((&MockCall::BeginWrite, &MockCall::EndWrite(SWITCH)))
+        Some((&MockCall::BeginWrite, &MockCall::EndWrite(Some(SWITCH))))
     );
     assert_eq!(
         ops(&dev),
@@ -815,7 +846,7 @@ fn a_failed_flipped_write_still_flips_back() {
     let r = upload_switch_slot1(&dev, dir.path());
     assert_failed(&r, ErrorCategory::WriteFailure);
     assert!(r.rollback_attempted && !r.rollback_succeeded);
-    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(SWITCH)));
+    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(Some(SWITCH))));
 }
 
 #[test]

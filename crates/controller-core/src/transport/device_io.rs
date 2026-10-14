@@ -19,8 +19,9 @@ pub struct MacroStream {
 
 /// Device read and write operations.
 ///
-/// Every write method opens its own USB session and releases it before returning,
-/// so callers sequence the protocol steps (slot select, write, apply).
+/// Callers sequence the protocol steps (slot select, write, apply). Between
+/// [`Self::begin_write`] and [`Self::end_write`] every call runs in the one session the
+/// write job holds open; outside a write job each call opens its own.
 pub trait DeviceIo {
     /// The model of the attached controller, from the model id its `START_CONFIG`
     /// reply carries. Opens a session unless an earlier one already identified it.
@@ -75,23 +76,26 @@ pub trait DeviceIo {
     /// Returns a connection error if no supported device is present.
     fn detect_readiness(&self) -> Result<DeviceReadiness>;
 
-    /// Readies the controller for one write job. When its current mode takes no writes
-    /// in place (the config port's `write_via`), flips it to that mode and waits for it
-    /// to come back on USB. Returns the mode to pass to [`Self::end_write`], or `None`
-    /// when nothing was flipped.
+    /// Readies the controller for one write job and opens the session the job runs in.
+    /// When its current mode takes no writes in place (the config port's `write_via`),
+    /// flips it to that mode and waits for it to come back on USB. Returns the mode to
+    /// pass to [`Self::end_write`], or `None` when nothing was flipped. Every call that
+    /// opened a write job ends it with [`Self::end_write`], on every path.
     ///
     /// # Errors
     /// Returns a connection error if the device cannot be opened, and
     /// [`crate::Error::Write`] if the controller does not come back after the flip.
     fn begin_write(&self) -> Result<Option<Mode>>;
 
-    /// Sends a controller flipped by [`Self::begin_write`] back to `back_to`, the mode
-    /// its slide switch shows, and waits for it. A replug does the same.
+    /// Ends the write job that [`Self::begin_write`] opened. With `Some(mode)`, sends
+    /// the flipped controller back to `mode`, the mode its slide switch shows, and
+    /// waits for it; a replug does the same. With `None`, closes the session, which
+    /// resumes gamepad input.
     ///
     /// # Errors
     /// Returns a connection error if the device cannot be opened, and
-    /// [`crate::Error::Timeout`] if it does not come back in time.
-    fn end_write(&self, back_to: Mode) -> Result<()>;
+    /// [`crate::Error::Timeout`] if it does not come back in time. `None` never fails.
+    fn end_write(&self, back_to: Option<Mode>) -> Result<()>;
 
     /// Writes a complete profile blob of the model's blob size in 45-byte chunks, each
     /// ACK-checked. A Pro 3 blob is 2348 bytes in 53 chunks.

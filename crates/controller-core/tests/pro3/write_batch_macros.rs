@@ -189,7 +189,7 @@ fn a_failed_page_in_the_second_bank_leaves_the_first_bank_written() {
     assert!(results[1].rollback_succeeded, "{}", results[1].message);
     assert_eq!(held(&dev, XINPUT, 1).len(), 3);
     assert_eq!(held(&dev, DINPUT, 2), []);
-    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(SWITCH)));
+    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(Some(SWITCH))));
 }
 
 #[test]

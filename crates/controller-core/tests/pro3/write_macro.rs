@@ -150,6 +150,12 @@ fn put_calls(m: u8) -> Vec<MockCall> {
     ]
 }
 
+/// `calls`, then the end of the write job, which flipped nothing.
+fn ended(mut calls: Vec<MockCall>) -> Vec<MockCall> {
+    calls.push(MockCall::EndWrite(None));
+    calls
+}
+
 /// The macro slot and name of each macro the pad now holds in `XInput` slot 1.
 fn names(dev: &MockDevice) -> Vec<(Option<u8>, String)> {
     let bank = dev.read_all_profiles().unwrap().raw_blobs.remove(0);
@@ -163,7 +169,7 @@ fn a_put_into_a_free_macro_slot_writes_bank_then_page_and_keeps_the_others() {
     let r = put(&dev, 2, &ConfirmPolicy::Abort, dir.path());
     assert!(r.success, "{}", r.message);
     assert_eq!(r.message, "Macro written.");
-    assert_eq!(dev.calls(), put_calls(2));
+    assert_eq!(dev.calls(), ended(put_calls(2)));
     let held = names(&dev);
     assert_eq!(held, [(Some(0), "Old".into()), (Some(1), "Keep".into()), (Some(2), "New".into())]);
 }
@@ -219,7 +225,7 @@ fn a_replace_asks_the_policy_and_only_then_writes() {
 
     let r = put(&dev, 0, &ConfirmPolicy::Force, dir.path());
     assert!(r.success, "{}", r.message);
-    assert_eq!(dev.calls(), put_calls(0));
+    assert_eq!(dev.calls(), ended(put_calls(0)));
     assert_eq!(names(&dev), [(Some(0), "New".into()), (Some(1), "Keep".into())]);
 }
 
@@ -318,7 +324,8 @@ fn a_delete_zeroes_the_descriptor_and_leaves_the_page() {
             MockCall::BeginWrite,
             MockCall::SlotSelect(XINPUT),
             bank_call(zeroed),
-            MockCall::Apply(XINPUT)
+            MockCall::Apply(XINPUT),
+            MockCall::EndWrite(None)
         ]
     );
     assert_eq!(names(&dev), [(Some(1), "Keep".into())]);
@@ -326,7 +333,7 @@ fn a_delete_zeroes_the_descriptor_and_leaves_the_page() {
     let again = delete(&dev, 1, 3, dir.path());
     assert!(again.success);
     assert_eq!(again.message, "Macro slot 3 is already empty.");
-    assert_eq!(dev.calls().len(), 4, "an empty macro slot writes nothing");
+    assert_eq!(dev.calls().len(), 5, "an empty macro slot writes nothing");
 }
 
 #[test]
@@ -344,6 +351,7 @@ fn a_failed_bank_write_restores_the_bank() {
             bank_call(new_bank(0)),
             bank_call(bank()),
             MockCall::Apply(XINPUT),
+            MockCall::EndWrite(None),
         ]
     );
 }
@@ -358,7 +366,7 @@ fn a_failed_erase_on_a_create_restores_the_bank_only() {
     let mut calls = put_calls(2);
     calls.pop();
     calls.extend([bank_call(bank()), MockCall::Apply(XINPUT)]);
-    assert_eq!(dev.calls(), calls);
+    assert_eq!(dev.calls(), ended(calls));
     assert_eq!(names(&dev), [(Some(0), "Old".into()), (Some(1), "Keep".into())]);
 }
 
@@ -377,7 +385,7 @@ fn a_failed_middle_chunk_on_a_replace_puts_the_old_steps_back() {
     let mut calls = put_calls(0);
     calls.pop();
     calls.extend([bank_call(bank()), MockCall::Apply(XINPUT), old_page(), MockCall::Apply(XINPUT)]);
-    assert_eq!(dev.calls(), calls);
+    assert_eq!(dev.calls(), ended(calls));
     assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
 }
 
@@ -388,7 +396,7 @@ fn a_failed_final_apply_is_reported_without_a_rollback() {
     let r = put(&dev, 0, &ConfirmPolicy::Force, dir.path());
     assert!(!r.success && !r.rollback_attempted);
     assert!(r.message.starts_with("Write succeeded but APPLY failed"), "{}", r.message);
-    assert_eq!(dev.calls(), put_calls(0));
+    assert_eq!(dev.calls(), ended(put_calls(0)));
 }
 
 #[test]
@@ -417,7 +425,7 @@ fn a_failed_stream_rewrite_empties_the_macro_slot_and_saves_the_old_macro() {
         bank_call(emptied),
         MockCall::Apply(XINPUT),
     ]);
-    assert_eq!(dev.calls(), calls);
+    assert_eq!(dev.calls(), ended(calls));
     assert_eq!(names(&dev), [(Some(1), "Keep".into())]);
 
     let saved = std::fs::read_dir(dir.path()).unwrap().next().unwrap().unwrap().path();
@@ -451,5 +459,5 @@ fn a_read_back_mismatch_fails_the_write_without_a_rollback() {
     assert!(!r.success && !r.rollback_attempted);
     assert_eq!(r.error_category, ErrorCategory::WriteFailure);
     assert!(r.message.starts_with("Read-back check failed"), "{}", r.message);
-    assert_eq!(dev.calls(), put_calls(0));
+    assert_eq!(dev.calls(), ended(put_calls(0)));
 }

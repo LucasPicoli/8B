@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn the_refs_replace_every_macro_of_the_slot_in_one_job() {
-        use MockOp::{Apply, BeginWrite, SlotSelect, WriteFullProfile, WriteMacroStream};
+        use MockOp::{Apply, BeginWrite, EndWrite, SlotSelect, WriteFullProfile, WriteMacroStream};
         let dev = pad(2);
         let (a, b) = (def("Dash", XINPUT, "l3", 0), def("Hop", XINPUT, "r4", 2));
         let dir = folder(json!([reference(&a), reference(&b)]), &[a, b]);
@@ -350,7 +350,8 @@ mod tests {
                 Apply,
                 WriteMacroStream,
                 WriteMacroStream,
-                Apply
+                Apply,
+                EndWrite
             ]
         );
         assert_eq!(pages(&dev), [0, 2]);

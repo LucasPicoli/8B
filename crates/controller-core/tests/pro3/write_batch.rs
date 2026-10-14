@@ -112,7 +112,13 @@ fn slots_of_one_mode_go_out_in_one_write() {
     assert_eq!((results[1].mode, results[1].slot), (XINPUT, 3));
     assert_eq!(
         ops(&dev),
-        [MockOp::BeginWrite, MockOp::SlotSelect, MockOp::WriteFullProfile, MockOp::Apply]
+        [
+            MockOp::BeginWrite,
+            MockOp::SlotSelect,
+            MockOp::WriteFullProfile,
+            MockOp::Apply,
+            MockOp::EndWrite
+        ]
     );
     let (_, blob) = written(&dev).remove(0);
     assert_eq!(name_in(&blob, XINPUT, 2), "Two");
@@ -158,7 +164,7 @@ fn each_changed_mode_gets_its_own_select_write_and_apply_inside_one_flip() {
             MockOp::EndWrite,
         ]
     );
-    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(SWITCH)));
+    assert_eq!(dev.calls().last(), Some(&MockCall::EndWrite(Some(SWITCH))));
     let blobs = written(&dev);
     assert_eq!(blobs.iter().map(|(m, _)| *m).collect::<Vec<_>>(), [XINPUT, SWITCH]);
     assert_eq!(name_in(&blobs[0].1, XINPUT, 3), "X3");

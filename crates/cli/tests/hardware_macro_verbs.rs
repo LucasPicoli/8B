@@ -130,9 +130,7 @@ impl Drop for Pages<'_> {
                 eprintln!("{mode} macro slot {m}: the page was not restored: {e}");
             }
         }
-        if let Some(mode) = back_to {
-            let _ = dev.end_write(mode);
-        }
+        let _ = dev.end_write(back_to);
     }
 }
 

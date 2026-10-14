@@ -146,8 +146,9 @@ impl<'a> ProfileWriteOrchestrator<'a> {
     ///
     /// `done` is the success message when a blob was written. A write that fails after the
     /// device was opened is rolled back. An apply that fails after a good write is not.
-    /// The flip back goes out on every path once the flip succeeded. If it fails, the
-    /// result keeps its outcome and its message says to replug the controller.
+    /// The write job ends on every path once it began, with the flip back when there
+    /// was a flip. If the flip back fails, the result keeps its outcome and its message
+    /// says to replug the controller.
     pub(super) fn run(
         &self,
         mode: Mode,
@@ -182,14 +183,12 @@ impl<'a> ProfileWriteOrchestrator<'a> {
             Err(e) => return failure_from(mode, slot, &e),
         };
         let mut result = self.write(mode, slot, &rb.backup_blob, rb.slot_active, &planned, done);
-        if let Some(back_to) = back_to {
-            if let Err(e) = self.dev.end_write(back_to) {
-                result.message = format!(
-                    "{} The controller did not return to {back_to} mode ({e}); \
-                     unplug it and plug it back in.",
-                    result.message
-                );
-            }
+        if let (Err(e), Some(back_to)) = (self.dev.end_write(back_to), back_to) {
+            result.message = format!(
+                "{} The controller did not return to {back_to} mode ({e}); \
+                 unplug it and plug it back in.",
+                result.message
+            );
         }
         result
     }

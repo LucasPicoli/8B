@@ -32,8 +32,8 @@ pub enum MockOp {
 pub enum MockCall {
     /// [`DeviceIo::begin_write`].
     BeginWrite,
-    /// [`DeviceIo::end_write`], with the mode to return to.
-    EndWrite(Mode),
+    /// [`DeviceIo::end_write`], with the mode to return to, if any.
+    EndWrite(Option<Mode>),
     /// [`DeviceIo::write_full_profile`].
     WriteFullProfile {
         /// Target mode.
@@ -255,7 +255,7 @@ impl DeviceIo for MockDevice {
         Ok(self.flip_back_to)
     }
 
-    fn end_write(&self, back_to: Mode) -> Result<()> {
+    fn end_write(&self, back_to: Option<Mode>) -> Result<()> {
         self.record(MockCall::EndWrite(back_to))
     }
 

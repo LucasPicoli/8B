@@ -74,9 +74,7 @@ fn write_bank(dev: &HidrawDevice, mode: Mode, blob: &[u8]) {
         dev.write_full_profile(mode, blob)?;
         dev.send_apply(mode)
     })();
-    if let Some(back) = back {
-        dev.end_write(back).unwrap();
-    }
+    dev.end_write(back).unwrap();
     sent.unwrap();
 }
 

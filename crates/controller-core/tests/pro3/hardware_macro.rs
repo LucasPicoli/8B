@@ -135,9 +135,7 @@ fn put_fixture_macro(dev: &HidrawDevice) {
         dev.send_apply(XINPUT)?;
         dev.query_status()
     })();
-    if let Some(mode) = back_to {
-        dev.end_write(mode).unwrap();
-    }
+    dev.end_write(back_to).unwrap();
     sent.unwrap();
 
     let read = dev.read_all_profiles().unwrap();
