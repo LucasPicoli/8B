@@ -86,7 +86,7 @@ pub fn confirm_policy(force: bool) -> ConfirmPolicy {
 /// # Errors
 /// Returns the pad's error when it names no model and more than one model is built in,
 /// because the rules to check by are then unknown.
-fn write_model(dev: &dyn DeviceIo) -> controller_core::error::Result<&'static dyn Model> {
+pub fn write_model(dev: &dyn DeviceIo) -> controller_core::error::Result<&'static dyn Model> {
     dev.model().or_else(|e| match devices::models() {
         [only] => Ok(*only),
         _ => Err(e),

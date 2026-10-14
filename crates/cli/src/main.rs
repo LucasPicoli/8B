@@ -1,8 +1,8 @@
 //! CLI entry point for the 8BitDo Pro 3 configuration tool.
 //!
 //! Subcommands: `detect` (alias `readiness`), `read`,
-//! `export`, `dump`, `read-macro`, the write verbs `upload`, `deactivate`, `remap`
-//! and `set`, and the macro write verbs `write-macro` and `delete-macro`. The `dev` group adds tools for
+//! `export`, `dump`, `read-macro`, the write verbs `upload`, `upload-all`, `deactivate`,
+//! `remap` and `set`, and the macro write verbs `write-macro` and `delete-macro`. The `dev` group adds tools for
 //! reverse engineering a controller the app does not support yet.
 //!
 //! Binary crates cannot expose a public API; suppress the lint that fires for
@@ -14,6 +14,7 @@ pub(crate) mod dev;
 pub(crate) mod export;
 pub(crate) mod macros;
 pub(crate) mod upload;
+pub(crate) mod upload_all;
 pub(crate) mod write;
 
 use std::path::PathBuf;
@@ -27,6 +28,7 @@ use controller_core::model::{MacroSlot, Mode, Slot};
 use export::run_export;
 use macros::{run_delete_macro, run_write_macro, MacroWrite};
 use upload::{run_upload, Upload};
+use upload_all::{run_upload_all, UploadAll};
 use write::run_write;
 
 /// 8BitDo Pro 3 CLI.
@@ -225,6 +227,29 @@ enum Commands {
         with_macros: bool,
     },
 
+    /// Write every profile file of an `export` folder in one write: one flip of the
+    /// controller, and each bank written once.
+    ///
+    /// A file goes to the slot its name gives (`profile-<mode>-slot-<N>-index-<N>.json`);
+    /// other files are left alone. Every file is checked first, so one bad file writes
+    /// nothing. The output has a `results` list, one entry per slot, shaped like the
+    /// output of `upload`.
+    #[command(name = "upload-all")]
+    UploadAll {
+        /// The folder of profile files.
+        dir: PathBuf,
+        /// Replace each slot's macros with its profile's `macros`, as `upload
+        /// --with-macros` does. Without it every slot keeps its macros.
+        #[arg(long)]
+        with_macros: bool,
+        /// Also empty every slot that has no file in the folder.
+        #[arg(long)]
+        clear_missing: bool,
+        /// Overwrite occupied slots and macro slots without asking.
+        #[arg(long)]
+        force: bool,
+    },
+
     /// Write a `macro-v1` file into a macro slot of an occupied slot. The slot's other
     /// macros and its profile stay as they are.
     ///
@@ -336,6 +361,9 @@ fn main() {
         Commands::Dev(DevCommand::Diff { a, b }) => dev::run_diff(&a, &b),
         Commands::Upload { target: t, file, with_macros } => {
             run_upload(&Upload { file: &file, mode: t.mode, slot: t.slot, with_macros }, t.force)
+        }
+        Commands::UploadAll { dir, with_macros, clear_missing, force } => {
+            run_upload_all(&UploadAll { dir: &dir, with_macros, clear_missing }, force)
         }
         Commands::WriteMacro { target: t, macro_slot, convert, file } => run_write_macro(
             &MacroWrite { file: &file, mode: t.mode, slot: t.slot, macro_slot, convert },

@@ -131,7 +131,7 @@ fn kept_warnings(dev: &dyn DeviceIo, mode: Mode, slot: Slot, profile: &Value) ->
 /// ref for a path that leaves `folder`, a file name with no macro number, a macro number
 /// two refs share, a file that is missing or invalid, is for another mode than `mode`,
 /// or names other buttons than its ref.
-fn macro_edits(
+pub fn macro_edits(
     model: &dyn Model,
     profile: &Value,
     mode: Mode,
