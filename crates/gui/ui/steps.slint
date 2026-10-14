@@ -26,14 +26,22 @@ component LaneCell inherits Rectangle {
     property <length> inset: 9px;
     // Deep enough on `view` for a graphic (3:1) in both themes.
     property <brush> ink: Theme.dark ? Theme.accent : Theme.accent-strong;
-    // No wider than the lane, less a 2px gap on each side.
-    property <length> top: min(root.cell.top, root.width - 4px);
-    property <length> bottom: min(root.cell.bottom, root.width - 4px);
+    // No wider than the lane, less a 2px gap on each side, in whole physical pixels.
+    property <length> top: round(min(root.cell.top, root.width - 4px) / 1phx) * 1phx;
+    property <length> bottom: round(min(root.cell.bottom, root.width - 4px) / 1phx) * 1phx;
     property <length> y0: root.cell.joins-up ? 0 : self.inset;
     property <length> y1: root.cell.joins-down ? self.height : self.height - self.inset;
+    // Where a bar `w` wide starts, centred on a whole physical pixel. A bar of the same
+    // pressure starts at the same x in every row, so the rows meet edge to edge.
+    pure function left(w: length) -> length {
+        round((root.width - w) / 2 / 1phx) * 1phx
+    }
+    // A glide's end that meets the next or the last row's bar is drawn as that bar is, so
+    // the slanted edge's smoothing never makes it wider or narrower at the join.
+    property <length> cap: 2px;
     // A pill when it stands alone, square where it joins.
     if root.cell.held && root.cell.top == root.cell.bottom: Rectangle {
-        x: round((parent.width - root.top) / 2 / 1phx) * 1phx;
+        x: root.left(root.top);
         y: root.y0;
         width: root.top;
         height: root.y1 - root.y0;
@@ -43,7 +51,8 @@ component LaneCell inherits Rectangle {
         border-bottom-left-radius: root.cell.joins-down ? 0 : self.width / 2;
         border-bottom-right-radius: root.cell.joins-down ? 0 : self.width / 2;
     }
-    // A glide: a trapezoid from this pressure to the next.
+    // A glide: a trapezoid from this pressure to the next, with a square cap at each end
+    // that joins a bar. The trapezoid runs 1px into each cap, so no seam shows.
     if root.cell.held && root.cell.top != root.cell.bottom: Path {
         x: 0;
         y: 0;
@@ -51,11 +60,26 @@ component LaneCell inherits Rectangle {
         height: root.height;
         viewbox-width: root.width / 1px;
         viewbox-height: root.height / 1px;
-        property <float> c: root.width / 2 / 1px;
-        property <float> t: root.top / 2 / 1px;
-        property <float> b: root.bottom / 2 / 1px;
-        commands: "M " + (self.c - self.t) + " " + root.y0 / 1px + " L " + (self.c + self.t) + " " + root.y0 / 1px + " L " + (self.c + self.b) + " " + root.y1 / 1px + " L " + (self.c - self.b) + " " + root.y1 / 1px + " Z";
+        property <float> ya: (root.cell.joins-up ? root.y0 + root.cap - 1px : root.y0) / 1px;
+        property <float> yb: (root.cell.joins-down ? root.y1 - root.cap + 1px : root.y1) / 1px;
+        property <float> tl: root.left(root.top) / 1px;
+        property <float> bl: root.left(root.bottom) / 1px;
+        commands: "M " + self.tl + " " + self.ya + " L " + (self.tl + root.top / 1px) + " " + self.ya + " L " + (self.bl + root.bottom / 1px) + " " + self.yb + " L " + self.bl + " " + self.yb + " Z";
         fill: root.ink;
+    }
+    if root.cell.held && root.cell.top != root.cell.bottom && root.cell.joins-up: Rectangle {
+        x: root.left(root.top);
+        y: root.y0;
+        width: root.top;
+        height: root.cap;
+        background: root.ink;
+    }
+    if root.cell.held && root.cell.top != root.cell.bottom && root.cell.joins-down: Rectangle {
+        x: root.left(root.bottom);
+        y: root.y1 - root.cap;
+        width: root.bottom;
+        height: root.cap;
+        background: root.ink;
     }
     if root.cell.held: Tooltip {
         text: @markdown("\{root.cell.tip}");

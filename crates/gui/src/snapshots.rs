@@ -1536,3 +1536,27 @@ fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
     slint::platform::update_timers_and_animations();
     save("step-panel-narrow", &ui);
 }
+
+#[test]
+fn a_trigger_glide_meets_the_next_bar_edge_to_edge() {
+    let mut s = steps_tab();
+    // Step 2 glides LT from 128 to 200: a bar 10.06px wide at this size, so the glide's
+    // end and the next row's bar must round alike.
+    s.edit_step_values(0, 2, None, |step| step.trigger_left = 200);
+    let ui = window(&s);
+    ui.set_tab(1);
+    render(&s, &ui);
+    let shot = ui.window().take_snapshot().unwrap();
+    // How much of the LT lane row `y` covers with ink, in pixels.
+    let width = |y: u32| -> f32 {
+        (785..820_u32)
+            .map(|x| shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()])
+            .map(|p| (255.0 - f32::from(p.g)) / (255.0 - 116.0))
+            .filter(|c| *c > 0.05)
+            .sum()
+    };
+    // The glide's last pixel row, then the next step's first one, over the row line.
+    let (end, next) = (width(440), width(442));
+    assert!((end - next).abs() < 0.01, "the glide ends {end}px wide, the bar is {next}px");
+    assert!((next - 10.0).abs() < 0.01, "a whole pixel width: {next}");
+}
