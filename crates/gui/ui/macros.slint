@@ -735,6 +735,8 @@ export component MacrosTab {
                 duration-changed(v) => { root.step-duration-changed(root.selected, root.selected-step, v); }
             }
             if root.current.filled && root.step-sticks.length > 0: StepPanel {
+                step: root.selected-step + 1;
+                steps: root.step-rows.length;
                 sticks: root.step-sticks;
                 triggers: root.step-triggers;
                 trigger-set(k, v, apart) => { root.trigger-set(root.selected, root.selected-step, k, v, apart); }

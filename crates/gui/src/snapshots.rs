@@ -1577,6 +1577,10 @@ fn step_table_shows_lanes_glides_and_pauses() {
     save("steps-narrow", &ui);
 }
 
+/// How far the step panel's heading pushes the panel's controls down, in logical pixels:
+/// its 18px line and the panel's 16px spacing.
+const PANEL_HEADING: f32 = 34.0;
+
 /// The Macros tab of [`steps_tab`] at step `step`, with the stick pad edits wired to
 /// the state and a render after each, as the app does.
 fn stick_pads_at(step: i32) -> (Rc<std::cell::RefCell<AppState>>, AppWindow) {
@@ -1621,12 +1625,21 @@ fn a_quick_stick_drag_survives_the_render_after_each_move() {
     // the page to decide on a pan.
     let at = |x: f32, y: f32| slint::LogicalPosition::new(x, y);
     let button = PointerEventButton::Left;
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 684.0) });
-    ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(688.0, 684.0), button });
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 684.0) });
+    ui.window()
+        .dispatch_event(WindowEvent::PointerMoved { position: at(688.0, 684.0 + PANEL_HEADING) });
+    ui.window().dispatch_event(WindowEvent::PointerPressed {
+        position: at(688.0, 684.0 + PANEL_HEADING),
+        button,
+    });
+    ui.window()
+        .dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 684.0 + PANEL_HEADING) });
     let first = left();
-    ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 658.0) });
-    ui.window().dispatch_event(WindowEvent::PointerReleased { position: at(714.0, 658.0), button });
+    ui.window()
+        .dispatch_event(WindowEvent::PointerMoved { position: at(714.0, 658.0 + PANEL_HEADING) });
+    ui.window().dispatch_event(WindowEvent::PointerReleased {
+        position: at(714.0, 658.0 + PANEL_HEADING),
+        button,
+    });
     assert!(first.0 > 180 && first.1 == 127, "halfway right: {first:?}");
     assert!(left().1 < 127, "the drag stopped after one render: {:?}", left());
 }
@@ -1637,7 +1650,7 @@ fn a_trigger_slider_drag_survives_the_render_after_each_move() {
     let (state, ui) = stick_pads_at(2);
     let lt = || state.borrow().macro_steps(0).unwrap()[2].trigger_left;
     // Along the LT slider at this size, right, then right again.
-    let at = |x: f32| slint::LogicalPosition::new(x, 830.0);
+    let at = |x: f32| slint::LogicalPosition::new(x, 830.0 + PANEL_HEADING);
     let button = PointerEventButton::Left;
     ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(640.0) });
     ui.window().dispatch_event(WindowEvent::PointerPressed { position: at(640.0), button });
@@ -1663,7 +1676,7 @@ fn the_trigger_slider_moves_by_key() {
         ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
     };
     // A click on the LT knob, at its full press, focuses the slider and keeps 255.
-    click(&ui, 739.0, 834.0);
+    click(&ui, 739.0, 834.0 + PANEL_HEADING);
     assert_eq!(lt(), 255);
     press(Key::Home);
     assert_eq!(lt(), 0);
@@ -1679,7 +1692,7 @@ fn the_trigger_slider_moves_by_key() {
 fn the_arriving_trigger_links_back_to_the_step_that_glides_in() {
     let (_state, ui) = stick_pads_at(2);
     // "Glides in from step 2" under LT, at this size.
-    click(&ui, 686.0, 866.0);
+    click(&ui, 686.0, 866.0 + PANEL_HEADING);
     assert_eq!(ui.get_selected_step(), 1);
 }
 
@@ -1704,9 +1717,9 @@ fn each_stick_has_its_own_snap() {
     };
     // The right stick's box off, then a press near each gate's north-east corner, at this
     // size.
-    click(&ui, 955.0, 763.0);
-    press(1043.0, 645.0);
-    press(723.0, 645.0);
+    click(&ui, 955.0, 763.0 + PANEL_HEADING);
+    press(1043.0, 645.0 + PANEL_HEADING);
+    press(723.0, 645.0 + PANEL_HEADING);
     assert_ne!(at(false), [255, 0], "the right stick no longer snaps");
     assert_eq!(at(true), [255, 0], "the left one still does");
 }
@@ -1726,12 +1739,12 @@ fn the_glide_box_follows_the_selected_step() {
     // The left stick's Glide box at this size. Step 3 glides: a click stops it. Step 4
     // does not: a click starts it. Back on step 3 the box must show off again, or the
     // next click sends "off" and nothing changes.
-    click(&ui, 694.0, 601.0);
+    click(&ui, 694.0, 601.0 + PANEL_HEADING);
     pick(3);
-    click(&ui, 694.0, 601.0);
+    click(&ui, 694.0, 601.0 + PANEL_HEADING);
     assert!(!glides(2) && glides(3));
     pick(2);
-    click(&ui, 694.0, 601.0);
+    click(&ui, 694.0, 601.0 + PANEL_HEADING);
     assert!(glides(2), "the box kept step 4's tick");
 }
 
@@ -1739,7 +1752,7 @@ fn the_glide_box_follows_the_selected_step() {
 fn the_arriving_step_links_back_to_the_step_that_glides_in() {
     let (_state, ui) = stick_pads_at(3);
     // "Glides in from step 3" under the left pad, at this size.
-    click(&ui, 822.0, 730.0);
+    click(&ui, 822.0, 730.0 + PANEL_HEADING);
     assert_eq!(ui.get_selected_step(), 2);
 }
 
@@ -1752,7 +1765,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
         ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Tab.into() });
     };
     // A click on the right stick's disabled Glide box, then Tab back from Centre.
-    click(&ui, 1015.0, 601.0);
+    click(&ui, 1015.0, 601.0 + PANEL_HEADING);
     let before = ui.window().take_snapshot().unwrap();
     tab();
     ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Backtab.into() });
@@ -1761,7 +1774,7 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
     let after = ui.window().take_snapshot().unwrap();
     // The tip sits under the box, over the right gate: its area changes after Tab.
     let area = |shot: &slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
-        (621..648_u32)
+        (655..682_u32)
             .flat_map(|y| (1010..1250_u32).map(move |x| (x, y)))
             .map(|(x, y)| shot.as_slice()[usize::try_from(y * shot.width() + x).unwrap()])
             .collect::<Vec<_>>()
@@ -1888,7 +1901,7 @@ fn picking_a_step_from_the_panel_keeps_the_page_still() {
     // Focus in the left stick's X field, then the page scrolled until the table's top
     // rows are under the tab bar: taking focus back must not scroll the page to show
     // the whole table.
-    click_drawn(&ui, 727.0, 665.0);
+    click_drawn(&ui, 727.0, 665.0 + PANEL_HEADING);
     let position = slint::LogicalPosition::new(760.0, 500.0);
     ui.window().dispatch_event(WindowEvent::PointerScrolled {
         position,
@@ -1970,6 +1983,48 @@ fn every_tab_stop_after_the_table_shows_its_focus() {
         })
         .collect();
     assert!(dead.is_empty(), "Tabs {dead:?} showed no focus");
+}
+
+#[test]
+fn the_step_panel_names_its_step_to_a_screen_reader() {
+    use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    let (state, ui) = stick_pads_at(2);
+    // Focus in a panel field reads out the nearest named ancestor: the panel is a group
+    // named by its step, and the field sits inside it.
+    let groups: Vec<_> = ElementHandle::find_by_accessible_label(&ui, "Step 3 of 5").collect();
+    let group = groups
+        .iter()
+        .find(|g| g.accessible_role() == Some(AccessibleRole::Groupbox))
+        .expect("no group named by the selected step");
+    let fields = group.query_descendants().match_id("NumberEdit::field").find_all();
+    assert!(!fields.is_empty(), "the panel's fields sit outside the group");
+    // The visible heading adds no second node for the same words.
+    assert_eq!(groups.len(), 1);
+    // A pick renames it.
+    ui.set_selected_step(3);
+    render(&state.borrow(), &ui);
+    assert_eq!(ElementHandle::find_by_accessible_label(&ui, "Step 4 of 5").count(), 1);
+    assert_eq!(ElementHandle::find_by_accessible_label(&ui, "Step 3 of 5").count(), 0);
+}
+
+#[test]
+fn the_step_panel_heading_moves_nothing_when_a_step_is_picked() {
+    use i_slint_backend_testing::ElementHandle;
+    let (state, ui) = stick_pads_at(0);
+    // The table and the panel's heading keep their place from step 1 to step 5, whatever
+    // the digits of the number.
+    let place = |ui: &AppWindow| {
+        let table = ElementHandle::find_by_accessible_label(ui, "Steps").next().unwrap();
+        let panel = ElementHandle::find_by_accessible_label(ui, "Step 1 of 5")
+            .chain(ElementHandle::find_by_accessible_label(ui, "Step 5 of 5"))
+            .next()
+            .unwrap();
+        (table.absolute_position(), table.size(), panel.absolute_position(), panel.size())
+    };
+    let before = place(&ui);
+    ui.set_selected_step(4);
+    render(&state.borrow(), &ui);
+    assert_eq!(place(&ui), before);
 }
 
 /// The step tab of `steps_tab` at 1280×800 with the controller views wired to the state,

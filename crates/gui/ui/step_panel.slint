@@ -251,6 +251,9 @@ component StickPad {
 }
 
 export component StepPanel inherits Frame {
+    // The step the panel edits, counted from 1, and how many steps the macro has.
+    in property <int> step;
+    in property <int> steps;
     in property <[PadStick]> sticks;
     in property <[PadTrigger]> triggers;
     in property <bool> enabled;
@@ -271,9 +274,24 @@ export component StepPanel inherits Frame {
     in-out property <bool> snap-left: true;
     in-out property <bool> snap-right: true;
 
+    // A field in the panel reads out this group's name, so the step is spoken on entry.
+    accessible-role: groupbox;
+    accessible-label: root.heading;
+    property <string> heading: "Step " + root.step + " of " + root.steps;
+
     VerticalLayout {
         padding: 12px;
         spacing: 16px;
+        // The heading's own line never changes height or wraps, so a pick moves nothing.
+        Text {
+            text: root.heading;
+            font-size: Theme.text-section;
+            font-weight: 600;
+            color: Theme.fg;
+            overflow: elide;
+            // The group above carries the name.
+            accessible-role: none;
+        }
         // The sticks side by side, then each trigger under its stick, in two equal
         // columns so each side's controls group apart. One under the other in a narrow
         // window, each pad at its own width. Every pad in a column starts from the same
