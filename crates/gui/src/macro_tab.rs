@@ -5,6 +5,7 @@
 use std::rc::Rc;
 
 use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
+use controller_core::service::validation::ValidationError;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::{keep_same, output_label, push_model, target};
@@ -21,6 +22,9 @@ const ADD_A_BUTTON: &str = "Add a button…";
 
 /// How many button chips a row of the macro slot list shows before "+n".
 const ROW_CHIPS: usize = 1;
+
+/// How many of a refused macro's reasons its red bar lists before it counts the rest.
+const SHOWN_REASONS: usize = 3;
 
 /// How often a macro plays, in the order the Plays picker lists it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -211,6 +215,18 @@ impl AppState {
     }
 }
 
+/// The validator's reasons, one line each: the first [`SHOWN_REASONS`], then how many
+/// more, unless only one more would fit in that line. Empty when there are none.
+fn reasons(errors: &[ValidationError]) -> String {
+    let all = errors.iter().map(|e| e.reason.as_str());
+    if errors.len() <= SHOWN_REASONS + 1 {
+        return all.collect::<Vec<_>>().join("\n");
+    }
+    let more = errors.len() - SHOWN_REASONS;
+    let shown: Vec<_> = all.take(SHOWN_REASONS).collect();
+    format!("{}\nAnd {more} more reasons.", shown.join("\n"))
+}
+
 /// A list model of strings.
 fn strings(items: impl IntoIterator<Item = String>) -> ModelRc<SharedString> {
     ModelRc::from(Rc::new(items.into_iter().map(SharedString::from).collect::<VecModel<_>>()))
@@ -262,7 +278,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 },
                 pause: i32::try_from(m.interval_ms).unwrap_or(i32::MAX),
                 addable: strings(std::iter::once(ADD_A_BUTTON.to_owned()).chain(addable)),
-                error: errors.first().map(|e| e.reason.as_str()).unwrap_or_default().into(),
+                error: reasons(&errors).into(),
                 steps_invalid: errors.iter().any(|e| e.path == "/steps"),
                 warned: floor_bar(state, n).is_some(),
             }
@@ -459,6 +475,29 @@ mod tests {
         let r = row(&s, 0);
         assert!(r.error.starts_with("With its glides") && r.steps_invalid, "{}", r.error);
         assert!(row(&s, 2).error.is_empty(), "the other macros stay valid");
+    }
+
+    #[test]
+    fn a_macro_shows_every_reason_one_line_each() {
+        let mut s = held();
+        s.edit_macro(0, |m| m.name = "A name far too long".to_owned());
+        let one = row(&s, 0).error;
+        assert_eq!(one.lines().count(), 1, "{one}");
+        // Every step glides the left stick to the same value: each one is refused.
+        s.edit_macro(0, |m| {
+            for step in &mut m.steps {
+                step.glide = [controller_core::model::GlideControl::LeftStick].into();
+            }
+        });
+        let errors = s.macro_errors((XINPUT, 2), 0);
+        assert!(errors.len() > SHOWN_REASONS + 1, "{errors:?}");
+        let error = row(&s, 0).error;
+        let lines: Vec<&str> = error.lines().collect();
+        assert_eq!(lines.len(), SHOWN_REASONS + 1, "{error}");
+        assert_eq!(lines[0], errors[0].reason.as_str());
+        assert_eq!(lines[1], errors[1].reason.as_str());
+        let more = errors.len() - SHOWN_REASONS;
+        assert_eq!(lines[SHOWN_REASONS], format!("And {more} more reasons."));
     }
 
     #[test]

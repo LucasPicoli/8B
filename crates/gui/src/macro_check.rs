@@ -52,14 +52,25 @@ impl AppState {
         })
     }
 
+    /// Each macro the write of `slot` puts that the controller refuses, by macro slot.
+    #[must_use]
+    pub fn invalid_macros(&self, (mode, number): (Mode, u8)) -> Vec<Invalid> {
+        let puts = self.slot(mode, number).macro_puts();
+        let mut slots: Vec<u8> = puts.iter().filter_map(|d| d.macro_slot).collect();
+        slots.sort_unstable();
+        slots
+            .into_iter()
+            .filter_map(|n| {
+                let errors = self.macro_errors((mode, number), n);
+                Some(Invalid { macro_slot: n, reason: errors.first()?.reason.clone() })
+            })
+            .collect()
+    }
+
     /// The first macro the write of `slot` puts that the controller refuses.
     #[must_use]
-    pub fn invalid_macro(&self, (mode, number): (Mode, u8)) -> Option<Invalid> {
-        let puts = self.slot(mode, number).macro_puts();
-        puts.iter().filter_map(|d| d.macro_slot).find_map(|n| {
-            let errors = self.macro_errors((mode, number), n);
-            Some(Invalid { macro_slot: n, reason: errors.first()?.reason.clone() })
-        })
+    pub fn invalid_macro(&self, key: (Mode, u8)) -> Option<Invalid> {
+        self.invalid_macros(key).into_iter().next()
     }
 
     /// Where the "Show" link of a refused macro leads, and what it says: `text` names
@@ -78,32 +89,42 @@ impl AppState {
     }
 }
 
-/// Why the footer's write button is off, "Macro 2 can't be written.", and where Show
-/// leads. Empty text while the selected slot's macros are all valid.
+/// Why the footer's write button is off, "Macro 2 can't be written." or "3 macros can't
+/// be written.", and where Show leads: the first one. Empty text while the selected
+/// slot's macros are all valid.
 #[must_use]
 pub fn write_blocked(state: &AppState) -> Blocked {
     let Some(key) = state.selected_slot() else { return Blocked::default() };
-    state.invalid_macro(key).map_or_else(Blocked::default, |i| {
-        let text = format!("Macro {} can't be written.", u16::from(i.macro_slot) + 1);
-        state.blocked(key, i.macro_slot, text)
-    })
+    let invalid = state.invalid_macros(key);
+    let Some(first) = invalid.first() else { return Blocked::default() };
+    let text = match invalid.len() {
+        1 => format!("Macro {} can't be written.", u16::from(first.macro_slot) + 1),
+        n => format!("{n} macros can't be written."),
+    };
+    state.blocked(key, first.macro_slot, text)
 }
 
-/// Why Write all is off, "Macro 2 of `XInput` slot 2 can't be written.", and where Show
-/// leads. Empty text while every edited slot's macros are valid.
+/// Why Write all is off, "Macro 2 of `XInput` slot 2 can't be written." or "3 macros can't
+/// be written.", and where Show leads: the first one. Empty text while every edited
+/// slot's macros are valid.
 #[must_use]
 pub fn write_all_blocked(state: &AppState) -> Blocked {
     let d = state.description();
-    let first = state.edited_slots().into_iter().find_map(|(mode, number)| {
-        let i = state.invalid_macro((mode, number))?;
-        let text = format!(
+    let invalid: Vec<_> = state
+        .edited_slots()
+        .into_iter()
+        .flat_map(|key| state.invalid_macros(key).into_iter().map(move |i| (key, i)))
+        .collect();
+    let Some(((mode, number), first)) = invalid.first() else { return Blocked::default() };
+    let text = match invalid.len() {
+        1 => format!(
             "Macro {} of {} slot {number} can't be written.",
-            u16::from(i.macro_slot) + 1,
-            d.mode_label(mode)
-        );
-        Some(state.blocked((mode, number), i.macro_slot, text))
-    });
-    first.unwrap_or_default()
+            u16::from(first.macro_slot) + 1,
+            d.mode_label(*mode)
+        ),
+        n => format!("{n} macros can't be written."),
+    };
+    state.blocked((*mode, *number), first.macro_slot, text)
 }
 
 /// Pushes why each write button is off.
@@ -180,6 +201,28 @@ mod tests {
         assert!(write_blocked(&s).text.is_empty(), "another slot is selected");
         let all = write_all_blocked(&s);
         assert_eq!((all.mode, all.slot, all.macro_slot), (0, 1, 0), "Show leads back");
+    }
+
+    #[test]
+    fn several_refused_macros_are_counted_and_show_leads_to_the_first() {
+        let mut s = held();
+        let long = |m: &mut MacroDefinition| m.name = "A name far too long".to_owned();
+        s.edit_macro(0, long);
+        s.new_macro(1);
+        s.edit_macro(1, long);
+        let footer = write_blocked(&s);
+        assert_eq!(footer.text, "2 macros can't be written.");
+        assert_eq!((footer.mode, footer.slot, footer.macro_slot), (0, 1, 0));
+        let all = write_all_blocked(&s);
+        assert_eq!(all.text, "2 macros can't be written.");
+        assert_eq!((all.mode, all.slot, all.macro_slot), (0, 1, 0));
+        // One more in another slot counts in Write all, not in the footer.
+        hold_macros(&mut s, (XINPUT, 1), &[macro_def(0, "Jump", &["lp"], 3)]);
+        s.select(0, 0);
+        s.edit_macro(0, long);
+        s.select(0, 1);
+        assert_eq!(write_blocked(&s).text, "2 macros can't be written.");
+        assert_eq!(write_all_blocked(&s).text, "3 macros can't be written.");
     }
 
     #[test]

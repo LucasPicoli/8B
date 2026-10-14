@@ -1433,6 +1433,17 @@ fn an_invalid_or_warned_macro_says_why() {
     ui.set_tab(0);
     render(&s, &ui);
     save("buttons-macro-refused-narrow", &ui);
+    // Macro 1 too, for several reasons: the bar lists them, the footer counts both.
+    s.edit_macro(0, |m| {
+        m.name = "A name far too long".to_owned();
+        for step in &mut m.steps {
+            step.glide = [GlideControl::LeftStick].into();
+        }
+    });
+    ui.set_tab(1);
+    ui.set_selected_macro(0);
+    render(&s, &ui);
+    save("macros-every-reason-narrow", &ui);
 }
 
 #[test]
