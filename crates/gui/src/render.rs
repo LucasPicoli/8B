@@ -11,6 +11,7 @@ use slint::{ComponentHandle as _, Model as _, ModelRc, SharedString, VecModel};
 use crate::buttons::{keep_same, push_model, render_buttons, render_views};
 use crate::closing::render_close;
 use crate::files::render_files;
+use crate::macro_check::render_blocks;
 use crate::macro_files::render_macro_files;
 use crate::macro_tab::render_macros;
 use crate::review::render_writes;
@@ -37,12 +38,9 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
                     number: i32::from(number),
                     name: shown.map_or_else(SharedString::new, |p| p.name.as_str().into()),
                     empty: shown.is_none(),
-                    macros: i32::try_from(
-                        slot.edited_macros
-                            .as_ref()
-                            .map_or_else(|| shown.map_or(0, |p| p.macro_refs.len()), Vec::len),
-                    )
-                    .unwrap_or(i32::MAX),
+                    // Every macro shown, so one that no button starts counts too.
+                    macros: i32::try_from(shown.map_or(0, |_| slot.shown_macros().len()))
+                        .unwrap_or(i32::MAX),
                     unsaved: slot.unsaved(),
                 }
             });
@@ -175,6 +173,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
     render_macros(state, ui);
+    render_blocks(state, ui);
     render_steps(state, ui);
     render_panel(state, ui);
     render_sticks(state, ui);
@@ -253,7 +252,7 @@ mod tests {
     use controller_core::model::Mode;
 
     use super::*;
-    use crate::state::tests::{full_read, new_state, PORT};
+    use crate::state::tests::{full_read, hold_macros, macro_def, new_state, PORT};
 
     fn connected(mode: Mode) -> AppState {
         let mut s = new_state();
@@ -272,9 +271,24 @@ mod tests {
         let dinput: Vec<Slot> = g[2].slots.iter().collect();
         assert_eq!(dinput.len(), 3);
         assert_eq!((dinput[0].name.as_str(), dinput[0].empty), ("DInput", false));
-        assert_eq!((dinput[1].macros, dinput[1].mode, dinput[1].number), (2, 2, 2));
+        assert_eq!((dinput[1].mode, dinput[1].number), (2, 2));
         assert!(dinput[2].empty && dinput[2].name.is_empty());
         assert!(!dinput.iter().any(|s| s.unsaved));
+    }
+
+    #[test]
+    fn sidebar_counts_every_macro_shown_with_a_button_or_not() {
+        let mut s = connected(XINPUT);
+        let macros = [macro_def(0, "Jump", &["rp"], 1), macro_def(2, "Idle", &[], 1)];
+        hold_macros(&mut s, (XINPUT, 2), &macros);
+        let count = |s: &AppState| groups(s)[0].slots.row_data(1).unwrap().macros;
+        assert_eq!(count(&s), 2, "the controller's, not the profile's macro refs");
+        s.select(0, 1);
+        s.new_macro(1);
+        assert_eq!(count(&s), 3);
+        s.delete_macro(0);
+        assert_eq!(count(&s), 2);
+        assert_eq!(groups(&s)[0].slots.row_data(2).unwrap().macros, 0, "an empty slot");
     }
 
     #[test]

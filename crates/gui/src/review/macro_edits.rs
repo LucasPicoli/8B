@@ -6,7 +6,7 @@ use controller_core::orchestrator::MacroEdit;
 use slint::SharedString;
 
 use crate::buttons::output_label;
-use crate::macros::title;
+use crate::macros::{named, title};
 use crate::state::{AppState, SlotState};
 
 /// One macro slot of a slot, before and after the write.
@@ -67,7 +67,7 @@ impl SlotState {
                 let old = held.clone().find(|d| d.macro_slot == Some(slot)).cloned();
                 let mut new = self.edited_macros.as_ref().map_or_else(
                     || old.clone(),
-                    |edited| edited.iter().find(|d| d.macro_slot == Some(slot)).cloned(),
+                    |edited| edited.iter().find(|d| d.macro_slot == Some(slot)).cloned().map(named),
                 );
                 let edited = new != old;
                 if let Some(new) = &mut new {
@@ -92,6 +92,11 @@ impl SlotState {
                 }))
             })
             .collect()
+    }
+
+    /// The macros the slot's write job puts, each as the job carries it.
+    pub(crate) fn macro_puts(&self) -> Vec<MacroDefinition> {
+        self.macro_changes().into_iter().filter(|c| c.edited).filter_map(|c| c.new).collect()
     }
 
     /// How many macros the controller holds that the write leaves in their macro slot,
@@ -256,7 +261,7 @@ mod tests {
     /// and "Dash" (macro slot 1, 3 steps).
     fn held() -> AppState {
         let mut s = connected(XINPUT);
-        let macros = [macro_def(0, "Jump", &["rp", "lp"], 12), macro_def(1, "Dash", &["p1"], 3)];
+        let macros = [macro_def(0, "Jump", &["rp", "lp"], 12), macro_def(1, "Dash", &["r4"], 3)];
         hold_macros(&mut s, (XINPUT, 2), &macros);
         s.select(0, 1);
         s
@@ -285,7 +290,7 @@ mod tests {
         };
         assert_eq!(profile, None, "the profile stays as the controller holds it");
         assert_eq!(drop_macros, Vec::<String>::new());
-        let definition = macro_def(1, "Run", &["p1"], 3);
+        let definition = macro_def(1, "Run", &["r4"], 3);
         assert_eq!(
             macro_edits,
             [MacroEdit::Put { macro_slot: MacroSlot::new(1).unwrap(), definition }]
@@ -345,7 +350,7 @@ mod tests {
             lines(&s),
             [
                 "Jump (Macro 1) changed: steps edited",
-                "Dash (Macro 2) changed: renamed “”, plays once to until pressed again, \
+                "Dash (Macro 2) changed: renamed “Macro 2”, plays once to until pressed again, \
                  interval 0 to 200 ms",
             ]
         );
@@ -377,7 +382,7 @@ mod tests {
         let mut s = connected(XINPUT);
         s.select(0, 2);
         s.start_from_default();
-        s.edit_macros(|m| m.push(macro_def(0, "New", &["p1"], 2)));
+        s.edit_macros(|m| m.push(macro_def(0, "New", &["r4"], 2)));
         let WriteOp::Upload { profile, macro_edits, .. } = s.upload_job((XINPUT, 3)).unwrap().op
         else {
             panic!("an upload")

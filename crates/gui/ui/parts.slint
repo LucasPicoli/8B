@@ -273,7 +273,7 @@ export component TabBar inherits Rectangle {
         for section[i] in root.model: Rectangle {
             property <bool> on: i == root.current;
             accessible-role: tab;
-            accessible-label: section.name;
+            accessible-label: section.name + (section.error ? ", holds a macro that can't be written" : "");
             accessible-item-selected: self.on;
             accessible-action-default => { root.current = i; }
             background: !self.on && tab-ta.has-hover ? Theme.hover : transparent;
@@ -287,8 +287,15 @@ export component TabBar inherits Rectangle {
                     font-weight: on ? 600 : 400;
                     vertical-alignment: center;
                 }
-                if section.unsaved: Dot {
+                if section.unsaved && !section.error: Dot {
                     y: (parent.height - self.height) / 2;
+                }
+                if section.error: Image {
+                    y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                    source: Icons.error;
+                    colorize: Theme.negative;
+                    width: 14px;
+                    height: 14px;
                 }
                 if section.count > 0: Rectangle {
                     y: (parent.height - 16px) / 2;

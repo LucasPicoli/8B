@@ -157,7 +157,33 @@ fn name_limit_counts_utf16_units_not_code_points() {
     let mut m = make_valid_macro();
     m["name"] = json!("😀".repeat(9));
     let errors = validate_macro(&m).unwrap();
-    assert!(errors.iter().any(|e| e.path == "/name" && e.reason.contains("1-16")));
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].path, "/name");
+    assert_eq!(errors[0].reason, "The name has 18 characters; the Pro 3 takes at most 16.");
+}
+
+#[test]
+fn an_empty_or_long_name_gets_one_plain_reason_not_the_schema_text() {
+    let mut m = make_valid_macro();
+    m["name"] = json!("");
+    let errors = validate_macro(&m).unwrap();
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].path, "/name");
+    assert_eq!(errors[0].reason, "Give the macro a name of 1 to 16 characters.");
+    m["name"] = json!("A".repeat(17));
+    let errors = validate_macro(&m).unwrap();
+    assert_eq!(errors.len(), 1, "{errors:?}");
+    assert_eq!(errors[0].reason, "The name has 17 characters; the Pro 3 takes at most 16.");
+}
+
+#[test]
+fn a_name_error_comes_first_beside_the_other_schema_errors() {
+    let mut m = make_valid_macro();
+    m["name"] = json!("");
+    m["mode"] = json!("nope");
+    let errors = validate_macro(&m).unwrap();
+    assert_eq!(errors[0].path, "/name");
+    assert!(errors.iter().skip(1).any(|e| e.path == "/mode"), "{errors:?}");
 }
 
 // --- Genuinely-semantic (passes schema; exact message significant) ----------
@@ -297,7 +323,10 @@ fn the_step_count_includes_the_steps_a_glide_becomes() {
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].path, "/steps");
-    assert_eq!(errors[0].reason, "The macro has 409 steps; the Pro 3 holds at most 408.");
+    assert_eq!(
+        errors[0].reason,
+        "The macro has 409 steps; the Pro 3 holds at most 408. Remove steps."
+    );
 
     // 398 plain steps, a 200 ms glide of 10 short steps, then its end step: 409.
     let mut steps = vec![plain(); 398];
@@ -308,6 +337,6 @@ fn the_step_count_includes_the_steps_a_glide_becomes() {
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(
         errors[0].reason,
-        "With its glides, this macro needs 409 steps on the controller, and the controller holds 408."
+        "With its glides, this macro needs 409 steps on the controller, and the controller holds 408. Shorten a glide or remove steps."
     );
 }

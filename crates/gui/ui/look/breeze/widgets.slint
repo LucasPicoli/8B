@@ -102,6 +102,8 @@ export component LineEdit {
     // Room kept free at the right edge, such as for the arrows of a number field.
     in property <length> inset-right;
     in property <bool> enabled: true;
+    // Muted text shown while the field is empty, such as the value used instead.
+    in property <string> placeholder-text;
     out property <bool> has-focus: ti.has-focus;
     callback edited(string);
     min-height: wrap ? ti.preferred-height + 12px : Theme.control-height;
@@ -117,6 +119,17 @@ export component LineEdit {
         border-width: 1px;
         border-color: ti.has-focus ? Theme.accent : Theme.line;
         clip: true;
+        // Under the text input, so a click still reaches it.
+        if root.text == "" && root.placeholder-text != "": Text {
+            x: 8px;
+            width: parent.width - 16px - root.inset-right;
+            height: parent.height;
+            text: root.placeholder-text;
+            color: Theme.fg-muted;
+            font-italic: true;
+            vertical-alignment: center;
+            overflow: elide;
+        }
         ti := TextInput {
             x: 8px;
             y: root.wrap ? 6px : 0;

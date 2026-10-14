@@ -127,17 +127,24 @@ pub fn sections(state: &AppState) -> Vec<Section> {
     let macros = (description.macro_slot_count > 0).then(|| Section {
         name: "Macros".into(),
         unsaved: dirty.macros,
+        error: selected.is_some_and(|key| state.invalid_macro(key).is_some()),
         count: i32::try_from(macros).unwrap_or(i32::MAX),
     });
     let tabs = description.pages(mode).map(|p| Section {
         name: p.label.as_str().into(),
         unsaved: dirty.tab(&p.id),
+        error: false,
         count: 0,
     });
-    std::iter::once(Section { name: "Buttons".into(), unsaved: dirty.buttons, count: 0 })
-        .chain(macros)
-        .chain(tabs)
-        .collect()
+    std::iter::once(Section {
+        name: "Buttons".into(),
+        unsaved: dirty.buttons,
+        error: false,
+        count: 0,
+    })
+    .chain(macros)
+    .chain(tabs)
+    .collect()
 }
 
 /// Whether `button`, a remappable button, outputs something other than it does in

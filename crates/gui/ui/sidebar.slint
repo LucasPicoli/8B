@@ -1,7 +1,7 @@
 // The device header and every slot of every mode.
 import { Theme, Button, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { Icons, Dot } from "parts.slint";
-import { ModeGroup, Slot } from "types.slint";
+import { Blocked, ModeGroup, Slot } from "types.slint";
 
 component SlotRow inherits Rectangle {
     in property <Slot> slot;
@@ -194,6 +194,10 @@ export component Sidebar inherits Rectangle {
     in property <string> edited-caption;
     in property <string> write-all-label;
     in property <bool> can-write-all;
+    // Why Write all is off, in place of the caption, and where Show leads. Empty text
+    // otherwise.
+    in property <Blocked> write-all-blocked;
+    callback blocked-shown;
     in property <bool> checking-all;
     callback slot-picked(int, int);
     callback controller-picked(int);
@@ -295,8 +299,15 @@ export component Sidebar inherits Rectangle {
                 spacing: 8px;
                 HorizontalLayout {
                     spacing: 6px;
-                    if !root.checking-all: Dot {
+                    if !root.checking-all && root.write-all-blocked.text == "": Dot {
                         y: (parent.height - self.height) / 2;
+                    }
+                    if !root.checking-all && root.write-all-blocked.text != "": Image {
+                        y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+                        source: Icons.error;
+                        colorize: Theme.negative;
+                        width: 14px;
+                        height: 14px;
                     }
                     if root.checking-all: Spinner {
                         y: (parent.height - self.height) / 2;
@@ -305,11 +316,20 @@ export component Sidebar inherits Rectangle {
                         horizontal-stretch: 1;
                         text: root.checking-all
                             ? "Checking the controller…"
-                            : root.edited-caption;
+                            : root.write-all-blocked.text != "" ? root.write-all-blocked.text : root.edited-caption;
                         font-size: Theme.text-caption;
-                        color: Theme.fg-muted;
+                        color: root.write-all-blocked.text != "" && !root.checking-all ? Theme.fg : Theme.fg-muted;
                         vertical-alignment: center;
-                        overflow: elide;
+                        wrap: word-wrap;
+                    }
+                    if !root.checking-all && root.write-all-blocked.text != "": VerticalLayout {
+                        alignment: center;
+                        Button {
+                            text: "Show";
+                            flat: true;
+                            accessible-description: root.write-all-blocked.text;
+                            clicked => { root.blocked-shown(); }
+                        }
                     }
                 }
                 Button {

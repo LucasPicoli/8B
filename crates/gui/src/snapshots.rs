@@ -1177,6 +1177,48 @@ fn macros_at(name: &str, s: &AppState, n: i32) {
 }
 
 #[test]
+fn an_invalid_or_warned_macro_says_why() {
+    use controller_core::model::{GlideControl, MacroStep};
+    let mut s = macros_tab();
+    // Macro 2 has no name, so it is written as "Macro 2". Macro 1 moves the left stick
+    // under the floor.
+    s.set_number("/sticks/left_min_pct", 0.0);
+    s.edit_macro(0, |m| m.steps[0].left_stick_x = 0);
+    macros_at("macros-no-name", &s, 1);
+    macros_at("macros-warned", &s, 0);
+    // Macro 3 glides edge to edge three times: more steps than the controller holds.
+    s.edit_macro(2, |m| {
+        m.steps = (0..4_u8)
+            .map(|i| MacroStep {
+                duration_ms: u16::MAX,
+                left_stick_x: if i % 2 == 0 { 0 } else { u8::MAX },
+                glide: (i < 3).then_some(GlideControl::LeftStick).into_iter().collect(),
+                ..MacroStep::default()
+            })
+            .collect();
+    });
+    macros_at("macros-too-many-steps", &s, 2);
+    let ui = window(&s);
+    ui.global::<crate::ui::Palette<'_>>().set_color_scheme(slint::language::ColorScheme::Dark);
+    render_views(s.description(), &ui);
+    ui.set_tab(1);
+    ui.set_selected_macro(2);
+    render(&s, &ui);
+    save("macros-too-many-steps-dark", &ui);
+    let ui = window(&s);
+    ui.window().set_size(PhysicalSize::new(1024, 640));
+    fit_toolbar(&ui);
+    ui.set_tab(1);
+    ui.set_selected_macro(2);
+    render(&s, &ui);
+    save("macros-too-many-steps-narrow", &ui);
+    // On another tab, the footer's Show leads to the refused macro.
+    ui.set_tab(0);
+    render(&s, &ui);
+    save("buttons-macro-refused-narrow", &ui);
+}
+
+#[test]
 fn a_macro_file_shows_what_changes_before_it_imports() {
     let mut s = macros_tab();
     let mut def = macro_def(1, "Ramp from Switch", &["r4", "l4", "rp", "l3"], 40);

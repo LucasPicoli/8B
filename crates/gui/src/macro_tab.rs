@@ -10,6 +10,7 @@ use slint::{Model as _, ModelRc, SharedString, VecModel};
 use crate::buttons::{keep_same, output_label, push_model, target};
 use crate::review::macro_edits::steps;
 use crate::state::{AppState, SlotState};
+use crate::stick_pad::floor_bar;
 use crate::ui::{AppWindow, MacroRow};
 
 /// The length of the one step a new macro starts with, in milliseconds.
@@ -242,6 +243,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 )
             });
             let plays = Plays::of(m.repeat_count);
+            let errors = state.macro_errors((mode, number), n);
             MacroRow {
                 number: i32::from(n) + 1,
                 filled: true,
@@ -260,6 +262,9 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 },
                 pause: i32::try_from(m.interval_ms).unwrap_or(i32::MAX),
                 addable: strings(std::iter::once(ADD_A_BUTTON.to_owned()).chain(addable)),
+                error: errors.first().map(|e| e.reason.as_str()).unwrap_or_default().into(),
+                steps_invalid: errors.iter().any(|e| e.path == "/steps"),
+                warned: floor_bar(state, n).is_some(),
             }
         })
         .collect()
@@ -434,6 +439,35 @@ mod tests {
         }
         let r = row(&s, 0);
         assert_eq!((r.buttons.row_count(), r.first_buttons.row_count(), r.more), (5, 1, 4));
+    }
+
+    #[test]
+    fn a_macro_past_the_step_limit_shows_the_plain_reason() {
+        use controller_core::model::GlideControl;
+        let mut s = held();
+        assert!(row(&s, 0).error.is_empty());
+        s.edit_macro(0, |m| {
+            m.steps = (0..4_u8)
+                .map(|i| MacroStep {
+                    duration_ms: u16::MAX,
+                    left_stick_x: if i % 2 == 0 { 0 } else { u8::MAX },
+                    glide: (i < 3).then_some(GlideControl::LeftStick).into_iter().collect(),
+                    ..MacroStep::default()
+                })
+                .collect();
+        });
+        let r = row(&s, 0);
+        assert!(r.error.starts_with("With its glides") && r.steps_invalid, "{}", r.error);
+        assert!(row(&s, 2).error.is_empty(), "the other macros stay valid");
+    }
+
+    #[test]
+    fn a_stick_under_the_floor_warns_in_the_row() {
+        let mut s = held();
+        assert!(!row(&s, 0).warned);
+        s.set_number("/sticks/left_min_pct", 0.0);
+        s.edit_macro(0, |m| m.steps[0].left_stick_x = 0);
+        assert!(row(&s, 0).warned && !row(&s, 2).warned);
     }
 
     #[test]

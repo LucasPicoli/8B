@@ -87,10 +87,12 @@ impl AppState {
     }
 
     /// Whether the footer's write button ("Write `XInput` slot 2…") is on: the selected
-    /// slot holds edits.
+    /// slot holds edits, and the controller takes every macro they put.
     #[must_use]
     pub fn can_write(&self) -> bool {
-        self.writable().is_some_and(|(_, slot)| self.slot_at(slot).unsaved())
+        self.writable().is_some_and(|(_, slot)| {
+            self.slot_at(slot).unsaved() && self.invalid_macro(slot).is_none()
+        })
     }
 
     /// Whether Clear slot is on: the selected slot holds a profile on the controller.

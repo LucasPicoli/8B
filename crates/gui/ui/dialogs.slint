@@ -63,7 +63,7 @@ export component ReviewDialog inherits DialogShell {
     accept-enabled: root.info.problem == "";
     if root.info.problem != "": Text {
         text: root.info.problem;
-        color: Theme.negative;
+        color: Theme.negative-ink;
         wrap: word-wrap;
     }
     if root.has-profile || root.macro-lines > 0: Frame {

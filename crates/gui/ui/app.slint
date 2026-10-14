@@ -9,7 +9,7 @@ import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Blocked, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
 import { Palette } from "std-widgets.slint";
 
 export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics }
@@ -135,12 +135,18 @@ export component AppWindow inherits Window {
     // The footer's write button ("Write XInput slot 2…") and Clear slot can be used
     // now.
     in property <bool> can-write;
+    // Why the footer's write button is off: a macro the controller would refuse, and
+    // where Show leads. Empty text otherwise.
+    in property <Blocked> write-blocked;
     // The controller is read again before the review opens.
     in property <bool> checking-slot;
     // Slots of the shown controller with unsaved edits, whether the sidebar's Write
     // all can be used now, and whether the controller is read again for it.
     in property <int> edited-count;
     in property <bool> can-write-all;
+    // Why Write all is off: a macro the controller would refuse, and where Show leads.
+    // Empty text otherwise.
+    in property <Blocked> write-all-blocked;
     in property <bool> checking-all;
     in property <bool> can-clear;
     // The review before a write, the clear question, a failed write, and the title
@@ -325,6 +331,13 @@ export component AppWindow inherits Window {
             edited-caption: root.edited-caption;
             write-all-label: root.write-all-label;
             can-write-all: root.can-write-all;
+            write-all-blocked: root.write-all-blocked;
+            blocked-shown => {
+                root.selected-row = -1;
+                root.slot-picked(root.write-all-blocked.mode, root.write-all-blocked.slot);
+                root.tab = 1;
+                root.selected-macro = root.write-all-blocked.macro-slot;
+            }
             checking-all: root.checking-all;
             write-all-clicked => { root.write-all-clicked(); }
         }
@@ -588,6 +601,39 @@ export component AppWindow inherits Window {
                     }
                     Rectangle {
                         horizontal-stretch: 1;
+                    }
+                    // Beside the button it turns off; it shrinks and elides in a narrow window.
+                    if !root.checking-slot && root.write-blocked.text != "": HorizontalLayout {
+                        horizontal-stretch: 0;
+                        spacing: 6px;
+                        VerticalLayout {
+                            alignment: center;
+                            Image {
+                                source: Icons.error;
+                                colorize: Theme.negative;
+                                width: 16px;
+                                height: 16px;
+                            }
+                        }
+                        Text {
+                            text: root.write-blocked.text;
+                            color: Theme.fg;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                        // Not while the macro is on screen, with its reason in the bar.
+                        if root.tab != 1 || root.selected-macro != root.write-blocked.macro-slot: VerticalLayout {
+                            alignment: center;
+                            Button {
+                                text: "Show";
+                                flat: true;
+                                accessible-description: root.write-blocked.text;
+                                clicked => {
+                                    root.tab = 1;
+                                    root.selected-macro = root.write-blocked.macro-slot;
+                                }
+                            }
+                        }
                     }
                     if root.checking-slot: HorizontalLayout {
                         horizontal-stretch: 0;

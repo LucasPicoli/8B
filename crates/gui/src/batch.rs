@@ -96,10 +96,14 @@ impl AppState {
             .collect()
     }
 
-    /// Whether Write all is on: the shown controller can take a write and holds edits.
+    /// Whether Write all is on: the shown controller can take a write and holds edits,
+    /// and it takes every macro they put.
     #[must_use]
     pub fn can_write_all(&self) -> bool {
-        self.idle().is_some() && !self.edited_slots().is_empty()
+        let edited = self.edited_slots();
+        self.idle().is_some()
+            && !edited.is_empty()
+            && edited.iter().all(|&key| self.invalid_macro(key).is_none())
     }
 
     /// Whether the controller is being read again for the batch.

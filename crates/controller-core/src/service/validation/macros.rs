@@ -47,15 +47,42 @@ fn check(
             reason: format!("{} has no macro slots.", description.display_name),
         }]);
     }
-    let schema = schema_errors(&macro_validator(description, device)?, macro_json);
-    if !schema.is_empty() {
-        return Ok(schema);
-    }
     let max_name = usize::try_from(description.limits.macro_name_length.max)
         .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
-    let mut errors = semantic_errors(macro_json, max_name);
+    // The name check says it in plain words, so the schema's own name errors go.
+    let mut errors = name_errors(description, macro_json, max_name);
+    let schema = schema_errors(&macro_validator(description, device)?, macro_json);
+    let schema: Vec<_> = schema.into_iter().filter(|e| e.path != "/name").collect();
+    if !schema.is_empty() {
+        errors.extend(schema);
+        return Ok(errors);
+    }
+    errors.extend(semantic_errors(macro_json));
     errors.extend(glide_errors(description, &macro_from_json(macro_json)?));
     Ok(errors)
+}
+
+/// The error when the name is empty or longer than `max_name` UTF-16 code units, the
+/// unit the descriptor stores. The schema counts code points, so only this check sees a
+/// surrogate pair as two.
+fn name_errors(
+    description: &ControllerDescription,
+    macro_json: &Value,
+    max_name: usize,
+) -> Vec<ValidationError> {
+    let name = macro_json.get("name").and_then(Value::as_str).unwrap_or_default();
+    let len = name.encode_utf16().count();
+    let reason = if name.is_empty() {
+        format!("Give the macro a name of 1 to {max_name} characters.")
+    } else if len > max_name {
+        format!(
+            "The name has {len} characters; the {} takes at most {max_name}.",
+            description.short_name
+        )
+    } else {
+        return Vec::new();
+    };
+    vec![ValidationError { path: "/name".to_owned(), reason }]
 }
 
 /// The glide errors of `def`, and the error when its expanded steps do not fit the
@@ -94,12 +121,12 @@ fn glide_errors(
     if needed > max {
         let reason = if needed == def.steps.len() {
             format!(
-                "The macro has {needed} steps; the {} holds at most {max}.",
+                "The macro has {needed} steps; the {} holds at most {max}. Remove steps.",
                 description.short_name
             )
         } else {
             format!(
-                "With its glides, this macro needs {needed} steps on the controller, and the controller holds {max}."
+                "With its glides, this macro needs {needed} steps on the controller, and the controller holds {max}. Shorten a glide or remove steps."
             )
         };
         errors.push(ValidationError { path: "/steps".to_owned(), reason });
@@ -107,22 +134,11 @@ fn glide_errors(
     errors
 }
 
-/// Accumulates every semantic error.
-fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> {
+/// Accumulates every semantic error but the name's, see [`name_errors`].
+fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
-    // 1. Name length — 1..=`max_name` UTF-16 code units, the unit the descriptor stores.
-    // The schema counts code points, so only this check sees a surrogate pair as two.
-    let name = macro_json.get("name").and_then(Value::as_str).unwrap_or_default();
-    let name_len = name.encode_utf16().count();
-    if name.is_empty() || name_len > max_name {
-        errors.push(ValidationError {
-            path: "/name".to_owned(),
-            reason: format!("Name must be 1-{max_name} characters (got {name_len})."),
-        });
-    }
-
-    // 2. repeat.count >= 1.
+    // 1. repeat.count >= 1.
     let count = macro_json
         .get("repeat")
         .and_then(|r| r.get("count"))
@@ -135,14 +151,14 @@ fn semantic_errors(macro_json: &Value, max_name: usize) -> Vec<ValidationError> 
         });
     }
 
-    // 3. Per-step checks.
+    // 2. Per-step checks.
     if let Some(steps) = macro_json.get("steps").and_then(Value::as_array) {
         for (i, step) in steps.iter().enumerate() {
             let buttons = step.get("actions").and_then(|a| a.get("buttons"));
             let press = buttons.and_then(|b| b.get("press")).and_then(Value::as_array);
             let release = buttons.and_then(|b| b.get("release")).and_then(Value::as_array);
 
-            // 3a. A button cannot appear in both press and release.
+            // 2a. A button cannot appear in both press and release.
             let press_set: BTreeSet<&str> =
                 press.into_iter().flatten().filter_map(Value::as_str).collect();
             for btn in release.into_iter().flatten().filter_map(Value::as_str) {

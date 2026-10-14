@@ -14,6 +14,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod logging;
+mod macro_check;
 mod macro_files;
 mod macro_revert;
 mod macro_steps;
@@ -72,6 +73,7 @@ use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
 use crate::buttons::{hit, picked_output, render_views};
 use crate::closing::CloseOutcome;
 use crate::macro_tab::{added_button, chip_button, Plays};
+use crate::macros::named;
 use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
 use crate::step_panel::action_hit;
@@ -303,6 +305,7 @@ fn export_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState, n: u8)
     let (Some(def), Some(default)) = (slot.shown_macro(n), state.defaults().get(&mode)) else {
         return;
     };
+    let def = &named(def.clone());
     let (text, unsaved) = (macro_files::macro_text(def, &default.device), slot.macro_unsaved(n));
     let name = macro_file_name(mode, number, def);
     on_thread(ui, jobs, move || {

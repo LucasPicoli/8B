@@ -423,7 +423,9 @@ mod tests {
         s.import_macro(1, "bad.json", Ok("{}".to_owned()));
         let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
         assert!(errors.len() > 1, "every problem, not just the first");
-        assert!(errors[0].starts_with("\"version\" is"), "{errors:?}");
+        // The name's plain reason first, then the schema's.
+        assert!(errors[0].starts_with("/name: Give the macro a name"), "{errors:?}");
+        assert!(errors[1].starts_with("\"version\" is"), "{errors:?}");
         s.cancel_macro_import();
         assert!(!macro_import_info(&s).shown);
     }
@@ -442,8 +444,9 @@ mod tests {
     #[test]
     fn every_reason_is_shown_in_full() {
         let mut s = held();
+        // The schema quotes an unknown button in full.
         let name = "n".repeat(400);
-        let def = macro_def(0, &name, &[], 1);
+        let def = macro_def(0, "Long", &[&name], 1);
         s.import_macro(1, "long.json", Ok(file(&def)));
         let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
         assert!(errors.iter().any(|e| e.contains(&name)), "cut: {errors:?}");

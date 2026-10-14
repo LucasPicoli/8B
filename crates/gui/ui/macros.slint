@@ -42,7 +42,8 @@ component MacroSlotRow inherits Rectangle {
     border-width: root.selected ? 1px : 0;
     border-color: Theme.accent;
     accessible-role: list-item;
-    accessible-label: "Macro " + root.item.number + ", " + (!root.item.filled ? "empty" : root.item.name != "" ? root.item.name : "no name");
+    accessible-label: "Macro " + root.item.number + ", " + (!root.item.filled ? "empty" : root.item.name != "" ? root.item.name : "no name, written as Macro " + root.item.number)
+        + (root.item.error != "" ? ", can't be written" : root.item.warned ? ", a stick move may not play" : "");
     accessible-item-selected: root.selected;
     accessible-action-default => { root.picked(); }
     ta := TouchArea {
@@ -71,7 +72,8 @@ component MacroSlotRow inherits Rectangle {
         }
         Text {
             horizontal-stretch: 1;
-            text: !root.item.filled ? "Empty" : root.item.name != "" ? root.item.name : "No name";
+            // A macro with no name is written as "Macro n": shown muted, as in the field.
+            text: !root.item.filled ? "Empty" : root.item.name != "" ? root.item.name : "Macro " + root.item.number;
             color: root.item.filled && root.item.name != "" ? Theme.fg : Theme.fg-muted;
             font-italic: !root.item.filled || root.item.name == "";
             vertical-alignment: center;
@@ -97,7 +99,15 @@ component MacroSlotRow inherits Rectangle {
             text: "No button";
             muted: true;
         }
-        if root.item.unsaved: Dot {
+        if root.item.error != "" || root.item.warned: Image {
+            y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
+            source: root.item.error != "" ? Icons.error : Icons.warning;
+            colorize: root.item.error != "" ? Theme.negative : Theme.neutral;
+            width: 14px;
+            height: 14px;
+        }
+        // A macro the controller would refuse is always unsaved: its icon stands for the dot.
+        if root.item.unsaved && root.item.error == "": Dot {
             y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
         }
     }
@@ -269,6 +279,18 @@ component MacroHeader inherits Frame {
                     text: "Macro " + root.item.number;
                     vertical-alignment: center;
                 }
+                if root.item.error != "" || root.item.warned: VerticalLayout {
+                    padding-left: 6px;
+                    alignment: center;
+                    Image {
+                        source: root.item.error != "" ? Icons.error : Icons.warning;
+                        colorize: root.item.error != "" ? Theme.negative : Theme.neutral;
+                        width: 14px;
+                        height: 14px;
+                        accessible-role: image;
+                        accessible-label: root.item.error != "" ? "Can't be written" : "A stick move may not play";
+                    }
+                }
                 Rectangle {
                     horizontal-stretch: 1;
                 }
@@ -326,6 +348,8 @@ component MacroHeader inherits Frame {
                         width: 240px;
                         text: root.item.name;
                         enabled: root.editable;
+                        // The name 8B writes for a macro with none.
+                        placeholder-text: "Macro " + root.item.number;
                         accessible-name: "Macro name";
                         edited(t) => {
                             root.renamed(t);
@@ -623,6 +647,11 @@ export component MacrosTab {
                 button-added(c) => { root.button-added(root.selected, c); }
                 button-removed(c) => { root.button-removed(root.selected, c); }
             }
+            if root.current.filled && root.current.error != "": MessageBar {
+                error: true;
+                title: "Macro " + root.current.number + " can't be written.";
+                body: root.current.error;
+            }
             if root.current.filled && root.floor-title != "": MessageBar {
                 title: root.floor-title;
                 body: root.floor-body;
@@ -635,6 +664,7 @@ export component MacrosTab {
                 lanes: root.step-lanes;
                 count: root.step-count;
                 full: root.steps-full;
+                over: root.current.steps-invalid;
                 ready: root.steps-ready;
                 editable: root.editable;
                 selected <=> root.selected-step;

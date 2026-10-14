@@ -19,6 +19,8 @@ export struct ModeGroup {
 export struct Section {
     name: string,
     unsaved: bool,
+    // The controller would refuse something in it: the error icon stands for the dot.
+    error: bool,
     // Shown as a count badge when above zero (Macros).
     count: int,
 }
@@ -299,6 +301,22 @@ export struct MacroRow {
     pause: int,
     // "Add a button…", then each button that can join the macro.
     addable: [string],
+    // The validator's first reason when the controller would refuse the macro, and
+    // whether it is the step count.
+    error: string,
+    steps-invalid: bool,
+    // A stick it moves sits under the dead zone floor, so the move may not play.
+    warned: bool,
+}
+
+// A macro the controller would refuse, which turns a write button off: what to say, and
+// where "Show" leads. Empty text when nothing is refused.
+export struct Blocked {
+    text: string,
+    // The sidebar's mode and slot indexes, and the macro slot (0-based).
+    mode: int,
+    slot: int,
+    macro-slot: int,
 }
 
 // One button's shape on the Macros tab's controller views, in viewBox units.

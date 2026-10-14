@@ -9,7 +9,7 @@ use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use crate::buttons::{output_label, target};
 use crate::files::export_text;
 use crate::macro_files::content_losses;
-use crate::macros::title;
+use crate::macros::{named, title};
 use crate::render::sentence;
 use crate::review::macro_edits::steps;
 use crate::state::SlotState;
@@ -30,7 +30,7 @@ pub fn export_file(slot: &SlotState) -> Option<Result<String, String>> {
         return Some(Err(STEPS_UNREAD.to_owned()));
     };
     profile.macro_refs.clear();
-    profile.macros = Some(macros);
+    profile.macros = Some(macros.into_iter().map(named).collect());
     Some(export_text(&profile))
 }
 

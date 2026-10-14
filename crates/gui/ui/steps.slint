@@ -272,6 +272,8 @@ export component StepTable inherits Frame {
     in property <string> count;
     // The steps fill the controller: no edit may add one.
     in property <bool> full;
+    // The steps are more than the controller holds: the count is in red.
+    in property <bool> over;
     // The steps are read from the controller.
     in property <bool> ready;
     in property <bool> editable;
@@ -360,9 +362,9 @@ export component StepTable inherits Frame {
                 }
                 Text {
                     horizontal-stretch: 1;
-                    text: root.count + (root.full ? ", full" : "");
+                    text: root.count + (root.over ? ", too many" : root.full ? ", full" : "");
                     font-size: Theme.text-small;
-                    color: root.full ? Theme.fg : Theme.fg-muted;
+                    color: root.over ? Theme.negative-ink : root.full ? Theme.fg : Theme.fg-muted;
                     horizontal-alignment: right;
                     vertical-alignment: center;
                     overflow: elide;

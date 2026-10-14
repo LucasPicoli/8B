@@ -34,11 +34,21 @@ pub fn macro_number(id: &str) -> Option<u8> {
     id.strip_prefix(MACRO_OUTPUT)?.parse().ok()
 }
 
-/// "Jump (Macro 2)", or "Macro 2" for a macro with no name.
+/// `def` as 8B writes and saves it: a macro with no name is named "Macro n", n its
+/// 1-based macro slot, as the controller needs a name.
+#[must_use]
+pub fn named(mut def: MacroDefinition) -> MacroDefinition {
+    if def.name.is_empty() {
+        def.name = format!("Macro {}", def.macro_slot.map_or(1, |s| u16::from(s) + 1));
+    }
+    def
+}
+
+/// "Jump (Macro 2)", or "Macro 2" for a macro with no name or that name.
 #[must_use]
 pub fn title(def: &MacroDefinition, slot: u8) -> String {
     let n = u16::from(slot) + 1;
-    if def.name.is_empty() {
+    if def.name.is_empty() || def.name == format!("Macro {n}") {
         format!("Macro {n}")
     } else {
         format!("{} (Macro {n})", def.name)
