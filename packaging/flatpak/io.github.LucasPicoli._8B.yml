@@ -7,12 +7,13 @@ sdk-extensions:
 command: 8b
 
 finish-args:
-  # Only --device=all exposes /dev/hidraw*; no portal covers it.
+  # Only --device=all exposes /dev/hidraw*; no portal covers it. It also covers
+  # /dev/dri for GL and /dev/input for the keepalive event node.
   - --device=all
   - --socket=wayland
   - --socket=fallback-x11
+  # X11 shared memory, used only in the X11 fallback.
   - --share=ipc
-  - --device=dri
 
 build-options:
   append-path: /usr/lib/sdk/rust-stable/bin
