@@ -6,5 +6,6 @@ Url=https://lucaspicoli.github.io/8B/repo/
 SuggestRemoteName=8b
 IsRuntime=false
 RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+Comment=Read and edit the profiles stored on your 8BitDo controller, over USB, on Linux.
 Homepage=https://github.com/LucasPicoli/8B
 GPGKey=mDMEatBFrhYJKwYBBAHaRw8BAQdA6Yo8bKQyWP/4kyGtDI0U5NKieA9K63jqmIH2saafyHS0EzhCIEZsYXRwYWsgUmVsZWFzZXOIkAQTFgoAOBYhBHbsr9dKA7DsyP0ljo85a4IoiGaFBQJq0EWuAhsDBQsJCAcCBhUKCQgLAgQWAgMBAh4BAheAAAoJEI85a4IoiGaF/swBAJBm5UqKYvZ/qaUmc+hd4+x5uFucRR0uSc1enN4mjn/0AQC1fkUgW8qDdPNmyig4iK1ZBaz5R9KMvwoEVPPANNXvDw==

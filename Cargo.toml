@@ -7,7 +7,7 @@ version = "0.2.1"
 edition = "2021"
 rust-version = "1.84"
 license = "GPL-3.0-or-later"
-repository = "local"
+repository = "https://github.com/LucasPicoli/8B"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

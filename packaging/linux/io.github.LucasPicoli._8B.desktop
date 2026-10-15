@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=8B
-Comment=Edit the button, stick and trigger profiles stored on 8BitDo controllers
+Comment=Read and edit your 8BitDo controller profiles
 Exec=8b
 Icon=io.github.LucasPicoli._8B
 Terminal=false
