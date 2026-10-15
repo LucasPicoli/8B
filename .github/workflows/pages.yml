@@ -1,0 +1,62 @@
+name: flatpak-remote
+# Serves the released Flatpak bundles as a signed OSTree remote on GitHub Pages, so
+# `flatpak update`, software centres and the app's update check see new releases.
+# It runs when a draft release is published, so the remote never leads the release page.
+on:
+  release:
+    types: [published]
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  publish:
+    # A pre-release must not reach the stable branch users follow.
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends flatpak ostree
+      - name: Download the release bundles
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mkdir bundles
+          gh release download "$TAG" --dir bundles \
+            --pattern '8B-*.flatpak' --pattern '8B-*.flatpak.sha256'
+          cd bundles && sha256sum --check ./*.sha256
+      - name: Import the signing key
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.FLATPAK_GPG_PRIVATE_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.FLATPAK_GPG_PASSPHRASE }}
+        run: |
+          mkdir -m700 ~/.gnupg
+          # The agent has to know this before it starts.
+          echo allow-preset-passphrase > ~/.gnupg/gpg-agent.conf
+          printf '%s\n' "$GPG_PRIVATE_KEY" | gpg --batch --pinentry-mode loopback --passphrase "$GPG_PASSPHRASE" --import
+          fpr=$(gpg --list-secret-keys --with-colons | awk -F: '/^fpr/{print $10; exit}')
+          grip=$(gpg --list-secret-keys --with-colons --with-keygrip | awk -F: '/^grp/{print $10; exit}')
+          # Signing runs inside flatpak, which cannot answer a pinentry prompt.
+          "$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase" --preset --passphrase "$GPG_PASSPHRASE" "$grip"
+          # Clients trust the key in the .flatpakref files; a different secret would lock everyone out.
+          pub=$(gpg --export "$fpr" | base64 -w0)
+          grep -qxF "GPGKey=$pub" packaging/flatpak/8B.flatpakrepo
+          grep -qxF "GPGKey=$pub" packaging/flatpak/io.github.LucasPicoli._8B.flatpakref
+          echo "FPR=$fpr" >> "$GITHUB_ENV"
+      - name: Build the signed repo
+        run: |
+          mkdir site
+          packaging/flatpak/publish-repo.sh "$FPR" site/repo bundles/*.flatpak
+          cp packaging/flatpak/8B.flatpakrepo packaging/flatpak/io.github.LucasPicoli._8B.flatpakref site/
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

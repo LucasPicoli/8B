@@ -32,7 +32,15 @@ Pro 3|- Edit button mappings, sticks, triggers and vibration settings in every X
 
 Download the latest AppImage from the [releases page](https://github.com/LucasPicoli/8B/releases), run `chmod +x` on it, and start it. x86_64 is tested; the aarch64 build has not been tested on hardware.
 
-The same page has a Flatpak bundle for each architecture, `8B-<version>-<arch>.flatpak`, with a `.sha256` file. Install it with `flatpak install --user <file>`.
+To get the Flatpak with updates, install it from the project's signed remote:
+
+```sh
+flatpak install --user https://lucaspicoli.github.io/8B/io.github.LucasPicoli._8B.flatpakref
+```
+
+After that, `flatpak update` and your software centre pick up each new release.
+
+The releases page also has a Flatpak bundle for each architecture, `8B-<version>-<arch>.flatpak`, with a `.sha256` file. Install it with `flatpak install --user <file>`. A bundle install does not receive updates.
 
 ## USB permission
 
