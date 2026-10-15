@@ -46,6 +46,16 @@ jobs:
           case $GITHUB_REF_NAME in *-*) exit 0 ;; esac
           version=$(grep -m1 '^version = ' Cargo.toml | cut -d'"' -f2)
           [ "${GITHUB_REF_NAME#v}" = "$version" ] || { echo "tag $GITHUB_REF_NAME, workspace version $version" >&2; exit 1; }
+      - name: Metainfo lists this release and shows its screenshots
+        run: |
+          case $GITHUB_REF_NAME in *-*) exit 0 ;; esac
+          f=packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+          grep -qF "<release version=\"${GITHUB_REF_NAME#v}\"" "$f" || { echo "$f has no release entry for $GITHUB_REF_NAME" >&2; exit 1; }
+          # Prints every screenshot pinned to another tag.
+          if grep -o '/8B/v[^/]*/' "$f" | grep -vxF "/8B/$GITHUB_REF_NAME/"; then
+            echo "$f pins the screenshots above to another tag, not $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
       - run: pipx install uv
       - run: packaging/flatpak/cargo-sources.sh
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
