@@ -1851,10 +1851,13 @@ dependencies = [
  "env_logger",
  "i-slint-backend-testing",
  "log",
+ "rspolib",
  "serde_json",
  "slint",
  "slint-build",
+ "sys-locale",
  "tempfile",
+ "tr",
  "zbus",
 ]
 
@@ -4951,6 +4954,15 @@ name = "toml_writer"
 version = "1.1.2+spec-1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d56353a2a665ad0f41a421187180aab746c8c325620617ad883a99a1cbe66d2"
+
+[[package]]
+name = "tr"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79d30c7e79732253d80e9d619007002c8f3a362b0816e37340af648d4e2c6092"
+dependencies = [
+ "rspolib",
+]
 
 [[package]]
 name = "tracing"

@@ -58,7 +58,7 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
 pub fn device_status(state: &AppState) -> String {
     let failed = state.shown().is_some_and(|c| c.read_error.is_some());
     match state.current_mode() {
-        None => "Not connected".to_owned(),
+        None => tr::tr!("Not connected"),
         Some(mode) if state.reading() => {
             format!("Reading over USB · {}", state.description().mode_label(mode))
         }

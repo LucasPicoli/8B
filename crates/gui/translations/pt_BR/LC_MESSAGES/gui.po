@@ -1,0 +1,20 @@
+# Brazilian Portuguese translation of 8B.
+msgid ""
+msgstr ""
+"Project-Id-Version: 8B\n"
+"Language: pt_BR\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+# The language picker shows each language in its own name.
+msgctxt "language name"
+msgid "English"
+msgstr "Português (Brasil)"
+
+msgid "Connect your controller"
+msgstr "Conecte seu controle"
+
+msgid "Not connected"
+msgstr "Não conectado"

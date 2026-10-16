@@ -18,10 +18,16 @@ log.workspace = true
 serde_json.workspace = true
 # `unstable-winit-030` reaches the winit window, to ask for attention on a held close.
 slint = { version = "1.18", default-features = false, features = ["compat-1-2", "std", "backend-winit", "renderer-femtovg", "accessibility", "unstable-winit-030"] }
+# The system language at startup. The copy Slint already pulls in.
+sys-locale = "0.3.2"
+# Translates the Rust-built text from the same `gui.po` that Slint bundles. No gettext.
+tr = { version = "0.1.11", default-features = false, features = ["mo-translator"] }
 # The copy Slint already pulls in, plus the blocking API for the portal thread.
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 
 [build-dependencies]
+# Compiles each `gui.po` to the `.mo` that `tr` reads. The copy `tr` already pulls in.
+rspolib = "0.1.2"
 slint-build = "1.18"
 
 [dev-dependencies]

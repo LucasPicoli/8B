@@ -15,6 +15,7 @@ use slint::platform::{Platform, WindowAdapter};
 use slint::{ComponentHandle as _, PhysicalSize, PlatformError};
 
 use crate::buttons::render_views;
+use crate::language;
 use crate::render::{fit_toolbar, render};
 use crate::state::tests::{
     connected, full_read, hold_macros, macro_def, new_state, test_pad_read, PORT,
@@ -44,6 +45,17 @@ fn window(state: &AppState) -> AppWindow {
     // Each test runs on its own thread, and the platform is per thread.
     let _ = slint::platform::set_platform(Box::new(Headless));
     let ui = AppWindow::new().unwrap();
+    // A rerun under `GUI_TEST_LANG=pt_BR` draws every shot in that language.
+    if let Some(code) = std::env::var_os("GUI_TEST_LANG") {
+        let code = code.to_string_lossy();
+        let bundled = language::matching(&code).filter(|l| l.code == code);
+        language::select(
+            Some(bundled.expect("GUI_TEST_LANG names a bundled language")),
+            state,
+            &ui,
+        )
+        .unwrap();
+    }
     render_views(state.description(), &ui);
     render(state, &ui);
     ui.window().set_size(PhysicalSize::new(1280, 800));
@@ -2417,4 +2429,23 @@ fn a_macro_slot_name_and_the_step_count_get_a_line_of_their_own() {
     let counts: Vec<_> = ElementHandle::find_by_element_id(&ui, "StepTable::count-line").collect();
     assert_eq!(counts.len(), 1);
     assert!(counts[0].size().width >= 450.0, "the count has {}px", counts[0].size().width);
+}
+
+#[test]
+fn pt_br_switches_the_slint_and_the_rust_text() {
+    use i_slint_backend_testing::ElementHandle;
+    // `tr` keeps one translator per process, so this runs alone: `GUI_TEST_LANG=pt_BR cargo test`.
+    if std::env::var_os("GUI_TEST_LANG").is_none_or(|l| l != "pt_BR") {
+        return;
+    }
+    let state = new_state();
+    let ui = window(&state);
+    let shown = |text: &str| ElementHandle::find_by_accessible_label(&ui, text).count();
+    assert_eq!(ui.get_device_status(), "Não conectado");
+    assert_eq!(shown("Conecte seu controle"), 1);
+    assert_eq!(language::matching("pt-BR").map(|l| l.name), Some("Português (Brasil)"));
+
+    language::select(None, &state, &ui).unwrap();
+    assert_eq!(ui.get_device_status(), "Not connected");
+    assert_eq!(shown("Connect your controller"), 1);
 }

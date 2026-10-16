@@ -2,6 +2,8 @@ lint:
     cargo fmt --check
     cargo clippy --all-targets --all-features -- -D warnings
     cargo test
+    # `tr` keeps one translator per process, so the pt-BR test runs in a process of its own.
+    GUI_TEST_LANG=pt_BR cargo test -p gui pt_br_
     # Alone, so a test that needs a feature only another crate turns on fails here.
     cargo test -p controller-core
 
