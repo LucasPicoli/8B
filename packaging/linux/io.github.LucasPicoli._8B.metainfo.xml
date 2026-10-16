@@ -6,7 +6,7 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <developer id="io.github.lucaspicoli">
-    <name>Lucas Picoli</name>
+    <name translate="no">Lucas Picoli</name>
   </developer>
   <description>
     <p>8B reads and edits the profiles stored on your 8BitDo controller, over USB. On the Pro 3 it edits button mappings, sticks, triggers and vibration settings in every slot of the XInput, Switch and DInput modes, creates and edits macros, and imports and exports profiles as JSON.</p>

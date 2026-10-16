@@ -30,8 +30,9 @@ modules:
       - cargo --offline fetch --manifest-path Cargo.toml --verbose
       - cargo build --offline --release --locked -p gui
       - install -Dm755 target/release/8b -t ${FLATPAK_DEST}/bin
-      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.desktop -t ${FLATPAK_DEST}/share/applications
-      - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo
+      - packaging/linux/translate-metadata.sh metadata
+      - install -Dm644 metadata/io.github.LucasPicoli._8B.desktop -t ${FLATPAK_DEST}/share/applications
+      - install -Dm644 metadata/io.github.LucasPicoli._8B.metainfo.xml -t ${FLATPAK_DEST}/share/metainfo
       - install -Dm644 packaging/linux/io.github.LucasPicoli._8B-16.png ${FLATPAK_DEST}/share/icons/hicolor/16x16/apps/io.github.LucasPicoli._8B.png
       - install -Dm644 packaging/linux/io.github.LucasPicoli._8B-32.png ${FLATPAK_DEST}/share/icons/hicolor/32x32/apps/io.github.LucasPicoli._8B.png
       - install -Dm644 packaging/linux/io.github.LucasPicoli._8B.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/io.github.LucasPicoli._8B.png

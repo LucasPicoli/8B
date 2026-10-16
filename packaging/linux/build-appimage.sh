@@ -56,16 +56,17 @@ echo "NEEDED libraries:"
 readelf -d "$bin" | grep NEEDED
 
 rm -rf "$appdir"
+"$here/translate-metadata.sh" "$out/metadata"
 install -Dm755 "$bin" "$appdir/usr/bin/8b"
-install -Dm644 "$here/$APP_ID.desktop" "$appdir/$APP_ID.desktop"
-install -Dm644 "$here/$APP_ID.desktop" "$appdir/usr/share/applications/$APP_ID.desktop"
+install -Dm644 "$out/metadata/$APP_ID.desktop" "$appdir/$APP_ID.desktop"
+install -Dm644 "$out/metadata/$APP_ID.desktop" "$appdir/usr/share/applications/$APP_ID.desktop"
 install -m644 "$here/$APP_ID.png" "$appdir/$APP_ID.png"
 install -Dm644 "$here/$APP_ID-16.png" "$appdir/usr/share/icons/hicolor/16x16/apps/$APP_ID.png"
 install -Dm644 "$here/$APP_ID-32.png" "$appdir/usr/share/icons/hicolor/32x32/apps/$APP_ID.png"
 install -Dm644 "$here/$APP_ID.png" "$appdir/usr/share/icons/hicolor/256x256/apps/$APP_ID.png"
 install -Dm644 "$here/$APP_ID.svg" "$appdir/usr/share/icons/hicolor/scalable/apps/$APP_ID.svg"
 # The catalog lint looks for *appdata.xml only.
-install -Dm644 "$here/$APP_ID.metainfo.xml" "$appdir/usr/share/metainfo/$APP_ID.appdata.xml"
+install -Dm644 "$out/metadata/$APP_ID.metainfo.xml" "$appdir/usr/share/metainfo/$APP_ID.appdata.xml"
 ln -s usr/bin/8b "$appdir/AppRun"
 
 # RUNPATH on 8b lets its dlopen find the bundled libraries; $ORIGIN on each lets them find each other.

@@ -1939,6 +1939,45 @@ msgstr ""
 msgid "Export the macro"
 msgstr ""
 
+#: ../../packaging/linux/io.github.LucasPicoli._8B.desktop
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid "8B"
+msgstr "8B"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.desktop
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid "Read and edit your 8BitDo controller profiles"
+msgstr "Leia e edite os perfis do seu controle 8BitDo"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid ""
+"8B reads and edits the profiles stored on your 8BitDo controller, over USB. "
+"On the Pro 3 it edits button mappings, sticks, triggers and vibration "
+"settings in every slot of the XInput, Switch and DInput modes, creates and "
+"edits macros, and imports and exports profiles as JSON."
+msgstr ""
+"O 8B lê e edita os perfis gravados no seu controle 8BitDo, por USB. No Pro 3, "
+"ele edita o mapeamento de botões, os analógicos, os gatilhos e a vibração em "
+"cada slot dos modos XInput, Switch e DInput, cria e edita macros, e importa e "
+"exporta perfis em JSON."
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid "8B is an independent project, not made or endorsed by 8BitDo."
+msgstr "O 8B é um projeto independente, não feito nem endossado pela 8BitDo."
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid "Editing a DInput profile: saved remaps in blue, unsaved edits in orange"
+msgstr ""
+"Editando um perfil DInput: remapeamentos gravados em azul, alterações não "
+"gravadas em laranja"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid ""
+"Editing a macro: the step table, with a step's stick and trigger values below"
+msgstr ""
+"Editando uma macro: a tabela de passos, com os valores de analógico e "
+"gatilho de um passo abaixo"
+
 #. Pro 3 /display_name
 msgid "8BitDo Pro 3"
 msgstr "8BitDo Pro 3"

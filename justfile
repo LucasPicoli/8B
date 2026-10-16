@@ -35,6 +35,11 @@ translations:
             | sed '1,/^$/d'
         xtr --omit-header --add-location file -o /dev/stdout src/main.rs
         echo
+        # The .desktop and metainfo text. packaging/linux/translate-metadata.sh builds the shipped files.
+        xgettext --omit-header --add-location=file -o - \
+            ../../packaging/linux/io.github.LucasPicoli._8B.desktop \
+            ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+        echo
         cargo run --quiet -p controller-core --example description-pot
     } | msguniq --add-location=file | sed '/^#\. #-#-#-#-#/d' > translations/gui.pot
     for po in translations/*/LC_MESSAGES/gui.po; do
