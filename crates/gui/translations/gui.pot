@@ -1,0 +1,2289 @@
+# The English source strings of 8B. Written by `just translations`: do not edit.
+msgid ""
+msgstr ""
+"Project-Id-Version: 8B\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#. The language menu names each language in its own words.
+msgctxt "language name"
+msgid "English"
+msgstr ""
+
+#. Pro 3 /buttons/11/labels/xinput
+msgid "Menu"
+msgstr "Menu"
+
+#: ui/app_menu.slint
+msgid "Language"
+msgstr ""
+
+#: ui/app_menu.slint
+msgid "System default"
+msgstr ""
+
+#. The footer button's text, and the sidebar bar's caption and button text.
+#: ui/app.slint
+msgid "Write {}…"
+msgstr ""
+
+#: ui/app.slint
+msgid "{n} slot has unsaved edits"
+msgid_plural "{n} slots have unsaved edits"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/app.slint
+msgctxt "every edited slot"
+msgid "Write {n} slot…"
+msgid_plural "Write all {n} slots…"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/app.slint
+msgid "Reading the controller"
+msgstr ""
+
+#: ui/app.slint ui/screens.slint
+msgid "Looking for controllers"
+msgstr ""
+
+#: ui/app.slint
+msgid "Profile name"
+msgstr ""
+
+#: ui/app.slint
+msgid "Import…"
+msgstr ""
+
+#: ui/app.slint ui/dialogs.slint
+msgid "Export…"
+msgstr ""
+
+#: ui/app.slint
+msgid "Clear slot…"
+msgstr ""
+
+#: ui/app.slint
+msgid "The controller was unplugged."
+msgstr ""
+
+#: ui/app.slint
+msgid "Your edits are kept. Plug it in again to write them."
+msgstr ""
+
+#: ui/app.slint ui/dialogs.slint ui/screens.slint
+msgid "Try again"
+msgstr ""
+
+#: ui/app.slint ui/screens.slint
+msgid "Not now"
+msgstr ""
+
+#: ui/app.slint
+msgid ""
+"This controller disconnects and reconnects by itself when no app is using it."
+msgstr ""
+
+#: ui/app.slint
+msgid ""
+"8B is using it now, so it stays connected. Two small files keep it connected "
+"after you close 8B."
+msgstr ""
+
+#: ui/app.slint
+msgid "Set up…"
+msgstr ""
+
+#: ui/app.slint
+msgid "Slot {} is empty"
+msgstr ""
+
+#: ui/app.slint
+msgid ""
+"Start from the default profile or import a file, then change what you need. "
+"Nothing reaches the controller until you write."
+msgstr ""
+
+#: ui/app.slint
+msgid "Start from default"
+msgstr ""
+
+#: ui/app.slint
+msgid "Discard"
+msgstr ""
+
+#: ui/app.slint ui/sidebar.slint
+msgid "Show"
+msgstr ""
+
+#: ui/app.slint ui/sidebar.slint
+msgid "Checking the controller…"
+msgstr ""
+
+#: ui/batch.slint src/state.rs
+msgid "New profile"
+msgstr ""
+
+#: ui/batch.slint ui/dialogs.slint
+msgid "{n} change"
+msgid_plural "{n} changes"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint ui/dialogs.slint
+msgid "The empty slot still holds {n} macro. Writing a profile removes it."
+msgid_plural ""
+"The empty slot still holds {n} macros. Writing a profile removes them."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint
+msgid "Written"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Writing"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Failed"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Not written"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Waiting"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Write {n} slot to the controller?"
+msgid_plural "Write {n} slots to the controller?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint
+msgid "{n} change."
+msgid_plural "{n} changes."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint
+msgid "Slots without edits stay as they are."
+msgstr ""
+
+#: ui/batch.slint
+msgid "Write {n} slot"
+msgid_plural "Write {n} slots"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint
+msgid "Writing {n} slot"
+msgid_plural "Writing {n} slots"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint ui/dialogs.slint
+msgid "Keep the controller plugged in."
+msgstr ""
+
+#: ui/batch.slint
+msgid "Writing {} failed"
+msgstr ""
+
+#. One button closes a bad file's dialog, as in the other one-button dialogs.
+#: ui/batch.slint ui/dialogs.slint ui/parts.slint
+msgid "Close"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Write {} again"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Write the {n} slot again"
+msgid_plural "Write the {n} slots again"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/batch.slint ui/dialogs.slint
+msgid "Open folder"
+msgstr ""
+
+#: ui/batch.slint ui/dialogs.slint
+msgid "The old macro is saved in this file:"
+msgstr ""
+
+#: ui/batch.slint
+msgid "Your edits to this slot are still here."
+msgstr ""
+
+#: ui/batch.slint
+msgid "Your edits to the {n} slot are still here."
+msgid_plural "Your edits to the {n} slots are still here."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/buttons.slint
+msgid "Click a button on the controller or pick its output in the list."
+msgstr ""
+
+#: ui/buttons.slint
+msgid "Remapped"
+msgstr ""
+
+#: ui/buttons.slint
+msgid "Not written yet"
+msgstr ""
+
+#: ui/buttons.slint
+msgid "Button"
+msgstr ""
+
+#: ui/buttons.slint
+msgid "Output"
+msgstr ""
+
+#: ui/buttons.slint
+msgid "Cannot be remapped"
+msgstr ""
+
+#: ui/buttons.slint
+msgid "Output for {}"
+msgstr ""
+
+#: ui/buttons.slint
+msgid ""
+"The controller holds an output 8B does not recognise for this button. It "
+"stays as it is until you pick another output."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "The old profile is saved in this file:"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Backup file"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Write “{}” to {}?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Write {n} change to {}?"
+msgid_plural "Write {n} changes to {}?"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "The slot is empty. It gets a new profile."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "The profile “{}” stays. Only its macros change."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "This replaces the profile “{}” stored on the controller."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Write to controller"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Profile"
+msgstr ""
+
+#: ui/dialogs.slint src/buttons.rs
+msgid "Macros"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "The macro on this slot stays."
+msgid_plural "The {n} macros on this slot stay."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "Clear {}?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"This removes the profile “{}” from the controller. Export it first if you "
+"may want it back."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Clear slot"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"The slot’s macro stays stored, but the next profile written to this slot "
+"removes it."
+msgid_plural ""
+"The slot’s {n} macros stay stored, but the next profile written to this slot "
+"removes them."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "Your edits to this slot, not written yet, are discarded."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Import the {} profile into {}?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Import “{}” into {}?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "“{}” comes from {} mode. Each button keeps its place on the controller."
+msgstr ""
+
+#. One button closes a bad file's dialog, as in the other one-button dialogs.
+#: ui/dialogs.slint
+msgid "Import"
+msgstr ""
+
+#. Import replaces.
+#: ui/dialogs.slint
+msgid "Import without macros"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "{n} button has no {} match and becomes Disabled:"
+msgid_plural "{n} buttons have no {} match and become Disabled:"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid ""
+"{0} sets these settings another way, so they start from the {0} defaults: "
+"{1}."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Some printed letters name another button: {}."
+msgstr ""
+
+#: ui/dialogs.slint src/files.rs src/macro_files.rs
+msgid "Nothing reaches the controller until you write."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Import “{}” into Macro {}?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Could not import “{}”"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "“{}”, made in {} mode: {n} step, started by {}."
+msgid_plural "“{}”, made in {} mode: {n} steps, started by {}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "no button"
+msgstr ""
+
+#: ui/dialogs.slint ui/parts.slint
+msgid "Cancel"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Your edits to Macro {}, not written yet, are discarded."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Each button keeps its place on the controller and takes its {} label."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "{} triggers are on or off, so {n} step presses its trigger fully."
+msgid_plural ""
+"{} triggers are on or off, so {n} steps press their triggers fully."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "Trigger glides that {} cannot play are dropped: {}."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Clearing {} failed"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Writing to {} failed"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Write again"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Your edits are still here, so you can write again."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "8B stopped talking to the controller"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Restart 8B."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Keep the controller connected"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"When no app is using it, this controller disconnects and reconnects every "
+"second or two. An app that starts then may not see it."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Add files…"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"While 8B is open, the controller stays connected. These two files keep it "
+"connected whenever it is plugged in. They change nothing else, and deleting "
+"them undoes it."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Adding them asks for your password once."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Could not add the files."
+msgstr ""
+
+#: ui/dialogs.slint ui/screens.slint
+msgid "Run the command instead."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Run this in a terminal on this computer:"
+msgstr ""
+
+#: ui/dialogs.slint ui/screens.slint
+msgid "Or run this in a terminal:"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Command that adds the files"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Is this the {} controller you unplugged?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Is this one of the {} controllers you unplugged?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"It is plugged into another USB port. Your edits that are not written yet can "
+"move to it."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"It is plugged into another USB port. Pick the one it is, and that one’s "
+"edits move to it."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "No, keep both"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "None of them"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Yes, move the edits"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "A slot changed outside 8B"
+msgid_plural "{n} slots changed outside 8B"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid ""
+"Another program wrote to the controller after you started editing. Pick what "
+"each slot keeps. “Keep mine” keeps your whole copy of the slot, so writing "
+"it later replaces the controller’s version."
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Apply"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Keep mine"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Take the controller’s"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Close 8B without writing?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"{n} slot on {} controllers has unsaved edits. The edits are not on a "
+"controller yet, so closing 8B discards them."
+msgid_plural ""
+"{n} slots on {} controllers have unsaved edits. The edits are not on a "
+"controller yet, so closing 8B discards them."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid ""
+"{n} slot has unsaved edits. The edits are not on the controller yet, so "
+"closing 8B discards them."
+msgid_plural ""
+"{n} slots have unsaved edits. The edits are not on the controller yet, so "
+"closing 8B discards them."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "Discard and close"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid "Write {n} slot…"
+msgid_plural "Write {n} slots…"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/macros.slint
+msgid "Macro {}, empty"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro {}, {}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro {0}, no name, written as Macro {0}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "{}, can't be written"
+msgstr ""
+
+#: ui/macros.slint
+msgid "{}, a stick move may not play"
+msgstr ""
+
+#. A macro with no name is written as "Macro n": shown muted, as in the field.
+#: ui/macros.slint
+msgctxt "macro"
+msgid "Empty"
+msgstr ""
+
+#. A macro with no name is written as "Macro n": shown muted, as in the field.
+#: ui/macros.slint src/macro_tab.rs src/macros.rs
+msgid "Macro {}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "{n} step"
+msgid_plural "{n} steps"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/macros.slint src/review/macro_edits.rs
+msgid "No button"
+msgstr ""
+
+#: ui/macros.slint
+msgid "A step can't hold {}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Stop holding {} in step {}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Hold {} in step {}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Buttons held, {} view"
+msgstr ""
+
+#: ui/macros.slint
+msgid "{}, held"
+msgstr ""
+
+#: ui/macros.slint
+msgid "{}, not held"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Can't be written"
+msgstr ""
+
+#: ui/macros.slint
+msgid "A stick move may not play"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Import macro…"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Export macro…"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Revert"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Delete"
+msgstr ""
+
+#: ui/macros.slint src/review.rs
+msgid "Name"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro name"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Starts with"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Remove {}"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Add a button"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Plays"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Once"
+msgstr ""
+
+#: ui/macros.slint
+msgid "A number of times"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Until pressed again"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Times"
+msgstr ""
+
+#: ui/macros.slint
+msgid "times"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Interval"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Interval between plays in milliseconds"
+msgstr ""
+
+#: ui/macros.slint ui/steps.slint
+msgid "ms"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro slots"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Buttons held"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Create a macro to choose the buttons its steps hold."
+msgstr ""
+
+#: ui/macros.slint
+msgid "The buttons show once the steps are read."
+msgstr ""
+
+#: ui/macros.slint
+msgid "Pick a step in the table to see the buttons it holds."
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro {} can't be written."
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro {} will be deleted when you write"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Macro {} is empty"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Undo"
+msgstr ""
+
+#: ui/macros.slint
+msgid "New macro"
+msgstr ""
+
+#: ui/parts.slint
+msgid "Copy"
+msgstr ""
+
+#: ui/parts.slint
+msgid "Copied to the clipboard"
+msgstr ""
+
+#: ui/parts.slint
+msgid "Copied"
+msgstr ""
+
+#: ui/parts.slint
+msgid "Copy diagnostics"
+msgstr ""
+
+#: ui/parts.slint
+msgid "Unsaved edits"
+msgstr ""
+
+#: ui/parts.slint
+msgid "{}, holds a macro that can't be written"
+msgstr ""
+
+#: ui/parts.slint
+msgid "{} to {}"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Connect your controller"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Plug it in with a USB cable, in any mode. 8B finds it on its own."
+msgstr ""
+
+#: ui/screens.slint src/render.rs
+msgid "Could not read the controller."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Command that installs the rule"
+msgstr ""
+
+#: ui/screens.slint
+msgid "The controller is still blocked"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Update the device rule"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Allow 8B to open the controller"
+msgstr ""
+
+#: ui/screens.slint
+msgid ""
+"The device rule is installed, but Linux has not applied it to the controller "
+"yet. Unplug the controller and plug it in again. If it stays blocked, log "
+"out and back in."
+msgstr ""
+
+#: ui/screens.slint
+msgid ""
+"The installed rule is from an older version of 8B. Updating replaces this "
+"file:"
+msgstr ""
+
+#: ui/screens.slint
+msgid ""
+"Linux blocks apps from changing a controller’s settings until a device rule "
+"allows it. The command adds this file:"
+msgstr ""
+
+#: ui/screens.slint
+msgid ""
+"Linux blocks apps from changing a controller’s settings until a device rule "
+"allows it. Installing adds this file:"
+msgstr ""
+
+#: ui/screens.slint
+msgid ""
+"It lets the person signed in at this computer open game controllers. It "
+"changes nothing else."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Run the command below in a terminal on this computer, then choose {}."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Check again"
+msgstr ""
+
+#: ui/screens.slint
+msgid "It asks for your password once."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Waiting for your password…"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Update rule…"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Install again…"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Install rule…"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Checking…"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Could not install the rule."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Still blocked."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Still blocked. Run the command, then check again."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Still blocked. Install the rule or run the command, then check again."
+msgstr ""
+
+#: ui/screens.slint
+msgid "To install the rule again, run this in a terminal:"
+msgstr ""
+
+#: ui/screens.slint
+msgid "Run this in a terminal:"
+msgstr ""
+
+#: ui/settings.slint
+msgid "was {}"
+msgstr ""
+
+#: ui/sidebar.slint
+msgid "Slot {}, empty"
+msgstr ""
+
+#: ui/sidebar.slint
+msgid "Slot {}, {}"
+msgstr ""
+
+#: ui/sidebar.slint
+msgctxt "slot"
+msgid "Empty"
+msgstr ""
+
+#: ui/sidebar.slint
+msgid "{n} macro"
+msgid_plural "{n} macros"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/sidebar.slint
+msgid "Controller"
+msgstr ""
+
+#: ui/sidebar.slint
+msgid "Current mode"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "Centre"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "Centre {}"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "{} X, 0 to 255, rest 127"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "{} Y, 0 to 255, rest 127"
+msgstr ""
+
+#: ui/step_panel.slint ui/trigger_pad.slint
+msgid "Glides in from step {}"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "{} glides in from step {}. Select that step."
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "Snap to edges and corners"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "{}, snap to edges and corners"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "Step {} of {}"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Step {}, starts at {}, pause, lasts {}"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Step {}, starts at {}, holds {}, lasts {}"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Step {}, starts at {}, lasts {}"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Pause"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Step {} duration in milliseconds"
+msgstr ""
+
+#. when a glide expands.
+#: ui/steps.slint
+msgid "{} ms"
+msgstr ""
+
+#: ui/steps.slint
+msgid "{} s"
+msgstr ""
+
+#: ui/steps.slint
+msgid "{n} step, {}/{} on the controller · {}"
+msgid_plural "{n} steps, {}/{} on the controller · {}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/steps.slint
+msgid "{}/{n} step · {}"
+msgid_plural "{}/{n} steps · {}"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/steps.slint
+msgid "Step"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/1/title
+#: ui/steps.slint src/stick_pad.rs
+msgid "Right stick"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Add step"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Add an empty step after this one (Insert)"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Duplicate step"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Split step in two halves"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Move step up (Alt+Up)"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Move step down (Alt+Down)"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Delete step (Delete)"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Undo the last step edit (Ctrl+Z)"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Starts at"
+msgstr ""
+
+#: ui/steps.slint
+msgid "L stick"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/0/title
+#: ui/steps.slint src/stick_pad.rs
+msgid "Left stick"
+msgstr ""
+
+#: ui/steps.slint
+msgid "R stick"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Duration"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Reading the steps from the controller…"
+msgstr ""
+
+#: ui/steps.slint
+msgid "Steps"
+msgstr ""
+
+#: ui/steps.slint
+msgid "{}, too many"
+msgstr ""
+
+#: ui/steps.slint
+msgid "{}, full"
+msgstr ""
+
+#: ui/trigger_pad.slint
+msgid "{} pressure"
+msgstr ""
+
+#: ui/trigger_pad.slint
+msgid "{} pressure, {}"
+msgstr ""
+
+#: ui/trigger_pad.slint
+msgid "{} pressure value, 0 to 255"
+msgstr ""
+
+#: ui/trigger_pad.slint
+msgid "{} pressure glides in from step {}. Select that step."
+msgstr ""
+
+#: src/batch.rs
+msgid "Wrote {n} slot to the controller."
+msgid_plural "Wrote {n} slots to the controller."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/batch.rs
+msgid "The controller uses a profile while its slot’s light is on."
+msgstr ""
+
+#: src/buttons.rs
+msgid "Disabled"
+msgstr ""
+
+#: src/buttons.rs
+msgid "Unknown"
+msgstr ""
+
+#: src/buttons.rs
+msgid "Buttons"
+msgstr ""
+
+#: src/chooser.rs
+msgid "JSON files"
+msgstr ""
+
+#: src/controllers.rs
+msgid "{name} · Disconnected"
+msgstr ""
+
+#: src/controllers.rs
+msgid "{name} · {mode}"
+msgstr ""
+
+#: src/controllers.rs
+msgid "{label} ({n})"
+msgstr ""
+
+#: src/embedded.rs
+msgid ""
+"The slot’s macro steps are still being read from the controller. Try again "
+"in a moment."
+msgstr ""
+
+#: src/embedded.rs
+msgid ""
+"The file’s macro sits in a separate file that 8B cannot read, so the slot "
+"keeps its macros."
+msgid_plural ""
+"The file’s {n} macros sit in separate files that 8B cannot read, so the slot "
+"keeps its macros."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/embedded.rs
+msgid "The command line’s upload --with-macros reads them."
+msgstr ""
+
+#: src/embedded.rs
+msgid "The file holds no macros, so the slot’s macro {old} is removed."
+msgid_plural ""
+"The file holds no macros, so the slot’s {n} macros, {old}, are removed."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/embedded.rs
+msgid "The file brings {n} macro: {new}."
+msgid_plural "The file brings {n} macros: {new}."
+msgstr[0] ""
+msgstr[1] ""
+
+#. One sentence per case, as the verb agrees with the file's count.
+#: src/embedded.rs
+msgid "The file’s macro {new} replaces the slot’s macro {old}."
+msgid_plural "The file’s macro {new} replaces the slot’s {n} macros, {old}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/embedded.rs
+msgid "The file’s {f} macros, {new}, replace the slot’s macro {old}."
+msgid_plural ""
+"The file’s {f} macros, {new}, replace the slot’s {n} macros, {old}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/embedded.rs
+msgid "The file’s macro {list} was not imported."
+msgid_plural "The file’s {n} macros, {list}, were not imported."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/embedded.rs
+msgid "The file maps {button} to {output}, so {button} cannot start {macro}."
+msgstr ""
+
+#: src/embedded.rs
+msgid ""
+"In {mode} mode, {triggers} are only on or off, so {macro} presses them fully "
+"in {n} step."
+msgid_plural ""
+"In {mode} mode, {triggers} are only on or off, so {macro} presses them fully "
+"in {n} steps."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/embedded.rs
+msgid ""
+"In {mode} mode, {triggers} are only on or off, so {macro} drops its glide on "
+"{list}."
+msgid_plural ""
+"In {mode} mode, {triggers} are only on or off, so {macro} drops its glides "
+"on {list}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/files.rs
+msgid "This file is not JSON: {error}."
+msgstr ""
+
+#: src/files.rs
+msgid "This controller model cannot check files."
+msgstr ""
+
+#: src/files.rs
+msgid "({n} more problem)"
+msgid_plural "({n} more problems)"
+msgstr[0] ""
+msgstr[1] ""
+
+#. Why a macro file picked as a profile does not import, and where it goes.
+#: src/files.rs
+msgid ""
+"This is a macro file, not a profile. Import it with Import macro… on the "
+"Macros tab."
+msgstr ""
+
+#: src/files.rs
+msgid "Saved {mode} slot {n} to “{file}”."
+msgstr ""
+
+#: src/files.rs src/macro_files.rs
+msgid "The file includes edits not yet written to the controller."
+msgstr ""
+
+#: src/files.rs
+msgid "Could not save {mode} slot {n}."
+msgstr ""
+
+#: src/files.rs src/macro_files.rs
+msgid "This controller has no such mode."
+msgstr ""
+
+#: src/files.rs
+msgid "Could not import “{file}”."
+msgstr ""
+
+#: src/files.rs
+msgid ""
+"The file maps {button} to {output}, so {button} no longer starts {macro}."
+msgstr ""
+
+#: src/files.rs
+msgid "Imported “{file}” into {mode} slot {n}."
+msgstr ""
+
+#: src/files.rs
+msgid "{mode} {button} is {other_mode} {other}"
+msgstr ""
+
+#: src/files.rs
+msgid "Import without macros leaves it out."
+msgid_plural "Import without macros leaves them out."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/files.rs
+msgid "Import without macros keeps the slot’s macro."
+msgid_plural "Import without macros keeps the slot’s {n} macros."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/files.rs
+msgid "Your profile edits to {mode} slot {n}, not written yet, are discarded."
+msgstr ""
+
+#: src/files.rs
+msgid ""
+"Import discards your macro edits, not written yet. Import without macros "
+"keeps them."
+msgstr ""
+
+#: src/files.rs
+msgid "Your macro edits, not written yet, are discarded."
+msgstr ""
+
+#: src/fix.rs
+msgid "The files are added."
+msgstr ""
+
+#: src/fix.rs
+msgid "The controller stays connected now."
+msgstr ""
+
+#: src/holders.rs
+msgid "{name} also has the controller open. Close it and try again."
+msgstr ""
+
+#: src/holders.rs
+msgid "{names} also have the controller open. Close them and try again."
+msgstr ""
+
+#. In the sandbox `/proc` hides the other programs.
+#: src/holders.rs
+msgid "Another program may be using the controller. Close it and try again."
+msgstr ""
+
+#: src/macro_check.rs
+msgid "Macro {n} can't be written."
+msgstr ""
+
+#: src/macro_check.rs
+msgid "{n} macro can't be written."
+msgid_plural "{n} macros can't be written."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/macro_check.rs
+msgid "Macro {n} of {mode} slot {slot} can't be written."
+msgstr ""
+
+#: src/macro_files.rs
+msgid ""
+"This is a profile file, not a macro file. Import it with Import… at the top "
+"of the window. To move one macro, use Export macro… and Import macro… here."
+msgstr ""
+
+#: src/macro_files.rs
+msgid "{button} is imported unmapped, as {macro} already uses it."
+msgstr ""
+
+#: src/macro_files.rs
+msgid ""
+"{button} is imported unmapped, as this slot gives it the output {output}."
+msgstr ""
+
+#: src/macro_files.rs
+msgid "Imported “{file}” into Macro {n}."
+msgstr ""
+
+#: src/macro_files.rs
+msgid "Saved Macro {n} to “{file}”."
+msgstr ""
+
+#: src/macro_files.rs
+msgid "Could not save Macro {n}."
+msgstr ""
+
+#: src/macro_files.rs
+msgid "{button} in step {n}"
+msgstr ""
+
+#: src/macro_files.rs
+msgid "It replaces the macro without a name."
+msgstr ""
+
+#: src/macro_files.rs
+msgid "It replaces “{name}”."
+msgstr ""
+
+#: src/macro_revert.rs
+msgid "{button} now starts {macro}."
+msgstr ""
+
+#: src/macro_revert.rs
+msgid "{button} is now mapped to {output}."
+msgstr ""
+
+#: src/macro_revert.rs
+msgid "Undo that first, or discard the slot's edits."
+msgstr ""
+
+#: src/macro_revert.rs
+msgid "Could not revert {macro}."
+msgstr ""
+
+#: src/macro_tab.rs
+msgid "And {n} more reason."
+msgid_plural "And {n} more reasons."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/macro_tab.rs
+msgid "{button} (Macro {n})"
+msgstr ""
+
+#. The picker's first entry adds nothing.
+#: src/macro_tab.rs
+msgid "Add a button…"
+msgstr ""
+
+#: src/macros.rs
+msgid "{name} (Macro {n})"
+msgstr ""
+
+#: src/plain.rs
+msgid "No supported controller is connected."
+msgstr ""
+
+#: src/plain.rs
+msgid "8B does not support this controller model."
+msgstr ""
+
+#: src/plain.rs
+msgid "8B is not allowed to open the controller."
+msgstr ""
+
+#: src/plain.rs
+msgid "The USB connection to the controller failed."
+msgstr ""
+
+#: src/plain.rs
+msgid "The controller did not answer in time."
+msgstr ""
+
+#: src/plain.rs
+msgid "The controller disconnected, or its mode switch was moved."
+msgstr ""
+
+#: src/plain.rs
+msgid "The controller sent something 8B could not understand."
+msgstr ""
+
+#: src/plain.rs
+msgid "The data from the controller failed a check."
+msgstr ""
+
+#: src/plain.rs
+msgid "8B could not read or write a file it needs."
+msgstr ""
+
+#: src/plain.rs
+msgid "The controller did not accept the data."
+msgstr ""
+
+#: src/plain.rs
+msgid "The controller did not accept the profile. The slot is back as it was."
+msgstr ""
+
+#: src/plain.rs
+msgid ""
+"The controller did not accept the profile, and the slot could not be put "
+"back as it was. A copy of the old profile is saved."
+msgstr ""
+
+#: src/plain.rs
+msgid ""
+"The controller did not accept the profile, the slot could not be put back as "
+"it was, and 8B could not save a copy of the old profile."
+msgstr ""
+
+#: src/plain.rs
+msgid "Check the cable and that the mode switch has not moved."
+msgstr ""
+
+#: src/plain.rs
+msgid "These edits do not make a valid profile, so nothing was written."
+msgstr ""
+
+#: src/plain.rs
+msgid "Nothing was written."
+msgstr ""
+
+#: src/plain.rs
+msgid "The controller did not accept the profile."
+msgstr ""
+
+#: src/reasons.rs
+msgid "Something in this file is not valid."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This file is not a valid profile."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This file is not a valid macro."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This file is not a valid macro: it names its start buttons in two ways."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This file is not a valid macro: it has no list of start buttons."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This file is not a valid profile: it holds its macros in two ways."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This controller has no {mode} mode."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This profile is for another controller model."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This controller has no macro slots."
+msgstr ""
+
+#: src/reasons.rs
+msgid ""
+"This controller has {n} macro slot, and the profile uses one it does not "
+"have."
+msgid_plural ""
+"This controller has {n} macro slots, and the profile uses one it does not "
+"have."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
+msgid "Two macros are in Macro {n}."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This profile has settings that {mode} mode does not have."
+msgstr ""
+
+#: src/reasons.rs
+msgid "This macro is for {got} mode, and the profile is for {want} mode."
+msgstr ""
+
+#: src/reasons.rs
+msgid "The macro uses {button}, which {mode} mode does not have."
+msgstr ""
+
+#: src/reasons.rs
+msgid "The profile remaps a button this controller does not have."
+msgstr ""
+
+#: src/reasons.rs
+msgid "The profile uses an output that {mode} mode does not have."
+msgstr ""
+
+#: src/reasons.rs
+msgid "{button} starts two macros. A button starts at most one macro."
+msgstr ""
+
+#: src/reasons.rs
+msgid "{frame}, “{flag}” must be on or off."
+msgstr ""
+
+#: src/reasons.rs
+msgid "Give the macro a name of at most {n} character."
+msgid_plural "Give the macro a name of at most {n} characters."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
+msgid "The name is {n} character long."
+msgid_plural "The name is {n} characters long."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
+msgid "This controller takes at most {max}."
+msgstr ""
+
+#: src/reasons.rs
+msgid "The macro has {n} step."
+msgid_plural "The macro has {n} steps."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
+msgid "This controller holds at most {max}. Remove steps."
+msgstr ""
+
+#: src/reasons.rs
+msgid "With its glides, this macro needs {n} step on the controller."
+msgid_plural "With its glides, this macro needs {n} steps on the controller."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
+msgid "The controller holds at most {max}. Shorten a glide or remove steps."
+msgstr ""
+
+#: src/reasons.rs
+msgid "The macro must play at least once."
+msgstr ""
+
+#: src/reasons.rs
+msgid "Step {n}: {button} appears in both press and release."
+msgstr ""
+
+#: src/reasons.rs
+msgid "Step {n}: {name} cannot glide, there is no next step."
+msgstr ""
+
+#: src/reasons.rs
+msgid ""
+"Step {n}: {name} cannot glide in {mode} mode, where triggers are only on or "
+"off."
+msgstr ""
+
+#: src/reasons.rs
+msgid "Step {n}: {name} has the same value in the next step."
+msgstr ""
+
+#: src/reasons.rs
+msgid "Macro {n}: {reason}"
+msgstr ""
+
+#: src/reasons.rs
+msgid "{frame}, {slider} must be {lo} to {hi}."
+msgstr ""
+
+#: src/reasons.rs
+msgid "{frame}, {slider}: the low end must be {lo} to {hi}."
+msgstr ""
+
+#: src/reasons.rs
+msgid "{frame}, {slider}: the high end must be {lo} to {hi}."
+msgstr ""
+
+#: src/reasons.rs
+msgid "“{label}”"
+msgstr ""
+
+#: src/reasons.rs
+msgid "{frame}, “{flag}” cannot be on together with {list}."
+msgstr ""
+
+#: src/render.rs
+msgid "Not connected"
+msgstr ""
+
+#: src/render.rs
+msgid "Reading over USB · {mode}"
+msgstr ""
+
+#: src/render.rs
+msgid "Could not read · {mode}"
+msgstr ""
+
+#: src/render.rs
+msgid "Connected over USB · {mode}"
+msgstr ""
+
+#: src/render.rs
+msgid "{controller} · edits in {n} slot"
+msgid_plural "{controller} · edits in {n} slots"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/render.rs
+msgid "{slot} · {name}"
+msgstr ""
+
+#: src/render.rs
+msgid "{mode} slot {n}"
+msgstr ""
+
+#: src/render.rs
+msgid "{a}, {b}"
+msgstr ""
+
+#: src/render.rs
+msgid "{a} and {b}"
+msgstr ""
+
+#: src/render.rs
+msgid "Could not read the {name} controller plugged into another USB port."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "once"
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "until pressed again"
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{n} time"
+msgid_plural "{n} times"
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/review/macro_edits.rs
+msgid "{macro} added."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Steps: {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Starts with: {buttons}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{macro} removed."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{macro} changed."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Name: “{name}”."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Steps: {old} → {new}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Steps: edited."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Plays: {old} → {new}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Interval: {old} → {new} ms."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "Starts with: {old} → {new}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "A macro without a name is added in Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{name} is added in Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "A macro without a name is removed from Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{name} is removed from Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "The file’s macro without a name replaces the one in Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "The file’s {name} replaces the one in Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "A macro without a name replaces {old} in Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{new} replaces a macro without a name in Macro {n}."
+msgstr ""
+
+#: src/review/macro_edits.rs
+msgid "{new} replaces {old} in Macro {n}."
+msgstr ""
+
+#: src/review.rs
+msgid "Could not reach the controller, so nothing was written."
+msgstr ""
+
+#: src/review.rs
+msgid "Wrote {mode} slot {n} to the controller."
+msgstr ""
+
+#: src/review.rs
+msgid "The controller uses it while that slot’s light is on."
+msgstr ""
+
+#: src/review.rs
+msgid "Cleared {mode} slot {n}."
+msgstr ""
+
+#: src/review.rs
+msgid "{frame} · {setting}"
+msgstr ""
+
+#: src/review.rs
+msgid "Off"
+msgstr ""
+
+#: src/review.rs
+msgid "On"
+msgstr ""
+
+#: src/review.rs
+msgid "“{flag}” in {frame}"
+msgstr ""
+
+#: src/review.rs
+msgid "“{flag}” cannot be on together with {list}."
+msgstr ""
+
+#: src/review.rs
+msgid "Cancel and turn one of them off on the {tab} tab."
+msgstr ""
+
+#: src/review.rs
+msgid "“{name}”"
+msgstr ""
+
+#: src/review.rs
+msgid "Writing {mode} slot {n}"
+msgstr ""
+
+#: src/settings.rs
+msgid "{low} to {high}{unit}"
+msgstr ""
+
+#: src/settings.rs
+msgid "{low} of {max}"
+msgstr ""
+
+#: src/step_table.rs
+msgid "x {x}, y {y}"
+msgstr ""
+
+#: src/step_table.rs
+msgid "x {x}, y {y} to x {a}, y {b}"
+msgstr ""
+
+#: src/step_table.rs
+msgid "{button} {now} to {next}"
+msgstr ""
+
+#: src/step_table.rs
+msgid "{n} ms"
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "Glide to step {n}"
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "Glide"
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "No next step to glide to."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "Step {n} holds the same position, so there is nothing to glide to."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "Step {n} holds the same pressure, so there is nothing to glide to."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid ""
+"Moves in a straight line from here to step {n}'s position over this step's "
+"{ms} ms."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid ""
+"Moves in a straight line from here to step {n}'s pressure over this step's "
+"{ms} ms."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "{stick}: the dead zone low end is {n} %."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid ""
+"In {mode}, a macro moves a stick only when its low end is {floor} % or more."
+msgstr ""
+
+#: src/stick_pad.rs
+msgid "Set to {floor} %"
+msgstr ""
+
+#: src/udev.rs
+msgid "pkexec is not installed."
+msgstr ""
+
+#: src/udev.rs
+msgid "pkexec did not start: {e}."
+msgstr ""
+
+#: src/udev.rs
+msgid "The password prompt was closed, or the password was not accepted."
+msgstr ""
+
+#: src/udev.rs
+msgid "The install command failed ({status}): {last}"
+msgstr ""
+
+#: src/main.rs
+msgid "The file dialog did not open."
+msgstr ""
+
+#: src/main.rs
+msgid "Import a profile"
+msgstr ""
+
+#: src/main.rs
+msgid "Export the profile"
+msgstr ""
+
+#: src/main.rs
+msgid "Import a macro"
+msgstr ""
+
+#: src/main.rs
+msgid "Export the macro"
+msgstr ""
+
+#. Pro 3 /display_name
+msgid "8BitDo Pro 3"
+msgstr "8BitDo Pro 3"
+
+#. Pro 3 /short_name
+msgid "Pro 3"
+msgstr "Pro 3"
+
+#. Pro 3 /modes/0/label
+msgid "XInput"
+msgstr "XInput"
+
+#. Pro 3 /modes/1/label
+msgid "Switch"
+msgstr "Switch"
+
+#. Pro 3 /modes/1/extra_outputs/0/label
+msgid "Screenshot"
+msgstr ""
+
+#. Pro 3 /modes/2/label
+msgid "DInput"
+msgstr "DInput"
+
+#. Pro 3 /modes/2/extra_outputs/0/label
+#. Pro 3 /buttons/18/labels/dinput
+#. Pro 3 /buttons/18/labels/switch
+#. Pro 3 /buttons/18/labels/xinput
+msgid "PR"
+msgstr "PR"
+
+#. Pro 3 /modes/2/extra_outputs/1/label
+#. Pro 3 /buttons/19/labels/dinput
+#. Pro 3 /buttons/19/labels/switch
+#. Pro 3 /buttons/19/labels/xinput
+msgid "PL"
+msgstr "PL"
+
+#. Pro 3 /modes/2/extra_outputs/2/label
+#. Pro 3 /buttons/20/labels/dinput
+#. Pro 3 /buttons/20/labels/switch
+#. Pro 3 /buttons/20/labels/xinput
+msgid "L4"
+msgstr "L4"
+
+#. Pro 3 /modes/2/extra_outputs/3/label
+#. Pro 3 /buttons/21/labels/dinput
+#. Pro 3 /buttons/21/labels/switch
+#. Pro 3 /buttons/21/labels/xinput
+msgid "R4"
+msgstr "R4"
+
+#. Pro 3 /buttons/0/labels/dinput
+#. Pro 3 /buttons/0/labels/xinput
+#. Pro 3 /buttons/1/labels/switch
+msgid "B"
+msgstr "B"
+
+#. Pro 3 /buttons/0/labels/switch
+#. Pro 3 /buttons/1/labels/dinput
+#. Pro 3 /buttons/1/labels/xinput
+msgid "A"
+msgstr "A"
+
+#. Pro 3 /buttons/2/labels/dinput
+#. Pro 3 /buttons/2/labels/xinput
+#. Pro 3 /buttons/3/labels/switch
+msgid "Y"
+msgstr "Y"
+
+#. Pro 3 /buttons/2/labels/switch
+#. Pro 3 /buttons/3/labels/dinput
+#. Pro 3 /buttons/3/labels/xinput
+msgid "X"
+msgstr "X"
+
+#. Pro 3 /buttons/4/labels/dinput
+msgid "L1"
+msgstr "L1"
+
+#. Pro 3 /buttons/4/labels/switch
+msgid "L"
+msgstr "L"
+
+#. Pro 3 /buttons/4/labels/xinput
+msgid "LB"
+msgstr "LB"
+
+#. Pro 3 /buttons/5/labels/dinput
+msgid "R1"
+msgstr "R1"
+
+#. Pro 3 /buttons/5/labels/switch
+msgid "R"
+msgstr "R"
+
+#. Pro 3 /buttons/5/labels/xinput
+msgid "RB"
+msgstr "RB"
+
+#. Pro 3 /buttons/6/labels/dinput
+msgid "L2"
+msgstr "L2"
+
+#. Pro 3 /buttons/6/labels/switch
+msgid "ZL"
+msgstr "ZL"
+
+#. Pro 3 /buttons/6/labels/xinput
+msgid "LT"
+msgstr "LT"
+
+#. Pro 3 /buttons/7/labels/dinput
+msgid "R2"
+msgstr "R2"
+
+#. Pro 3 /buttons/7/labels/switch
+msgid "ZR"
+msgstr "ZR"
+
+#. Pro 3 /buttons/7/labels/xinput
+msgid "RT"
+msgstr "RT"
+
+#. Pro 3 /buttons/8/labels/dinput
+msgid "L3"
+msgstr "L3"
+
+#. Pro 3 /buttons/8/labels/switch
+#. Pro 3 /buttons/8/labels/xinput
+msgid "LS"
+msgstr "LS"
+
+#. Pro 3 /buttons/9/labels/dinput
+msgid "R3"
+msgstr "R3"
+
+#. Pro 3 /buttons/9/labels/switch
+#. Pro 3 /buttons/9/labels/xinput
+msgid "RS"
+msgstr "RS"
+
+#. Pro 3 /buttons/10/labels/dinput
+msgid "Select"
+msgstr "Select"
+
+#. Pro 3 /buttons/10/labels/switch
+msgid "−"
+msgstr "−"
+
+#. Pro 3 /buttons/10/labels/xinput
+msgid "View"
+msgstr "View"
+
+#. Pro 3 /buttons/10/spoken_labels/switch
+msgid "Minus"
+msgstr ""
+
+#. Pro 3 /buttons/11/labels/dinput
+msgid "Start"
+msgstr "Start"
+
+#. Pro 3 /buttons/11/labels/switch
+msgid "+"
+msgstr "+"
+
+#. Pro 3 /buttons/11/spoken_labels/switch
+msgid "Plus"
+msgstr ""
+
+#. Pro 3 /buttons/12/labels/dinput
+#. Pro 3 /buttons/12/labels/switch
+#. Pro 3 /buttons/12/labels/xinput
+msgid "Turbo"
+msgstr "Turbo"
+
+#. Pro 3 /buttons/13/labels/dinput
+#. Pro 3 /buttons/13/labels/switch
+msgid "Home"
+msgstr "Home"
+
+#. Pro 3 /buttons/13/labels/xinput
+msgid "Guide"
+msgstr "Guide"
+
+#. Pro 3 /buttons/14/labels/dinput
+#. Pro 3 /buttons/14/labels/switch
+#. Pro 3 /buttons/14/labels/xinput
+msgid "↑"
+msgstr "↑"
+
+#. Pro 3 /buttons/14/spoken_labels/dinput
+#. Pro 3 /buttons/14/spoken_labels/switch
+#. Pro 3 /buttons/14/spoken_labels/xinput
+msgid "D-pad up"
+msgstr ""
+
+#. Pro 3 /buttons/15/labels/dinput
+#. Pro 3 /buttons/15/labels/switch
+#. Pro 3 /buttons/15/labels/xinput
+msgid "↓"
+msgstr "↓"
+
+#. Pro 3 /buttons/15/spoken_labels/dinput
+#. Pro 3 /buttons/15/spoken_labels/switch
+#. Pro 3 /buttons/15/spoken_labels/xinput
+msgid "D-pad down"
+msgstr ""
+
+#. Pro 3 /buttons/16/labels/dinput
+#. Pro 3 /buttons/16/labels/switch
+#. Pro 3 /buttons/16/labels/xinput
+msgid "←"
+msgstr "←"
+
+#. Pro 3 /buttons/16/spoken_labels/dinput
+#. Pro 3 /buttons/16/spoken_labels/switch
+#. Pro 3 /buttons/16/spoken_labels/xinput
+msgid "D-pad left"
+msgstr ""
+
+#. Pro 3 /buttons/17/labels/dinput
+#. Pro 3 /buttons/17/labels/switch
+#. Pro 3 /buttons/17/labels/xinput
+msgid "→"
+msgstr "→"
+
+#. Pro 3 /buttons/17/spoken_labels/dinput
+#. Pro 3 /buttons/17/spoken_labels/switch
+#. Pro 3 /buttons/17/spoken_labels/xinput
+msgid "D-pad right"
+msgstr ""
+
+#. Pro 3 /settings/0/label
+msgid "Sticks"
+msgstr ""
+
+#. Pro 3 /settings/0/lead
+msgid ""
+"Inside the low end of the dead zone the stick reads as centred. Past the "
+"high end it reads as pushed all the way. In XInput and Switch, a macro "
+"cannot move a stick whose low end is below 2 %."
+msgstr ""
+
+#. Pro 3 /settings/0/frames/0/sliders/0/label
+#. Pro 3 /settings/0/frames/1/sliders/0/label
+msgid "Dead zone"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/0/sliders/0/unit
+#. Pro 3 /settings/0/frames/1/sliders/0/unit
+#. Pro 3 /settings/1/frames/0/sliders/0/unit
+#. Pro 3 /settings/1/frames/1/sliders/0/unit
+#. Pro 3 /settings/2/frames/0/sliders/0/unit
+#. Pro 3 /settings/2/frames/1/sliders/0/unit
+msgid "%"
+msgstr "%"
+
+#. Pro 3 /settings/0/frames/0/flags/0/label
+#. Pro 3 /settings/0/frames/1/flags/0/label
+msgid "Invert X"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/0/flags/1/label
+#. Pro 3 /settings/0/frames/1/flags/1/label
+msgid "Invert Y"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/2/title
+#. Pro 3 /settings/1/frames/2/title
+#. Pro 3 /settings/2/frames/2/title
+msgid "Swaps"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/2/flags/0/label
+msgid "Swap the left and right sticks"
+msgstr ""
+
+#. Pro 3 /settings/0/frames/2/flags/1/label
+msgid "Swap the D-pad and the left stick"
+msgstr ""
+
+#. Pro 3 /settings/1/label
+#. Pro 3 /settings/2/label
+msgid "Triggers"
+msgstr ""
+
+#. Pro 3 /settings/1/lead
+msgid ""
+"Below the low end of the range the trigger reads as released. Past the high "
+"end it reads as pulled all the way."
+msgstr ""
+
+#. Pro 3 /settings/1/frames/0/title
+#. Pro 3 /settings/2/frames/0/title
+msgid "Left trigger"
+msgstr ""
+
+#. Pro 3 /settings/1/frames/0/sliders/0/label
+#. Pro 3 /settings/1/frames/1/sliders/0/label
+msgid "Range"
+msgstr ""
+
+#. Pro 3 /settings/1/frames/1/title
+#. Pro 3 /settings/2/frames/1/title
+msgid "Right trigger"
+msgstr ""
+
+#. Pro 3 /settings/1/frames/2/flags/0/label
+#. Pro 3 /settings/2/frames/2/flags/0/label
+msgid "Swap the left and right triggers"
+msgstr ""
+
+#. Pro 3 /settings/2/lead
+msgid ""
+"In this mode each trigger is a button. It presses once pulled past the press "
+"point."
+msgstr ""
+
+#. Pro 3 /settings/2/frames/0/sliders/0/label
+#. Pro 3 /settings/2/frames/1/sliders/0/label
+msgid "Press point"
+msgstr ""
+
+#. Pro 3 /settings/3/label
+msgid "Vibration"
+msgstr ""
+
+#. Pro 3 /settings/3/lead
+msgid "How strongly each motor rumbles. Level 0 turns it off."
+msgstr ""
+
+#. Pro 3 /settings/3/frames/0/title
+msgid "Motors"
+msgstr ""
+
+#. Pro 3 /settings/3/frames/0/sliders/0/label
+msgid "Left motor"
+msgstr ""
+
+#. Pro 3 /settings/3/frames/0/sliders/1/label
+msgid "Right motor"
+msgstr ""
+
+#. Pro 3 /views/0/label
+msgid "Front"
+msgstr ""
+
+#. Pro 3 /views/1/label
+msgid "Back"
+msgstr ""

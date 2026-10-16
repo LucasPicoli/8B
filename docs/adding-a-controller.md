@@ -134,7 +134,7 @@ errors from `ProtocolCodec::profile_schema_errors`.
 Write the description's text in English only. Translators pick it up from the
 `gui.po` of each language under `crates/gui/translations`, so a new model edits no
 other file. `cargo run -p controller-core --example description-pot` lists every
-string and where it sits.
+string and where it sits, and `just translations` adds new ones to each `gui.po`.
 
 - Write prose in sentence case: page `label` and `lead`, frame `title`, slider and
   flag `label`, value `labels`, `spoken_labels`, view `label`.
