@@ -18,3 +18,7 @@ msgstr "Conecte seu controle"
 
 msgid "Not connected"
 msgstr "Não conectado"
+
+# A settings page label from the Pro 3 description.
+msgid "Sticks"
+msgstr "Analógicos"

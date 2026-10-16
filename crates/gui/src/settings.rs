@@ -10,6 +10,7 @@ use serde_json::Value;
 use slint::{Model as _, ModelRc, VecModel};
 use tr::tr;
 
+use crate::language::prose;
 use crate::state::AppState;
 use crate::ui::{AppWindow, Setting, SettingFrame, SettingsPage, Toggle};
 
@@ -77,7 +78,7 @@ fn shown_value(slider: &described::Slider, low: i64, high: Option<i64>) -> Strin
     let unit = &slider.unit;
     match (high, slider.low.label(low)) {
         (Some(high), _) => tr!("{low} to {high}{unit}", low = low, high = high, unit = unit),
-        (None, Some(label)) => label.to_owned(),
+        (None, Some(label)) => prose(label),
         (None, None) if unit.is_empty() => {
             tr!("{low} of {max}", low = low, max = slider.low.max)
         }
@@ -107,7 +108,7 @@ fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> S
                 .map(|(l, h)| shown_value(s, l, h))
                 .unwrap_or_default();
             Some(Setting {
-                label: s.label.as_str().into(),
+                label: prose(&s.label).into(),
                 low_field: s.low.field.as_str().into(),
                 high_field: s.high.as_ref().map_or("", |h| h.field.as_str()).into(),
                 low: low as f32,
@@ -122,20 +123,20 @@ fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> S
             let pointer = flag.field.as_str();
             let on = shown.pointer(pointer)?.as_bool()?;
             Some(Toggle {
-                label: flag.label.as_str().into(),
+                label: prose(&flag.label).into(),
                 field: pointer.into(),
                 on,
                 changed: pad.and_then(|p| p.pointer(pointer)?.as_bool()).is_some_and(|o| o != on),
             })
         });
         SettingFrame {
-            title: frame.title.as_str().into(),
+            title: prose(&frame.title).into(),
             settings: ModelRc::from(Rc::new(settings.collect::<VecModel<_>>())),
             toggles: ModelRc::from(Rc::new(toggles.collect::<VecModel<_>>())),
         }
     });
     SettingsPage {
-        lead: spec.lead.as_str().into(),
+        lead: prose(&spec.lead).into(),
         frames: ModelRc::from(Rc::new(frames.collect::<VecModel<_>>())),
     }
 }

@@ -9,6 +9,7 @@ use controller_core::service::validation::{moved_low_sticks, LowStick};
 use tr::tr;
 
 use crate::buttons::push_model;
+use crate::language::prose;
 use crate::state::AppState;
 use crate::step_table::{disc, stick};
 use crate::ui::{AppWindow, PadStick};
@@ -187,7 +188,7 @@ pub fn floor_bar(state: &AppState, n: u8) -> Option<[String; 3]> {
     let mode = state.selected_slot().map(|(m, _)| state.description().mode_label(m))?;
     let title = low
         .iter()
-        .map(|l| tr!("{stick}: the dead zone low end is {n} %.", stick = l.name, n = l.low))
+        .map(|l| tr!("{stick}: the dead zone low end is {n} %.", stick = prose(&l.name), n = l.low))
         .collect::<Vec<_>>()
         .join(" ");
     Some([

@@ -9,6 +9,7 @@ use controller_core::view::{VIEW_FILL_COLOR, VIEW_LINE_COLOR};
 use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedString, VecModel};
 use tr::tr;
 
+use crate::language::prose;
 use crate::macros::{label, macro_number, macro_output};
 use crate::state::{AppState, SlotState};
 use crate::ui::{AppWindow, MapRow, PadView, Section, Spot, Theme};
@@ -53,7 +54,7 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
         _ => description
             .mode(mode)
             .and_then(|m| m.extra_outputs.iter().find(|o| o.id == id))
-            .map_or_else(|| id.to_owned(), |o| o.label.clone()),
+            .map_or_else(|| id.to_owned(), |o| prose(&o.label)),
     }
 }
 
@@ -132,7 +133,7 @@ pub fn sections(state: &AppState) -> Vec<Section> {
         count: i32::try_from(macros).unwrap_or(i32::MAX),
     });
     let tabs = description.pages(mode).map(|p| Section {
-        name: p.label.as_str().into(),
+        name: prose(&p.label).into(),
         unsaved: dirty.tab(&p.id),
         error: false,
         count: 0,
@@ -172,7 +173,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
             let list = choices(state, mode, &b.id, &current);
             MapRow {
                 label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
-                spoken: b.spoken_label(mode).into(),
+                spoken: prose(b.spoken_label(mode)).into(),
                 output: list
                     .iter()
                     .position(|(id, _)| *id == current)
@@ -180,10 +181,8 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                 spoken_outputs: ModelRc::from(Rc::new(
                     list.iter()
                         .map(|(id, l)| {
-                            let spoken = state
-                                .description()
-                                .button(id)
-                                .map(|o| o.spoken_label(mode).to_owned());
+                            let spoken =
+                                state.description().button(id).map(|o| prose(o.spoken_label(mode)));
                             SharedString::from(spoken.as_deref().unwrap_or(l))
                         })
                         .collect::<VecModel<_>>(),
@@ -272,7 +271,7 @@ pub fn views(description: &ControllerDescription, line: Color, fill: Color) -> V
             let [width, height] = v.view_box;
             PadView {
                 image: Image::load_from_svg_data(svg.as_bytes()).unwrap_or_default(),
-                label: v.label.as_str().into(),
+                label: prose(&v.label).into(),
                 width: f32::from(width),
                 height: f32::from(height),
             }

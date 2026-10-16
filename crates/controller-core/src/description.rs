@@ -15,6 +15,10 @@ use crate::error::{Error, Result};
 use crate::model::{Mode, PROFILE_FIELDS};
 use crate::view::View;
 
+mod prose;
+
+pub use prose::Prose;
+
 /// The output that turns a button off. Valid for every remappable button in every
 /// mode, so no description lists it.
 pub const DISABLED_OUTPUT: &str = "disabled";

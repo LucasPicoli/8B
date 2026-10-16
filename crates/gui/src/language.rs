@@ -85,6 +85,15 @@ pub fn follow_system(state: &AppState, ui: &AppWindow) {
     }
 }
 
+/// `text` from a controller description, such as a frame title, in the current language.
+/// English when the catalogue has no entry for it. Code that compares description text
+/// keeps the English and translates only what it shows.
+#[must_use]
+pub fn prose(text: &str) -> String {
+    // A variable, not a literal: `xtr` skips it, and `description-pot` lists the text.
+    tr::tr!(text)
+}
+
 /// The ☰ menu's rows after "System default": English, then each bundled language.
 fn choices() -> impl Iterator<Item = (&'static str, &'static str)> {
     std::iter::once((ENGLISH, "English")).chain(BUNDLED.iter().map(|l| (l.code, l.name)))

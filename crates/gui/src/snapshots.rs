@@ -2446,6 +2446,10 @@ fn pt_br_switches_the_slint_and_the_rust_text() {
     assert_eq!(ui.get_device_status(), "Não conectado");
     assert_eq!(shown("Conecte seu controle"), 1);
     assert_eq!(language::matching("pt-BR").map(|l| l.name), Some("Português (Brasil)"));
+    // Description prose: a settings tab of the Pro 3.
+    let editor = window(&connected(XINPUT));
+    let tab = |text: &str| ElementHandle::find_by_accessible_label(&editor, text).count();
+    assert!(tab("Analógicos") > 0 && tab("Sticks") == 0);
 
     language::select(None, &state, &ui).unwrap();
     assert_eq!(ui.get_device_status(), "Not connected");

@@ -16,6 +16,7 @@ use tr::tr;
 use crate::batch::{render_batch, Batch};
 use crate::buttons::{current, held_current, output_text};
 use crate::controllers::Controller;
+use crate::language::prose;
 use crate::macros::{descriptor, named, PadMacro};
 use crate::render::{and_list, slot_name};
 use crate::settings::pages_of;
@@ -458,7 +459,9 @@ fn clash_text(description: &ControllerDescription, profile: &CanonicalProfile) -
             .iter()
             .filter(|e| on(e))
             .filter_map(|e| flags().find(|(_, _, f)| &f.field == e))
-            .map(|(_, frame, f)| tr!("“{flag}” in {frame}", flag = f.label, frame = frame.title))
+            .map(|(_, frame, f)| {
+                tr!("“{flag}” in {frame}", flag = prose(&f.label), frame = prose(&frame.title))
+            })
             .collect();
         if named.is_empty() {
             continue;
@@ -467,10 +470,10 @@ fn clash_text(description: &ControllerDescription, profile: &CanonicalProfile) -
             "{} {}",
             tr!(
                 "“{flag}” cannot be on together with {list}.",
-                flag = flag.label,
+                flag = prose(&flag.label),
                 list = and_list(&named)
             ),
-            tr!("Cancel and turn one of them off on the {tab} tab.", tab = page.label)
+            tr!("Cancel and turn one of them off on the {tab} tab.", tab = prose(&page.label))
         );
     }
     String::new()

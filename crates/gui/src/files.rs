@@ -18,6 +18,7 @@ use tr::tr;
 
 use crate::buttons::{output_label, target};
 use crate::embedded::{file_macros, kept_note, refs_note, replace_note, steps_unread};
+use crate::language::prose;
 use crate::macro_files::strings;
 use crate::macros::label;
 use crate::reasons::{failure, problems};
@@ -438,7 +439,7 @@ fn reset_frames(d: &ControllerDescription, mode: Mode, losses: &[ConversionLoss]
                 .any(|p| p.starts_with(&prefix))
         };
         let frames: Vec<String> =
-            d.pages(mode).flat_map(|p| &p.frames).filter(shows).map(|f| f.title.clone()).collect();
+            d.pages(mode).flat_map(|p| &p.frames).filter(shows).map(|f| prose(&f.title)).collect();
         if frames.is_empty() {
             titles.push(group.clone());
         }

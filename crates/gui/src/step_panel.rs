@@ -6,6 +6,7 @@ use controller_core::description::{Button, TriggerSide};
 use controller_core::model::{GlideControl, MacroStep, Mode};
 
 use crate::buttons::{hit, output_label, push_model};
+use crate::language::prose;
 use crate::macro_steps::prune_glides;
 use crate::state::AppState;
 use crate::ui::{AppWindow, ChipInfo, MacroSpot};
@@ -96,7 +97,7 @@ pub fn chips(state: &AppState, mode: Mode, step: &MacroStep) -> Vec<ChipInfo> {
         .into_iter()
         .map(|b| ChipInfo {
             label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
-            spoken: b.spoken_label(mode).into(),
+            spoken: prose(b.spoken_label(mode)).into(),
             on: holds(step, b),
         })
         .collect()
@@ -127,7 +128,10 @@ pub fn macro_spots(state: &AppState) -> Vec<MacroSpot> {
                 commands: h.path.as_str().into(),
                 chip: chip.and_then(|c| i32::try_from(c).ok()).unwrap_or(-1),
                 label: output_label(description, mode, &h.button).into(),
-                spoken: description.button(&h.button).map_or("", |b| b.spoken_label(mode)).into(),
+                spoken: description
+                    .button(&h.button)
+                    .map_or_else(String::new, |b| prose(b.spoken_label(mode)))
+                    .into(),
                 x0,
                 y0,
                 x1,

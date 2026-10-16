@@ -129,6 +129,22 @@ with a stricter JSON schema of its own, as the Pro 3 has in
 [`schemas/profile-v1.schema.json`](../schemas/profile-v1.schema.json), returns its
 errors from `ProtocolCodec::profile_schema_errors`.
 
+## Text and translations
+
+Write the description's text in English only. Translators pick it up from the
+`gui.po` of each language under `crates/gui/translations`, so a new model edits no
+other file. `cargo run -p controller-core --example description-pot` lists every
+string and where it sits.
+
+- Write prose in sentence case: page `label` and `lead`, frame `title`, slider and
+  flag `label`, value `labels`, `spoken_labels`, view `label`.
+- Write names as the pad or its box prints them: `display_name`, `short_name`, mode
+  `label`, button `labels`, `unit`. Every language keeps them as they are.
+- Keep each sentence whole inside one `lead`. Never split one sentence across fields.
+- Leave out of prose any number the app also shows, such as a range end.
+
+A string with no translation yet shows in English, and `just lint` stays green.
+
 ## How a controller is detected
 
 Detection has two stages. Both read the description.

@@ -12,6 +12,7 @@ use slint::{Model as _, ModelRc, SharedString, VecModel};
 use tr::tr;
 
 use crate::buttons::{keep_same, push_model};
+use crate::language::prose;
 use crate::macro_steps::{add_after, delete, duplicate, move_step, split};
 use crate::render::and_list;
 use crate::review::count;
@@ -349,7 +350,7 @@ pub fn step_rows(
             let held_list: Vec<String> = lanes
                 .iter()
                 .filter(|b| holds(step, b))
-                .map(|b| held_text(step, next, b, b.spoken_label(mode), kind))
+                .map(|b| held_text(step, next, b, &prose(b.spoken_label(mode)), kind))
                 .collect();
             StepInfo {
                 number: i32::try_from(i + 1).unwrap_or(i32::MAX),

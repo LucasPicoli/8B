@@ -8,6 +8,7 @@ use controller_core::{Error, Reason};
 use tr::tr;
 
 use crate::buttons::output_label;
+use crate::language::prose;
 use crate::render::and_list;
 
 /// Which value of a slider a number setting holds.
@@ -130,18 +131,22 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
             n = step,
             button = output_label(d, *mode, button)
         ),
-        Reason::GlideNoNextStep { step, name } => {
-            tr!("Step {n}: {name} cannot glide, there is no next step.", n = step, name = name)
-        }
+        Reason::GlideNoNextStep { step, name } => tr!(
+            "Step {n}: {name} cannot glide, there is no next step.",
+            n = step,
+            name = prose(name)
+        ),
         Reason::GlideOnOffTrigger { step, name, mode } => tr!(
             "Step {n}: {name} cannot glide in {mode} mode, where triggers are only on or off.",
             n = step,
-            name = name,
+            name = prose(name),
             mode = mode
         ),
-        Reason::GlideSameValue { step, name } => {
-            tr!("Step {n}: {name} has the same value in the next step.", n = step, name = name)
-        }
+        Reason::GlideSameValue { step, name } => tr!(
+            "Step {n}: {name} has the same value in the next step.",
+            n = step,
+            name = prose(name)
+        ),
         Reason::InMacro { index, reason } => {
             tr!("Macro {n}: {reason}", n = index.saturating_add(1), reason = worded(d, reason))
         }
@@ -194,11 +199,7 @@ fn excludes(d: &ControllerDescription, mode: Mode, field: &str, clashes: &[Strin
 
 /// The frame title and slider label of number setting `field` in `mode`, and which
 /// value of the slider it is.
-fn slider<'a>(
-    d: &'a ControllerDescription,
-    mode: Mode,
-    field: &str,
-) -> Option<(&'a str, &'a str, End)> {
+fn slider(d: &ControllerDescription, mode: Mode, field: &str) -> Option<(String, String, End)> {
     d.pages(mode).flat_map(|p| &p.frames).find_map(|frame| {
         frame.sliders.iter().find_map(|s| {
             let end = match &s.high {
@@ -207,16 +208,16 @@ fn slider<'a>(
                 Some(high) if high.field == field => End::High,
                 _ => return None,
             };
-            Some((frame.title.as_str(), s.label.as_str(), end))
+            Some((prose(&frame.title), prose(&s.label), end))
         })
     })
 }
 
 /// The frame title and label of on/off setting `field` in `mode`.
-fn flag<'a>(d: &'a ControllerDescription, mode: Mode, field: &str) -> Option<(&'a str, &'a str)> {
+fn flag(d: &ControllerDescription, mode: Mode, field: &str) -> Option<(String, String)> {
     d.pages(mode).flat_map(|p| &p.frames).find_map(|frame| {
         let flag = frame.flags.iter().find(|f| f.field == field)?;
-        Some((frame.title.as_str(), flag.label.as_str()))
+        Some((prose(&frame.title), prose(&flag.label)))
     })
 }
 
