@@ -11,18 +11,6 @@ msgctxt "language name"
 msgid "English"
 msgstr ""
 
-#. Pro 3 /buttons/11/labels/xinput
-msgid "Menu"
-msgstr "Menu"
-
-#: ui/app_menu.slint
-msgid "Language"
-msgstr ""
-
-#: ui/app_menu.slint
-msgid "System default"
-msgstr ""
-
 #. The footer button's text, and the sidebar bar's caption and button text.
 #: ui/app.slint
 msgid "Write {}…"
@@ -120,6 +108,18 @@ msgstr ""
 
 #: ui/app.slint ui/sidebar.slint
 msgid "Checking the controller…"
+msgstr ""
+
+#. Pro 3 /buttons/11/labels/xinput
+msgid "Menu"
+msgstr "Menu"
+
+#: ui/app_menu.slint
+msgid "Language"
+msgstr ""
+
+#: ui/app_menu.slint
+msgid "System default"
 msgstr ""
 
 #: ui/batch.slint src/state.rs

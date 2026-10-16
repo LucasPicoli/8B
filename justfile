@@ -34,7 +34,8 @@ translations:
 
     EOF
         # Each extractor writes a header of its own: drop it, the one above stands.
-        find ui -name '*.slint' | sort | xargs slint-tr-extractor --no-default-translation-context -o /dev/stdout \
+        # C order, so every machine lists the files, and so the strings, the same way.
+        find ui -name '*.slint' | LC_ALL=C sort | xargs slint-tr-extractor --no-default-translation-context -o /dev/stdout \
             | sed '1,/^$/d'
         xtr --omit-header --add-location file -o /dev/stdout src/main.rs
         echo
