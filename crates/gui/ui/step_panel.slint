@@ -60,11 +60,11 @@ component StickPad {
                 }
             }
             Button {
-                text: "Centre";
+                text: @tr("Centre");
                 icon: Icons.centre;
                 flat: true;
                 enabled: root.enabled && !root.at-rest;
-                accessible-label: "Centre " + root.stick.label;
+                accessible-label: @tr("Centre {}", root.stick.label);
                 clicked => { root.set(127, 127, true); }
             }
             // Glide and Centre stay beside their stick's label.
@@ -177,7 +177,7 @@ component StickPad {
                             maximum: 255;
                             step: 1;
                             enabled: root.enabled;
-                            accessible-name: root.stick.label + " X, 0 to 255, rest 127";
+                            accessible-name: @tr("{} X, 0 to 255, rest 127", root.stick.label);
                             committed(v) => { root.set(v, root.stick.value-y, false); }
                         }
                     }
@@ -196,7 +196,7 @@ component StickPad {
                             maximum: 255;
                             step: 1;
                             enabled: root.enabled;
-                            accessible-name: root.stick.label + " Y, 0 to 255, rest 127";
+                            accessible-name: @tr("{} Y, 0 to 255, rest 127", root.stick.label);
                             committed(v) => { root.set(root.stick.value-x, v, false); }
                         }
                     }
@@ -206,8 +206,8 @@ component StickPad {
                 if root.stick.glides-in-from > 0: HorizontalLayout {
                     alignment: start;
                     LinkButton {
-                        text: "Glides in from step " + root.stick.glides-in-from;
-                        accessible-label: root.stick.label + " glides in from step " + root.stick.glides-in-from + ". Select that step.";
+                        text: @tr("Glides in from step {}", root.stick.glides-in-from);
+                        accessible-label: @tr("{} glides in from step {}. Select that step.", root.stick.label, root.stick.glides-in-from);
                         clicked => { root.step-picked(root.stick.glides-in-from - 1); }
                     }
                 }
@@ -216,9 +216,9 @@ component StickPad {
         HorizontalLayout {
             alignment: start;
             snap-box := CheckBox {
-                text: "Snap to edges and corners";
+                text: @tr("Snap to edges and corners");
                 checked: root.snap;
-                accessible-label: root.stick.label + ", snap to edges and corners";
+                accessible-label: @tr("{}, snap to edges and corners", root.stick.label);
                 toggled => { root.snap-toggled(self.checked); }
             }
         }
@@ -283,7 +283,7 @@ export component StepPanel inherits Frame {
     // font.
     property <length> pad-w: max(260px, 19rem);
     property <bool> stacked: root.narrow || 2 * root.pad-w + 40px > 568px;
-    property <string> heading: "Step " + root.step + " of " + root.steps;
+    property <string> heading: @tr("Step {} of {}", root.step, root.steps);
 
     VerticalLayout {
         padding: 12px;

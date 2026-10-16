@@ -36,7 +36,7 @@ export component TriggerPad {
         HorizontalLayout {
             spacing: 8px;
             SmallHead {
-                text: root.trigger.label + " pressure";
+                text: @tr("{} pressure", root.trigger.label);
                 vertical-alignment: center;
             }
             // What a glide does, or why it cannot, on hover. A tooltip cannot sit in a
@@ -48,7 +48,7 @@ export component TriggerPad {
                         text: root.trigger.glide-label;
                         checked: root.trigger.glide;
                         enabled: root.enabled && root.trigger.can-glide;
-                        accessible-label: root.trigger.label + " pressure, " + root.trigger.glide-label;
+                        accessible-label: @tr("{} pressure, {}", root.trigger.label, root.trigger.glide-label);
                         accessible-description: root.trigger.glide-tip;
                         toggled => { root.glided(self.checked); }
                     }
@@ -73,7 +73,7 @@ export component TriggerPad {
                 enabled: root.enabled;
                 marked: root.trigger.glide;
                 mark: root.trigger.to-value;
-                accessible-name: root.trigger.label + " pressure";
+                accessible-name: @tr("{} pressure", root.trigger.label);
                 changed(v) => { root.set(round(v), false); }
             }
             NumberEdit {
@@ -82,7 +82,7 @@ export component TriggerPad {
                 maximum: 255;
                 step: 1;
                 enabled: root.enabled;
-                accessible-name: root.trigger.label + " pressure value, 0 to 255";
+                accessible-name: @tr("{} pressure value, 0 to 255", root.trigger.label);
                 committed(v) => { root.set(v, false); }
             }
         }
@@ -95,8 +95,8 @@ export component TriggerPad {
             }
             if root.trigger.glides-in-from > 0: LinkButton {
                 x: 0;
-                text: "Glides in from step " + root.trigger.glides-in-from;
-                accessible-label: root.trigger.label + " pressure glides in from step " + root.trigger.glides-in-from + ". Select that step.";
+                text: @tr("Glides in from step {}", root.trigger.glides-in-from);
+                accessible-label: @tr("{} pressure glides in from step {}. Select that step.", root.trigger.label, root.trigger.glides-in-from);
                 clicked => { root.step-picked(root.trigger.glides-in-from - 1); }
             }
         }

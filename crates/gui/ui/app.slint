@@ -178,9 +178,9 @@ export component AppWindow inherits Window {
     callback fix-put-off;
     callback fix-install;
     // The footer button's text, and the sidebar bar's caption and button text.
-    out property <string> write-label: "Write " + slot-title + "…";
-    out property <string> edited-caption: edited-count == 1 ? "1 slot has unsaved edits" : edited-count + " slots have unsaved edits";
-    out property <string> write-all-label: edited-count == 1 ? "Write 1 slot…" : "Write all " + edited-count + " slots…";
+    out property <string> write-label: @tr("Write {}…", slot-title);
+    out property <string> edited-caption: @tr("{n} slot has unsaved edits" | "{n} slots have unsaved edits" % edited-count);
+    out property <string> write-all-label: @tr("every edited slot" => "Write {n} slot…" | "Write all {n} slots…" % edited-count);
     // The message above the slot, such as an import result. Hidden when empty.
     in property <string> notice-title;
     in property <string> notice-body;
@@ -301,7 +301,7 @@ export component AppWindow inherits Window {
     }
 
     if !root.asks-for-rule && !root.has-controller: NoControllerScreen {
-        status: root.connected ? "Reading the controller" : "Looking for controllers";
+        status: root.connected ? @tr("Reading the controller") : @tr("Looking for controllers");
         error: root.read-error;
         connected: root.connected;
         can-read-again: root.can-read-again;
@@ -373,7 +373,7 @@ export component AppWindow inherits Window {
                             LineEdit {
                                 width: 168px;
                                 text <=> root.profile-name;
-                                accessible-name: "Profile name";
+                                accessible-name: @tr("Profile name");
                                 edited(t) => { root.name-edited(t); }
                             }
                         }
@@ -392,21 +392,21 @@ export component AppWindow inherits Window {
                         HorizontalLayout {
                             spacing: 4px;
                             Button {
-                                text: "Import…";
+                                text: @tr("Import…");
                                 icon: Icons.import;
                                 icon-only: root.compact;
                                 flat: true;
                                 clicked => { root.import-file(); }
                             }
                             if !root.empty-slot: Button {
-                                text: "Export…";
+                                text: @tr("Export…");
                                 icon: Icons.export;
                                 icon-only: root.compact;
                                 flat: true;
                                 clicked => { root.export-file(); }
                             }
                             if !root.empty-slot: Button {
-                                text: "Clear slot…";
+                                text: @tr("Clear slot…");
                                 icon: Icons.clear;
                                 icon-only: root.compact;
                                 flat: true;
@@ -426,8 +426,8 @@ export component AppWindow inherits Window {
             if !root.connected: HorizontalLayout {
                 MessageBar {
                     icon: Icons.unplug;
-                    title: "The controller was unplugged.";
-                    body: "Your edits are kept. Plug it in again to write them.";
+                    title: @tr("The controller was unplugged.");
+                    body: @tr("Your edits are kept. Plug it in again to write them.");
                 }
             }
             if root.read-error != "": HorizontalLayout {
@@ -436,7 +436,7 @@ export component AppWindow inherits Window {
                     diagnostics: true;
                     title: root.read-error-title;
                     body: root.read-error;
-                    action: root.connected || root.read-error-elsewhere ? "Try again" : "";
+                    action: root.connected || root.read-error-elsewhere ? @tr("Try again") : "";
                     action-enabled: root.can-read-again;
                     acted => { root.read-again(); }
                 }
@@ -462,10 +462,10 @@ export component AppWindow inherits Window {
             if root.fix-offered: HorizontalLayout {
                 MessageBar {
                     closable: true;
-                    close-text: "Not now";
-                    title: "This controller disconnects and reconnects by itself when no app is using it.";
-                    body: "8B is using it now, so it stays connected. Two small files keep it connected after you close 8B.";
-                    action: "Set up…";
+                    close-text: @tr("Not now");
+                    title: @tr("This controller disconnects and reconnects by itself when no app is using it.");
+                    body: @tr("8B is using it now, so it stays connected. Two small files keep it connected after you close 8B.");
+                    action: @tr("Set up…");
                     acted => { root.fix-opened(); }
                     closed => { root.fix-put-off(); }
                 }
@@ -483,15 +483,15 @@ export component AppWindow inherits Window {
                 Placeholder {
                     width: 100%;
                     height: 100%;
-                    title: "Slot " + (root.selected-slot + 1) + " is empty";
-                    body: "Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write.";
+                    title: @tr("Slot {} is empty", root.selected-slot + 1);
+                    body: @tr("Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write.");
                     Button {
-                        text: "Start from default";
+                        text: @tr("Start from default");
                         primary: true;
                         clicked => { root.start-from-default(); }
                     }
                     Button {
-                        text: "Import…";
+                        text: @tr("Import…");
                         icon: Icons.import;
                         clicked => { root.import-file(); }
                     }
@@ -596,7 +596,7 @@ export component AppWindow inherits Window {
                     VerticalLayout {
                         alignment: center;
                         Button {
-                            text: "Discard";
+                            text: @tr("Discard");
                             icon: Icons.discard;
                             enabled: root.unsaved;
                             clicked => { root.discard(); }
@@ -628,7 +628,7 @@ export component AppWindow inherits Window {
                         if root.tab != 1 || root.selected-macro != root.write-blocked.macro-slot: VerticalLayout {
                             alignment: center;
                             Button {
-                                text: "Show";
+                                text: @tr("Show");
                                 flat: true;
                                 accessible-description: root.write-blocked.text;
                                 clicked => {
@@ -648,7 +648,7 @@ export component AppWindow inherits Window {
                         VerticalLayout {
                             alignment: center;
                             Text {
-                                text: "Checking the controller…";
+                                text: @tr("Checking the controller…");
                                 color: Theme.fg-muted;
                             }
                         }

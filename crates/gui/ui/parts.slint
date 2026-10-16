@@ -41,7 +41,7 @@ export global Diagnostics {
 // text and copies it. It is emptied at once: even hidden, a long text sizes the layout
 // around it.
 export component CopyButton inherits Rectangle {
-    in property <string> label: "Copy";
+    in property <string> label: @tr("Copy");
     in property <bool> flat;
     // Where "Copied" sits in the button's width: under the copy icon in a footer, next
     // to the following button in a message bar.
@@ -77,7 +77,7 @@ export component CopyButton inherits Rectangle {
         padding-right: 10px;
         spacing: 6px;
         accessible-role: text;
-        accessible-label: "Copied to the clipboard";
+        accessible-label: @tr("Copied to the clipboard");
         Image {
             source: Icons.check;
             colorize: Theme.positive;
@@ -86,7 +86,7 @@ export component CopyButton inherits Rectangle {
             y: (parent.height - self.height) / 2;
         }
         Text {
-            text: "Copied";
+            text: @tr("Copied");
             color: Theme.fg;
             vertical-alignment: center;
         }
@@ -106,7 +106,7 @@ export component CopyButton inherits Rectangle {
 
 // What "Copy diagnostics" puts on the clipboard: the run header and the tail of the log.
 export component CopyDiagnostics inherits CopyButton {
-    label: "Copy diagnostics";
+    label: @tr("Copy diagnostics");
     flat: true;
     source => { Diagnostics.text() }
 }
@@ -166,7 +166,7 @@ export component Dot inherits Rectangle {
     border-radius: 3.5px;
     background: Theme.neutral;
     accessible-role: text;
-    accessible-label: "Unsaved edits";
+    accessible-label: @tr("Unsaved edits");
 }
 
 export component Frame inherits Rectangle {
@@ -233,7 +233,7 @@ export component MessageBar inherits Rectangle {
             clicked => { root.acted(); }
         }
         if root.closable && root.close-text == "": Button {
-            text: "Close";
+            text: @tr("Close");
             icon: Icons.close;
             icon-only: true;
             flat: true;
@@ -276,7 +276,7 @@ export component TabBar inherits Rectangle {
         for section[i] in root.model: Rectangle {
             property <bool> on: i == root.current;
             accessible-role: tab;
-            accessible-label: section.name + (section.error ? ", holds a macro that can't be written" : "");
+            accessible-label: section.error ? @tr("{}, holds a macro that can't be written", section.name) : section.name;
             accessible-item-selected: self.on;
             accessible-action-default => { root.current = i; }
             background: !self.on && tab-ta.has-hover ? Theme.hover : transparent;
@@ -446,7 +446,7 @@ export component DialogShell inherits Rectangle {
     in property <length> card-width: 520px;
     in property <string> accept-text;
     in property <bool> accept-enabled: true;
-    in property <string> cancel-text: "Cancel";
+    in property <string> cancel-text: @tr("Cancel");
     // False while the dialog cannot be left, such as during a password prompt: the
     // cancel button and Esc do nothing.
     in property <bool> cancel-enabled: true;
@@ -608,7 +608,7 @@ export component RangeSlider {
     accessible-role: slider;
     accessible-label: accessible-name;
     accessible-enabled: root.enabled;
-    accessible-value: round(low) + " to " + round(high);
+    accessible-value: @tr("{} to {}", round(low), round(high));
     forward-focus: fs;
     opacity: root.enabled ? 1 : 0.45;
     property <length> knob: 18px;

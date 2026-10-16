@@ -102,17 +102,17 @@ export component ButtonsTab {
             spacing: 16px;
             Text {
                 horizontal-stretch: 1;
-                text: "Click a button on the controller or pick its output in the list.";
+                text: @tr("Click a button on the controller or pick its output in the list.");
                 color: Theme.fg-muted;
                 wrap: word-wrap;
             }
             Swatch {
                 tone: Theme.accent;
-                text: "Remapped";
+                text: @tr("Remapped");
             }
             Swatch {
                 tone: Theme.neutral;
-                text: "Not written yet";
+                text: @tr("Not written yet");
             }
         }
         HorizontalLayout {
@@ -156,11 +156,11 @@ export component ButtonsTab {
                                 spacing: 10px;
                                 SmallHead {
                                     width: 40%;
-                                    text: "Button";
+                                    text: @tr("Button");
                                     vertical-alignment: center;
                                 }
                                 SmallHead {
-                                    text: "Output";
+                                    text: @tr("Output");
                                     vertical-alignment: center;
                                 }
                             }
@@ -183,7 +183,7 @@ export component ButtonsTab {
                                 width: 3px;
                                 background: r.changed ? Theme.neutral : Theme.accent;
                                 accessible-role: text;
-                                accessible-label: r.changed ? "Not written yet" : "Remapped";
+                                accessible-label: r.changed ? @tr("Not written yet") : @tr("Remapped");
                             }
                             HorizontalLayout {
                                 padding-left: 10px;
@@ -203,7 +203,7 @@ export component ButtonsTab {
                                     }
                                 }
                                 if r.fixed: Text {
-                                    text: "Cannot be remapped";
+                                    text: @tr("Cannot be remapped");
                                     color: Theme.fg-muted;
                                     font-italic: true;
                                     vertical-alignment: center;
@@ -218,13 +218,13 @@ export component ButtonsTab {
                                                 model: r.outputs;
                                                 spoken: r.spoken-outputs;
                                                 current-index <=> r.output;
-                                                accessible-name: "Output for " + r.spoken;
+                                                accessible-name: @tr("Output for {}", r.spoken);
                                                 focused => { root.selected = i; }
                                                 selected => { root.output-picked(i, self.current-index); }
                                             }
                                         }
                                         if r.unknown: Tooltip {
-                                            text: @markdown("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.");
+                                            text: @markdown("\{@tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.")}");
                                         }
                                     }
                                 }

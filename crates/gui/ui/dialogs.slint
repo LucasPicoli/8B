@@ -24,7 +24,7 @@ export component Bullet {
 // The file a failed write saved the old profile in, with a Copy button.
 export component BackupFile {
     in property <string> path;
-    in property <string> text: "The old profile is saved in this file:";
+    in property <string> text: @tr("The old profile is saved in this file:");
     VerticalLayout {
         spacing: 10px;
         Text {
@@ -38,7 +38,7 @@ export component BackupFile {
                 read-only: true;
                 mono: true;
                 wrap: true;
-                accessible-name: "Backup file";
+                accessible-name: @tr("Backup file");
             }
             CopyButton { source => { root.path } }
         }
@@ -52,14 +52,14 @@ export component ReviewDialog inherits DialogShell {
     property <bool> has-profile: info.changes.length > 0;
     property <int> macro-lines: info.macro-changes.length + (info.leftover > 0 ? 1 : 0);
     title: info.is-new
-        ? "Write “" + info.name + "” to " + info.slot-title + "?"
-        : "Write " + info.total + (info.total == 1 ? " change" : " changes") + " to " + info.slot-title + "?";
+        ? @tr("Write “{}” to {}?", info.name, info.slot-title)
+        : @tr("Write {n} change to {}?" | "Write {n} changes to {}?" % info.total, info.slot-title);
     subtitle: info.is-new
-        ? "The slot is empty. It gets a new profile."
+        ? @tr("The slot is empty. It gets a new profile.")
         : info.keeps-profile
-        ? "The profile “" + info.replaces + "” stays. Only its macros change."
-        : "This replaces the profile “" + info.replaces + "” stored on the controller.";
-    accept-text: "Write to controller";
+        ? @tr("The profile “{}” stays. Only its macros change.", info.replaces)
+        : @tr("This replaces the profile “{}” stored on the controller.", info.replaces);
+    accept-text: @tr("Write to controller");
     accept-enabled: root.info.problem == "";
     if root.info.problem != "": Text {
         text: root.info.problem;
@@ -69,8 +69,8 @@ export component ReviewDialog inherits DialogShell {
     if root.has-profile || root.macro-lines > 0: Frame {
         VerticalLayout {
             if root.has-profile: Disclosure {
-                title: "Profile";
-                note: root.info.changes.length == 1 ? "1 change" : root.info.changes.length + " changes";
+                title: @tr("Profile");
+                note: @tr("{n} change" | "{n} changes" % root.info.changes.length);
                 open: root.info.profile-open;
                 last: root.macro-lines == 0;
                 toggled => { root.toggled(0); }
@@ -80,8 +80,8 @@ export component ReviewDialog inherits DialogShell {
                 }
             }
             if root.macro-lines > 0: Disclosure {
-                title: "Macros";
-                note: root.macro-lines == 1 ? "1 change" : root.macro-lines + " changes";
+                title: @tr("Macros");
+                note: @tr("{n} change" | "{n} changes" % root.macro-lines);
                 open: root.info.macros-open;
                 last: true;
                 toggled => { root.toggled(1); }
@@ -90,17 +90,14 @@ export component ReviewDialog inherits DialogShell {
                     rule: i < root.macro-lines - 1;
                 }
                 if root.info.leftover > 0: NoteRow {
-                    text: root.info.leftover == 1
-                        ? "The empty slot still holds 1 macro. Writing a profile removes it."
-                        : "The empty slot still holds " + root.info.leftover + " macros. Writing a profile removes them.";
+                    text: @tr("The empty slot still holds {n} macro. Writing a profile removes it."
+                        | "The empty slot still holds {n} macros. Writing a profile removes them." % root.info.leftover);
                 }
             }
         }
     }
     if root.info.macros-stay > 0: Bullet {
-        text: root.info.macros-stay == 1
-            ? "The macro on this slot stays."
-            : "The " + root.info.macros-stay + " macros on this slot stay.";
+        text: @tr("The macro on this slot stays." | "The {n} macros on this slot stay." % root.info.macros-stay);
     }
 }
 
@@ -108,18 +105,17 @@ export component ClearDialog inherits DialogShell {
     in property <ClearInfo> info;
     icon: Icons.warning;
     destructive: true;
-    title: "Clear " + info.slot-title + "?";
-    subtitle: "This removes the profile “" + info.name + "” from the controller. Export it first if you may want it back.";
-    accept-text: "Clear slot";
-    extra-text: "Export…";
+    title: @tr("Clear {}?", info.slot-title);
+    subtitle: @tr("This removes the profile “{}” from the controller. Export it first if you may want it back.", info.name);
+    accept-text: @tr("Clear slot");
+    extra-text: @tr("Export…");
     extra-icon: Icons.export;
     if root.info.macros > 0: Bullet {
-        text: root.info.macros == 1
-            ? "The slot’s macro stays stored, but the next profile written to this slot removes it."
-            : "The slot’s " + root.info.macros + " macros stay stored, but the next profile written to this slot removes them.";
+        text: @tr("The slot’s macro stays stored, but the next profile written to this slot removes it."
+            | "The slot’s {n} macros stay stored, but the next profile written to this slot removes them." % root.info.macros);
     }
     if root.info.has-edits: Bullet {
-        text: "Your edits to this slot, not written yet, are discarded.";
+        text: @tr("Your edits to this slot, not written yet, are discarded.");
     }
 }
 
@@ -130,12 +126,13 @@ export component ImportDialog inherits DialogShell {
     property <bool> cross-mode: warning.from-mode != warning.to-mode;
     icon: warning.edit-notes.length > 0 ? Icons.warning : Icons.info;
     title: cross-mode
-        ? "Import the " + warning.from-mode + " profile into " + warning.slot-title + "?"
-        : "Import “" + warning.file-name + "” into " + warning.slot-title + "?";
-    subtitle: cross-mode ? "“" + warning.file-name + "” comes from " + warning.from-mode + " mode. Each button keeps its place on the controller." : "";
-    accept-text: "Import";
-    // Keeps the slot's macros; offered whenever the macro lead says what Import replaces.
-    extra-text: warning.macro-lead != "" ? "Import without macros" : "";
+        ? @tr("Import the {} profile into {}?", warning.from-mode, warning.slot-title)
+        : @tr("Import “{}” into {}?", warning.file-name, warning.slot-title);
+    subtitle: cross-mode ? @tr("“{}” comes from {} mode. Each button keeps its place on the controller.", warning.file-name, warning.from-mode) : "";
+    accept-text: @tr("Import");
+    // Keeps the slot's macros. Offered whenever the macro lead says what
+    // Import replaces.
+    extra-text: warning.macro-lead != "" ? @tr("Import without macros") : "";
     if root.warning.macro-lead != "": Text {
         text: root.warning.macro-lead;
         color: Theme.fg;
@@ -153,9 +150,8 @@ export component ImportDialog inherits DialogShell {
         text: note;
     }
     if root.warning.lost.length > 0: Text {
-        text: root.warning.lost.length == 1
-            ? "1 button has no " + root.warning.to-mode + " match and becomes Disabled:"
-            : root.warning.lost.length + " buttons have no " + root.warning.to-mode + " match and become Disabled:";
+        text: @tr("{n} button has no {} match and becomes Disabled:"
+            | "{n} buttons have no {} match and become Disabled:" % root.warning.lost.length, root.warning.to-mode);
         color: Theme.fg;
         wrap: word-wrap;
     }
@@ -163,13 +159,13 @@ export component ImportDialog inherits DialogShell {
         model: root.warning.lost;
     }
     if root.warning.reset != "": Bullet {
-        text: root.warning.to-mode + " sets the " + root.warning.reset + " another way, so they start from the " + root.warning.to-mode + " defaults.";
+        text: @tr("{0} sets these settings another way, so they start from the {0} defaults: {1}.", root.warning.to-mode, root.warning.reset);
     }
     if root.warning.letters != "": Bullet {
-        text: "Some printed letters name another button: " + root.warning.letters + ".";
+        text: @tr("Some printed letters name another button: {}.", root.warning.letters);
     }
     Text {
-        text: "Nothing reaches the controller until you write.";
+        text: @tr("Nothing reaches the controller until you write.");
         color: Theme.fg-muted;
     }
 }
@@ -182,14 +178,14 @@ export component MacroImportDialog inherits DialogShell {
     icon: ok ? Icons.info : Icons.error;
     alarm: !ok;
     title: ok
-        ? "Import “" + info.name + "” into Macro " + info.number + "?"
-        : "Could not import “" + info.file-name + "”";
+        ? @tr("Import “{}” into Macro {}?", info.name, info.number)
+        : @tr("Could not import “{}”", info.file-name);
     subtitle: ok
-        ? "“" + info.file-name + "”, made in " + info.from-mode + " mode: " + info.steps + ", started by " + (info.buttons != "" ? info.buttons : "no button") + "."
+        ? @tr("“{}”, made in {} mode: {}, started by {}.", info.file-name, info.from-mode, info.steps, info.buttons != "" ? info.buttons : @tr("no button"))
         : "";
     // One button closes a bad file's dialog, as in the other one-button dialogs.
-    accept-text: ok ? "Import" : "Close";
-    cancel-text: ok ? "Cancel" : "";
+    accept-text: ok ? @tr("Import") : @tr("Close");
+    cancel-text: ok ? @tr("Cancel") : "";
     diagnostics: !ok;
     // Every reason, one per row, in a box that scrolls past a few rows.
     if !root.ok: Frame {
@@ -208,30 +204,29 @@ export component MacroImportDialog inherits DialogShell {
         }
     }
     if root.ok && root.info.replaces != "": Bullet {
-        text: "It replaces " + root.info.replaces + ".";
+        text: @tr("It replaces {}.", root.info.replaces);
     }
     if root.ok && root.info.replaces-unsaved: Bullet {
-        text: "Your edits to Macro " + root.info.number + ", not written yet, are discarded.";
+        text: @tr("Your edits to Macro {}, not written yet, are discarded.", root.info.number);
     }
     if root.ok && root.info.from-mode != root.info.to-mode: Bullet {
-        text: "Each button keeps its place on the controller and takes its " + root.info.to-mode + " label.";
+        text: @tr("Each button keeps its place on the controller and takes its {} label.", root.info.to-mode);
     }
     if root.ok && root.info.letters != "": Bullet {
-        text: "Some printed letters name another button: " + root.info.letters + ".";
+        text: @tr("Some printed letters name another button: {}.", root.info.letters);
     }
     if root.ok && root.info.full-presses > 0: Bullet {
-        text: root.info.to-mode + " triggers are on or off, so "
-            + (root.info.full-presses == 1 ? "1 step presses its trigger" : root.info.full-presses + " steps press their triggers")
-            + " fully.";
+        text: @tr("{} triggers are on or off, so {n} step presses its trigger fully."
+            | "{} triggers are on or off, so {n} steps press their triggers fully." % root.info.full-presses, root.info.to-mode);
     }
     if root.ok && root.info.glides != "": Bullet {
-        text: "Trigger glides that " + root.info.to-mode + " cannot play are dropped: " + root.info.glides + ".";
+        text: @tr("Trigger glides that {} cannot play are dropped: {}.", root.info.to-mode, root.info.glides);
     }
     for d in root.ok ? root.info.dropped : []: Bullet {
         text: d;
     }
     if root.ok: Text {
-        text: "Nothing reaches the controller until you write.";
+        text: @tr("Nothing reaches the controller until you write.");
         color: Theme.fg-muted;
     }
 }
@@ -241,11 +236,11 @@ export component FailedDialog inherits DialogShell {
     icon: Icons.error;
     alarm: true;
     card-width: 560px;
-    title: (info.is-clear ? "Clearing " : "Writing to ") + info.slot-title + " failed";
+    title: info.is-clear ? @tr("Clearing {} failed", info.slot-title) : @tr("Writing to {} failed", info.slot-title);
     subtitle: info.detail;
-    cancel-text: "Close";
-    accept-text: info.is-clear ? "Try again" : "Write again";
-    extra-text: info.backup-path != "" || info.macro-backups.length > 0 ? "Open folder" : "";
+    cancel-text: @tr("Close");
+    accept-text: info.is-clear ? @tr("Try again") : @tr("Write again");
+    extra-text: info.backup-path != "" || info.macro-backups.length > 0 ? @tr("Open folder") : "";
     extra-icon: Icons.folder;
     diagnostics: true;
     if root.info.backup-path != "": BackupFile {
@@ -253,10 +248,10 @@ export component FailedDialog inherits DialogShell {
     }
     for p in root.info.macro-backups: BackupFile {
         path: p;
-        text: "The old macro is saved in this file:";
+        text: @tr("The old macro is saved in this file:");
     }
     if !root.info.is-clear: Text {
-        text: "Your edits are still here, so you can write again.";
+        text: @tr("Your edits are still here, so you can write again.");
         color: Theme.fg-muted;
         wrap: word-wrap;
     }
@@ -267,10 +262,10 @@ export component FailedDialog inherits DialogShell {
 export component StoppedDialog inherits DialogShell {
     icon: Icons.error;
     alarm: true;
-    title: "8B stopped talking to the controller";
-    subtitle: "Restart 8B.";
+    title: @tr("8B stopped talking to the controller");
+    subtitle: @tr("Restart 8B.");
     cancel-text: "";
-    accept-text: "Close";
+    accept-text: @tr("Close");
     diagnostics: true;
 }
 
@@ -279,7 +274,7 @@ export component WritingDialog inherits DialogShell {
     in property <string> text;
     icon: Icons.pad;
     title: text;
-    subtitle: "Keep the controller plugged in.";
+    subtitle: @tr("Keep the controller plugged in.");
     cancel-text: "";
     accept-text: "";
     HorizontalLayout {
@@ -303,16 +298,16 @@ export component FixDialog inherits DialogShell {
     in property <string> unit-path;
     icon: Icons.info;
     card-width: 560px;
-    title: "Keep the controller connected";
-    subtitle: "When no app is using it, this controller disconnects and reconnects every second or two. An app that starts then may not see it.";
-    cancel-text: "Close";
+    title: @tr("Keep the controller connected");
+    subtitle: @tr("When no app is using it, this controller disconnects and reconnects every second or two. An app that starts then may not see it.");
+    cancel-text: @tr("Close");
     // The password prompt is open: leaving would hide how it ends.
     cancel-enabled: !root.installing;
-    accept-text: root.sandboxed ? "" : "Add files…";
+    accept-text: root.sandboxed ? "" : @tr("Add files…");
     accept-enabled: !root.installing;
     Text {
-        text: "While 8B is open, the controller stays connected. These two files keep it connected whenever it is plugged in. They change nothing else, and deleting them undoes it."
-            + (root.sandboxed ? "" : " Adding them asks for your password once.");
+        text: @tr("While 8B is open, the controller stays connected. These two files keep it connected whenever it is plugged in. They change nothing else, and deleting them undoes it.")
+            + (root.sandboxed ? "" : " " + @tr("Adding them asks for your password once."));
         color: Theme.fg;
         wrap: word-wrap;
     }
@@ -336,14 +331,14 @@ export component FixDialog inherits DialogShell {
         min-height: 50px;
         if root.error != "": MessageBar {
             error: true;
-            title: "Could not add the files.";
-            body: root.error + " Run the command instead.";
+            title: @tr("Could not add the files.");
+            body: root.error + " " + @tr("Run the command instead.");
         }
     }
     VerticalLayout {
         spacing: 10px;
         Text {
-            text: root.sandboxed ? "Run this in a terminal on this computer:" : "Or run this in a terminal:";
+            text: root.sandboxed ? @tr("Run this in a terminal on this computer:") : @tr("Or run this in a terminal:");
             color: Theme.fg;
             wrap: word-wrap;
         }
@@ -354,7 +349,7 @@ export component FixDialog inherits DialogShell {
                 read-only: true;
                 mono: true;
                 wrap: true;
-                accessible-name: "Command that adds the files";
+                accessible-name: @tr("Command that adds the files");
             }
             CopyButton { source => { root.command } }
         }
@@ -368,13 +363,13 @@ export component MoveDialog inherits DialogShell {
     callback picked(int);
     icon: Icons.pad;
     title: from.length == 1
-        ? "Is this the " + name + " you unplugged?"
-        : "Is this one of the " + name + "s you unplugged?";
+        ? @tr("Is this the {} controller you unplugged?", name)
+        : @tr("Is this one of the {} controllers you unplugged?", name);
     subtitle: from.length == 1
-        ? "It is plugged into another USB port. Your edits that are not written yet can move to it."
-        : "It is plugged into another USB port. Pick the one it is, and that one’s edits move to it.";
-    cancel-text: from.length == 1 ? "No, keep both" : "None of them";
-    accept-text: from.length == 1 ? "Yes, move the edits" : "";
+        ? @tr("It is plugged into another USB port. Your edits that are not written yet can move to it.")
+        : @tr("It is plugged into another USB port. Pick the one it is, and that one’s edits move to it.");
+    cancel-text: from.length == 1 ? @tr("No, keep both") : @tr("None of them");
+    accept-text: from.length == 1 ? @tr("Yes, move the edits") : "";
     if root.from.length == 1: Text {
         text: root.from[0];
         color: Theme.fg-muted;
@@ -396,10 +391,10 @@ export component ChangedDialog inherits DialogShell {
     in property <[bool]> keep;
     callback picked(int, bool);
     icon: Icons.warning;
-    title: slots.length == 1 ? "A slot changed outside 8B" : slots.length + " slots changed outside 8B";
-    subtitle: "Another program wrote to the controller after you started editing. Pick what each slot keeps. “Keep mine” keeps your whole copy of the slot, so writing it later replaces the controller’s version.";
+    title: @tr("A slot changed outside 8B" | "{n} slots changed outside 8B" % slots.length);
+    subtitle: @tr("Another program wrote to the controller after you started editing. Pick what each slot keeps. “Keep mine” keeps your whole copy of the slot, so writing it later replaces the controller’s version.");
     cancel-text: "";
-    accept-text: "Apply";
+    accept-text: @tr("Apply");
     for s[i] in root.slots: HorizontalLayout {
         spacing: 8px;
         Text {
@@ -411,7 +406,7 @@ export component ChangedDialog inherits DialogShell {
         }
         ComboBox {
             width: 200px;
-            model: ["Keep mine", "Take the controller’s"];
+            model: [@tr("Keep mine"), @tr("Take the controller’s")];
             current-index: root.keep[i] ? 0 : 1;
             accessible-name: s;
             selected(v) => { root.picked(i, self.current-index == 0); }
@@ -460,14 +455,15 @@ export component CloseDialog inherits DialogShell {
     alarm: true;
     destructive: info.write == 0;
     extra-destructive: true;
-    title: "Close 8B without writing?";
-    subtitle: (many
-        ? info.total + " slots on " + info.groups.length + " controllers have unsaved edits. The edits are not on a controller yet"
-        : (info.total == 1 ? "1 slot has" : info.total + " slots have") + " unsaved edits. The edits are not on the controller yet")
-        + ", so closing 8B discards them.";
-    extra-text: info.write > 0 ? "Discard and close" : "";
-    accept-text: info.write == 0 ? "Discard and close"
-        : info.write == 1 ? "Write 1 slot…" : "Write " + info.write + " slots…";
+    title: @tr("Close 8B without writing?");
+    subtitle: many
+        ? @tr("{n} slot on {} controllers has unsaved edits. The edits are not on a controller yet, so closing 8B discards them."
+            | "{n} slots on {} controllers have unsaved edits. The edits are not on a controller yet, so closing 8B discards them." % info.total, info.groups.length)
+        : @tr("{n} slot has unsaved edits. The edits are not on the controller yet, so closing 8B discards them."
+            | "{n} slots have unsaved edits. The edits are not on the controller yet, so closing 8B discards them." % info.total);
+    extra-text: info.write > 0 ? @tr("Discard and close") : "";
+    accept-text: info.write == 0 ? @tr("Discard and close")
+        : @tr("Write {n} slot…" | "Write {n} slots…" % info.write);
     extra => { root.discard(); }
     accepted => {
         if (root.info.write > 0) {

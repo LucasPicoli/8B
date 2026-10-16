@@ -177,7 +177,9 @@ component StepRow inherits Rectangle {
     height: Columns.row;
     background: root.selected ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
     accessible-role: list-item;
-    accessible-label: "Step " + root.step.number + ", starts at " + root.step.starts-at + (root.step.pause ? ", pause" : root.step.held != "" ? ", holds " + root.step.held : "") + ", lasts " + root.step.duration;
+    accessible-label: root.step.pause ? @tr("Step {}, starts at {}, pause, lasts {}", root.step.number, root.step.starts-at, root.step.duration)
+        : root.step.held != "" ? @tr("Step {}, starts at {}, holds {}, lasts {}", root.step.number, root.step.starts-at, root.step.held, root.step.duration)
+        : @tr("Step {}, starts at {}, lasts {}", root.step.number, root.step.starts-at, root.step.duration);
     accessible-item-selected: root.selected;
     accessible-action-default => { root.picked(); }
     // Under the lanes, so a held bar runs through it.
@@ -219,7 +221,7 @@ component StepRow inherits Rectangle {
         }
         if root.step.pause: Text {
             width: Columns.stick * 2;
-            text: "Pause";
+            text: @tr("Pause");
             font-size: Theme.text-small;
             font-italic: true;
             color: Theme.fg-muted;
@@ -260,12 +262,12 @@ component StepRow inherits Rectangle {
                     maximum: root.duration-max;
                     enabled: root.editable;
                     step: 5;
-                    accessible-name: "Step " + root.step.number + " duration in milliseconds";
+                    accessible-name: @tr("Step {} duration in milliseconds", root.step.number);
                     committed(v) => { root.duration-changed(v); }
                 }
             }
             Text {
-                text: "ms";
+                text: @tr("ms");
                 color: Theme.fg;
                 vertical-alignment: center;
             }
@@ -357,11 +359,11 @@ export component StepTable inherits Frame {
     // Unseen: the width each head needs.
     step-head := SmallHead {
         visible: false;
-        text: "Step";
+        text: @tr("Step");
     }
     stick-head := SmallHead {
         visible: false;
-        text: "Right stick";
+        text: @tr("Right stick");
     }
 
     VerticalLayout {
@@ -379,7 +381,7 @@ export component StepTable inherits Frame {
                     VerticalLayout {
                         alignment: center;
                         Button {
-                            text: "Add step";
+                            text: @tr("Add step");
                             icon: Icons.plus;
                             enabled: root.can && !root.full;
                             clicked => {
@@ -389,16 +391,16 @@ export component StepTable inherits Frame {
                         }
                     }
                     Tooltip {
-                        text: @markdown("Add an empty step after this one (Insert)");
+                        text: @markdown("\{@tr("Add an empty step after this one (Insert)")}");
                     }
                 }
                 for tool in [
-                    { text: "Duplicate step", icon: Icons.copy, edit: 1, on: !root.full },
-                    { text: "Split step in two halves", icon: Icons.split, edit: 2, on: !root.full && root.rows[root.selected].duration-ms >= 2 },
-                    { text: "Move step up (Alt+Up)", icon: Icons.up, edit: 3, on: root.selected > 0 },
-                    { text: "Move step down (Alt+Down)", icon: Icons.down, edit: 4, on: root.selected < root.last },
-                    { text: "Delete step (Delete)", icon: Icons.clear, edit: 5, on: root.rows.length > 1 },
-                    { text: "Undo the last step edit (Ctrl+Z)", icon: Icons.discard, edit: 6, on: root.can-undo },
+                    { text: @tr("Duplicate step"), icon: Icons.copy, edit: 1, on: !root.full },
+                    { text: @tr("Split step in two halves"), icon: Icons.split, edit: 2, on: !root.full && root.rows[root.selected].duration-ms >= 2 },
+                    { text: @tr("Move step up (Alt+Up)"), icon: Icons.up, edit: 3, on: root.selected > 0 },
+                    { text: @tr("Move step down (Alt+Down)"), icon: Icons.down, edit: 4, on: root.selected < root.last },
+                    { text: @tr("Delete step (Delete)"), icon: Icons.clear, edit: 5, on: root.rows.length > 1 },
+                    { text: @tr("Undo the last step edit (Ctrl+Z)"), icon: Icons.discard, edit: 6, on: root.can-undo },
                 ]: Rectangle {
                     horizontal-stretch: 0;
                     VerticalLayout {
@@ -440,12 +442,12 @@ export component StepTable inherits Frame {
                 padding-right: 10px;
                 SmallHead {
                     width: root.number-w;
-                    text: "Step";
+                    text: @tr("Step");
                     vertical-alignment: center;
                 }
                 SmallHead {
                     width: Columns.start;
-                    text: "Starts at";
+                    text: @tr("Starts at");
                     vertical-alignment: center;
                 }
                 heads := Lanes {
@@ -463,21 +465,21 @@ export component StepTable inherits Frame {
                 }
                 SmallHead {
                     width: Columns.stick;
-                    text: root.short-heads ? "L stick" : "Left stick";
-                    accessible-label: "Left stick";
+                    text: root.short-heads ? @tr("L stick") : @tr("Left stick");
+                    accessible-label: @tr("Left stick");
                     vertical-alignment: center;
                     overflow: elide;
                 }
                 SmallHead {
                     width: Columns.stick;
-                    text: root.short-heads ? "R stick" : "Right stick";
-                    accessible-label: "Right stick";
+                    text: root.short-heads ? @tr("R stick") : @tr("Right stick");
+                    accessible-label: @tr("Right stick");
                     vertical-alignment: center;
                     overflow: elide;
                 }
                 SmallHead {
                     width: Columns.duration;
-                    text: "Duration";
+                    text: @tr("Duration");
                     horizontal-alignment: right;
                     vertical-alignment: center;
                 }
@@ -497,7 +499,7 @@ export component StepTable inherits Frame {
                 Spinner { }
             }
             Text {
-                text: "Reading the steps from the controller…";
+                text: @tr("Reading the steps from the controller…");
                 color: Theme.fg-muted;
                 vertical-alignment: center;
             }
@@ -510,7 +512,7 @@ export component StepTable inherits Frame {
             focus-on-click: false;
             focus-on-tab-navigation: false;
             accessible-role: list;
-            accessible-label: "Steps";
+            accessible-label: @tr("Steps");
             accessible-item-count: root.rows.length;
             accessible-delegate-focus: root.selected;
             height: root.ready ? min(root.rows.length, Columns.shown-rows) * Columns.row : 0;
@@ -636,7 +638,7 @@ export component StepTable inherits Frame {
                 x: 10px;
                 width: parent.width - 20px;
                 height: parent.height;
-                text: root.count + (root.over ? ", too many" : root.full ? ", full" : "");
+                text: root.over ? @tr("{}, too many", root.count) : root.full ? @tr("{}, full", root.count) : root.count;
                 font-size: Theme.text-small;
                 color: root.over ? Theme.negative-ink : root.full ? Theme.fg : Theme.fg-muted;
                 vertical-alignment: center;

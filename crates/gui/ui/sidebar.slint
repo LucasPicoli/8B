@@ -14,7 +14,7 @@ component SlotRow inherits Rectangle {
     border-color: current ? Theme.accent : transparent;
     background: current ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
     accessible-role: list-item;
-    accessible-label: "Slot " + slot.number + ", " + (slot.empty ? "empty" : slot.name);
+    accessible-label: slot.empty ? @tr("Slot {}, empty", slot.number) : @tr("Slot {}, {}", slot.number, slot.name);
     accessible-item-selected: current;
     accessible-action-default => { picked(); }
 
@@ -54,14 +54,14 @@ component SlotRow inherits Rectangle {
         }
         Text {
             horizontal-stretch: 1;
-            text: root.slot.empty ? "Empty" : root.slot.name;
+            text: root.slot.empty ? @tr("slot" => "Empty") : root.slot.name;
             color: root.slot.empty ? Theme.fg-muted : Theme.fg;
             font-italic: root.slot.empty;
             vertical-alignment: center;
             overflow: elide;
         }
         if root.slot.macros > 0: Text {
-            text: root.slot.macros == 1 ? "1 macro" : root.slot.macros + " macros";
+            text: @tr("{n} macro" | "{n} macros" % root.slot.macros);
             font-size: Theme.text-small;
             color: Theme.fg-muted;
             vertical-alignment: center;
@@ -95,7 +95,7 @@ component ControllerPicker inherits Rectangle {
     border-radius: Theme.radius;
     background: many && ta.has-hover ? Theme.hover : transparent;
     accessible-role: combobox;
-    accessible-label: "Controller";
+    accessible-label: @tr("Controller");
     accessible-value: model[current];
     forward-focus: fs;
 
@@ -270,7 +270,7 @@ export component Sidebar inherits Rectangle {
                             color: Theme.fg-muted;
                         }
                         if g.current: Text {
-                            text: "Current mode";
+                            text: @tr("Current mode");
                             font-size: Theme.text-caption;
                             color: Theme.fg-muted;
                         }
@@ -320,7 +320,7 @@ export component Sidebar inherits Rectangle {
                     Text {
                         horizontal-stretch: 1;
                         text: root.checking-all
-                            ? "Checking the controller…"
+                            ? @tr("Checking the controller…")
                             : root.write-all-blocked.text != "" ? root.write-all-blocked.text : root.edited-caption;
                         font-size: Theme.text-caption;
                         color: root.write-all-blocked.text != "" && !root.checking-all ? Theme.fg : Theme.fg-muted;
@@ -330,7 +330,7 @@ export component Sidebar inherits Rectangle {
                     if !root.checking-all && root.write-all-blocked.text != "": VerticalLayout {
                         alignment: center;
                         Button {
-                            text: "Show";
+                            text: @tr("Show");
                             flat: true;
                             accessible-description: root.write-all-blocked.text;
                             clicked => { root.blocked-shown(); }

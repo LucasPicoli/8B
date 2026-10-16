@@ -10,8 +10,8 @@ component BatchSlotRow inherits Disclosure {
     title: slot.title;
     detail: slot.name;
     note: slot.is-new
-        ? "New profile"
-        : slot.changes.length == 1 ? "1 change" : slot.changes.length + " changes";
+        ? @tr("New profile")
+        : @tr("{n} change" | "{n} changes" % slot.changes.length);
     open: slot.open;
     has-body: slot.changes.length > 0 || slot.macro-changes.length > 0 || slot.leftover > 0;
     for c[i] in root.slot.changes: ChangeRow {
@@ -22,9 +22,8 @@ component BatchSlotRow inherits Disclosure {
         text: r;
     }
     if root.slot.leftover > 0: NoteRow {
-        text: root.slot.leftover == 1
-            ? "The empty slot still holds 1 macro. Writing a profile removes it."
-            : "The empty slot still holds " + root.slot.leftover + " macros. Writing a profile removes them.";
+        text: @tr("The empty slot still holds {n} macro. Writing a profile removes it."
+            | "The empty slot still holds {n} macros. Writing a profile removes them." % root.slot.leftover);
     }
 }
 
@@ -79,10 +78,10 @@ component RunRow inherits Rectangle {
             overflow: elide;
         }
         Text {
-            text: root.kind == 2 ? "Written"
-                : root.kind == 1 ? "Writing"
-                : root.kind == 3 ? "Failed"
-                : root.stopped ? "Not written" : "Waiting";
+            text: root.kind == 2 ? @tr("Written")
+                : root.kind == 1 ? @tr("Writing")
+                : root.kind == 3 ? @tr("Failed")
+                : root.stopped ? @tr("Not written") : @tr("Waiting");
             color: Theme.fg-muted;
             vertical-alignment: center;
         }
@@ -100,9 +99,9 @@ export component BatchReviewDialog inherits DialogShell {
     property <int> n: info.slots.length;
     property <int> c: info.total-changes;
     icon: Icons.stack;
-    title: "Write " + n + (n == 1 ? " slot" : " slots") + " to the controller?";
-    subtitle: (info.any-new ? "" : (c == 1 ? "1 change. " : c + " changes. ")) + "Slots without edits stay as they are.";
-    accept-text: "Write " + n + (n == 1 ? " slot" : " slots");
+    title: @tr("Write {n} slot to the controller?" | "Write {n} slots to the controller?" % n);
+    subtitle: (info.any-new ? "" : @tr("{n} change." | "{n} changes." % c) + " ") + @tr("Slots without edits stay as they are.");
+    accept-text: @tr("Write {n} slot" | "Write {n} slots" % n);
     Frame {
         VerticalLayout {
             for s[i] in root.info.slots: BatchSlotRow {
@@ -120,8 +119,8 @@ export component BatchWritingDialog inherits DialogShell {
     icon: Icons.pad;
     // The slots from `at` on go in one run, so they all show as writing.
     property <int> m: info.slots.length - info.at;
-    title: m == 1 ? "Writing 1 slot" : "Writing " + m + " slots";
-    subtitle: "Keep the controller plugged in.";
+    title: @tr("Writing {n} slot" | "Writing {n} slots" % m);
+    subtitle: @tr("Keep the controller plugged in.");
     cancel-text: "";
     accept-text: "";
     Frame {
@@ -143,11 +142,11 @@ export component BatchFailedDialog inherits DialogShell {
     icon: Icons.error;
     alarm: true;
     card-width: 560px;
-    title: "Writing " + failed + " failed";
+    title: @tr("Writing {} failed", failed);
     subtitle: info.detail;
-    cancel-text: "Close";
-    accept-text: m == 1 ? "Write " + failed + " again" : "Write the " + m + " slots again";
-    extra-text: info.backup-path != "" || info.macro-backups.length > 0 ? "Open folder" : "";
+    cancel-text: @tr("Close");
+    accept-text: m == 1 ? @tr("Write {} again", failed) : @tr("Write the {n} slot again" | "Write the {n} slots again" % m);
+    extra-text: info.backup-path != "" || info.macro-backups.length > 0 ? @tr("Open folder") : "";
     extra-icon: Icons.folder;
     diagnostics: true;
     Frame {
@@ -165,12 +164,12 @@ export component BatchFailedDialog inherits DialogShell {
     }
     for p in root.info.macro-backups: BackupFile {
         path: p;
-        text: "The old macro is saved in this file:";
+        text: @tr("The old macro is saved in this file:");
     }
     Text {
         text: root.m == 1
-            ? "Your edits to this slot are still here."
-            : "Your edits to the " + root.m + " slots are still here.";
+            ? @tr("Your edits to this slot are still here.")
+            : @tr("Your edits to the {n} slot are still here." | "Your edits to the {n} slots are still here." % root.m);
         color: Theme.fg-muted;
         wrap: word-wrap;
     }

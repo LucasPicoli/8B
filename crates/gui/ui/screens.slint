@@ -4,7 +4,7 @@ import { Icons, Placeholder, Frame, MessageBar, CopyButton } from "parts.slint";
 
 // Waits on its own, with no button: the app finds the controller by itself.
 export component NoControllerScreen inherits Rectangle {
-    in property <string> status: "Looking for controllers";
+    in property <string> status: @tr("Looking for controllers");
     // Why the last read failed, empty when it did not.
     in property <string> error;
     // The controller is still there, so the error bar offers another read.
@@ -15,7 +15,7 @@ export component NoControllerScreen inherits Rectangle {
     background: Theme.window;
     Placeholder {
         title: @tr("Connect your controller");
-        body: "Plug it in with a USB cable, in any mode. 8B finds it on its own.";
+        body: @tr("Plug it in with a USB cable, in any mode. 8B finds it on its own.");
         VerticalLayout {
             spacing: 8px;
             HorizontalLayout {
@@ -38,9 +38,9 @@ export component NoControllerScreen inherits Rectangle {
         MessageBar {
             error: true;
             diagnostics: true;
-            title: "Could not read the controller.";
+            title: @tr("Could not read the controller.");
             body: root.error;
-            action: root.connected ? "Try again" : "";
+            action: root.connected ? @tr("Try again") : "";
             action-enabled: root.can-read-again;
             acted => { root.read-again(); }
         }
@@ -65,7 +65,7 @@ component CommandFrame inherits Frame {
                 read-only: true;
                 mono: true;
                 wrap: true;
-                accessible-name: "Command that installs the rule";
+                accessible-name: @tr("Command that installs the rule");
             }
             CopyButton { source => { root.command } }
         }
@@ -120,21 +120,21 @@ export component PermissionScreen inherits Rectangle {
                     }
                 }
                 Text {
-                    text: root.rule-installed ? "The controller is still blocked"
-                        : root.outdated ? "Update the device rule"
-                        : "Allow 8B to open the controller";
+                    text: root.rule-installed ? @tr("The controller is still blocked")
+                        : root.outdated ? @tr("Update the device rule")
+                        : @tr("Allow 8B to open the controller");
                     font-size: Theme.text-placeholder;
                     color: Theme.fg;
                     horizontal-alignment: center;
                 }
                 Text {
                     text: root.rule-installed
-                        ? "The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in."
+                        ? @tr("The device rule is installed, but Linux has not applied it to the controller yet. Unplug the controller and plug it in again. If it stays blocked, log out and back in.")
                         : root.outdated
-                        ? "The installed rule is from an older version of 8B. Updating replaces this file:"
+                        ? @tr("The installed rule is from an older version of 8B. Updating replaces this file:")
                         : root.sandboxed
-                        ? "Linux blocks apps from changing a controller’s settings until a device rule allows it. The command adds this file:"
-                        : "Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing adds this file:";
+                        ? @tr("Linux blocks apps from changing a controller’s settings until a device rule allows it. The command adds this file:")
+                        : @tr("Linux blocks apps from changing a controller’s settings until a device rule allows it. Installing adds this file:");
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
                     wrap: word-wrap;
@@ -146,9 +146,9 @@ export component PermissionScreen inherits Rectangle {
                     horizontal-alignment: center;
                 }
                 if !root.rule-installed: Text {
-                    text: "It lets the person signed in at this computer open game controllers. It changes nothing else. "
-                        + (root.sandboxed ? "Run the command below in a terminal on this computer, then choose Check again."
-                            : "It asks for your password once.");
+                    text: @tr("It lets the person signed in at this computer open game controllers. It changes nothing else.")
+                        + " " + (root.sandboxed ? @tr("Run the command below in a terminal on this computer, then choose {}.", @tr("Check again"))
+                            : @tr("It asks for your password once."));
                     color: Theme.fg-muted;
                     horizontal-alignment: center;
                     wrap: word-wrap;
@@ -158,15 +158,15 @@ export component PermissionScreen inherits Rectangle {
                     padding-top: 12px;
                     spacing: 8px;
                     if !root.sandboxed: Button {
-                        text: root.installing ? "Waiting for your password…"
-                            : root.outdated ? "Update rule…"
-                            : root.rule-installed ? "Install again…" : "Install rule…";
+                        text: root.installing ? @tr("Waiting for your password…")
+                            : root.outdated ? @tr("Update rule…")
+                            : root.rule-installed ? @tr("Install again…") : @tr("Install rule…");
                         primary: !root.rule-installed;
                         enabled: !root.installing && !root.checking;
                         clicked => { root.install(); }
                     }
                     if root.denied: Button {
-                        text: root.checking ? "Checking…" : "Check again";
+                        text: root.checking ? @tr("Checking…") : @tr("Check again");
                         primary: root.sandboxed || root.rule-installed;
                         // Wide enough for "Checking…", so the label swap moves nothing.
                         min-width: 104px;
@@ -174,7 +174,7 @@ export component PermissionScreen inherits Rectangle {
                         clicked => { root.check(); }
                     }
                     if root.skippable: Button {
-                        text: "Not now";
+                        text: @tr("Not now");
                         flat: true;
                         enabled: !root.installing;
                         clicked => { root.skip(); }
@@ -185,19 +185,19 @@ export component PermissionScreen inherits Rectangle {
                     min-height: 33px;
                     if root.error != "": MessageBar {
                         error: true;
-                        title: "Could not install the rule.";
-                        body: root.error + " Run the command instead.";
+                        title: @tr("Could not install the rule.");
+                        body: root.error + " " + @tr("Run the command instead.");
                     }
                     if root.error == "" && root.still-blocked: MessageBar {
-                        title: root.rule-installed ? "Still blocked."
-                            : root.sandboxed ? "Still blocked. Run the command, then check again."
-                            : "Still blocked. Install the rule or run the command, then check again.";
+                        title: root.rule-installed ? @tr("Still blocked.")
+                            : root.sandboxed ? @tr("Still blocked. Run the command, then check again.")
+                            : @tr("Still blocked. Install the rule or run the command, then check again.");
                     }
                 }
                 CommandFrame {
                     command: root.command;
-                    title: root.rule-installed ? "To install the rule again, run this in a terminal:"
-                        : root.sandboxed ? "Run this in a terminal:" : "Or run this in a terminal:";
+                    title: root.rule-installed ? @tr("To install the rule again, run this in a terminal:")
+                        : root.sandboxed ? @tr("Run this in a terminal:") : @tr("Or run this in a terminal:");
                 }
             }
         }

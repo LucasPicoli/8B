@@ -44,8 +44,11 @@ component MacroSlotRow inherits Rectangle {
     border-width: root.selected ? 1px : 0;
     border-color: Theme.accent;
     accessible-role: list-item;
-    accessible-label: "Macro " + root.item.number + ", " + (!root.item.filled ? "empty" : root.item.name != "" ? root.item.name : "no name, written as Macro " + root.item.number)
-        + (root.item.error != "" ? ", can't be written" : root.item.warned ? ", a stick move may not play" : "");
+    property <string> spoken: !root.item.filled ? @tr("Macro {}, empty", root.item.number)
+        : root.item.name != "" ? @tr("Macro {}, {}", root.item.number, root.item.name)
+        : @tr("Macro {0}, no name, written as Macro {0}", root.item.number);
+    accessible-label: root.item.error != "" ? @tr("{}, can't be written", spoken)
+        : root.item.warned ? @tr("{}, a stick move may not play", spoken) : spoken;
     accessible-item-selected: root.selected;
     accessible-action-default => { root.picked(); }
     ta := TouchArea {
@@ -84,7 +87,7 @@ component MacroSlotRow inherits Rectangle {
                 name-line := Text {
                     horizontal-stretch: 1;
                     // A macro with no name is written as "Macro n": shown muted, as in the field.
-                    text: !root.item.filled ? "Empty" : root.item.name != "" ? root.item.name : "Macro " + root.item.number;
+                    text: !root.item.filled ? @tr("macro" => "Empty") : root.item.name != "" ? root.item.name : @tr("Macro {}", root.item.number);
                     color: root.item.filled && root.item.name != "" ? Theme.fg : Theme.fg-muted;
                     font-italic: !root.item.filled || root.item.name == "";
                     vertical-alignment: center;
@@ -128,7 +131,7 @@ component MacroSlotRow inherits Rectangle {
                 }
                 if root.item.buttons.length == 0: ButtonChip {
                     y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
-                    text: "No button";
+                    text: @tr("No button");
                     muted: true;
                 }
             }
@@ -207,7 +210,9 @@ component MacroViewArt {
     // Under the pointer only: a tip that stays covers the buttons beside it.
     for s in root.spots: ViewTip {
         visible: root.live && s.view == root.index && s.row == root.hover;
-        text: s.chip < 0 ? "A step can't hold " + s.label : (root.chips[s.chip].on ? "Stop holding " : "Hold ") + s.label + " in step " + root.step;
+        text: s.chip < 0 ? @tr("A step can't hold {}", s.label)
+            : root.chips[s.chip].on ? @tr("Stop holding {} in step {}", s.label, root.step)
+            : @tr("Hold {} in step {}", s.label, root.step);
         x0: s.x0 * root.scale * 1px;
         y0: s.y0 * root.scale * 1px;
         x1: s.x1 * root.scale * 1px;
@@ -265,8 +270,8 @@ component MacroViewArt {
         height: parent.height;
         focus-on-click: false;
         accessible-role: groupbox;
-        accessible-label: "Buttons held, " + root.view.label + " view";
-        accessible-description: !root.live || root.focused-chip < 0 ? "" : root.chips[root.focused-chip].spoken + (root.chips[root.focused-chip].on ? ", held" : ", not held");
+        accessible-label: @tr("Buttons held, {} view", root.view.label);
+        accessible-description: !root.live || root.focused-chip < 0 ? "" : root.chips[root.focused-chip].on ? @tr("{}, held", root.chips[root.focused-chip].spoken) : @tr("{}, not held", root.chips[root.focused-chip].spoken);
         focus-gained(reason) => {
             root.keyboard-focus = reason == FocusReason.tab-navigation;
             if (root.focused-chip < 0 && root.live) {
@@ -362,7 +367,7 @@ component MacroHeader inherits Frame {
                 padding-left: 12px;
                 padding-right: 6px;
                 SmallHead {
-                    text: "Macro " + root.item.number;
+                    text: @tr("Macro {}", root.item.number);
                     vertical-alignment: center;
                 }
                 if root.item.error != "" || root.item.warned: VerticalLayout {
@@ -374,7 +379,7 @@ component MacroHeader inherits Frame {
                         width: 14px;
                         height: 14px;
                         accessible-role: image;
-                        accessible-label: root.item.error != "" ? "Can't be written" : "A stick move may not play";
+                        accessible-label: root.item.error != "" ? @tr("Can't be written") : @tr("A stick move may not play");
                     }
                 }
                 Rectangle {
@@ -385,7 +390,7 @@ component MacroHeader inherits Frame {
                     HorizontalLayout {
                         spacing: 4px;
                         Button {
-                            text: "Import macro…";
+                            text: @tr("Import macro…");
                             icon: Icons.import;
                             icon-only: root.narrow;
                             flat: true;
@@ -393,7 +398,7 @@ component MacroHeader inherits Frame {
                             clicked => { root.imported(); }
                         }
                         Button {
-                            text: "Export macro…";
+                            text: @tr("Export macro…");
                             icon: Icons.export;
                             icon-only: root.narrow;
                             flat: true;
@@ -401,14 +406,14 @@ component MacroHeader inherits Frame {
                             clicked => { root.exported(); }
                         }
                         Button {
-                            text: "Revert";
+                            text: @tr("Revert");
                             icon: Icons.discard;
                             flat: true;
                             enabled: root.editable && root.item.unsaved;
                             clicked => { root.reverted(); }
                         }
                         Button {
-                            text: "Delete";
+                            text: @tr("Delete");
                             icon: Icons.clear;
                             flat: true;
                             enabled: root.editable;
@@ -427,7 +432,7 @@ component MacroHeader inherits Frame {
             padding: 12px;
             spacing: 10px;
             Field {
-                label: "Name";
+                label: @tr("Name");
                 HorizontalLayout {
                     spacing: 8px;
                     name-field := LineEdit {
@@ -435,8 +440,8 @@ component MacroHeader inherits Frame {
                         text: root.item.name;
                         enabled: root.editable;
                         // The name 8B writes for a macro with none.
-                        placeholder-text: "Macro " + root.item.number;
-                        accessible-name: "Macro name";
+                        placeholder-text: @tr("Macro {}", root.item.number);
+                        accessible-name: @tr("Macro name");
                         edited(t) => {
                             root.renamed(t);
                             // Rust cuts the name to the limit.
@@ -454,7 +459,7 @@ component MacroHeader inherits Frame {
                 }
             }
             Field {
-                label: "Starts with";
+                label: @tr("Starts with");
                 fill: true;
                 // Each chip as wide as its label, then the picker, as many to a line as fit.
                 FlexboxLayout {
@@ -479,7 +484,7 @@ component MacroHeader inherits Frame {
                             VerticalLayout {
                                 alignment: center;
                                 Button {
-                                    text: "Remove " + b;
+                                    text: @tr("Remove {}", b);
                                     icon: Icons.close;
                                     icon-only: true;
                                     flat: true;
@@ -490,7 +495,7 @@ component MacroHeader inherits Frame {
                         }
                     }
                     if root.item.buttons.length == 0: ButtonChip {
-                        text: "No button";
+                        text: @tr("No button");
                         muted: true;
                     }
                     ComboBox {
@@ -499,7 +504,7 @@ component MacroHeader inherits Frame {
                         model: root.item.addable;
                         current-index: 0;
                         enabled: root.editable && root.item.addable.length > 1;
-                        accessible-name: "Add a button";
+                        accessible-name: @tr("Add a button");
                         selected => {
                             root.button-added(self.current-index);
                             self.current-index = 0;
@@ -508,7 +513,7 @@ component MacroHeader inherits Frame {
                 }
             }
             Field {
-                label: "Plays";
+                label: @tr("Plays");
                 fill: true;
                 // The picker, then the count: on a second line when both do not fit.
                 FlexboxLayout {
@@ -517,10 +522,10 @@ component MacroHeader inherits Frame {
                     plays-box := ComboBox {
                         // "A number of times" at any font size.
                         width: max(180px, 13.5rem);
-                        model: ["Once", "A number of times", "Until pressed again"];
+                        model: [@tr("Once"), @tr("A number of times"), @tr("Until pressed again")];
                         current-index: root.item.plays;
                         enabled: root.editable;
-                        accessible-name: "Plays";
+                        accessible-name: @tr("Plays");
                         selected => {
                             root.plays-picked(self.current-index);
                             self.current-index = root.item.plays;
@@ -532,28 +537,28 @@ component MacroHeader inherits Frame {
                         maximum: root.count-max;
                         enabled: root.editable;
                         step: 1;
-                        accessible-name: "Times";
+                        accessible-name: @tr("Times");
                         committed(v) => { root.count-changed(v); }
                     }
                     if root.item.plays == 1: FieldLabel {
                         height: Theme.control-height;
-                        text: "times";
+                        text: @tr("times");
                     }
                 }
             }
             if root.item.plays != 0: Field {
-                label: "Interval";
+                label: @tr("Interval");
                 NumberEdit {
                     value: root.item.pause;
                     minimum: 0;
                     maximum: root.pause-max;
                     enabled: root.editable;
                     step: 5;
-                    accessible-name: "Interval between plays in milliseconds";
+                    accessible-name: @tr("Interval between plays in milliseconds");
                     committed(v) => { root.pause-changed(v); }
                 }
                 FieldLabel {
-                    text: "ms";
+                    text: @tr("ms");
                 }
             }
         }
@@ -642,7 +647,7 @@ export component MacrosTab {
             alignment: start;
             spacing: 6px;
             SmallHead {
-                text: "Macro slots";
+                text: @tr("Macro slots");
             }
             Frame {
                 list-fs := FocusScope {
@@ -659,7 +664,7 @@ export component MacrosTab {
                     }
                     VerticalLayout {
                         accessible-role: list;
-                        accessible-label: "Macro slots";
+                        accessible-label: @tr("Macro slots");
                         for r[i] in root.rows: MacroSlotRow {
                             item: r;
                             selected: i == root.selected;
@@ -677,13 +682,13 @@ export component MacrosTab {
                 height: 6px;
             }
             SmallHead {
-                text: "Buttons held";
+                text: @tr("Buttons held");
             }
             // Why a click does nothing.
             if !root.live: Text {
-                text: !root.current.filled ? "Create a macro to choose the buttons its steps hold."
-                    : !root.steps-ready || !root.editable ? "The buttons show once the steps are read."
-                    : "Pick a step in the table to see the buttons it holds.";
+                text: !root.current.filled ? @tr("Create a macro to choose the buttons its steps hold.")
+                    : !root.steps-ready || !root.editable ? @tr("The buttons show once the steps are read.")
+                    : @tr("Pick a step in the table to see the buttons it holds.");
                 font-size: Theme.text-small;
                 color: Theme.fg-muted;
                 wrap: word-wrap;
@@ -741,7 +746,7 @@ export component MacrosTab {
             }
             if root.current.filled && root.current.error != "": MessageBar {
                 error: true;
-                title: "Macro " + root.current.number + " can't be written.";
+                title: @tr("Macro {} can't be written.", root.current.number);
                 body: root.current.error;
             }
             if root.current.filled && root.floor-title != "": MessageBar {
@@ -789,8 +794,8 @@ export component MacrosTab {
                     Text {
                         // A staged delete: the controller still holds the macro.
                         text: root.current.unsaved
-                            ? "Macro " + root.current.number + " will be deleted when you write"
-                            : "Macro " + root.current.number + " is empty";
+                            ? @tr("Macro {} will be deleted when you write", root.current.number)
+                            : @tr("Macro {} is empty", root.current.number);
                         font-size: Theme.text-placeholder;
                         color: Theme.fg;
                         horizontal-alignment: center;
@@ -799,19 +804,19 @@ export component MacrosTab {
                         alignment: center;
                         spacing: 8px;
                         if root.current.unsaved: Button {
-                            text: "Undo";
+                            text: @tr("Undo");
                             icon: Icons.discard;
                             enabled: root.editable;
                             clicked => { root.reverted(root.selected); }
                         }
                         Button {
-                            text: "Import macro…";
+                            text: @tr("Import macro…");
                             icon: Icons.import;
                             enabled: root.editable;
                             clicked => { root.imported(root.selected); }
                         }
                         Button {
-                            text: "New macro";
+                            text: @tr("New macro");
                             primary: true;
                             enabled: root.editable;
                             clicked => { root.created(root.selected); }
