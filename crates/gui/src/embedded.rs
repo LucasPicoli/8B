@@ -10,7 +10,8 @@ use crate::buttons::{output_label, target};
 use crate::files::export_text;
 use crate::macro_files::content_losses;
 use crate::macros::{named, title};
-use crate::render::sentence;
+use crate::reasons::failure;
+use crate::render::and_list;
 use crate::review::macro_edits::steps;
 use crate::state::SlotState;
 
@@ -55,15 +56,6 @@ pub fn refs_note(refs: usize) -> String {
         "The file’s {held} that 8B cannot read, so the slot keeps its macros. The command \
          line’s upload --with-macros reads them."
     )
-}
-
-/// `items` joined for a sentence: "A", "A and B", "A, B and C".
-fn and_list(items: &[String]) -> String {
-    match items {
-        [] => String::new(),
-        [one] => one.clone(),
-        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
-    }
 }
 
 /// The titles of `defs`, such as "Jump (Macro 1) and Dash (Macro 3)".
@@ -147,7 +139,7 @@ pub fn file_macros(
         });
         // The buttons are already checked against the profile, so the bank refuses none.
         let bank = TargetBank { others: &[], profile: default, default };
-        let (def, _) = convert_macro(d, &kept, to, &bank).map_err(|e| sentence(&e.to_string()))?;
+        let (def, _) = convert_macro(d, &kept, to, &bank).map_err(|e| failure(d, &e))?;
         let (glides, full) = content_losses(d, to, &kept, &def);
         let mut lost = Vec::new();
         if full > 0 {

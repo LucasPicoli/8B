@@ -40,7 +40,7 @@ pub struct TargetBank<'a> {
 /// its macro slot.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `description` has no entry for `to`, or a step
+/// Returns [`Error::Invalid`] if `description` has no entry for `to`, or a step
 /// button is unknown or has no label in `to`.
 pub fn convert_macro(
     description: &ControllerDescription,
@@ -49,7 +49,7 @@ pub fn convert_macro(
     bank: &TargetBank<'_>,
 ) -> Result<(MacroDefinition, Vec<MacroLoss>)> {
     let Some(mode) = description.mode(to) else {
-        return Err(Error::Validation(format!("This controller has no {to} mode.")));
+        return Err(Error::Invalid(crate::Reason::NoMode(to)));
     };
     if def.mode == to {
         return Ok((def.clone(), Vec::new()));
@@ -61,9 +61,8 @@ pub fn convert_macro(
         .flat_map(|s| &s.pressed_buttons)
         .find(|name| !description.button(name).is_some_and(|b| b.labels.contains_key(&to)))
     {
-        return Err(Error::Validation(format!(
-            "The button '{button}' of this macro does not exist in {label} mode."
-        )));
+        let (button, from) = (button.clone(), def.mode);
+        return Err(Error::Invalid(crate::Reason::ButtonNotInMode { button, from, mode: label }));
     }
     let mut converted = def.clone();
     converted.mode = to;

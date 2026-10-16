@@ -7,6 +7,7 @@ use controller_core::model::macros::macro_to_json;
 use controller_core::model::{MacroDefinition, Mode};
 use controller_core::service::validation::{validate_macro, ValidationError};
 
+use crate::reasons::worded;
 use crate::state::AppState;
 use crate::ui::{AppWindow, Blocked};
 
@@ -62,7 +63,8 @@ impl AppState {
             .into_iter()
             .filter_map(|n| {
                 let errors = self.macro_errors((mode, number), n);
-                Some(Invalid { macro_slot: n, reason: errors.first()?.reason.clone() })
+                let reason = worded(self.description(), &errors.first()?.reason);
+                Some(Invalid { macro_slot: n, reason })
             })
             .collect()
     }
@@ -189,7 +191,7 @@ mod tests {
         let errors = s.macro_errors((XINPUT, 2), 0);
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert_eq!(errors[0].path, "/steps");
-        assert!(errors[0].reason.contains(&max.to_string()), "{}", errors[0].reason);
+        assert!(errors[0].reason.to_string().contains(&max.to_string()), "{}", errors[0].reason);
         let invalid = s.invalid_macro((XINPUT, 2)).unwrap();
         assert!(invalid.reason.ends_with("Shorten a glide or remove steps."), "{}", invalid.reason);
         assert!(!s.can_write() && !s.can_write_all());

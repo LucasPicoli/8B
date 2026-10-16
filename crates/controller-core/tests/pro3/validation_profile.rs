@@ -57,7 +57,7 @@ fn missing_required_field_fails_schema() {
     p.as_object_mut().unwrap().remove("name");
     let r = validate_profile(&Pro3, &p).unwrap();
     assert!(!r.valid);
-    assert!(r.errors.iter().any(|e| e.reason.to_lowercase().contains("name")));
+    assert!(r.errors.iter().any(|e| e.reason.to_string().to_lowercase().contains("name")));
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn a_button_in_two_macro_refs_fails_semantic() {
     assert!(!r.valid);
     // Exact message + path (this rule passes schema and reaches semantics).
     assert!(r.errors.iter().any(|e| e.path == "/macro_refs/1/trigger_buttons"
-        && e.reason == "'l1' starts two macros. A button starts at most one macro."));
+        && e.reason.to_string() == "'l1' starts two macros. A button starts at most one macro."));
 }
 
 #[test]
@@ -149,12 +149,12 @@ fn swap_dpad_with_left_stick_excludes_swap_sticks_and_the_left_inverts() {
     for flag in ["swap_sticks", "invert_left_x", "invert_left_y"] {
         let r = with(&[flag]);
         assert!(!r.valid, "swap_dpad + {flag} should fail");
-        let reason = &r.errors.first().unwrap().reason;
+        let reason = &r.errors.first().unwrap().reason.to_string();
         assert!(reason.contains(flag), "{reason}");
     }
     let r = with(&["swap_sticks", "invert_left_x"]);
     assert_eq!(r.errors.len(), 1, "one message for the pair");
-    let reason = &r.errors.first().unwrap().reason;
+    let reason = &r.errors.first().unwrap().reason.to_string();
     assert!(reason.contains("swap_sticks and invert_left_x"), "{reason}");
 }
 
@@ -259,7 +259,7 @@ fn two_macros() -> Value {
 /// The reasons `validate_profile` gives for `p`, by path.
 fn errors(p: &Value) -> Vec<(String, String)> {
     let r = validate_profile(&Pro3, p).unwrap();
-    r.errors.into_iter().map(|e| (e.path, e.reason)).collect()
+    r.errors.into_iter().map(|e| (e.path, e.reason.to_string())).collect()
 }
 
 #[test]

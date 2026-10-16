@@ -15,6 +15,8 @@ pub mod devices;
 pub mod model;
 pub mod orchestrator;
 pub mod protocol;
+pub mod reason;
+pub use reason::Reason;
 pub mod service;
 pub mod transport;
 pub mod view;

@@ -15,9 +15,9 @@ use serde_json::Value;
 use slint::{ModelRc, SharedString, VecModel};
 
 use crate::buttons::output_label;
-use crate::files::{parse_json, problem, swapped_letters};
+use crate::files::{parse_json, swapped_letters};
 use crate::macros::label;
-use crate::render::sentence;
+use crate::reasons::{failure, problems};
 use crate::review::macro_edits::steps;
 use crate::state::{AppState, Notice};
 use crate::step_table::trigger_control;
@@ -96,12 +96,12 @@ impl AppState {
         if value.get("kind").and_then(Value::as_str).is_some_and(|k| k.ends_with(".profile")) {
             return Err(one(PROFILE_FILE.to_owned()));
         }
-        let errors = validate_macro(model, &value).map_err(|e| one(sentence(&e.to_string())))?;
-        if !errors.is_empty() {
-            return Err(errors.iter().map(problem).collect());
-        }
-        let mut file = macro_from_json(&value).map_err(|e| one(sentence(&e.to_string())))?;
         let d = self.description();
+        let errors = validate_macro(model, &value).map_err(|e| one(failure(d, &e)))?;
+        if !errors.is_empty() {
+            return Err(problems(d, &errors));
+        }
+        let mut file = macro_from_json(&value).map_err(|e| one(failure(d, &e)))?;
         let slot = self.slot(mode, number);
         let macros = slot.shown_macros();
         let mut dropped = Vec::new();
@@ -120,8 +120,7 @@ impl AppState {
             .get(&mode)
             .ok_or_else(|| one("This controller has no such mode.".to_owned()))?;
         let bank = TargetBank { others: &[], profile: default, default };
-        let (mut def, _) =
-            convert_macro(d, &file, mode, &bank).map_err(|e| one(sentence(&e.to_string())))?;
+        let (mut def, _) = convert_macro(d, &file, mode, &bank).map_err(|e| one(failure(d, &e)))?;
         def.macro_slot = Some(n);
         let (glides, full_presses) = content_losses(d, mode, &file, &def);
         Ok(ReadyImport { def, from: file.mode, dropped, glides, full_presses })
@@ -422,10 +421,11 @@ mod tests {
         }
         s.import_macro(1, "bad.json", Ok("{}".to_owned()));
         let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
-        assert!(errors.len() > 1, "every problem, not just the first");
-        // The name's plain reason first, then the schema's.
-        assert!(errors[0].starts_with("/name: Give the macro a name"), "{errors:?}");
-        assert!(errors[1].starts_with("\"version\" is"), "{errors:?}");
+        // The name's plain reason first, then the schema's, once for all its errors.
+        assert_eq!(
+            errors,
+            ["Give the macro a name of at most 16 characters.", "This file is not a valid macro."]
+        );
         s.cancel_macro_import();
         assert!(!macro_import_info(&s).shown);
     }
@@ -442,15 +442,13 @@ mod tests {
     }
 
     #[test]
-    fn every_reason_is_shown_in_full() {
+    fn the_schema_english_stays_in_the_log() {
         let mut s = held();
-        // The schema quotes an unknown button in full.
-        let name = "n".repeat(400);
-        let def = macro_def(0, "Long", &[&name], 1);
+        // The schema quotes an unknown button.
+        let def = macro_def(0, "Long", &["no such button"], 1);
         s.import_macro(1, "long.json", Ok(file(&def)));
         let errors: Vec<_> = macro_import_info(&s).errors.iter().collect();
-        assert!(errors.iter().any(|e| e.contains(&name)), "cut: {errors:?}");
-        assert!(errors.iter().all(|e| !e.ends_with('…')), "{errors:?}");
+        assert_eq!(errors, ["This file is not a valid macro."]);
     }
 
     #[test]

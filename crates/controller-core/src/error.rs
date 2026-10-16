@@ -79,6 +79,10 @@ pub enum Error {
     /// Schema or semantic validation failed.
     #[error("validation failed: {0}")]
     Validation(String),
+    /// A file or an edit the GUI shows a sentence for failed a check. The CLI prints the
+    /// same text as [`Error::Validation`].
+    #[error("validation failed: {0}")]
+    Invalid(crate::Reason),
     /// A filesystem operation failed.
     #[error("io error: {0}")]
     Io(String),
@@ -110,7 +114,9 @@ impl Error {
             | Self::PermissionDenied(_)
             | Self::Usb(_) => ErrorCategory::ConnectionFailure,
             Self::Timeout | Self::Disconnected => ErrorCategory::Timeout,
-            Self::Decode(_) | Self::Validation(_) => ErrorCategory::ValidationFailure,
+            Self::Decode(_) | Self::Validation(_) | Self::Invalid(_) => {
+                ErrorCategory::ValidationFailure
+            }
             Self::Io(_) => ErrorCategory::ExportFailure,
             Self::Write { .. } => ErrorCategory::WriteFailure,
         }

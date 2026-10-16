@@ -11,20 +11,19 @@ use controller_core::description::{ControllerDescription, DISABLED_OUTPUT};
 use controller_core::device::Model;
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use controller_core::service::validation::{validate_profile, ValidationError};
+use controller_core::{Error, Reason};
 use serde_json::Value;
 use slint::{ModelRc, VecModel};
+use tr::tr;
 
 use crate::buttons::{output_label, target};
 use crate::embedded::{file_macros, kept_note, refs_note, replace_note, STEPS_UNREAD};
 use crate::macro_files::strings;
 use crate::macros::label;
+use crate::reasons::{failure, problems};
 use crate::render::sentence;
 use crate::state::{AppState, Notice};
 use crate::ui::{AppWindow, Change, ImportWarning};
-
-/// A schema message longer than this, in characters, is cut: some quote the whole
-/// offending value.
-const REASON_MAX: usize = 160;
 
 /// An import waiting for the user's yes: a file made for another mode, converted, or one
 /// that loses something on the slot.
@@ -83,50 +82,40 @@ pub fn parse_json<'a>(
     Ok((value, model))
 }
 
-/// `error` as one line, in full, such as "/name: …".
+/// The sentence for the first of `errors`, with a count of the rest. Each one goes to
+/// the log. `None` when there are none.
 #[must_use]
-pub fn problem(error: &ValidationError) -> String {
-    // A pointer to the whole file, "/", says nothing to the user.
-    match error.path.as_str() {
-        "" | "/" => error.reason.clone(),
-        path => format!("{path}: {}", error.reason),
-    }
-}
-
-/// The first of `errors`, such as "It is not a valid profile. /name: …", with a count
-/// of the rest. `None` when there are none.
-#[must_use]
-pub fn first_error(kind: &str, errors: &[ValidationError]) -> Option<String> {
-    let more = match errors.len().checked_sub(1)? {
-        0 => String::new(),
-        n => format!(" ({n} more problems)"),
-    };
-    // One line in a message bar: a reason too long is cut.
-    let full = problem(errors.first()?);
-    let mut first: String = full.chars().take(REASON_MAX).collect();
-    if first.len() < full.len() {
-        first.push('…');
-    }
-    Some(format!("It is not a valid {kind}. {first}{more}"))
+pub fn first_error(d: &ControllerDescription, errors: &[ValidationError]) -> Option<String> {
+    let mut shown = problems(d, errors).into_iter();
+    let first = shown.next()?;
+    Some(match shown.count() {
+        0 => first,
+        n => format!("{first} {}", tr!("({n} more problem)" | "({n} more problems)" % n)),
+    })
 }
 
 /// Why a macro file picked as a profile does not import, and where it goes.
 const MACRO_FILE: &str = "This is a macro file, not a profile. Import it with Import macro… \
      on the Macros tab.";
 
-/// The profile in `text`, checked as a profile of `model`.
-fn parse(model: Option<&dyn Model>, text: &str) -> Result<CanonicalProfile, String> {
+/// The profile in `text`, checked as a profile of `model`, which `d` describes.
+fn parse(
+    d: &ControllerDescription,
+    model: Option<&dyn Model>,
+    text: &str,
+) -> Result<CanonicalProfile, String> {
     let (value, model) = parse_json(model, text)?;
     // A macro file fails every profile rule; one reason says what it is instead. Only a
     // macro file has steps.
     if value.get("steps").is_some_and(Value::is_array) {
         return Err(MACRO_FILE.to_owned());
     }
-    let check = validate_profile(model, &value).map_err(|e| sentence(&e.to_string()))?;
-    if let Some(e) = first_error("profile", &check.errors) {
+    let check = validate_profile(model, &value).map_err(|e| failure(d, &e))?;
+    if let Some(e) = first_error(d, &check.errors) {
         return Err(e);
     }
-    serde_json::from_value(value).map_err(|e| sentence(&e.to_string()))
+    serde_json::from_value(value)
+        .map_err(|e| failure(d, &Error::Invalid(Reason::NotAProfile(e.to_string()))))
 }
 
 impl AppState {
@@ -151,13 +140,13 @@ impl AppState {
     /// file for another mode, or one that loses something on the slot, waits in
     /// `pending_import` for the user's yes.
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
-        let parsed = text.and_then(|t| parse(self.model(), &t));
+        let parsed = text.and_then(|t| parse(self.description(), self.model(), &t));
         let converted = parsed.and_then(|mut p| {
             let default = |m| self.defaults().get(&m).ok_or("This controller has no such mode.");
             let file = p.macros.take();
             let (profile, losses) =
                 convert_profile(self.description(), &p, default(p.mode)?, default(slot.0)?)
-                    .map_err(|e| sentence(&e.to_string()))?;
+                    .map_err(|e| failure(self.description(), &e))?;
             let target = self.slot(slot.0, slot.1);
             let (macros, macro_notes) = match file {
                 None if p.macro_refs.is_empty() => (None, Vec::new()),
@@ -532,7 +521,10 @@ mod tests {
         s.import((XINPUT, 2), "clash.json", Ok(text));
         let notice = s.notice.clone().unwrap();
         assert!(notice.error);
-        assert!(notice.body.contains("swap_dpad_with_left_stick cannot be on"), "{}", notice.body);
+        assert_eq!(
+            notice.body,
+            "Swaps, “Swap the D-pad and the left stick” cannot be on together with “Invert X”."
+        );
         assert!(!s.slot(XINPUT, 2).unsaved());
     }
 

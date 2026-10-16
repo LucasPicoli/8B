@@ -144,7 +144,7 @@ impl ProtocolCodec for Pro3 {
         &self,
         profile_json: &serde_json::Value,
     ) -> Result<Vec<ValidationError>> {
-        Ok(schema_errors(profile_validator()?, profile_json))
+        Ok(schema_errors(profile_validator()?, profile_json, crate::Reason::ProfileSchema))
     }
 
     fn decode_macro_metadata(

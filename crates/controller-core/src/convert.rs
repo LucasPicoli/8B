@@ -54,7 +54,7 @@ fn groups(description: &ControllerDescription, mode: Mode) -> BTreeMap<&str, BTr
 /// target mode comes back unchanged.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `description` has no entry for the target mode.
+/// Returns [`Error::Invalid`] if `description` has no entry for the target mode.
 pub fn convert_profile(
     description: &ControllerDescription,
     profile: &CanonicalProfile,
@@ -63,7 +63,7 @@ pub fn convert_profile(
 ) -> Result<(CanonicalProfile, Vec<ConversionLoss>)> {
     let to = target_default.mode;
     let Some(mode) = description.mode(to) else {
-        return Err(Error::Validation(format!("This controller has no {to} mode.")));
+        return Err(Error::Invalid(crate::Reason::NoMode(to)));
     };
     let mut converted = profile.clone();
     let mut losses = Vec::new();

@@ -19,7 +19,7 @@ pub const fn read_failure(error: &Error) -> &'static str {
         Error::Timeout => "The controller did not answer in time.",
         Error::Disconnected => "The controller disconnected, or its mode switch was moved.",
         Error::Decode(_) => "The controller sent something 8B could not understand.",
-        Error::Validation(_) => "The data from the controller failed a check.",
+        Error::Validation(_) | Error::Invalid(_) => "The data from the controller failed a check.",
         Error::Io(_) => "8B could not read or write a file it needs.",
         Error::Write { .. } => "The controller did not accept the data.",
     }

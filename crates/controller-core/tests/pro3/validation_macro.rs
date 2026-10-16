@@ -103,9 +103,12 @@ fn turbo_in_step_fails_and_mentions_press_or_turbo() {
     let m = set_step_buttons(make_valid_macro(), 0, json!(["turbo"]), json!([]));
     let errors = validate_macro(&m).unwrap();
     assert_ne!(errors, []);
-    assert!(errors
-        .iter()
-        .any(|e| e.reason.to_lowercase().contains("turbo") || e.path.contains("press")));
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.reason.to_string().to_lowercase().contains("turbo")
+                || e.path.contains("press"))
+    );
 }
 
 #[test]
@@ -159,7 +162,10 @@ fn name_limit_counts_utf16_units_not_code_points() {
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(errors[0].path, "/name");
-    assert_eq!(errors[0].reason, "The name has 18 characters; the Pro 3 takes at most 16.");
+    assert_eq!(
+        errors[0].reason.to_string(),
+        "The name has 18 characters; the Pro 3 takes at most 16."
+    );
 }
 
 #[test]
@@ -169,11 +175,14 @@ fn an_empty_or_long_name_gets_one_plain_reason_not_the_schema_text() {
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(errors[0].path, "/name");
-    assert_eq!(errors[0].reason, "Give the macro a name of 1 to 16 characters.");
+    assert_eq!(errors[0].reason.to_string(), "Give the macro a name of 1 to 16 characters.");
     m["name"] = json!("A".repeat(17));
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
-    assert_eq!(errors[0].reason, "The name has 17 characters; the Pro 3 takes at most 16.");
+    assert_eq!(
+        errors[0].reason.to_string(),
+        "The name has 17 characters; the Pro 3 takes at most 16."
+    );
 }
 
 #[test]
@@ -193,10 +202,10 @@ fn button_in_both_press_and_release_fails() {
     let m = set_step_buttons(make_valid_macro(), 0, json!(["bottom face"]), json!(["bottom face"]));
     let errors = validate_macro(&m).unwrap();
     assert_ne!(errors, []);
-    assert!(errors.iter().any(|e| e.reason.contains("both press and release")));
+    assert!(errors.iter().any(|e| e.reason.to_string().contains("both press and release")));
     // Exact message + path.
     assert!(errors.iter().any(|e| e.path == "/steps/0/actions/buttons"
-        && e.reason == "Step 1: 'bottom face' appears in both press and release."));
+        && e.reason.to_string() == "Step 1: 'bottom face' appears in both press and release."));
 }
 
 #[test]
@@ -206,7 +215,7 @@ fn error_message_includes_step_index() {
     m["steps"] = Value::Array(vec![m["steps"][0].clone(), a_valid_step(), a_valid_step()]);
     let m = set_step_buttons(m, 2, json!(["left face"]), json!(["left face"]));
     let errors = validate_macro(&m).unwrap();
-    assert!(errors.iter().any(|e| e.reason.contains("Step 3")));
+    assert!(errors.iter().any(|e| e.reason.to_string().contains("Step 3")));
 }
 
 #[test]
@@ -217,8 +226,8 @@ fn multiple_semantic_errors_reported() {
     let m = set_step_buttons(m, 1, json!(["right face"]), json!(["right face"]));
     let errors = validate_macro(&m).unwrap();
     assert!(errors.len() >= 2);
-    assert!(errors.iter().any(|e| e.reason.contains("Step 1")));
-    assert!(errors.iter().any(|e| e.reason.contains("Step 2")));
+    assert!(errors.iter().any(|e| e.reason.to_string().contains("Step 1")));
+    assert!(errors.iter().any(|e| e.reason.to_string().contains("Step 2")));
 }
 
 // --- Schema-specific cases --------------------------------------------------
@@ -248,7 +257,9 @@ fn schema_failure_short_circuits_semantics() {
     let m = set_step_buttons(m, 0, json!(["bottom face"]), json!(["bottom face"]));
     let errors = validate_macro(&m).unwrap();
     assert_ne!(errors, []);
-    assert!(errors.iter().all(|e| !e.reason.contains("appears in both press and release")));
+    assert!(errors
+        .iter()
+        .all(|e| !e.reason.to_string().contains("appears in both press and release")));
 }
 
 // --- Glides -----------------------------------------------------------------
@@ -280,7 +291,10 @@ fn a_glide_needs_a_next_step_and_a_value_that_moves() {
     let errors = validate_macro(&last).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(errors[0].path, "/steps/1/glide");
-    assert!(errors[0].reason.contains("Left stick cannot glide, there is no next step"));
+    assert!(errors[0]
+        .reason
+        .to_string()
+        .contains("Left stick cannot glide, there is no next step"));
 
     let same = a_glide(
         "xinput",
@@ -289,8 +303,16 @@ fn a_glide_needs_a_next_step_and_a_value_that_moves() {
     );
     let errors = validate_macro(&same).unwrap();
     assert_eq!(errors.len(), 2, "{errors:?}");
-    assert!(errors[0].reason.contains("Left stick has the same value"), "{}", errors[0].reason);
-    assert!(errors[1].reason.contains("Right stick has the same value"), "{}", errors[1].reason);
+    assert!(
+        errors[0].reason.to_string().contains("Left stick has the same value"),
+        "{}",
+        errors[0].reason
+    );
+    assert!(
+        errors[1].reason.to_string().contains("Right stick has the same value"),
+        "{}",
+        errors[1].reason
+    );
 }
 
 #[test]
@@ -299,7 +321,11 @@ fn a_trigger_cannot_glide_in_an_on_off_mode() {
     let m = a_glide("switch", &json!(["left_trigger"]), &end);
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
-    assert!(errors[0].reason.contains("ZL cannot glide in Switch mode"), "{}", errors[0].reason);
+    assert!(
+        errors[0].reason.to_string().contains("ZL cannot glide in Switch mode"),
+        "{}",
+        errors[0].reason
+    );
     assert_eq!(validate_macro(&a_glide("xinput", &json!(["left_trigger"]), &end)).unwrap(), []);
 }
 
@@ -324,7 +350,7 @@ fn the_step_count_includes_the_steps_a_glide_becomes() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].path, "/steps");
     assert_eq!(
-        errors[0].reason,
+        errors[0].reason.to_string(),
         "The macro has 409 steps; the Pro 3 holds at most 408. Remove steps."
     );
 
@@ -336,7 +362,7 @@ fn the_step_count_includes_the_steps_a_glide_becomes() {
     let errors = validate_macro(&m).unwrap();
     assert_eq!(errors.len(), 1, "{errors:?}");
     assert_eq!(
-        errors[0].reason,
+        errors[0].reason.to_string(),
         "With its glides, this macro needs 409 steps on the controller, and the controller holds 408. Shorten a glide or remove steps."
     );
 }

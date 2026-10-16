@@ -4,11 +4,13 @@
 
 use std::rc::Rc;
 
+use controller_core::description::ControllerDescription;
 use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
 use controller_core::service::validation::ValidationError;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 
 use crate::buttons::{keep_same, output_label, push_model, target};
+use crate::reasons::worded;
 use crate::review::macro_edits::steps;
 use crate::state::{AppState, SlotState};
 use crate::stick_pad::floor_bar;
@@ -217,8 +219,8 @@ impl AppState {
 
 /// The validator's reasons, one line each: the first [`SHOWN_REASONS`], then how many
 /// more, unless only one more would fit in that line. Empty when there are none.
-fn reasons(errors: &[ValidationError]) -> String {
-    let all = errors.iter().map(|e| e.reason.as_str());
+fn reasons(d: &ControllerDescription, errors: &[ValidationError]) -> String {
+    let all = errors.iter().map(|e| worded(d, &e.reason));
     if errors.len() <= SHOWN_REASONS + 1 {
         return all.collect::<Vec<_>>().join("\n");
     }
@@ -278,7 +280,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 },
                 pause: i32::try_from(m.interval_ms).unwrap_or(i32::MAX),
                 addable: strings(std::iter::once(ADD_A_BUTTON.to_owned()).chain(addable)),
-                error: reasons(&errors).into(),
+                error: reasons(state.description(), &errors).into(),
                 steps_invalid: errors.iter().any(|e| e.path == "/steps"),
                 warned: floor_bar(state, n).is_some(),
             }
@@ -494,8 +496,8 @@ mod tests {
         let error = row(&s, 0).error;
         let lines: Vec<&str> = error.lines().collect();
         assert_eq!(lines.len(), SHOWN_REASONS + 1, "{error}");
-        assert_eq!(lines[0], errors[0].reason.as_str());
-        assert_eq!(lines[1], errors[1].reason.as_str());
+        assert_eq!(lines[0], worded(s.description(), &errors[0].reason));
+        assert_eq!(lines[1], worded(s.description(), &errors[1].reason));
         let more = errors.len() - SHOWN_REASONS;
         assert_eq!(lines[SHOWN_REASONS], format!("And {more} more reasons."));
     }

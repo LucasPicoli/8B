@@ -121,6 +121,17 @@ pub fn selected_empty(state: &AppState) -> bool {
     })
 }
 
+/// `items` joined for a sentence: "A", "A and B", "A, B and C".
+#[must_use]
+// `tr!` fills named placeholders at run time, after the translation.
+#[allow(clippy::literal_string_with_formatting_args)]
+pub fn and_list(items: &[String]) -> String {
+    let Some((last, rest)) = items.split_last() else { return String::new() };
+    let Some((first, middle)) = rest.split_first() else { return last.clone() };
+    let head = middle.iter().fold(first.clone(), |a, b| tr::tr!("{a}, {b}", a = a, b = b));
+    tr::tr!("{a} and {b}", a = head, b = last)
+}
+
 /// Makes an error message a sentence: a capital first letter and a full stop.
 #[must_use]
 pub fn sentence(message: &str) -> String {

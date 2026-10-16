@@ -10,6 +10,7 @@ use crate::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OU
 use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::model::{CanonicalProfile, CanonicalProfileSummary};
+use crate::Reason;
 
 /// Validates a canonical profile JSON object for `model`: the model's own schema
 /// first, then the semantic rules.
@@ -80,20 +81,16 @@ fn embedded_macro_errors(model: &dyn Model, profile_json: &Value) -> Result<Vec<
         }
         for e in validate_macro(model, &file)? {
             let at = if e.path == "/" { "" } else { e.path.as_str() };
-            errors.push(error(format!("/macros/{i}{at}"), e.reason));
+            let reason = Reason::InMacro { index: i, reason: Box::new(e.reason) };
+            errors.push(error(format!("/macros/{i}{at}"), reason));
         }
     }
     Ok(errors)
 }
 
 /// One error at `path`.
-fn error(path: impl Into<String>, reason: impl Into<String>) -> ValidationError {
-    ValidationError { path: path.into(), reason: reason.into() }
-}
-
-/// The last segment of a JSON pointer: `left_min_pct` for `/sticks/left_min_pct`.
-fn name(field: &str) -> &str {
-    field.rsplit('/').next().unwrap_or(field)
+fn error(path: impl Into<String>, reason: Reason) -> ValidationError {
+    ValidationError { path: path.into(), reason }
 }
 
 /// Accumulates every semantic error.
@@ -112,23 +109,21 @@ fn semantic_errors(
 ) -> Vec<ValidationError> {
     let profile: CanonicalProfile = match serde_json::from_value(profile_json.clone()) {
         Ok(p) => p,
-        Err(e) => return vec![error("/", format!("This is not a profile: {e}."))],
+        Err(e) => return vec![error("/", Reason::NotAProfile(e.to_string()))],
     };
     let mut errors = Vec::new();
     let mode = profile.mode;
     let Some(mode_entry) = description.mode(mode) else {
-        return vec![error("/mode", format!("This controller has no {mode} mode."))];
+        return vec![error("/mode", Reason::NoMode(mode))];
     };
     let default = model.default_profile(mode);
     for (path, got, want) in
         [("/device", &profile.device, &default.device), ("/kind", &profile.kind, &default.kind)]
     {
         if got != want {
-            let shown = &description.display_name;
-            errors.push(error(
-                path,
-                format!("This profile is for '{got}', not the {shown} ('{want}')."),
-            ));
+            let shown = description.display_name.clone();
+            let reason = Reason::WrongDevice { got: got.clone(), shown, want: want.clone() };
+            errors.push(error(path, reason));
         }
     }
 
@@ -140,36 +135,32 @@ fn semantic_errors(
             if let Some(number) = description.number(mode, field) {
                 let (lo, hi) = (i64::from(number.min), i64::from(number.max));
                 if !value.and_then(Value::as_i64).is_some_and(|v| (lo..=hi).contains(&v)) {
-                    errors.push(error(field, format!("{} must be {lo} to {hi}.", name(field))));
+                    let reason = Reason::OutOfRange { field: field.to_owned(), mode, lo, hi };
+                    errors.push(error(field, reason));
                 }
             } else if !value.is_some_and(Value::is_boolean) {
-                errors.push(error(field, format!("{} must be true or false.", name(field))));
+                errors.push(error(field, Reason::NotBool { field: field.to_owned(), mode }));
             }
         }
     }
     for group in profile.settings.keys().filter(|g| !groups.contains(g.as_str())) {
-        errors.push(error(
-            format!("/{group}"),
-            format!("This controller has no '{group}' settings in {mode} mode."),
-        ));
+        errors
+            .push(error(format!("/{group}"), Reason::UnknownGroup { group: group.clone(), mode }));
     }
 
     let on = |field: &str| profile.setting(field).and_then(Value::as_bool) == Some(true);
     for flag in description.flags(mode).filter(|f| on(&f.field)) {
-        let clashes: Vec<&str> = flag.excludes.iter().filter(|e| on(e)).map(|e| name(e)).collect();
-        let Some((last, rest)) = clashes.split_last() else { continue };
-        let joined = if rest.is_empty() {
-            (*last).to_owned()
-        } else {
-            format!("{} and {last}", rest.join(", "))
-        };
-        let reason = format!("{} cannot be on together with {joined}.", name(&flag.field));
+        let clashes: Vec<String> = flag.excludes.iter().filter(|e| on(e)).cloned().collect();
+        if clashes.is_empty() {
+            continue;
+        }
+        let reason = Reason::Excludes { flag: flag.field.clone(), clashes, mode };
         errors.push(error(flag.field.clone(), reason));
     }
 
     for (i, mapping) in profile.button_mappings.iter().enumerate() {
         if description.button(&mapping.source).is_none() {
-            let reason = format!("'{}' is not a button of this controller.", mapping.source);
+            let reason = Reason::UnknownSource { source: mapping.source.clone() };
             errors.push(error(format!("/button_mappings/{i}/source"), reason));
         }
         let target = mapping.target.as_str();
@@ -177,7 +168,7 @@ fn semantic_errors(
             || description.button(target).is_some()
             || mode_entry.extra_outputs.iter().any(|o| o.id == target);
         if !known {
-            let reason = format!("'{target}' is not an output in {mode} mode.");
+            let reason = Reason::UnknownTarget { target: target.to_owned(), mode };
             errors.push(error(format!("/button_mappings/{i}/target"), reason));
         }
     }
@@ -197,27 +188,21 @@ fn macro_errors(
     let mode = profile.mode;
     let embedded = profile.macros.as_deref().unwrap_or_default();
     if profile.macros.is_some() && !profile.macro_refs.is_empty() {
-        let reason = "A profile holds its macros in macros or in macro_refs, not both.";
-        errors.push(error("/macro_refs", reason));
+        errors.push(error("/macro_refs", Reason::BothMacroLists));
     }
     let count = description.macro_slot_count;
     let mut slots = BTreeSet::new();
     for (i, def) in embedded.iter().enumerate() {
         if def.mode != mode {
             let (got, want) = (description.mode_label(def.mode), description.mode_label(mode));
-            let reason = format!("This macro is for {got} mode; the profile is for {want} mode.");
+            let reason = Reason::MacroModeMismatch { got, want };
             errors.push(error(format!("/macros/{i}/mode"), reason));
         }
         let slot = def.macro_slot.unwrap_or_default();
         if slot >= count {
-            let reason = format!(
-                "This controller has {count} macro slots, 0 to {}.",
-                count.saturating_sub(1)
-            );
-            errors.push(error(format!("/macros/{i}/macro_slot"), reason));
+            errors.push(error(format!("/macros/{i}/macro_slot"), Reason::SlotOutOfRange { count }));
         } else if !slots.insert(slot) {
-            let reason = format!("Two macros are in macro slot {slot}.");
-            errors.push(error(format!("/macros/{i}/macro_slot"), reason));
+            errors.push(error(format!("/macros/{i}/macro_slot"), Reason::SlotTwice { slot }));
         }
     }
 
@@ -229,10 +214,8 @@ fn macro_errors(
     for (path, buttons) in refs.chain(macros) {
         for button in buttons {
             if !seen.insert(button.as_str()) {
-                errors.push(error(
-                    path.clone(),
-                    format!("'{button}' starts two macros. A button starts at most one macro."),
-                ));
+                let reason = Reason::TwoMacrosOneButton { button: button.clone(), mode };
+                errors.push(error(path.clone(), reason));
             }
         }
     }
@@ -274,10 +257,7 @@ mod tests {
             ..Pro3.default_profile(XINPUT)
         };
         let errors = macro_errors(description, &profile);
-        assert_eq!(
-            errors,
-            [error("/macros/1/macro_slot", "This controller has 4 macro slots, 0 to 3.")]
-        );
+        assert_eq!(errors, [error("/macros/1/macro_slot", Reason::SlotOutOfRange { count: 4 })]);
     }
 
     #[test]
@@ -289,6 +269,6 @@ mod tests {
         let errors = embedded_macro_errors(&TestPad, &profile).unwrap();
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert_eq!(errors[0].path, "/macros/0");
-        assert!(errors[0].reason.ends_with("has no macro slots."), "{errors:?}");
+        assert!(errors[0].reason.to_string().ends_with("has no macro slots."), "{errors:?}");
     }
 }

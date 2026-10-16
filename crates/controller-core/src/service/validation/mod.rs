@@ -15,18 +15,19 @@ use serde_json::Value;
 
 use crate::description::{Button, ControllerDescription};
 use crate::error::{Error, Result};
+use crate::Reason;
 
 pub use macros::validate_macro;
 pub use profile::{validate_all_profiles, validate_profile};
 pub use stick_floor::{low_sticks, macro_stick_warnings, moved_low_sticks, LowStick};
 
-/// A single validation failure: a JSON-Pointer `path` and a human `reason`.
+/// A single validation failure: a JSON-Pointer `path` and a typed `reason`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
 pub struct ValidationError {
     /// JSON Pointer to the offending location (e.g. `/steps/0/actions/buttons`).
     pub path: String,
-    /// Human-readable failure reason.
-    pub reason: String,
+    /// Why it failed. Its `Display` is the CLI's English.
+    pub reason: Reason,
 }
 
 /// Per-profile validation outcome.
@@ -118,17 +119,21 @@ fn compiled<'a>(
 /// Runs the schema phase, collecting **all** violations as `{path, reason}`.
 ///
 /// `path` is the error's `instance_path` JSON Pointer (root → `"/"`); `reason`
-/// is the `jsonschema` crate's message (schema messages are not asserted
+/// is `wrap` of the `jsonschema` crate's message (schema messages are not asserted
 /// verbatim — only semantic messages are byte-significant).
 // Called from service::validation::macros and ::profile.
-pub(crate) fn schema_errors(validator: &Validator, value: &Value) -> Vec<ValidationError> {
+pub(crate) fn schema_errors(
+    validator: &Validator,
+    value: &Value,
+    wrap: fn(String) -> Reason,
+) -> Vec<ValidationError> {
     validator
         .iter_errors(value)
         .map(|e| {
             let raw = e.instance_path().as_str();
             ValidationError {
                 path: if raw.is_empty() { "/".to_owned() } else { raw.to_owned() },
-                reason: e.to_string(),
+                reason: wrap(e.to_string()),
             }
         })
         .collect()
@@ -160,7 +165,7 @@ mod tests {
             "repeat": { "count": 1, "interval_ms": 0 },
             "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["bottom face"], "release": [] } } } ]
         });
-        assert_eq!(schema_errors(&v, &macro_json), []);
+        assert_eq!(schema_errors(&v, &macro_json, Reason::MacroSchema), []);
     }
 
     #[test]
@@ -173,7 +178,7 @@ mod tests {
             "repeat": { "count": 1, "interval_ms": 0 },
             "steps": [ { "duration_ms": 30, "actions": { "buttons": { "press": ["turbo"], "release": [] } } } ]
         });
-        let errors = schema_errors(&v, &macro_json);
+        let errors = schema_errors(&v, &macro_json, Reason::MacroSchema);
         assert_ne!(errors, []);
         assert!(errors.iter().any(|e| e.path.contains("press")));
     }

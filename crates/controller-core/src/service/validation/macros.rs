@@ -11,6 +11,7 @@ use crate::model::glide::{axes, expanded_len};
 use crate::model::macros::macro_from_json;
 use crate::model::{GlideControl, MacroDefinition, Mode};
 use crate::service::validation::{macro_validator, schema_errors, ValidationError};
+use crate::Reason;
 
 /// Validates a canonical macro JSON object for `model` (schema first, then semantics).
 ///
@@ -44,21 +45,23 @@ fn check(
     if description.macro_slot_count == 0 {
         return Ok(vec![ValidationError {
             path: "/".to_owned(),
-            reason: format!("{} has no macro slots.", description.display_name),
+            reason: Reason::NoMacroSlots { display_name: description.display_name.clone() },
         }]);
     }
     let max_name = usize::try_from(description.limits.macro_name_length.max)
         .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
     // The name check says it in plain words, so the schema's own name errors go.
     let mut errors = name_errors(description, macro_json, max_name);
-    let schema = schema_errors(&macro_validator(description, device)?, macro_json);
+    let schema =
+        schema_errors(&macro_validator(description, device)?, macro_json, Reason::MacroSchema);
     let schema: Vec<_> = schema.into_iter().filter(|e| e.path != "/name").collect();
     if !schema.is_empty() {
         errors.extend(schema);
         return Ok(errors);
     }
-    errors.extend(semantic_errors(macro_json));
-    errors.extend(glide_errors(description, &macro_from_json(macro_json)?));
+    let def = macro_from_json(macro_json)?;
+    errors.extend(semantic_errors(macro_json, def.mode));
+    errors.extend(glide_errors(description, &def));
     Ok(errors)
 }
 
@@ -73,12 +76,9 @@ fn name_errors(
     let name = macro_json.get("name").and_then(Value::as_str).unwrap_or_default();
     let len = name.encode_utf16().count();
     let reason = if name.is_empty() {
-        format!("Give the macro a name of 1 to {max_name} characters.")
+        Reason::NameEmpty { max: max_name }
     } else if len > max_name {
-        format!(
-            "The name has {len} characters; the {} takes at most {max_name}.",
-            description.short_name
-        )
+        Reason::NameTooLong { len, short_name: description.short_name.clone(), max: max_name }
     } else {
         return Vec::new();
     };
@@ -97,7 +97,7 @@ fn glide_errors(
     let steps = def.steps.iter().zip(def.steps.iter().skip(1).map(Some).chain([None]));
     for (i, (step, next)) in steps.enumerate() {
         let n = i + 1; // the Macros tab numbers steps from 1; `path` stays 0-based
-        let mut error = |reason: String| {
+        let mut error = |reason: Reason| {
             errors.push(ValidationError { path: format!("/steps/{i}/glide"), reason });
         };
         for &control in &step.glide {
@@ -105,12 +105,12 @@ fn glide_errors(
             let is_trigger =
                 matches!(control, GlideControl::LeftTrigger | GlideControl::RightTrigger);
             match next {
-                None => error(format!("Step {n}: {name} cannot glide, there is no next step.")),
-                _ if is_trigger && on_off => error(format!(
-                    "Step {n}: {name} cannot glide in {mode} mode, its triggers are on or off."
-                )),
+                None => error(Reason::GlideNoNextStep { step: n, name }),
+                _ if is_trigger && on_off => {
+                    error(Reason::GlideOnOffTrigger { step: n, name, mode: mode.clone() });
+                }
                 Some(next) if axes(step, control) == axes(next, control) => {
-                    error(format!("Step {n}: {name} has the same value in the next step."));
+                    error(Reason::GlideSameValue { step: n, name });
                 }
                 _ => {}
             }
@@ -121,14 +121,9 @@ fn glide_errors(
     let needed = expanded_len(&def.steps, limits.glide_step_ms);
     if needed > max {
         let reason = if needed == def.steps.len() {
-            format!(
-                "The macro has {needed} steps; the {} holds at most {max}. Remove steps.",
-                description.short_name
-            )
+            Reason::TooManySteps { needed, short_name: description.short_name.clone(), max }
         } else {
-            format!(
-                "With its glides, this macro needs {needed} steps on the controller, and the controller holds {max}. Shorten a glide or remove steps."
-            )
+            Reason::TooManyGlideSteps { needed, max }
         };
         errors.push(ValidationError { path: "/steps".to_owned(), reason });
     }
@@ -160,8 +155,9 @@ fn control_label(description: &ControllerDescription, mode: Mode, control: Glide
     label.unwrap_or_else(|| control.as_str().to_owned())
 }
 
-/// Accumulates every semantic error but the name's, see [`name_errors`].
-fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
+/// Accumulates every semantic error but the name's, see [`name_errors`]. `mode` is the
+/// macro's.
+fn semantic_errors(macro_json: &Value, mode: Mode) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
     // 1. repeat.count >= 1.
@@ -173,7 +169,7 @@ fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
     if count < 1 {
         errors.push(ValidationError {
             path: "/repeat/count".to_owned(),
-            reason: format!("repeat.count must be >= 1 (got {count})."),
+            reason: Reason::RepeatCount { count },
         });
     }
 
@@ -192,7 +188,7 @@ fn semantic_errors(macro_json: &Value) -> Vec<ValidationError> {
                 if press_set.contains(btn) {
                     errors.push(ValidationError {
                         path: format!("/steps/{i}/actions/buttons"),
-                        reason: format!("Step {n}: '{btn}' appears in both press and release."),
+                        reason: Reason::PressAndRelease { step: n, button: btn.to_owned(), mode },
                     });
                 }
             }
@@ -224,7 +220,7 @@ mod tests {
         let errors = validate_macro(&TestPad, &a_macro()).unwrap();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].path, "/");
-        assert!(errors[0].reason.contains("no macro slots"), "{}", errors[0].reason);
+        assert!(errors[0].reason.to_string().contains("no macro slots"), "{}", errors[0].reason);
     }
 
     #[test]

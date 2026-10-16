@@ -7,6 +7,7 @@ use serde_json::{json, Map, Value};
 
 use super::ids::Mode;
 use crate::error::{Error, Result};
+use crate::Reason;
 
 /// The repeat count that plays a macro until its trigger button is pressed again.
 pub const REPEAT_CONTINUOUS: u32 = u32::MAX;
@@ -274,22 +275,16 @@ struct TriggersFile {
 /// Run the validator first. This only reads the shape, and checks no button name.
 ///
 /// # Errors
-/// Returns [`Error::Validation`] if `json` does not have the macro file shape, or has
+/// Returns [`Error::Invalid`] if `json` does not have the macro file shape, or has
 /// both `trigger` and `trigger_buttons`, or neither.
 pub fn macro_from_json(json: &Value) -> Result<MacroDefinition> {
     let file = MacroFile::deserialize(json)
-        .map_err(|e| Error::Validation(format!("This is not a macro: {e}.")))?;
+        .map_err(|e| Error::Invalid(Reason::NotAMacro(e.to_string())))?;
     let trigger_buttons = match (file.trigger, file.trigger_buttons) {
         (None, Some(buttons)) => buttons,
         (Some(button), None) => vec![button],
-        (Some(_), Some(_)) => {
-            return Err(Error::Validation(
-                "A macro has either trigger or trigger_buttons, not both.".into(),
-            ))
-        }
-        (None, None) => {
-            return Err(Error::Validation("This is not a macro: it has no trigger_buttons.".into()))
-        }
+        (Some(_), Some(_)) => return Err(Error::Invalid(Reason::BothTriggers)),
+        (None, None) => return Err(Error::Invalid(Reason::NoTriggerButtons)),
     };
     let stick = |s: Option<StickFile>| s.map_or((STICK_CENTER, STICK_CENTER), |s| (s.x, s.y));
     let steps = file
