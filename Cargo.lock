@@ -1850,6 +1850,7 @@ dependencies = [
  "controller-core",
  "env_logger",
  "i-slint-backend-testing",
+ "i-slint-compiler",
  "log",
  "rspolib",
  "serde_json",

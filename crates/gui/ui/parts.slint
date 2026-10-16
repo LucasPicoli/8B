@@ -201,7 +201,7 @@ export component MessageBar inherits Rectangle {
     border-color: tone;
     border-radius: Theme.radius;
     accessible-role: text;
-    accessible-label: title + " " + body;
+    accessible-label: body == "" ? title : title + " " + body;
     HorizontalLayout {
         padding: 8px;
         padding-left: 12px;
@@ -369,7 +369,7 @@ export component ChangeRow inherits Rectangle {
             overflow: elide;
         }
         Text {
-            text: root.change.from + "  →  " + root.change.to;
+            text: @tr("{}  →  {}", root.change.from, root.change.to);
             color: Theme.fg;
             vertical-alignment: center;
         }
@@ -749,7 +749,7 @@ export component Disclosure inherits Rectangle {
             min-height: 32px;
             background: ta.has-hover ? Theme.hover : transparent;
             accessible-role: button;
-            accessible-label: root.detail != "" ? root.title + ", " + root.detail : root.title;
+            accessible-label: root.detail != "" ? @tr("{}, {}", root.title, root.detail) : root.title;
             accessible-expandable: true;
             accessible-expanded: root.open;
             accessible-action-default => { root.toggled(); }

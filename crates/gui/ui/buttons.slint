@@ -213,18 +213,19 @@ export component ButtonsTab {
                                     // A tooltip cannot sit in a layout, so the picker gets a frame.
                                     Rectangle {
                                         HorizontalLayout {
-                                            ComboBox {
+                                            output := ComboBox {
                                                 small: true;
                                                 model: r.outputs;
                                                 spoken: r.spoken-outputs;
                                                 current-index <=> r.output;
                                                 accessible-name: @tr("Output for {}", r.spoken);
+                                                accessible-description: r.unknown ? @tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.") : "";
                                                 focused => { root.selected = i; }
                                                 selected => { root.output-picked(i, self.current-index); }
                                             }
                                         }
                                         if r.unknown: Tooltip {
-                                            text: @markdown("\{@tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.")}");
+                                            text: @markdown("\{output.accessible-description}");
                                         }
                                     }
                                 }

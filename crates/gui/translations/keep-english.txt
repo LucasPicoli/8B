@@ -1,0 +1,11 @@
+# Strings the app shows in English in every language. One exact string per line, then
+# " # " and why it stays English. The string coverage tests read this file.
+# A string with no letters, and a name a controller description marks, need no line.
+8B # the app's name
+Breeze # the look's name, never shown
+Noto Sans # a font name
+Hack # a font name
+z # the Ctrl+Z key a shortcut compares with
+Z # the Ctrl+Z key a shortcut compares with
+English # a language name, shown in its own words
+Português (Brasil) # a language name, shown in its own words

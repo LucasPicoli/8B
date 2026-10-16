@@ -1,5 +1,6 @@
 //! Smoke tests: each screen renders into memory with the software renderer, no
-//! display needed. Set `GUI_SHOTS=<dir>` to keep the pictures as PPM files.
+//! display needed. Set `GUI_SHOTS=<dir>` to keep the pictures as PPM files, and
+//! `GUI_TEST_LANG=qps` to check every string on screen goes through the translation files.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 
@@ -21,6 +22,7 @@ use crate::state::tests::{
     connected, full_read, hold_macros, macro_def, new_state, test_pad_read, PORT,
 };
 use crate::state::{AppState, Rule};
+use crate::string_coverage;
 use crate::ui::{AppWindow, Change, Diagnostics};
 
 struct Headless;
@@ -47,16 +49,20 @@ fn window(state: &AppState) -> AppWindow {
     let ui = AppWindow::new().unwrap();
     language::fill_menu(&ui);
     crate::render::read_accessible_numbers(&ui);
-    // A rerun under `GUI_TEST_LANG=pt_BR` draws every shot in that language.
-    if let Some(code) = std::env::var_os("GUI_TEST_LANG") {
-        let code = code.to_string_lossy();
-        let bundled = language::matching(&code).filter(|l| l.code == code);
-        language::select(
-            Some(bundled.expect("GUI_TEST_LANG names a bundled language")),
-            state,
-            &ui,
-        )
-        .unwrap();
+    // A rerun under `GUI_TEST_LANG=pt_BR` draws every shot in that language, and
+    // `GUI_TEST_LANG=qps` in the pseudo-locale that `save` walks.
+    match std::env::var("GUI_TEST_LANG").as_deref() {
+        Ok(string_coverage::PSEUDO) => string_coverage::select_pseudo(),
+        Ok(code) => {
+            let bundled = language::matching(code).filter(|l| l.code == code);
+            language::select(
+                Some(bundled.expect("GUI_TEST_LANG names a bundled language")),
+                state,
+                &ui,
+            )
+            .unwrap();
+        }
+        Err(_) => {}
     }
     render_views(state.description(), &ui);
     render(state, &ui);
@@ -70,8 +76,13 @@ fn shoot(name: &str, state: &AppState) {
     save(name, &window(state));
 }
 
-/// Checks the window's picture is not blank, and keeps it when `GUI_SHOTS` is set.
+/// Checks the window's picture is not blank, and keeps it when `GUI_SHOTS` is set. Under
+/// `GUI_TEST_LANG=qps` it also checks that every string on screen went through the
+/// translation files.
 fn save(name: &str, ui: &AppWindow) {
+    if string_coverage::pseudo_run() {
+        string_coverage::walk(name, ui);
+    }
     let shot = ui.window().take_snapshot().unwrap();
     let size = ui.window().size();
     assert_eq!((shot.width(), shot.height()), (size.width, size.height));
@@ -88,6 +99,12 @@ fn save(name: &str, ui: &AppWindow) {
     }
 }
 
+/// The `qps` run checks the strings of each shot. A test whose checks read English text,
+/// or click where the English text puts a control, stops when this is `true`.
+fn qps_stops_here() -> bool {
+    string_coverage::pseudo_run()
+}
+
 #[test]
 fn no_controller() {
     shoot("no-controller", &new_state());
@@ -97,7 +114,7 @@ fn no_controller() {
 fn first_read_failed() {
     let mut s = new_state();
     s.presence(PORT, Some(XINPUT));
-    s.read_finished(PORT, Err("device communication timed out".to_owned()));
+    s.read_finished(PORT, Err(language::prose("device communication timed out")));
     shoot("first-read-failed", &s);
 }
 
@@ -161,9 +178,10 @@ fn new_port_read_failed_behind_an_unplugged_entry() {
     s.presence("3-2", Some(DINPUT));
     s.read_finished(
         "3-2",
-        Err("Device communication timed out. steam also has the controller open. Close it \
-             and try again."
-            .to_owned()),
+        Err(language::prose(
+            "Device communication timed out. steam also has the controller open. Close it \
+             and try again.",
+        )),
     );
     shoot("new-port-read-failed", &s);
 }
@@ -187,7 +205,7 @@ fn slots_changed_under_edits() {
 #[test]
 fn read_failed() {
     let mut s = connected(XINPUT);
-    s.read_finished(PORT, Err("device communication timed out".to_owned()));
+    s.read_finished(PORT, Err(language::prose("device communication timed out")));
     shoot("read-failed", &s);
 }
 
@@ -196,9 +214,10 @@ fn read_failed_with_holders() {
     let mut s = connected(SWITCH);
     s.read_finished(
         PORT,
-        Err("Device communication timed out. steam and winedevice.exe also have \
-         the controller open. Close them and try again."
-            .to_owned()),
+        Err(language::prose(
+            "Device communication timed out. steam and winedevice.exe also have \
+         the controller open. Close them and try again.",
+        )),
     );
     shoot("read-failed-holders", &s);
 }
@@ -208,14 +227,17 @@ fn read_failed_in_the_sandbox() {
     let mut s = connected(SWITCH);
     s.sandboxed = true;
     let hint = crate::holders::hint(&[], s.sandboxed).unwrap();
-    s.read_finished(PORT, Err(format!("Device communication timed out. {hint}")));
+    s.read_finished(
+        PORT,
+        Err(format!("{} {hint}", language::prose("Device communication timed out."))),
+    );
     shoot("read-failed-sandbox", &s);
 }
 
 #[test]
 fn read_failed_trying_again() {
     let mut s = connected(SWITCH);
-    s.read_finished(PORT, Err("device communication timed out".to_owned()));
+    s.read_finished(PORT, Err(language::prose("device communication timed out")));
     s.read_started(PORT);
     shoot("read-failed-trying-again", &s);
 }
@@ -261,9 +283,9 @@ fn permission_installing() {
 fn permission_install_failed() {
     let mut s = denied(Rule::Missing);
     s.install_started();
-    s.install_finished(Err(
-        "The password prompt was closed, or the password was not accepted.".to_owned()
-    ));
+    s.install_finished(Err(language::prose(
+        "The password prompt was closed, or the password was not accepted.",
+    )));
     shoot("permission-install-failed", &s);
 }
 
@@ -313,7 +335,7 @@ fn fix_offer_dialog_in_both_builds() {
     s.sandboxed = false;
     s.fix_install_started();
     shoot("fix-dialog-installing", &s);
-    s.fix_install_finished(Err("The password prompt was closed.".to_owned()));
+    s.fix_install_finished(Err(language::prose("The password prompt was closed.")));
     shoot("fix-dialog-failed", &s);
 }
 
@@ -484,6 +506,9 @@ fn the_last_settings_tab_stays_open_across_a_render() {
 #[test]
 fn a_slider_drag_survives_the_render_after_each_move() {
     use slint::platform::{PointerEventButton, WindowEvent};
+    if qps_stops_here() {
+        return;
+    }
     let state = Rc::new(std::cell::RefCell::new(connected(XINPUT)));
     let ui = window(&state.borrow());
     ui.set_tab(2);
@@ -619,6 +644,9 @@ fn frame_edges(ui: &AppWindow) -> (usize, usize) {
 
 #[test]
 fn the_drawing_keeps_its_size_from_slot_to_slot() {
+    if qps_stops_here() {
+        return;
+    }
     let mut s = connected(XINPUT);
     let pad = s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
     pad.macro_refs.push(controller_core::model::MacroRef {
@@ -743,7 +771,11 @@ fn review_footer_stays_on_screen_in_a_small_window() {
     ui.window().set_size(PhysicalSize::new(1024, 640));
     let mut info = ui.get_review();
     let long: Vec<_> = (0..30)
-        .map(|i| Change { what: format!("Button {i}").into(), from: "A".into(), to: "B".into() })
+        .map(|i| Change {
+            what: language::prose(&format!("Button {i}")).into(),
+            from: "A".into(),
+            to: "B".into(),
+        })
         .collect();
     info.changes = Rc::new(slint::VecModel::from(long)).into();
     info.total = 30;
@@ -790,7 +822,7 @@ fn writing_sheet_and_failure() {
     bad.backup_file_path = Some(
         "/home/lucas/.local/state/8b/backups/backup-xinput-slot-1-20261005-120000.bin".to_owned(),
     );
-    s.write_finished(PORT, &[bad], Some("steam also has the controller open."));
+    s.write_finished(PORT, &[bad], Some(&language::prose("steam also has the controller open.")));
     shoot("write-failed", &s);
 }
 
@@ -818,8 +850,11 @@ fn batch_reviewing() -> AppState {
 #[test]
 fn the_footer_button_names_its_slot() {
     let ui = window(&connected(XINPUT));
-    assert_eq!(ui.get_write_label(), "Write XInput slot 1…");
     save("footer-write-label", &ui);
+    if qps_stops_here() {
+        return;
+    }
+    assert_eq!(ui.get_write_label(), "Write XInput slot 1…");
 }
 
 #[test]
@@ -845,12 +880,15 @@ fn the_sidebar_bar_counts_the_edited_slots() {
         }
     }
     let ui = window(&s);
+    save("sidebar-write-all", &ui);
+    if qps_stops_here() {
+        return;
+    }
     assert_eq!(ui.get_edited_count(), 3);
     assert_eq!(ui.get_edited_caption(), "3 slots have unsaved edits");
     assert_eq!(ui.get_write_all_label(), "Write all 3 slots…");
     assert!(ui.get_can_write_all());
     assert_ne!(corner(&ui), plain, "the bar fills the foot of the sidebar");
-    save("sidebar-write-all", &ui);
 
     s.select(0, 1);
     s.discard();
@@ -941,7 +979,7 @@ fn the_batch_failure_dialog_with_a_backup() {
         "/home/lucas/.local/state/8b/backups/backup-xinput-slot-2-20261005-120000.bin".to_owned(),
     );
     let results = [done, bad.clone(), bad];
-    s.write_finished(PORT, &results, Some("steam also has the controller open."));
+    s.write_finished(PORT, &results, Some(&language::prose("steam also has the controller open.")));
     s.batch_after_write();
     assert_eq!(window(&s).get_batch().at, 1);
     shoot("batch-failed", &s);
@@ -1307,10 +1345,11 @@ fn copy_from_the_bar(dark: bool) {
     // Two lines in the bar, as with the holders' names.
     s.read_finished(
         PORT,
-        Err("The controller did not answer in time. steam, vivaldi-bin and winedevice.exe \
+        Err(language::prose(
+            "The controller did not answer in time. steam, vivaldi-bin and winedevice.exe \
              also have the controller open. Close them and try again. The controller stays \
-             plugged in."
-            .to_owned()),
+             plugged in.",
+        )),
     );
     let ui = window(&s);
     if dark {
@@ -1396,6 +1435,9 @@ fn number_field_arrows_and_keys_step_to_the_next_multiple() {
 
 #[test]
 fn the_selected_step_edits_its_duration_in_the_table() {
+    if qps_stops_here() {
+        return;
+    }
     let s = macros_tab();
     let ui = window(&s);
     ui.set_tab(1);
@@ -1763,6 +1805,9 @@ fn each_stick_has_its_own_snap() {
 #[test]
 fn the_glide_box_follows_the_selected_step() {
     use controller_core::model::GlideControl;
+    if qps_stops_here() {
+        return;
+    }
     let (state, ui) = stick_pads_at(2);
     let glides = |i: usize| {
         state.borrow().macro_steps(0).unwrap()[i].glide.contains(&GlideControl::LeftStick)
@@ -1807,6 +1852,9 @@ fn tab_to_glide_shows_its_tip_and_a_click_does_not() {
     ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Backtab.into() });
     ui.window().dispatch_event(WindowEvent::KeyReleased { text: Key::Backtab.into() });
     save("glide-focus-tip", &ui);
+    if qps_stops_here() {
+        return;
+    }
     let after = ui.window().take_snapshot().unwrap();
     // The tip sits under the box, over the right gate: its area changes after Tab.
     let area = |shot: &slint::SharedPixelBuffer<slint::Rgba8Pixel>| {
@@ -1854,6 +1902,9 @@ fn step_panel_shows_both_sticks_a_glide_and_the_floor_warning() {
 
 #[test]
 fn a_trigger_glide_meets_the_next_bar_edge_to_edge() {
+    if qps_stops_here() {
+        return;
+    }
     let mut s = steps_tab();
     // Step 2 glides LT from 128 to 200: a bar 10.06px wide at this size, so the glide's
     // end and the next row's bar must round alike.
@@ -1990,6 +2041,9 @@ fn shift_tab_from_a_row_leaves_the_table() {
 #[test]
 fn the_step_table_focus_is_inside_the_steps_list() {
     use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    if qps_stops_here() {
+        return;
+    }
     let (_state, ui) = stick_pads_at(1);
     // A screen reader names the focus by its nearest accessible ancestor. The row-sized
     // focus scope must sit in the "Steps" list, which hands the focus to the selected row.
@@ -2024,6 +2078,9 @@ fn every_tab_stop_after_the_table_shows_its_focus() {
 #[test]
 fn the_step_panel_names_its_step_to_a_screen_reader() {
     use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    if qps_stops_here() {
+        return;
+    }
     let (state, ui) = stick_pads_at(2);
     // Focus in a panel field reads out the nearest named ancestor: the panel is a group
     // named by its step, and the field sits inside it.
@@ -2046,6 +2103,9 @@ fn the_step_panel_names_its_step_to_a_screen_reader() {
 #[test]
 fn the_step_panel_heading_moves_nothing_when_a_step_is_picked() {
     use i_slint_backend_testing::ElementHandle;
+    if qps_stops_here() {
+        return;
+    }
     let (state, ui) = stick_pads_at(0);
     // The table and the panel's heading keep their place from step 1 to step 5, whatever
     // the digits of the number.
@@ -2142,6 +2202,9 @@ fn frame_round(ui: &AppWindow, label: &str) -> bool {
 #[test]
 fn the_view_frames_a_button_for_the_keyboard_only() {
     use slint::platform::{Key, WindowEvent};
+    if qps_stops_here() {
+        return;
+    }
     let (_state, ui) = views_at();
     let press = |key: Key| {
         ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
@@ -2173,6 +2236,9 @@ fn the_view_frames_a_button_for_the_keyboard_only() {
 #[test]
 fn typing_a_duration_in_the_table_survives_the_render_after_each_digit() {
     use slint::platform::{Key, WindowEvent};
+    if qps_stops_here() {
+        return;
+    }
     let (state, ui) = steps_at(1280, 1200);
     let s = Rc::clone(&state);
     let weak = ui.as_weak();
@@ -2309,6 +2375,9 @@ fn lanes_that_do_not_fit_scroll_sideways_with_their_heads() {
 #[test]
 fn the_wheel_with_shift_and_the_bar_scroll_the_lanes() {
     use slint::platform::{Key, WindowEvent};
+    if qps_stops_here() {
+        return;
+    }
     let (_state, ui) = lanes_at_narrow(every_lane_tab());
     ui.window().dispatch_event(WindowEvent::KeyPressed { text: Key::Shift.into() });
     scroll_lanes(&ui, 0.0, -2000.0);
@@ -2347,6 +2416,9 @@ fn picking_a_step_leaves_the_lanes_where_they_are() {
 
 #[test]
 fn the_selected_duration_stays_editable_while_the_lanes_scroll() {
+    if qps_stops_here() {
+        return;
+    }
     let (state, ui) = lanes_at_narrow(every_lane_tab());
     scroll_lanes(&ui, -2000.0, 0.0);
     // The up arrow of the first row's field.
@@ -2534,6 +2606,9 @@ fn the_language_menu_opens_on_its_submenu() {
             press(&ui, slint::platform::Key::RightArrow);
             save(&format!("{name}-{}", if dark { "dark" } else { "light" }), &ui);
         }
+    }
+    if qps_stops_here() {
+        return;
     }
     let ui = window(&connected(XINPUT));
     ui.global::<Languages<'_>>().set_current(1);

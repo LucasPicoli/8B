@@ -493,6 +493,7 @@ pub mod tests {
 
     /// A window for the Pro 3 with no controller seen yet.
     pub fn new_state() -> AppState {
+        crate::string_coverage::wrap_rust_text();
         let defaults = MODES.iter().map(|&m| (m, Pro3.default_profile(m))).collect();
         AppState::new(description(), defaults)
     }

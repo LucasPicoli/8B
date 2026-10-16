@@ -794,7 +794,15 @@ msgid "{}, holds a macro that can't be written"
 msgstr ""
 
 #: ui/parts.slint
+msgid "{}  →  {}"
+msgstr ""
+
+#: ui/parts.slint
 msgid "{} to {}"
+msgstr ""
+
+#: ui/parts.slint ui/step_panel.slint
+msgid "{}, {}"
 msgstr ""
 
 #: ui/screens.slint
@@ -916,6 +924,10 @@ msgstr ""
 msgid "was {}"
 msgstr ""
 
+#: ui/settings.slint
+msgid "{} {}"
+msgstr ""
+
 #: ui/sidebar.slint
 msgid "Slot {}, empty"
 msgstr ""
@@ -949,6 +961,10 @@ msgstr ""
 
 #: ui/step_panel.slint
 msgid "Centre {}"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "{}: {}"
 msgstr ""
 
 #: ui/step_panel.slint
@@ -1851,6 +1867,10 @@ msgid "x {x}, y {y} to x {a}, y {b}"
 msgstr ""
 
 #: src/step_table.rs
+msgid "{button} {now}"
+msgstr ""
+
+#: src/step_table.rs
 msgid "{button} {now} to {next}"
 msgstr ""
 
@@ -1956,10 +1976,10 @@ msgid ""
 "settings in every slot of the XInput, Switch and DInput modes, creates and "
 "edits macros, and imports and exports profiles as JSON."
 msgstr ""
-"O 8B lê e edita os perfis gravados no seu controle 8BitDo, por USB. No Pro 3, "
-"ele edita o mapeamento de botões, os analógicos, os gatilhos e a vibração em "
-"cada slot dos modos XInput, Switch e DInput, cria e edita macros, e importa e "
-"exporta perfis em JSON."
+"O 8B lê e edita os perfis gravados no seu controle 8BitDo, por USB. No Pro "
+"3, ele edita o mapeamento de botões, os analógicos, os gatilhos e a vibração "
+"em cada slot dos modos XInput, Switch e DInput, cria e edita macros, e "
+"importa e exporta perfis em JSON."
 
 #: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
 msgid "8B is an independent project, not made or endorsed by 8BitDo."

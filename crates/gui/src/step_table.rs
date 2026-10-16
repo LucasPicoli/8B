@@ -283,7 +283,7 @@ fn held_text(
     };
     let now = trigger(step, side);
     next.filter(|_| step.glide.contains(&trigger_control(side))).map_or_else(
-        || format!("{label} {now}"),
+        || tr!("{button} {now}", button = label, now = now),
         |n| tr!("{button} {now} to {next}", button = label, now = now, next = trigger(n, side)),
     )
 }

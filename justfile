@@ -2,10 +2,13 @@ lint:
     cargo fmt --check
     cargo clippy --all-targets --all-features -- -D warnings
     cargo test
-    # `tr` keeps one translator per process, so the pt-BR test runs in a process of its own.
+    # `tr` keeps one translator per process, so each language runs in a process of its own.
     GUI_TEST_LANG=pt_BR cargo test -p gui pt_br_
+    # Every string on each shot must come from the translation files.
+    GUI_TEST_LANG=qps cargo test -p gui snapshots
     # Alone, so a test that needs a feature only another crate turns on fails here.
     cargo test -p controller-core
+    just translations-fresh
     just missing-strings
 
 # Rebuild crates/gui/translations/gui.pot from the source and merge it into each gui.po.
@@ -43,13 +46,37 @@ translations:
         cargo run --quiet -p controller-core --example description-pot
     } | msguniq --add-location=file | sed '/^#\. #-#-#-#-#/d' > translations/gui.pot
     for po in translations/*/LC_MESSAGES/gui.po; do
+        [[ $po == translations/qps/* ]] && continue
         msgmerge --quiet --update --backup=none --no-fuzzy-matching --add-location=file "$po" translations/gui.pot
     done
+    # The qps pseudo-locale of the string coverage tests: each msgstr is its msgid in ⟦…⟧,
+    # led by a `~` per 2.5 characters, so the text runs about 40 % longer, as pt-BR does.
+    # crates/gui/src/string_coverage.rs wraps the Rust text the same way.
+    mkdir -p translations/qps/LC_MESSAGES
+    msgen translations/gui.pot \
+        | sed -e '1s/.*/# The qps pseudo-locale of the string coverage tests. Written by `just translations`: do not edit./' \
+            -e 's/^"Content-Transfer-Encoding: 8bit\\n"$/&\n"Language: qps\\n"\n"Plural-Forms: nplurals=2; plural=(n != 1);\\n"/' \
+        | msgfilter --keep-header -o translations/qps/LC_MESSAGES/gui.po \
+            perl -Mutf8 -CSD -0pe 's/\A(.*)\z/"⟦" . ("~" x int((length($1) * 2 + 4) \/ 5)) . "$1⟧"/se'
+
+# Fail when the translation files are older than the source. It updates them first, so
+# commit what it wrote.
+translations-fresh:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    sum() { cat crates/gui/translations/gui.pot crates/gui/translations/*/LC_MESSAGES/gui.po | sha256sum; }
+    before=$(sum)
+    just translations
+    if [[ $(sum) != "$before" ]]; then
+        echo 'error: the translation files were older than the source. `just translations` updated them: commit the result.' >&2
+        exit 1
+    fi
 
 # Warn about each string a language has not translated yet. It never fails: English stands in.
 missing-strings:
     #!/usr/bin/env bash
     for po in crates/gui/translations/*/LC_MESSAGES/gui.po; do
+        [[ $po == */qps/* ]] && continue
         msgcmp -N "$po" crates/gui/translations/gui.pot 2>&1 | grep -v 'this message is not used' || true
     done
 

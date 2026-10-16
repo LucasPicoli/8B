@@ -13,7 +13,9 @@ jobs:
       - run: cargo clippy --all-targets --all-features -- -D warnings
       - run: cargo test
       - run: GUI_TEST_LANG=pt_BR cargo test -p gui pt_br_
+      - run: GUI_TEST_LANG=qps cargo test -p gui snapshots
       - uses: taiki-e/install-action@v2
         with:
-          tool: just
+          tool: just,slint-tr-extractor@1.18.1,xtr@0.1.11
+      - run: just translations-fresh
       - run: just missing-strings

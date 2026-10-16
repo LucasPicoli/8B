@@ -60,7 +60,7 @@ component CommandFrame inherits Frame {
         }
         HorizontalLayout {
             spacing: 6px;
-            LineEdit {
+            command := LineEdit {
                 text: root.command;
                 read-only: true;
                 mono: true;

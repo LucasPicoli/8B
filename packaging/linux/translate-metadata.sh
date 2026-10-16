@@ -14,6 +14,8 @@ podir=$(mktemp -d)
 trap 'rm -rf "$podir"' EXIT
 for po in "$translations"/*/LC_MESSAGES/gui.po; do
     lang=$(basename "$(dirname "$(dirname "$po")")")
+    # qps is the test pseudo-locale, never shipped as a language.
+    [[ $lang == qps ]] && continue
     cp "$po" "$podir/$lang.po"
     echo "$lang" >> "$podir/LINGUAS"
 done

@@ -50,7 +50,7 @@ component StickPad {
                         text: root.stick.glide-label;
                         checked: root.stick.at.glide;
                         enabled: root.enabled && root.stick.can-glide;
-                        accessible-label: root.stick.label + ", " + root.stick.glide-label;
+                        accessible-label: @tr("{}, {}", root.stick.label, root.stick.glide-label);
                         accessible-description: root.stick.glide-tip;
                         toggled => { root.glided(self.checked); }
                     }
@@ -79,7 +79,7 @@ component StickPad {
                 width: root.size;
                 height: root.size;
                 accessible-role: image;
-                accessible-label: root.stick.label + ": " + root.stick.at.text;
+                accessible-label: @tr("{}: {}", root.stick.label, root.stick.at.text);
                 opacity: root.enabled ? 1 : 0.45;
                 Rectangle {
                     border-width: 1px;

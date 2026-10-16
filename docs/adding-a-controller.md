@@ -143,7 +143,9 @@ string and where it sits, and `just translations` adds new ones to each `gui.po`
 - Keep each sentence whole inside one `lead`. Never split one sentence across fields.
 - Leave out of prose any number the app also shows, such as a range end.
 
-A string with no translation yet shows in English, and `just lint` stays green.
+Run `just translations` and commit what it writes: `just lint` fails while `gui.pot`
+is older than the description. A string with no translation yet shows in English, and
+only warns.
 
 ## How a controller is detected
 

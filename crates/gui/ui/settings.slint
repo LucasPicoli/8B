@@ -55,7 +55,7 @@ export component SettingsTab {
                             value <=> st.low;
                             minimum: st.minimum;
                             maximum: st.maximum;
-                            accessible-name: f.title + " " + st.label;
+                            accessible-name: @tr("{} {}", f.title, st.label);
                             changed(v) => { root.number-changed(st.low-field, v); }
                         }
                         if st.high-field != "": RangeSlider {
@@ -63,7 +63,7 @@ export component SettingsTab {
                             high <=> st.high;
                             minimum: st.minimum;
                             maximum: st.maximum;
-                            accessible-name: f.title + " " + st.label;
+                            accessible-name: @tr("{} {}", f.title, st.label);
                             low-changed(v) => { root.number-changed(st.low-field, v); }
                             high-changed(v) => { root.number-changed(st.high-field, v); }
                         }

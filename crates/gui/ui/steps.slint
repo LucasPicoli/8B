@@ -23,6 +23,10 @@ global Columns {
 // or below that also holds it, and a trigger's bar is as wide as its pressure.
 component LaneCell inherits Rectangle {
     in property <LaneInfo> cell;
+    // The tooltip's text, where the string coverage walk reads it. Role `none` keeps the
+    // cell out of a screen reader's tree: the row already says what each step holds.
+    accessible-role: none;
+    accessible-description: root.cell.held ? root.cell.tip : "";
     property <length> inset: 9px;
     // Deep enough on `view` for a graphic (3:1) in both themes.
     property <brush> ink: Theme.dark ? Theme.accent : Theme.accent-strong;
@@ -87,7 +91,7 @@ component LaneCell inherits Rectangle {
         background: root.ink;
     }
     if root.cell.held: Tooltip {
-        text: @markdown("\{root.cell.tip}");
+        text: @markdown("\{root.accessible-description}");
     }
 }
 
@@ -386,8 +390,9 @@ export component StepTable inherits Frame {
                     horizontal-stretch: 0;
                     VerticalLayout {
                         alignment: center;
-                        Button {
+                        add := Button {
                             text: @tr("Add step");
+                            accessible-description: @tr("Add an empty step after this one (Insert)");
                             icon: Icons.plus;
                             enabled: root.can && !root.full;
                             clicked => {
@@ -397,7 +402,7 @@ export component StepTable inherits Frame {
                         }
                     }
                     Tooltip {
-                        text: @markdown("\{@tr("Add an empty step after this one (Insert)")}");
+                        text: @markdown("\{add.accessible-description}");
                     }
                 }
                 for tool in [

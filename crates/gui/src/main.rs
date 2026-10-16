@@ -41,6 +41,8 @@ mod writes;
 
 #[cfg(test)]
 mod snapshots;
+#[cfg(test)]
+mod string_coverage;
 
 // The generated code trips these; hand-written code keeps the workspace lints.
 #[allow(
