@@ -7,49 +7,52 @@
 use controller_core::error::ErrorCategory;
 use controller_core::model::WriteResult;
 use controller_core::Error;
+use tr::tr;
 
 /// The sentence for a failed read. The caller adds the title and the holder hint.
 #[must_use]
-pub const fn read_failure(error: &Error) -> &'static str {
+pub fn read_failure(error: &Error) -> String {
     match error {
-        Error::NoDevice => "No supported controller is connected.",
-        Error::UnsupportedModel(_) => "8B does not support this controller model.",
-        Error::PermissionDenied(_) => "8B is not allowed to open the controller.",
-        Error::Usb(_) => "The USB connection to the controller failed.",
-        Error::Timeout => "The controller did not answer in time.",
-        Error::Disconnected => "The controller disconnected, or its mode switch was moved.",
-        Error::Decode(_) => "The controller sent something 8B could not understand.",
-        Error::Validation(_) | Error::Invalid(_) => "The data from the controller failed a check.",
-        Error::Io(_) => "8B could not read or write a file it needs.",
-        Error::Write { .. } => "The controller did not accept the data.",
+        Error::NoDevice => tr!("No supported controller is connected."),
+        Error::UnsupportedModel(_) => tr!("8B does not support this controller model."),
+        Error::PermissionDenied(_) => tr!("8B is not allowed to open the controller."),
+        Error::Usb(_) => tr!("The USB connection to the controller failed."),
+        Error::Timeout => tr!("The controller did not answer in time."),
+        Error::Disconnected => tr!("The controller disconnected, or its mode switch was moved."),
+        Error::Decode(_) => tr!("The controller sent something 8B could not understand."),
+        Error::Validation(_) | Error::Invalid(_) => {
+            tr!("The data from the controller failed a check.")
+        }
+        Error::Io(_) => tr!("8B could not read or write a file it needs."),
+        Error::Write { .. } => tr!("The controller did not accept the data."),
     }
 }
 
 /// The sentence for a failed write, from how far it got. The caller adds the lead for a
 /// lost connection and the holder hint; the backup path has its own line in the dialog.
 #[must_use]
-pub const fn write_failure(result: &WriteResult) -> &'static str {
+pub fn write_failure(result: &WriteResult) -> String {
     if result.rollback_succeeded {
-        return "The controller did not accept the profile. The slot is back as it was.";
+        return tr!("The controller did not accept the profile. The slot is back as it was.");
     }
     if result.rollback_attempted {
         return if result.backup_file_path.is_some() {
-            "The controller did not accept the profile, and the slot could not be put back \
-             as it was. A copy of the old profile is saved."
+            tr!("The controller did not accept the profile, and the slot could not be put back \
+             as it was. A copy of the old profile is saved.")
         } else {
-            "The controller did not accept the profile, the slot could not be put back as it \
-             was, and 8B could not save a copy of the old profile."
+            tr!("The controller did not accept the profile, the slot could not be put back as it \
+             was, and 8B could not save a copy of the old profile.")
         };
     }
     match result.error_category {
         ErrorCategory::Timeout | ErrorCategory::ConnectionFailure => {
-            "Check the cable and that the mode switch has not moved."
+            tr!("Check the cable and that the mode switch has not moved.")
         }
         ErrorCategory::ValidationFailure => {
-            "These edits do not make a valid profile, so nothing was written."
+            tr!("These edits do not make a valid profile, so nothing was written.")
         }
-        ErrorCategory::None | ErrorCategory::ExportFailure => "Nothing was written.",
-        ErrorCategory::WriteFailure => "The controller did not accept the profile.",
+        ErrorCategory::None | ErrorCategory::ExportFailure => tr!("Nothing was written."),
+        ErrorCategory::WriteFailure => tr!("The controller did not accept the profile."),
     }
 }
 
@@ -88,7 +91,7 @@ mod tests {
         ];
         for error in errors {
             let sentence = read_failure(&error);
-            clean(sentence);
+            clean(&sentence);
             assert!(!sentence.contains("/dev/"), "{sentence:?} names a device node");
         }
     }
@@ -120,7 +123,7 @@ mod tests {
         cases.extend([restored, stuck, saved]);
         for case in &cases {
             let sentence = write_failure(case);
-            clean(sentence);
+            clean(&sentence);
             assert!(!sentence.contains("/home"), "{sentence:?} names a path");
         }
     }

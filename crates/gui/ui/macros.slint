@@ -2,7 +2,7 @@
 // left, the selected macro's header on the right.
 import { Theme, Button, ComboBox, LineEdit } from "look/breeze/widgets.slint";
 import { Dot, Frame, Icons, MessageBar, NumberEdit, SmallHead, ViewTip } from "parts.slint";
-import { ChipInfo, MacroRow, MacroSpot, PadStick, PadTrigger, PadView, StepInfo } from "types.slint";
+import { ChipInfo, MacroRow, MacroSpot, PadStick, PadTrigger, PadView, StepCount, StepInfo } from "types.slint";
 import { StepTable } from "steps.slint";
 import { StepPanel } from "step_panel.slint";
 
@@ -115,7 +115,7 @@ component MacroSlotRow inherits Rectangle {
                 alignment: start;
                 spacing: 8px;
                 Text {
-                    text: root.item.steps;
+                    text: @tr("{n} step" | "{n} steps" % root.item.steps);
                     font-size: Theme.text-small;
                     color: Theme.fg-muted;
                     vertical-alignment: center;
@@ -583,7 +583,7 @@ export component MacrosTab {
     // The step table of the selected macro.
     in property <[StepInfo]> step-rows;
     in property <[string]> step-lanes;
-    in property <string> step-count;
+    in property <StepCount> step-count;
     in property <bool> steps-full;
     in property <bool> steps-ready;
     in-out property <int> selected-step: 0;

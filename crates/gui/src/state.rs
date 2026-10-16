@@ -9,6 +9,7 @@ use controller_core::description::{ControllerDescription, UNRECOGNISED_OUTPUT};
 use controller_core::device::Model;
 use controller_core::devices;
 use controller_core::model::{ButtonMapping, CanonicalProfile, MacroDefinition, Mode};
+use tr::tr;
 
 use crate::controllers::Controller;
 use crate::files::PendingImport;
@@ -16,8 +17,18 @@ use crate::macros::{macro_number, PadMacro};
 use crate::review::WriteState;
 use crate::worker::Command;
 
-/// The name a profile started from default gets.
-pub const NEW_PROFILE_NAME: &str = "New profile";
+/// `name` cut to `max` UTF-16 units, the unit the controller stores a name in.
+#[must_use]
+pub fn cut_name(name: &str, max: i32) -> String {
+    let max = usize::try_from(max).unwrap_or(0);
+    let mut used = 0;
+    name.chars()
+        .take_while(|c| {
+            used += c.len_utf16();
+            used <= max
+        })
+        .collect()
+}
 
 /// One slot: what the controller held at the last read, and the working copy.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -425,8 +436,7 @@ impl AppState {
 
     /// Renames the selected slot's profile, cut to the controller's name length.
     pub fn set_name(&mut self, name: &str) {
-        let max = usize::try_from(self.description().limits.profile_name_length.max).unwrap_or(0);
-        let name: String = name.chars().take(max).collect();
+        let name = cut_name(name, self.description().limits.profile_name_length.max);
         self.edit(|p| p.name = name);
     }
 
@@ -442,7 +452,9 @@ impl AppState {
     pub fn start_from_default(&mut self) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let Some(mut profile) = self.defaults().get(&mode).cloned() else { return };
-        NEW_PROFILE_NAME.clone_into(&mut profile.name);
+        // A default name is data once made: it keeps the language it was made in.
+        profile.name =
+            cut_name(&tr!("New profile"), self.description().limits.profile_name_length.max);
         if let Some(slot) = self.selected_mut().filter(|s| s.shown().is_none()) {
             slot.edited = Some(profile);
         }
@@ -794,7 +806,7 @@ pub mod tests {
         s.start_from_default();
         let slot = s.slot(SWITCH, 3);
         let p = slot.shown().unwrap();
-        assert_eq!((p.name.as_str(), p.mode), (NEW_PROFILE_NAME, SWITCH));
+        assert_eq!((p.name.as_str(), p.mode), ("New profile", SWITCH));
         assert!(slot.unsaved());
         let tabs = ["sticks", "triggers", "vibration"].map(str::to_owned).into();
         assert_eq!(s.slot_dirty(SWITCH, 3), Dirty { buttons: true, tabs, macros: false });

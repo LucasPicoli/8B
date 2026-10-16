@@ -2,6 +2,8 @@
 //! that explains it. The text of the offer and the install live in the window and
 //! [`crate::udev`].
 
+use tr::tr;
+
 use crate::state::{AppState, Install, Notice};
 
 impl AppState {
@@ -66,8 +68,8 @@ impl AppState {
                 self.fix_install = Install::Idle;
                 self.notice = Some(Notice {
                     error: false,
-                    title: "The files are added.".to_owned(),
-                    body: "The controller stays connected now.".to_owned(),
+                    title: tr!("The files are added."),
+                    body: tr!("The controller stays connected now."),
                 });
             }
             Err(e) => self.fix_install = Install::Failed(e),

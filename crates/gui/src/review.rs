@@ -11,11 +11,13 @@ use controller_core::model::profile::canonical_id;
 use controller_core::model::{CanonicalProfile, Mode, Slot as ProfileSlot, WriteResult};
 use serde_json::Value;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
+use tr::tr;
 
 use crate::batch::{render_batch, Batch};
 use crate::buttons::{current, held_current, output_text};
 use crate::controllers::Controller;
 use crate::macros::{descriptor, named, PadMacro};
+use crate::render::{and_list, slot_name};
 use crate::settings::pages_of;
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, Change, ClearInfo, FailedInfo, ReviewInfo};
@@ -274,17 +276,19 @@ impl AppState {
         holders: Option<&str>,
     ) {
         let key = (job.mode, result.slot);
-        let title = format!("{} slot {}", self.description().mode_label(job.mode), result.slot);
+        let mode = self.description().mode_label(job.mode);
         if !result.success {
             // A lost connection before any chunk went out leaves the slot as it was.
             let lost = matches!(
                 result.error_category,
                 ErrorCategory::Timeout | ErrorCategory::ConnectionFailure
             ) && !result.rollback_attempted;
-            let mut detail = crate::plain::write_failure(result).to_owned();
+            let mut detail = crate::plain::write_failure(result);
             if lost {
-                detail =
-                    format!("Could not reach the controller, so nothing was written. {detail}");
+                detail = format!(
+                    "{} {detail}",
+                    tr!("Could not reach the controller, so nothing was written.")
+                );
             }
             if let Some(names) = holders {
                 detail = format!("{detail} {names}");
@@ -324,12 +328,14 @@ impl AppState {
         }
         let (title, body) = match job.op {
             WriteOp::Upload { .. } => (
-                format!("Wrote {title} to the controller."),
-                "The controller uses it while that slot’s light is on.",
+                tr!("Wrote {mode} slot {n} to the controller.", mode = mode, n = result.slot),
+                tr!("The controller uses it while that slot’s light is on."),
             ),
-            WriteOp::Clear => (format!("Cleared {title}."), ""),
+            WriteOp::Clear => {
+                (tr!("Cleared {mode} slot {n}.", mode = mode, n = result.slot), String::new())
+            }
         };
-        self.notice = Some(Notice { error: false, title, body: body.to_owned() });
+        self.notice = Some(Notice { error: false, title, body });
     }
 
     /// Every difference between the edits of `slot` and what the controller holds,
@@ -343,7 +349,7 @@ impl AppState {
         let mode = slot.0;
         let mut out = Vec::new();
         if pad.name != edited.name {
-            out.push(change("Name", &quote(&pad.name), &quote(&edited.name)));
+            out.push(change(&tr!("Name"), &quote(&pad.name), &quote(&edited.name)));
         }
         for b in &d.buttons {
             let (Some(from), Some(to)) = (held_current(&state, &b.id), current(&state, &b.id))
@@ -367,18 +373,18 @@ impl AppState {
                 let named = frame.settings.row_count() > 0;
                 let mine = |what: &str| {
                     if named {
-                        format!("{} · {what}", frame.title)
+                        tr!("{frame} · {setting}", frame = frame.title, setting = what)
                     } else {
                         what.to_owned()
                     }
                 };
                 for s in frame.settings.iter().filter(|s| !s.was.is_empty()) {
-                    let was = s.was.strip_prefix("was ").unwrap_or(&s.was);
-                    out.push(change(&mine(&s.label), was, &s.text));
+                    out.push(change(&mine(&s.label), &s.was, &s.text));
                 }
                 for t in frame.toggles.iter().filter(|t| t.changed) {
-                    let (from, to) = if t.on { ("Off", "On") } else { ("On", "Off") };
-                    out.push(change(&mine(&t.label), from, to));
+                    let (off, on) = (tr!("Off"), tr!("On"));
+                    let (from, to) = if t.on { (off, on) } else { (on, off) };
+                    out.push(change(&mine(&t.label), &from, &to));
                 }
             }
         }
@@ -400,7 +406,7 @@ impl AppState {
             profile_open: !profile_flipped,
             macros_open: macros_open != macros_flipped,
             shown: true,
-            slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
+            slot_title: slot_name(self.description(), slot.0, slot.1).into(),
             name: state.shown().map(|e| e.name.as_str()).unwrap_or_default().into(),
             replaces: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
             is_new: state.pad.is_none(),
@@ -424,7 +430,7 @@ impl AppState {
         let state = self.slot_at(slot);
         ClearInfo {
             shown: true,
-            slot_title: format!("{} slot {}", self.description().mode_label(slot.0), slot.1).into(),
+            slot_title: slot_name(self.description(), slot.0, slot.1).into(),
             name: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
             macros: count(state.pad_macros.len()),
             has_edits: state.unsaved(),
@@ -452,14 +458,19 @@ fn clash_text(description: &ControllerDescription, profile: &CanonicalProfile) -
             .iter()
             .filter(|e| on(e))
             .filter_map(|e| flags().find(|(_, _, f)| &f.field == e))
-            .map(|(_, frame, f)| format!("“{}” in {}", f.label, frame.title))
+            .map(|(_, frame, f)| tr!("“{flag}” in {frame}", flag = f.label, frame = frame.title))
             .collect();
-        let Some((last, rest)) = named.split_last() else { continue };
-        let joined =
-            if rest.is_empty() { last.clone() } else { format!("{} and {last}", rest.join(", ")) };
+        if named.is_empty() {
+            continue;
+        }
         return format!(
-            "“{}” cannot be on together with {joined}. Cancel and turn one of them off on the {} tab.",
-            flag.label, page.label
+            "{} {}",
+            tr!(
+                "“{flag}” cannot be on together with {list}.",
+                flag = flag.label,
+                list = and_list(&named)
+            ),
+            tr!("Cancel and turn one of them off on the {tab} tab.", tab = page.label)
         );
     }
     String::new()
@@ -467,7 +478,7 @@ fn clash_text(description: &ControllerDescription, profile: &CanonicalProfile) -
 
 /// A profile name in quotes, for the change list.
 fn quote(name: &str) -> String {
-    format!("“{name}”")
+    tr!("“{name}”", name = name)
 }
 
 fn change(what: &str, from: &str, to: &str) -> Change {
@@ -499,12 +510,7 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
     );
     let failed = state.write.failed.as_ref().map(|f| FailedInfo {
         shown: true,
-        slot_title: format!(
-            "{} slot {}",
-            state.description().mode_label(f.job.mode),
-            f.job.slot.get()
-        )
-        .into(),
+        slot_title: slot_name(state.description(), f.job.mode, f.job.slot.get()).into(),
         detail: f.detail.as_str().into(),
         backup_path: f.backup.as_deref().unwrap_or_default().into(),
         macro_backups: paths(&f.macro_backups),
@@ -520,10 +526,10 @@ pub fn render_writes(state: &AppState, ui: &AppWindow) {
             .filter(|_| state.write.batch.is_none())
             .and_then(|(_, jobs)| jobs.first())
             .map(|job| {
-                format!(
-                    "Writing {} slot {}",
-                    state.description().mode_label(job.mode),
-                    job.slot.get()
+                tr!(
+                    "Writing {mode} slot {n}",
+                    mode = state.description().mode_label(job.mode),
+                    n = job.slot.get()
                 )
             })
             .unwrap_or_default()
@@ -608,7 +614,7 @@ mod tests {
         assert!(!info.is_new && info.macros_stay == 1);
         assert_eq!(info.replaces, "XInput");
         let changed: Vec<_> = info.macro_changes.iter().collect();
-        assert_eq!(changed, ["Buttons (Macro 1) changed: starts with PR to No button"]);
+        assert_eq!(changed, ["Buttons (Macro 1) changed. Starts with: PR → No button."]);
     }
 
     #[test]
@@ -624,7 +630,7 @@ mod tests {
         let info = s.review_info((XINPUT, 1));
         assert_eq!(info.macros_stay, 1);
         let changed: Vec<_> = info.macro_changes.iter().collect();
-        assert_eq!(changed, ["Jump (Macro 2) changed: starts with PR, PL to PL"]);
+        assert_eq!(changed, ["Jump (Macro 2) changed. Starts with: PR and PL → PL."]);
         let job = s.upload_job((XINPUT, 1)).unwrap();
         let WriteOp::Upload { drop_macros, .. } = job.op else { panic!("an upload") };
         assert_eq!(drop_macros, ["rp"]);

@@ -5,15 +5,16 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use tr::tr;
 use zbus::zvariant::{OwnedObjectPath, OwnedValue, Value};
 
 /// The portal answers 0 when the user picked a file, 1 when they cancelled.
 const RESPONSE_OK: u32 = 0;
 /// Numbers each request, so two open dialogs get different handle paths.
 static REQUESTS: AtomicU32 = AtomicU32::new(0);
-/// The filter both dialogs offer, for profile and macro files: name, then (glob kind,
-/// pattern).
-const JSON_FILTER: (&str, &[(u32, &str)]) = ("JSON files", &[(0, "*.json")]);
+/// The pattern of the filter both dialogs offer, for profile and macro files: (glob
+/// kind, pattern).
+const JSON_PATTERN: &[(u32, &str)] = &[(0, "*.json")];
 
 #[allow(missing_docs, unreachable_pub)]
 mod proxy {
@@ -93,7 +94,8 @@ fn choose(kind: Kind, title: &str, name: Option<&str>) -> zbus::Result<Option<Pa
     let mut options: HashMap<&str, Value<'_>> = HashMap::new();
     options.insert("handle_token", token.as_str().into());
     options.insert("modal", true.into());
-    options.insert("filters", vec![JSON_FILTER].into());
+    let filter = tr!("JSON files");
+    options.insert("filters", vec![(filter.as_str(), JSON_PATTERN)].into());
     if let Some(name) = name {
         options.insert("current_name", name.into());
     }

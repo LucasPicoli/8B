@@ -9,11 +9,14 @@ use controller_core::description::{Button, TriggerKind, TriggerSide};
 use controller_core::model::glide::expanded_len;
 use controller_core::model::{GlideControl, MacroStep, Mode};
 use slint::{Model as _, ModelRc, SharedString, VecModel};
+use tr::tr;
 
 use crate::buttons::{keep_same, push_model};
 use crate::macro_steps::{add_after, delete, duplicate, move_step, split};
+use crate::render::and_list;
+use crate::review::count;
 use crate::state::AppState;
-use crate::ui::{AppWindow, LaneInfo, StepInfo, StickInfo};
+use crate::ui::{AppWindow, LaneInfo, StepCount, StepInfo, StickInfo};
 
 /// A stick at rest, on each axis.
 const REST: u8 = 127;
@@ -246,8 +249,8 @@ pub fn stick(steps: &[MacroStep], i: usize, control: GlideControl) -> StickInfo 
         to_y: ty,
         text: to
             .map_or_else(
-                || format!("x {x}, y {y}"),
-                |[a, b]| format!("x {x}, y {y} to x {a}, y {b}"),
+                || tr!("x {x}, y {y}", x = x, y = y),
+                |[a, b]| tr!("x {x}, y {y} to x {a}, y {b}", x = x, y = y, a = a, b = b),
             )
             .into(),
     }
@@ -280,7 +283,7 @@ fn held_text(
     let now = trigger(step, side);
     next.filter(|_| step.glide.contains(&trigger_control(side))).map_or_else(
         || format!("{label} {now}"),
-        |n| format!("{label} {now} to {}", trigger(n, side)),
+        |n| tr!("{button} {now} to {next}", button = label, now = now, next = trigger(n, side)),
     )
 }
 
@@ -350,11 +353,11 @@ pub fn step_rows(
                 .collect();
             StepInfo {
                 number: i32::try_from(i + 1).unwrap_or(i32::MAX),
-                starts_at: format!("{start} ms").into(),
-                duration: format!("{} ms", step.duration_ms).into(),
+                starts_at: tr!("{n} ms", n = start).into(),
+                duration: tr!("{n} ms", n = step.duration_ms).into(),
                 duration_ms: i32::from(step.duration_ms),
                 pause: is_pause(step),
-                held: held_list.join(", ").into(),
+                held: and_list(&held_list).into(),
                 lanes: ModelRc::from(Rc::new(VecModel::from(cells))),
                 left: stick(steps, i, GlideControl::LeftStick),
                 right: stick(steps, i, GlideControl::RightStick),
@@ -365,22 +368,16 @@ pub fn step_rows(
     (labels, rows)
 }
 
-/// "12/408 steps · 1.20 s", or "12 steps, 40/408 on the controller · 1.20 s" when a
-/// glide expands.
+/// The numbers of the line under the step table. `.slint` words them, as
+/// "12/408 steps · 1.20 s", and writes the seconds in the language's decimal form.
 #[must_use]
-pub fn step_count(state: &AppState, steps: &[MacroStep]) -> String {
-    let max = state.description().limits.macro_steps.max;
-    let (n, pad) = (steps.len(), state.pad_steps(steps));
+pub fn step_count(state: &AppState, steps: &[MacroStep]) -> StepCount {
     let total: u32 = steps.iter().map(|s| u32::from(s.duration_ms)).sum();
-    let time = if total < 1000 {
-        format!("{total} ms")
-    } else {
-        format!("{:.2} s", f64::from(total) / 1000.0)
-    };
-    if pad > n {
-        format!("{n} steps, {pad}/{max} on the controller · {time}")
-    } else {
-        format!("{n}/{max} steps · {time}")
+    StepCount {
+        steps: count(steps.len()),
+        pad_steps: count(state.pad_steps(steps)),
+        max: state.description().limits.macro_steps.max,
+        total_ms: i32::try_from(total).unwrap_or(i32::MAX),
     }
 }
 
@@ -395,7 +392,7 @@ pub fn render_steps(state: &AppState, ui: &AppWindow) {
     };
     ui.set_steps_ready(steps.is_some());
     ui.set_steps_full(steps.as_ref().is_some_and(|s| state.steps_full(s)));
-    ui.set_step_count(steps.as_ref().map(|s| step_count(state, s)).unwrap_or_default().into());
+    ui.set_step_count(steps.as_ref().map(|s| step_count(state, s)).unwrap_or_default());
     let lanes = lanes.into_iter().map(SharedString::from).collect();
     push_model(&ui.get_step_lanes(), lanes, |m| ui.set_step_lanes(m));
     // A row keeps its lanes model while the lanes hold, so only a changed row is redone.
@@ -455,7 +452,7 @@ mod tests {
         };
         let s = holding(vec![held(&["select/back", "d-pad up"])]);
         let (lanes, rows) = step_rows(&s, SWITCH, &s.macro_steps(0).unwrap());
-        assert_eq!(rows[0].held, "Minus, D-pad up");
+        assert_eq!(rows[0].held, "Minus and D-pad up");
         assert_eq!(lanes.iter().filter(|l| ["−", "↑"].contains(&l.as_str())).count(), 2);
         assert_eq!(rows[0].lanes.row_data(0).unwrap().tip.as_str(), lanes[0]);
     }
@@ -481,7 +478,7 @@ mod tests {
         assert!((lt_lane.top - (TRIGGER_BAR_MIN + 1.8)).abs() < 1e-4, "51 of 255");
         assert_eq!(lt_lane.bottom, TRIGGER_BAR_MIN, "it glides to 0");
         assert!(rows[3].pause && !rows[2].pause);
-        assert_eq!((rows[1].held.as_str(), rows[2].held.as_str()), ("A, LT 255", "LT 51 to 0"));
+        assert_eq!((rows[1].held.as_str(), rows[2].held.as_str()), ("A and LT 255", "LT 51 to 0"));
         assert_eq!(rows[2].lanes.row_data(1).unwrap().tip, "LT 51 to 0");
         let (_, switch) = step_rows(&s, SWITCH, &steps);
         assert_eq!(switch[2].lanes.row_data(1).unwrap().top, BAR, "on or off");
@@ -510,12 +507,10 @@ mod tests {
         let glide =
             MacroStep { left_stick_x: 0, glide: [GlideControl::LeftStick].into(), ..step(100) };
         let s = holding(vec![step(100), step(100)]);
-        assert_eq!(step_count(&s, &s.macro_steps(0).unwrap()), "2/408 steps · 200 ms");
+        let counts = |c: StepCount| (c.steps, c.pad_steps, c.max, c.total_ms);
+        assert_eq!(counts(step_count(&s, &s.macro_steps(0).unwrap())), (2, 2, 408, 200));
         let s = holding(vec![glide, step(100)]);
-        assert_eq!(
-            step_count(&s, &s.macro_steps(0).unwrap()),
-            "2 steps, 6/408 on the controller · 200 ms"
-        );
+        assert_eq!(counts(step_count(&s, &s.macro_steps(0).unwrap())), (2, 6, 408, 200));
     }
 
     #[test]

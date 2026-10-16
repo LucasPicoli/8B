@@ -3,6 +3,10 @@
 
 use std::path::Path;
 
+use tr::tr;
+
+use crate::render::and_list;
+
 /// Where the kernel lists processes.
 pub const PROC: &str = "/proc";
 
@@ -35,25 +39,25 @@ pub fn holders(proc: &Path, node: &Path, own: u32) -> Vec<String> {
 /// when there are none.
 #[must_use]
 pub fn sentence(holders: &[String]) -> Option<String> {
-    let (last, rest) = holders.split_last()?;
-    if rest.is_empty() {
-        return Some(format!("{last} also has the controller open. Close it and try again."));
+    match holders {
+        [] => None,
+        [name] => {
+            Some(tr!("{name} also has the controller open. Close it and try again.", name = name))
+        }
+        _ => Some(tr!(
+            "{names} also have the controller open. Close them and try again.",
+            names = and_list(holders)
+        )),
     }
-    Some(format!(
-        "{} and {last} also have the controller open. Close them and try again.",
-        rest.join(", ")
-    ))
 }
-
-/// What a failure says in the sandbox, where `/proc` hides the other programs.
-const MAYBE_HELD: &str = "Another program may be using the controller. Close it and try again.";
 
 /// The sentence a failed read or write adds: [`sentence`] outside the sandbox, a
 /// guess inside it, where no names can be found.
 #[must_use]
 pub fn hint(holders: &[String], sandboxed: bool) -> Option<String> {
     if sandboxed {
-        Some(MAYBE_HELD.to_owned())
+        // In the sandbox `/proc` hides the other programs.
+        Some(tr!("Another program may be using the controller. Close it and try again."))
     } else {
         sentence(holders)
     }

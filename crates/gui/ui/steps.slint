@@ -2,7 +2,7 @@
 // macro, with a lane per button it holds and its two sticks.
 import { Theme, Button, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
-import { LaneInfo, StepInfo, StickInfo } from "types.slint";
+import { LaneInfo, StepCount, StepInfo, StickInfo } from "types.slint";
 
 // Column widths: step number, start time, each stick, duration. The lanes share the
 // rest, at most `lane-max` each.
@@ -288,8 +288,14 @@ component StepRow inherits Rectangle {
 export component StepTable inherits Frame {
     in property <[StepInfo]> rows;
     in property <[string]> lanes;
-    // Such as "12/408 steps".
-    in property <string> count;
+    in property <StepCount> count;
+    // Such as "12/408 steps · 1.20 s", or "12 steps, 40/408 on the controller · 1.20 s"
+    // when a glide expands.
+    property <string> time: root.count.total-ms < 1000 ? @tr("{} ms", root.count.total-ms)
+        : @tr("{} s", (root.count.total-ms / 1000).to-fixed(2));
+    property <string> count-text: root.count.pad-steps > root.count.steps
+        ? @tr("{n} step, {}/{} on the controller · {}" | "{n} steps, {}/{} on the controller · {}" % root.count.steps, root.count.pad-steps, root.count.max, root.time)
+        : @tr("{}/{n} step · {}" | "{}/{n} steps · {}" % root.count.max, root.count.steps, root.time);
     // The steps fill the controller: no edit may add one.
     in property <bool> full;
     // The steps are more than the controller holds: the count is in red.
@@ -638,7 +644,7 @@ export component StepTable inherits Frame {
                 x: 10px;
                 width: parent.width - 20px;
                 height: parent.height;
-                text: root.over ? @tr("{}, too many", root.count) : root.full ? @tr("{}, full", root.count) : root.count;
+                text: root.over ? @tr("{}, too many", root.count-text) : root.full ? @tr("{}, full", root.count-text) : root.count-text;
                 font-size: Theme.text-small;
                 color: root.over ? Theme.negative-ink : root.full ? Theme.fg : Theme.fg-muted;
                 vertical-alignment: center;

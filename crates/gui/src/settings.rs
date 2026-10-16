@@ -8,6 +8,7 @@ use controller_core::description as described;
 use controller_core::model::{CanonicalProfile, Mode};
 use serde_json::Value;
 use slint::{Model as _, ModelRc, VecModel};
+use tr::tr;
 
 use crate::state::AppState;
 use crate::ui::{AppWindow, Setting, SettingFrame, SettingsPage, Toggle};
@@ -75,9 +76,11 @@ fn number(json: &Value, pointer: &str) -> Option<i64> {
 fn shown_value(slider: &described::Slider, low: i64, high: Option<i64>) -> String {
     let unit = &slider.unit;
     match (high, slider.low.label(low)) {
-        (Some(high), _) => format!("{low} to {high}{unit}"),
+        (Some(high), _) => tr!("{low} to {high}{unit}", low = low, high = high, unit = unit),
         (None, Some(label)) => label.to_owned(),
-        (None, None) if unit.is_empty() => format!("{low} of {}", slider.low.max),
+        (None, None) if unit.is_empty() => {
+            tr!("{low} of {max}", low = low, max = slider.low.max)
+        }
         (None, None) => format!("{low}{unit}"),
     }
 }
@@ -101,7 +104,7 @@ fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> S
             let was = pad
                 .and_then(values)
                 .filter(|&old| old != (low, high))
-                .map(|(l, h)| format!("was {}", shown_value(s, l, h)))
+                .map(|(l, h)| shown_value(s, l, h))
                 .unwrap_or_default();
             Some(Setting {
                 label: s.label.as_str().into(),
@@ -333,7 +336,7 @@ mod tests {
         s.set_flag("/sticks/invert_left_y", true);
         let frame = pages(&s)[0].frames.row_data(0).unwrap();
         let left = frame.settings.row_data(0).unwrap();
-        assert_eq!(left.was, format!("was {old}"));
+        assert_eq!(left.was, old, "the old value, worded by `.slint`");
         assert!(left.text.starts_with("40 to "));
         let toggles: Vec<_> = frame.toggles.iter().map(|t| (t.on, t.changed)).collect();
         assert_eq!(toggles, [(false, false), (true, true)]);

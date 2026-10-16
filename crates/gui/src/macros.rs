@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 
 use controller_core::model::glide::expanded_len;
 use controller_core::model::{MacroDefinition, MacroStep, Mode};
+use tr::tr;
 
 use crate::buttons::target;
 use crate::state::{AppState, SlotState};
@@ -40,7 +41,7 @@ pub fn macro_number(id: &str) -> Option<u8> {
 #[must_use]
 pub fn named(mut def: MacroDefinition) -> MacroDefinition {
     if def.name.is_empty() {
-        def.name = format!("Macro {}", def.macro_slot.map_or(1, |s| u16::from(s) + 1));
+        def.name = tr!("Macro {}", def.macro_slot.map_or(1, |s| u16::from(s) + 1));
     }
     def
 }
@@ -49,10 +50,11 @@ pub fn named(mut def: MacroDefinition) -> MacroDefinition {
 #[must_use]
 pub fn title(def: &MacroDefinition, slot: u8) -> String {
     let n = u16::from(slot) + 1;
-    if def.name.is_empty() || def.name == format!("Macro {n}") {
-        format!("Macro {n}")
+    let plain = tr!("Macro {}", n);
+    if def.name.is_empty() || def.name == plain {
+        plain
     } else {
-        format!("{} (Macro {n})", def.name)
+        tr!("{name} (Macro {n})", name = def.name, n = n)
     }
 }
 
@@ -62,7 +64,7 @@ pub fn title(def: &MacroDefinition, slot: u8) -> String {
 pub fn label(defs: &[&MacroDefinition], slot: u8) -> String {
     defs.iter()
         .find(|d| d.macro_slot == Some(slot))
-        .map_or_else(|| format!("Macro {}", u16::from(slot) + 1), |d| title(d, slot))
+        .map_or_else(|| tr!("Macro {}", u16::from(slot) + 1), |d| title(d, slot))
 }
 
 /// What a descriptor holds of `def`: `def` with each step a placeholder, one per step

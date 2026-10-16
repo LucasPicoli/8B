@@ -1,9 +1,6 @@
 //! The sentence the GUI shows for each reason core gives that a file or an edit is not
 //! valid. Core's English, with the JSON pointer, goes to the log.
 
-// `tr!` fills named placeholders at run time, after the translation.
-#![allow(clippy::literal_string_with_formatting_args)]
-
 use controller_core::description::ControllerDescription;
 use controller_core::model::Mode;
 use controller_core::service::validation::ValidationError;

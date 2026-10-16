@@ -5,11 +5,12 @@
 use std::collections::BTreeSet;
 use std::rc::Rc;
 
-use controller_core::description::ControllerDescription;
 use controller_core::model::Mode;
 use slint::{ModelRc, VecModel};
+use tr::tr;
 
 use crate::controllers::Controller;
+use crate::render::slot_name;
 use crate::review::{count, paths, WriteFailure};
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, BatchInfo, BatchSlot};
@@ -61,20 +62,6 @@ pub enum Stage {
         /// What failed.
         failure: WriteFailure,
     },
-}
-
-/// `1 slot` or `n slots`.
-fn slots(n: usize) -> String {
-    if n == 1 {
-        "1 slot".to_owned()
-    } else {
-        format!("{n} slots")
-    }
-}
-
-/// The title of the slot `job` writes, such as `XInput slot 2`.
-fn title(description: &ControllerDescription, job: &WriteJob) -> String {
-    format!("{} slot {}", description.mode_label(job.mode), job.slot.get())
 }
 
 impl AppState {
@@ -239,8 +226,9 @@ impl AppState {
         }
         self.notice = Some(Notice {
             error: false,
-            title: format!("Wrote {} to the controller.", slots(jobs.len())),
-            body: "The controller uses a profile while its slot’s light is on.".to_owned(),
+            title: tr!("Wrote {n} slot to the controller."
+                | "Wrote {n} slots to the controller." % jobs.len()),
+            body: tr!("The controller uses a profile while its slot’s light is on."),
         });
     }
 
@@ -292,7 +280,7 @@ impl AppState {
             let rows: Vec<BatchSlot> = jobs
                 .iter()
                 .map(|j| BatchSlot {
-                    title: title(self.description(), j).into(),
+                    title: slot_name(self.description(), j.mode, j.slot.get()).into(),
                     ..BatchSlot::default()
                 })
                 .collect();

@@ -7,6 +7,7 @@ use controller_core::description::{ControllerDescription, DISABLED_OUTPUT, UNREC
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use controller_core::view::{VIEW_FILL_COLOR, VIEW_LINE_COLOR};
 use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedString, VecModel};
+use tr::tr;
 
 use crate::macros::{label, macro_number, macro_output};
 use crate::state::{AppState, SlotState};
@@ -47,8 +48,8 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
         return label(&[], n);
     }
     match id {
-        DISABLED_OUTPUT => "Disabled".to_owned(),
-        UNRECOGNISED_OUTPUT => "Unknown".to_owned(),
+        DISABLED_OUTPUT => tr!("Disabled"),
+        UNRECOGNISED_OUTPUT => tr!("Unknown"),
         _ => description
             .mode(mode)
             .and_then(|m| m.extra_outputs.iter().find(|o| o.id == id))
@@ -125,7 +126,7 @@ pub fn sections(state: &AppState) -> Vec<Section> {
     };
     let macros = selected.map_or(0, |(m, n)| state.slot(m, n).shown_macros().len());
     let macros = (description.macro_slot_count > 0).then(|| Section {
-        name: "Macros".into(),
+        name: tr!("Macros").into(),
         unsaved: dirty.macros,
         error: selected.is_some_and(|key| state.invalid_macro(key).is_some()),
         count: i32::try_from(macros).unwrap_or(i32::MAX),
@@ -137,7 +138,7 @@ pub fn sections(state: &AppState) -> Vec<Section> {
         count: 0,
     });
     std::iter::once(Section {
-        name: "Buttons".into(),
+        name: tr!("Buttons").into(),
         unsaved: dirty.buttons,
         error: false,
         count: 0,

@@ -181,7 +181,7 @@ export component MacroImportDialog inherits DialogShell {
         ? @tr("Import “{}” into Macro {}?", info.name, info.number)
         : @tr("Could not import “{}”", info.file-name);
     subtitle: ok
-        ? @tr("“{}”, made in {} mode: {}, started by {}.", info.file-name, info.from-mode, info.steps, info.buttons != "" ? info.buttons : @tr("no button"))
+        ? @tr("“{}”, made in {} mode: {n} step, started by {}." | "“{}”, made in {} mode: {n} steps, started by {}." % info.steps, info.file-name, info.from-mode, info.buttons != "" ? info.buttons : @tr("no button"))
         : "";
     // One button closes a bad file's dialog, as in the other one-button dialogs.
     accept-text: ok ? @tr("Import") : @tr("Close");
@@ -204,7 +204,7 @@ export component MacroImportDialog inherits DialogShell {
         }
     }
     if root.ok && root.info.replaces != "": Bullet {
-        text: @tr("It replaces {}.", root.info.replaces);
+        text: root.info.replaces;
     }
     if root.ok && root.info.replaces-unsaved: Bullet {
         text: @tr("Your edits to Macro {}, not written yet, are discarded.", root.info.number);

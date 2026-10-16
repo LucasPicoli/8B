@@ -4,9 +4,11 @@
 use controller_core::model::{MacroDefinition, MacroSlot, Mode, REPEAT_CONTINUOUS};
 use controller_core::orchestrator::MacroEdit;
 use slint::SharedString;
+use tr::tr;
 
 use crate::buttons::output_label;
 use crate::macros::{named, title};
+use crate::render::and_list;
 use crate::state::{AppState, SlotState};
 
 /// One macro slot of a slot, before and after the write.
@@ -119,22 +121,12 @@ impl SlotState {
     }
 }
 
-/// "1 step" or "n steps".
-#[must_use]
-pub fn steps(n: usize) -> String {
-    if n == 1 {
-        "1 step".to_owned()
-    } else {
-        format!("{n} steps")
-    }
-}
-
 /// How often a macro plays, as the Macros tab says it.
 fn plays(repeat_count: u32) -> String {
     match repeat_count {
-        1 => "once".to_owned(),
-        REPEAT_CONTINUOUS => "until pressed again".to_owned(),
-        n => format!("{n} times"),
+        1 => tr!("once"),
+        REPEAT_CONTINUOUS => tr!("until pressed again"),
+        n => tr!("{n} time" | "{n} times" % n),
     }
 }
 
@@ -142,94 +134,103 @@ impl AppState {
     /// The buttons that start `def`, as `mode` labels them, or "No button".
     fn starts_with(&self, mode: Mode, def: &MacroDefinition) -> String {
         if def.trigger_buttons.is_empty() {
-            return "No button".to_owned();
+            return tr!("No button");
         }
         let labels: Vec<_> =
             def.trigger_buttons.iter().map(|b| output_label(self.description(), mode, b)).collect();
-        labels.join(", ")
+        and_list(&labels)
     }
 
-    /// The review line of `c`, such as "Jump (Macro 2) changed: 12 to 15 steps, starts
-    /// with A, B to A". `None` for a macro the write leaves as it is.
+    /// The review line of `c`: the macro, then a label and value pair for each thing
+    /// that changed, such as "Jump (Macro 2) changed. Steps: 12 → 15.". `None` for a
+    /// macro the write leaves as it is.
     fn macro_line(&self, mode: Mode, c: &MacroChange) -> Option<String> {
+        let mut parts = Vec::new();
         match (&c.old, &c.new) {
-            (None, Some(new)) => Some(format!(
-                "{} added: {}, starts with {}",
-                title(new, c.slot),
-                steps(new.steps.len()),
-                self.starts_with(mode, new)
-            )),
-            (Some(old), None) => Some(format!("{} removed", title(old, c.slot))),
+            (None, Some(new)) => {
+                parts.push(tr!("{macro} added.", macro = title(new, c.slot)));
+                parts.push(tr!("Steps: {n}.", n = new.steps.len()));
+                parts.push(tr!("Starts with: {buttons}.", buttons = self.starts_with(mode, new)));
+            }
+            (Some(old), None) => parts.push(tr!("{macro} removed.", macro = title(old, c.slot))),
             (Some(old), Some(new)) if old != new => {
-                let mut parts = Vec::new();
+                parts.push(tr!("{macro} changed.", macro = title(old, c.slot)));
                 if old.name != new.name {
-                    parts.push(format!("renamed “{}”", new.name));
+                    parts.push(tr!("Name: “{name}”.", name = new.name));
                 }
                 if old.steps.len() != new.steps.len() {
-                    parts.push(format!("{} to {}", old.steps.len(), steps(new.steps.len())));
+                    parts.push(tr!(
+                        "Steps: {old} → {new}.",
+                        old = old.steps.len(),
+                        new = new.steps.len()
+                    ));
                 } else if old.steps != new.steps {
-                    parts.push("steps edited".to_owned());
+                    parts.push(tr!("Steps: edited."));
                 }
                 if old.repeat_count != new.repeat_count {
-                    parts.push(format!(
-                        "plays {} to {}",
-                        plays(old.repeat_count),
-                        plays(new.repeat_count)
+                    parts.push(tr!(
+                        "Plays: {old} → {new}.",
+                        old = plays(old.repeat_count),
+                        new = plays(new.repeat_count)
                     ));
                 }
                 if old.interval_ms != new.interval_ms {
-                    parts.push(format!("interval {} to {} ms", old.interval_ms, new.interval_ms));
-                }
-                if old.trigger_buttons != new.trigger_buttons {
-                    parts.push(format!(
-                        "starts with {} to {}",
-                        self.starts_with(mode, old),
-                        self.starts_with(mode, new)
+                    parts.push(tr!(
+                        "Interval: {old} → {new} ms.",
+                        old = old.interval_ms,
+                        new = new.interval_ms
                     ));
                 }
-                let what = if parts.is_empty() {
-                    String::new()
-                } else {
-                    format!(": {}", parts.join(", "))
-                };
-                Some(format!("{} changed{what}", title(old, c.slot)))
+                if old.trigger_buttons != new.trigger_buttons {
+                    parts.push(tr!(
+                        "Starts with: {old} → {new}.",
+                        old = self.starts_with(mode, old),
+                        new = self.starts_with(mode, new)
+                    ));
+                }
             }
-            _ => None,
+            _ => return None,
         }
+        Some(parts.join(" "))
     }
 
     /// One sentence per macro of `slot` that an import adds, replaces or removes, in
     /// macro slot order, such as "Ramp replaces Dash in Macro 1.".
     pub(crate) fn import_lines(&self, slot: (Mode, u8)) -> Vec<String> {
-        let name = |d: &MacroDefinition| {
-            if d.name.is_empty() {
-                "a macro without a name".to_owned()
-            } else {
-                d.name.clone()
-            }
-        };
+        // A macro with no name, "", gets whole sentences of its own, for the article.
+        let name = |d: &Option<MacroDefinition>| d.as_ref().map(|d| d.name.clone());
         self.slot(slot.0, slot.1)
             .macro_changes()
             .iter()
             .filter(|c| c.edited)
-            .map(|c| {
+            .filter_map(|c| {
                 let n = u16::from(c.slot) + 1;
-                match (&c.old, &c.new) {
-                    (None, Some(new)) => format!("{} is added in Macro {n}.", name(new)),
-                    (Some(old), None) => format!("{} is removed from Macro {n}.", name(old)),
-                    (Some(old), Some(new)) if old.name == new.name => {
-                        format!("The file’s {} replaces the one in Macro {n}.", name(new))
+                Some(match (name(&c.old).as_deref(), name(&c.new).as_deref()) {
+                    (None, None) => return None,
+                    (None, Some("")) => tr!("A macro without a name is added in Macro {n}.", n = n),
+                    (None, Some(new)) => tr!("{name} is added in Macro {n}.", name = new, n = n),
+                    (Some(""), None) => {
+                        tr!("A macro without a name is removed from Macro {n}.", n = n)
                     }
-                    (old, new) => format!(
-                        "{} replaces {} in Macro {n}.",
-                        new.as_ref().map(name).unwrap_or_default(),
-                        old.as_ref().map(name).unwrap_or_default()
-                    ),
-                }
-            })
-            .map(|line| {
-                let mut chars = line.chars();
-                chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
+                    (Some(old), None) => {
+                        tr!("{name} is removed from Macro {n}.", name = old, n = n)
+                    }
+                    (Some(""), Some("")) => {
+                        tr!("The file’s macro without a name replaces the one in Macro {n}.", n = n)
+                    }
+                    (Some(old), Some(new)) if old == new => {
+                        tr!("The file’s {name} replaces the one in Macro {n}.", name = new, n = n)
+                    }
+                    (Some(old), Some("")) => {
+                        tr!("A macro without a name replaces {old} in Macro {n}.", old = old, n = n)
+                    }
+                    (Some(""), Some(new)) => {
+                        tr!("{new} replaces a macro without a name in Macro {n}.", new = new, n = n)
+                    }
+                    (Some(old), Some(new)) => {
+                        tr!("{new} replaces {old} in Macro {n}.", new = new, old = old, n = n)
+                    }
+                })
             })
             .collect()
     }
@@ -313,10 +314,10 @@ mod tests {
         assert_eq!(
             lines(&s),
             [
-                "Jump (Macro 1) changed: 12 to 15 steps, starts with PR, PL to PL",
-                "Dash (Macro 2) removed",
-                "Spin (Macro 3) added: 1 step, starts with PR",
-                "Macro 4 added: 2 steps, starts with No button",
+                "Jump (Macro 1) changed. Steps: 12 → 15. Starts with: PR and PL → PL.",
+                "Dash (Macro 2) removed.",
+                "Spin (Macro 3) added. Steps: 1. Starts with: PR.",
+                "Macro 4 added. Steps: 2. Starts with: No button.",
             ]
         );
         let macro_slot = |n| MacroSlot::new(n).unwrap();
@@ -349,9 +350,9 @@ mod tests {
         assert_eq!(
             lines(&s),
             [
-                "Jump (Macro 1) changed: steps edited",
-                "Dash (Macro 2) changed: renamed “Macro 2”, plays once to until pressed again, \
-                 interval 0 to 200 ms",
+                "Jump (Macro 1) changed. Steps: edited.",
+                "Dash (Macro 2) changed. Name: “Macro 2”. Plays: once → until pressed again. \
+                 Interval: 0 → 200 ms.",
             ]
         );
     }
@@ -366,7 +367,7 @@ mod tests {
         }];
         s.set_output("rp", "right face");
         // Remapped only: the job drops the button, and the macro is not rewritten.
-        assert_eq!(lines(&s), ["Jump (Macro 1) changed: starts with PR, PL to PL"]);
+        assert_eq!(lines(&s), ["Jump (Macro 1) changed. Starts with: PR and PL → PL."]);
         assert_eq!(edits(&s), []);
         // Then edited: the put leaves the remapped button out.
         s.edit_macros(|m| m[0].name = "Hop".to_owned());
@@ -374,7 +375,10 @@ mod tests {
             panic!("one put")
         };
         assert_eq!(definition.trigger_buttons, ["lp"]);
-        assert_eq!(lines(&s), ["Jump (Macro 1) changed: renamed “Hop”, starts with PR, PL to PL"]);
+        assert_eq!(
+            lines(&s),
+            ["Jump (Macro 1) changed. Name: “Hop”. Starts with: PR and PL → PL."]
+        );
     }
 
     #[test]

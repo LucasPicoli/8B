@@ -46,6 +46,7 @@ fn window(state: &AppState) -> AppWindow {
     let _ = slint::platform::set_platform(Box::new(Headless));
     let ui = AppWindow::new().unwrap();
     language::fill_menu(&ui);
+    crate::render::read_accessible_numbers(&ui);
     // A rerun under `GUI_TEST_LANG=pt_BR` draws every shot in that language.
     if let Some(code) = std::env::var_os("GUI_TEST_LANG") {
         let code = code.to_string_lossy();
@@ -2464,6 +2465,36 @@ fn pt_br_switches_the_slint_and_the_rust_text() {
     language::pick(0, &settings, &state, &restarted);
     assert_eq!(crate::preferences::saved_language(&settings), None);
     language::select(None, &state, &ui).unwrap();
+}
+
+#[test]
+fn pt_br_a_screen_reader_sets_a_slider_with_a_decimal_point() {
+    use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    // `tr` keeps one translator per process, so this runs alone: `GUI_TEST_LANG=pt_BR cargo test`.
+    if std::env::var_os("GUI_TEST_LANG").is_none_or(|l| l != "pt_BR") {
+        return;
+    }
+    let state = Rc::new(std::cell::RefCell::new(connected(XINPUT)));
+    let ui = window(&state.borrow());
+    ui.set_tab(4);
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_number_changed(move |field, value| {
+        s.borrow_mut().set_number(&field, value);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let level = || {
+        let s = state.borrow();
+        let v = s.slot(XINPUT, 1).shown().unwrap().setting("/vibration/left_level").cloned();
+        v.and_then(|v| v.as_i64()).unwrap()
+    };
+    let slider = ElementHandle::find_by_accessible_label(&ui, "Motors Left motor")
+        .find(|e| e.accessible_role() == Some(AccessibleRole::Slider))
+        .unwrap();
+    // AccessKit writes a screen reader's number with a point, whatever the language.
+    for (sent, level_after) in [("3", 3), ("1.6", 2), ("4,2", 4), ("loud", 4)] {
+        slider.set_accessible_value(sent);
+        assert_eq!(level(), level_after, "{sent}");
+    }
 }
 
 /// Presses and releases `key` in the window.

@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use controller_core::model::macros::macro_to_json;
 use controller_core::model::{MacroDefinition, Mode};
 use controller_core::service::validation::{validate_macro, ValidationError};
+use tr::tr;
 
 use crate::reasons::worded;
 use crate::state::AppState;
@@ -100,8 +101,8 @@ pub fn write_blocked(state: &AppState) -> Blocked {
     let invalid = state.invalid_macros(key);
     let Some(first) = invalid.first() else { return Blocked::default() };
     let text = match invalid.len() {
-        1 => format!("Macro {} can't be written.", u16::from(first.macro_slot) + 1),
-        n => format!("{n} macros can't be written."),
+        1 => tr!("Macro {n} can't be written.", n = u16::from(first.macro_slot) + 1),
+        n => tr!("{n} macro can't be written." | "{n} macros can't be written." % n),
     };
     state.blocked(key, first.macro_slot, text)
 }
@@ -119,12 +120,13 @@ pub fn write_all_blocked(state: &AppState) -> Blocked {
         .collect();
     let Some(((mode, number), first)) = invalid.first() else { return Blocked::default() };
     let text = match invalid.len() {
-        1 => format!(
-            "Macro {} of {} slot {number} can't be written.",
-            u16::from(first.macro_slot) + 1,
-            d.mode_label(*mode)
+        1 => tr!(
+            "Macro {n} of {mode} slot {slot} can't be written.",
+            n = u16::from(first.macro_slot) + 1,
+            mode = d.mode_label(*mode),
+            slot = number
         ),
-        n => format!("{n} macros can't be written."),
+        n => tr!("{n} macro can't be written." | "{n} macros can't be written." % n),
     };
     state.blocked((*mode, *number), first.macro_slot, text)
 }

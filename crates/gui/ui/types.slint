@@ -96,7 +96,7 @@ export struct Setting {
     maximum: float,
     // The value as shown, such as "10 to 100%".
     text: string,
-    // What the controller holds, such as "was 0 to 100%". "" when the same.
+    // What the controller holds, such as "0 to 100%". "" when the same.
     was: string,
 }
 
@@ -134,11 +134,10 @@ export struct MacroImportInfo {
     name: string,
     from-mode: string,
     to-mode: string,
-    // "12 steps".
-    steps: string,
-    // The buttons that start it here, such as "PR, PL", or "" for none.
+    steps: int,
+    // The buttons that start it here, such as "PR and PL", or "" for none.
     buttons: string,
-    // The macro it replaces, such as "“Dash”", or "".
+    // The sentence that names the macro it replaces, such as "It replaces “Dash”.", or "".
     replaces: string,
     // The macro it replaces has edits not yet written.
     replaces-unsaved: bool,
@@ -289,8 +288,7 @@ export struct MacroRow {
     // A macro is in the macro slot.
     filled: bool,
     name: string,
-    // Such as "4 steps".
-    steps: string,
+    steps: int,
     // The labels of the buttons that start it, the first of them for the list row,
     // and how many more the row leaves out.
     buttons: [string],
@@ -368,6 +366,16 @@ export struct StickInfo {
 }
 
 // One step of the selected macro in the step table.
+// The numbers of the line under the step table.
+export struct StepCount {
+    steps: int,
+    // The steps on the controller, where each glide is several.
+    pad-steps: int,
+    // The most steps the controller holds.
+    max: int,
+    total-ms: int,
+}
+
 export struct StepInfo {
     // 1-based.
     number: int,

@@ -10,6 +10,8 @@ use std::fs;
 use std::path::Path;
 use std::process::Command;
 
+use tr::tr;
+
 use controller_core::transport::udev::{
     access_rule, keepalive_rule, rule_0_1_0_is_current, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT,
     KEEPALIVE_UNIT_PATH, UDEV_RULE_0_1_0, UDEV_RULE_PATH,
@@ -112,19 +114,23 @@ fn pkexec(script: &str, args: &[&str]) -> Result<(), String> {
     let out =
         Command::new("pkexec").args(["/bin/sh", "-c", script, "sh"]).args(args).output().map_err(
             |e| match e.kind() {
-                std::io::ErrorKind::NotFound => "pkexec is not installed.".to_owned(),
-                _ => format!("pkexec did not start: {e}."),
+                std::io::ErrorKind::NotFound => tr!("pkexec is not installed."),
+                _ => tr!("pkexec did not start: {e}.", e = e),
             },
         )?;
     match out.status.code() {
         Some(0) => Ok(()),
         Some(PKEXEC_DISMISSED | PKEXEC_NOT_AUTHORISED) => {
-            Err("The password prompt was closed, or the password was not accepted.".to_owned())
+            Err(tr!("The password prompt was closed, or the password was not accepted."))
         }
         _ => {
             let stderr = String::from_utf8_lossy(&out.stderr);
             let last = stderr.lines().last().unwrap_or_default().trim();
-            Err(format!("The install command failed ({}): {last}", out.status))
+            Err(tr!(
+                "The install command failed ({status}): {last}",
+                status = out.status,
+                last = last
+            ))
         }
     }
 }

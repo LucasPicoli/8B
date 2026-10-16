@@ -1,6 +1,6 @@
 // The 8B window: the no-controller screen until a first read, then the sidebar
 // with every slot of every mode and the selected slot beside it.
-import { Theme, Button, LineEdit, ScrollView, Spinner } from "look/breeze/widgets.slint";
+import { AccessibleNumber, Theme, Button, LineEdit, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { MessageBar, Placeholder, Icons, TabBar, Diagnostics } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { MacrosTab } from "macros.slint";
@@ -9,11 +9,11 @@ import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Blocked, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Blocked, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
 import { Palette } from "std-widgets.slint";
 import { AppMenu, LanguageChoice, Languages } from "app_menu.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages, AccessibleNumber }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -70,7 +70,7 @@ export component AppWindow inherits Window {
     // The step table of the selected macro, and its selected step.
     in property <[StepInfo]> step-rows;
     in property <[string]> step-lanes;
-    in property <string> step-count;
+    in property <StepCount> step-count;
     in property <bool> steps-full;
     in property <bool> steps-ready;
     in-out property <int> selected-step: 0;

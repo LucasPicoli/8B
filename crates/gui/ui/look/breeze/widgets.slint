@@ -3,6 +3,13 @@
 import { Theme } from "theme.slint";
 export { Theme }
 
+// Reads the number a screen reader sets on a slider. AccessKit writes it with a point
+// in every language, and `to-float()` wants the language's own decimal mark.
+export global AccessibleNumber {
+    // `text` as a number, or `fallback` when it is none.
+    pure callback parse(text: string, fallback: float) -> float;
+}
+
 export component Button {
     in property <string> text;
     in property <image> icon;
@@ -326,7 +333,7 @@ export component Slider {
     accessible-value-step: step;
     accessible-action-increment => { root.set(root.value + root.step); }
     accessible-action-decrement => { root.set(root.value - root.step); }
-    accessible-action-set-value(v) => { root.set(v.to-float()); }
+    accessible-action-set-value(v) => { root.set(AccessibleNumber.parse(v, root.value)); }
     forward-focus: fs;
 
     property <float> ratio: (value - minimum) / (maximum - minimum);

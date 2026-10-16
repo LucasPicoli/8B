@@ -6,13 +6,14 @@ use controller_core::model::glide::{axes, set_axes};
 use controller_core::model::macros::STICK_CENTER;
 use controller_core::model::{GlideControl, MacroStep};
 use controller_core::service::validation::{moved_low_sticks, LowStick};
+use tr::tr;
 
 use crate::buttons::push_model;
 use crate::state::AppState;
 use crate::step_table::{disc, stick};
 use crate::ui::{AppWindow, PadStick};
 
-/// The sticks a step holds, in the order the panel shows them.
+/// The sticks a step holds, in the order the panel shows them, each with its undo key.
 const STICKS: [(GlideControl, &str); 2] =
     [(GlideControl::LeftStick, "Left stick"), (GlideControl::RightStick, "Right stick")];
 
@@ -59,31 +60,42 @@ pub fn from_disc(x: f32, y: f32, snap: bool) -> [u8; 2] {
 }
 
 /// The Glide box of `control` in step `i`: its label, whether it can glide, and its
-/// tip, which says what a glide does or why it cannot. `what` names the value, such as
-/// "position".
-pub fn glide_box(
-    steps: &[MacroStep],
-    i: usize,
-    control: GlideControl,
-    what: &str,
-) -> (String, bool, String) {
-    let label = format!("Glide to step {}", i + 2);
+/// tip, which says what a glide does or why it cannot. A stick glides its position, a
+/// trigger its pressure.
+pub fn glide_box(steps: &[MacroStep], i: usize, control: GlideControl) -> (String, bool, String) {
+    let stick = matches!(control, GlideControl::LeftStick | GlideControl::RightStick);
+    let next = i + 2;
+    let label = tr!("Glide to step {n}", n = next);
     match (steps.get(i), steps.get(i + 1)) {
-        (_, None) => ("Glide".to_owned(), false, "No next step to glide to.".to_owned()),
+        (_, None) => (tr!("Glide"), false, tr!("No next step to glide to.")),
         (Some(s), Some(n)) if axes(s, control) == axes(n, control) => (
             label,
             false,
-            format!("Step {} holds the same {what}, so there is nothing to glide to.", i + 2),
+            if stick {
+                tr!("Step {n} holds the same position, so there is nothing to glide to.", n = next)
+            } else {
+                tr!("Step {n} holds the same pressure, so there is nothing to glide to.", n = next)
+            },
         ),
-        (s, _) => (
-            label,
-            true,
-            format!(
-                "Moves in a straight line from here to step {}'s {what} over this step's {} ms.",
-                i + 2,
-                s.map_or(0, |s| s.duration_ms)
-            ),
-        ),
+        (s, _) => {
+            let ms = s.map_or(0, |s| s.duration_ms);
+            let tip = if stick {
+                tr!(
+                    "Moves in a straight line from here to step {n}'s position over this \
+                     step's {ms} ms.",
+                    n = next,
+                    ms = ms
+                )
+            } else {
+                tr!(
+                    "Moves in a straight line from here to step {n}'s pressure over this \
+                     step's {ms} ms.",
+                    n = next,
+                    ms = ms
+                )
+            };
+            (label, true, tip)
+        }
     }
 }
 
@@ -134,9 +146,14 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
     let Some(steps) = state.macro_steps(n).filter(|s| step < s.len()) else { return Vec::new() };
     STICKS
         .iter()
-        .map(|&(control, label)| {
+        .map(|&(control, _)| {
             let [x, y] = steps.get(step).map_or([STICK_CENTER; 2], |s| axes(s, control));
-            let (glide_label, can_glide, tip) = glide_box(&steps, step, control, "position");
+            let (glide_label, can_glide, tip) = glide_box(&steps, step, control);
+            let label = if control == GlideControl::LeftStick {
+                tr!("Left stick")
+            } else {
+                tr!("Right stick")
+            };
             PadStick {
                 label: label.into(),
                 value_x: i32::from(x),
@@ -170,13 +187,17 @@ pub fn floor_bar(state: &AppState, n: u8) -> Option<[String; 3]> {
     let mode = state.selected_slot().map(|(m, _)| state.description().mode_label(m))?;
     let title = low
         .iter()
-        .map(|l| format!("The {}'s dead zone low end is {} %.", l.name.to_lowercase(), l.low))
+        .map(|l| tr!("{stick}: the dead zone low end is {n} %.", stick = l.name, n = l.low))
         .collect::<Vec<_>>()
         .join(" ");
     Some([
         title,
-        format!("In {mode}, a macro moves a stick only when its low end is {floor} % or more."),
-        format!("Set to {floor} %"),
+        tr!(
+            "In {mode}, a macro moves a stick only when its low end is {floor} % or more.",
+            mode = mode,
+            floor = floor
+        ),
+        tr!("Set to {floor} %", floor = floor),
     ])
 }
 
@@ -333,7 +354,7 @@ mod tests {
         s.set_number("/sticks/right_min_pct", 1.0);
         let [title, body, action] = floor_bar(&s, 0).unwrap();
         assert_eq!(
-            title, "The left stick's dead zone low end is 0 %.",
+            title, "Left stick: the dead zone low end is 0 %.",
             "the right one does not move"
         );
         assert_eq!(body, "In XInput, a macro moves a stick only when its low end is 2 % or more.");

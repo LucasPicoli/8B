@@ -1,12 +1,17 @@
 //! Pushes [`AppState`] into the window. Every model fact (modes, slot counts) comes
 //! from the controller description, so nothing here names a controller model.
 
+use std::fmt::Display;
 use std::rc::Rc;
+
+use controller_core::description::ControllerDescription;
+use controller_core::model::Mode;
 
 use controller_core::transport::udev::{
     keepalive_command, manual_command, KEEPALIVE_RULE_PATH, KEEPALIVE_UNIT_PATH, UDEV_RULE_PATH,
 };
 use slint::{ComponentHandle as _, Model as _, ModelRc, SharedString, VecModel};
+use tr::tr;
 
 use crate::buttons::{keep_same, push_model, render_buttons, render_views};
 use crate::closing::render_close;
@@ -21,7 +26,7 @@ use crate::step_panel::render_panel;
 use crate::step_table::render_steps;
 use crate::stick_pad::render_sticks;
 use crate::trigger_pad::render_triggers;
-use crate::ui::{AppWindow, ModeGroup, Slot};
+use crate::ui::{AccessibleNumber, AppWindow, ModeGroup, Slot};
 
 /// The sidebar: every slot of every mode, in the description's order.
 #[must_use]
@@ -58,14 +63,16 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
 pub fn device_status(state: &AppState) -> String {
     let failed = state.shown().is_some_and(|c| c.read_error.is_some());
     match state.current_mode() {
-        None => tr::tr!("Not connected"),
+        None => tr!("Not connected"),
         Some(mode) if state.reading() => {
-            format!("Reading over USB · {}", state.description().mode_label(mode))
+            tr!("Reading over USB · {mode}", mode = state.description().mode_label(mode))
         }
         Some(mode) if failed => {
-            format!("Could not read · {}", state.description().mode_label(mode))
+            tr!("Could not read · {mode}", mode = state.description().mode_label(mode))
         }
-        Some(mode) => format!("Connected over USB · {}", state.description().mode_label(mode)),
+        Some(mode) => {
+            tr!("Connected over USB · {mode}", mode = state.description().mode_label(mode))
+        }
     }
 }
 
@@ -80,12 +87,11 @@ pub fn move_from(state: &AppState) -> Vec<String> {
         .into_iter()
         .filter_map(|i| {
             let edited = listed.get(i)?.slots.values().filter(|s| s.unsaved()).count();
-            let slots = if edited == 1 {
-                "edits in 1 slot".to_owned()
-            } else {
-                format!("edits in {edited} slots")
-            };
-            Some(format!("{} · {slots}", labels.get(i)?))
+            let controller = labels.get(i)?;
+            Some(tr!(
+                "{controller} · edits in {n} slot" | "{controller} · edits in {n} slots" % edited,
+                controller = controller
+            ))
         })
         .collect()
 }
@@ -99,7 +105,7 @@ pub fn changed_slots(state: &AppState) -> Vec<String> {
         .into_iter()
         .map(|(mode, n)| {
             let name = state.slot(mode, n).shown().map(|p| p.name.clone()).unwrap_or_default();
-            format!("{} slot {n} · {name}", state.description().mode_label(mode))
+            tr!("{slot} · {name}", slot = slot_name(state.description(), mode, n), name = name)
         })
         .collect()
 }
@@ -107,9 +113,15 @@ pub fn changed_slots(state: &AppState) -> Vec<String> {
 /// The title of the selected slot, such as `XInput slot 2`.
 #[must_use]
 pub fn slot_title(state: &AppState) -> String {
-    state.selected_slot().map_or_else(String::new, |(mode, n)| {
-        format!("{} slot {n}", state.description().mode_label(mode))
-    })
+    state
+        .selected_slot()
+        .map_or_else(String::new, |(mode, n)| slot_name(state.description(), mode, n))
+}
+
+/// A slot's name in a sentence, such as `XInput slot 2`.
+#[must_use]
+pub fn slot_name(d: &ControllerDescription, mode: Mode, n: impl Display) -> String {
+    tr!("{mode} slot {n}", mode = d.mode_label(mode), n = n)
 }
 
 /// Whether the selected slot holds nothing, on the controller or in the edits.
@@ -123,16 +135,26 @@ pub fn selected_empty(state: &AppState) -> bool {
 
 /// `items` joined for a sentence: "A", "A and B", "A, B and C".
 #[must_use]
-// `tr!` fills named placeholders at run time, after the translation.
-#[allow(clippy::literal_string_with_formatting_args)]
 pub fn and_list(items: &[String]) -> String {
     let Some((last, rest)) = items.split_last() else { return String::new() };
     let Some((first, middle)) = rest.split_first() else { return last.clone() };
-    let head = middle.iter().fold(first.clone(), |a, b| tr::tr!("{a}, {b}", a = a, b = b));
-    tr::tr!("{a} and {b}", a = head, b = last)
+    let head = middle.iter().fold(first.clone(), |a, b| tr!("{a}, {b}", a = a, b = b));
+    tr!("{a} and {b}", a = head, b = last)
 }
 
-/// Makes an error message a sentence: a capital first letter and a full stop.
+/// Lets the window's sliders read the number a screen reader sets.
+pub fn read_accessible_numbers(ui: &AppWindow) {
+    ui.global::<AccessibleNumber<'_>>()
+        .on_parse(|text, fallback| accessible_number(&text, fallback));
+}
+
+/// `text` as a number with a point or a comma, or `fallback` when it is none.
+fn accessible_number(text: &str, fallback: f32) -> f32 {
+    text.trim().replace(',', ".").parse().unwrap_or(fallback)
+}
+
+/// Makes an error message a sentence: a capital first letter and a full stop. Only for
+/// the OS and portal errors that come untranslated; translated text keeps its own case.
 #[must_use]
 pub fn sentence(message: &str) -> String {
     let mut chars = message.chars();
@@ -195,16 +217,16 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_writes(state, ui);
     render_close(state, ui);
     ui.set_worker_stopped(state.worker_stopped);
-    ui.set_read_error(state.read_error().map(sentence).unwrap_or_default().into());
+    ui.set_read_error(state.read_error().unwrap_or_default().into());
     ui.set_read_error_elsewhere(state.failed_elsewhere());
     ui.set_read_error_title(
         if state.failed_elsewhere() {
-            format!(
-                "Could not read the {} plugged into another USB port.",
-                state.description().short_name
+            tr!(
+                "Could not read the {name} controller plugged into another USB port.",
+                name = state.description().short_name
             )
         } else {
-            "Could not read the controller.".to_owned()
+            tr!("Could not read the controller.")
         }
         .into(),
     );
@@ -331,6 +353,14 @@ mod tests {
         let slot = groups(&s)[0].slots.row_data(1).unwrap();
         assert_eq!(slot.name, "Edited");
         assert!(slot.unsaved);
+    }
+
+    #[test]
+    fn a_screen_reader_number_reads_with_a_point_or_a_comma() {
+        assert_eq!(accessible_number("3", 0.0), 3.0);
+        assert_eq!(accessible_number(" 1.6", 0.0), 1.6);
+        assert_eq!(accessible_number("4,2", 0.0), 4.2);
+        assert_eq!(accessible_number("loud", 2.0), 2.0);
     }
 
     #[test]

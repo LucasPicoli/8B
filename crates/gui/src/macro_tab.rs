@@ -8,19 +8,16 @@ use controller_core::description::ControllerDescription;
 use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
 use controller_core::service::validation::ValidationError;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
+use tr::tr;
 
 use crate::buttons::{keep_same, output_label, push_model, target};
 use crate::reasons::worded;
-use crate::review::macro_edits::steps;
-use crate::state::{AppState, SlotState};
+use crate::state::{cut_name, AppState, SlotState};
 use crate::stick_pad::floor_bar;
 use crate::ui::{AppWindow, MacroRow};
 
 /// The length of the one step a new macro starts with, in milliseconds.
 const NEW_STEP_MS: u16 = 100;
-
-/// The first entry of the "Add a button…" picker, which adds nothing.
-const ADD_A_BUTTON: &str = "Add a button…";
 
 /// How many button chips a row of the macro slot list shows before "+n".
 const ROW_CHIPS: usize = 1;
@@ -132,7 +129,11 @@ impl AppState {
             return;
         }
         let def = MacroDefinition {
-            name: format!("Macro {}", u16::from(n) + 1),
+            // The muted name `.slint` shows for an unnamed macro, and data once made.
+            name: cut_name(
+                &tr!("Macro {}", u16::from(n) + 1),
+                self.description().limits.macro_name_length.max,
+            ),
             mode,
             trigger_buttons: Vec::new(),
             unknown_trigger_bits: 0,
@@ -156,8 +157,7 @@ impl AppState {
 
     /// Renames the macro in macro slot `n`, cut to the controller's name length.
     pub fn rename_macro(&mut self, n: u8, name: &str) {
-        let max = usize::try_from(self.description().limits.macro_name_length.max).unwrap_or(0);
-        let name: String = name.chars().take(max).collect();
+        let name = cut_name(name, self.description().limits.macro_name_length.max);
         self.edit_macro(n, |m| m.name = name);
     }
 
@@ -226,7 +226,8 @@ fn reasons(d: &ControllerDescription, errors: &[ValidationError]) -> String {
     }
     let more = errors.len() - SHOWN_REASONS;
     let shown: Vec<_> = all.take(SHOWN_REASONS).collect();
-    format!("{}\nAnd {more} more reasons.", shown.join("\n"))
+    let rest = tr!("And {n} more reason." | "And {n} more reasons." % more);
+    format!("{}\n{rest}", shown.join("\n"))
 }
 
 /// A list model of strings.
@@ -257,7 +258,9 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
             let addable = state.addable_buttons(n).into_iter().map(|b| {
                 slot.macro_started_by(&b).map_or_else(
                     || label(&b),
-                    |other| format!("{} (Macro {})", label(&b), u16::from(other) + 1),
+                    |other| {
+                        tr!("{button} (Macro {n})", button = label(&b), n = u16::from(other) + 1)
+                    },
                 )
             });
             let plays = Plays::of(m.repeat_count);
@@ -266,7 +269,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 number: i32::from(n) + 1,
                 filled: true,
                 name: m.name.as_str().into(),
-                steps: steps(m.steps.len()).into(),
+                steps: i32::try_from(m.steps.len()).unwrap_or(i32::MAX),
                 buttons: strings(m.trigger_buttons.iter().map(label)),
                 first_buttons: strings(m.trigger_buttons.iter().take(ROW_CHIPS).map(label)),
                 more: i32::try_from(m.trigger_buttons.len().saturating_sub(ROW_CHIPS))
@@ -279,7 +282,8 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                     i32::try_from(state.least_times()).unwrap_or(2)
                 },
                 pause: i32::try_from(m.interval_ms).unwrap_or(i32::MAX),
-                addable: strings(std::iter::once(ADD_A_BUTTON.to_owned()).chain(addable)),
+                // The picker's first entry adds nothing.
+                addable: strings(std::iter::once(tr!("Add a button…")).chain(addable)),
                 error: reasons(state.description(), &errors).into(),
                 steps_invalid: errors.iter().any(|e| e.path == "/steps"),
                 warned: floor_bar(state, n).is_some(),
@@ -355,10 +359,10 @@ mod tests {
         let s = held();
         let rows = macro_rows(&s);
         assert_eq!(rows.len(), usize::from(s.description().macro_slot_count));
-        assert_eq!((rows[0].name.as_str(), rows[0].steps.as_str()), ("Jump", "12 steps"));
+        assert_eq!((rows[0].name.as_str(), rows[0].steps), ("Jump", 12));
         assert_eq!(list(&rows[0].buttons), ["PR", "PL"]);
         assert!(!rows[1].filled && rows[1].number == 2);
-        assert_eq!((rows[2].steps.as_str(), rows[2].plays), ("1 step", 0));
+        assert_eq!((rows[2].steps, rows[2].plays), (1, 0));
         assert!(rows.iter().all(|r| !r.unsaved));
     }
 
@@ -368,7 +372,7 @@ mod tests {
         s.new_macro(1);
         let r = row(&s, 1);
         assert!(r.filled && r.unsaved);
-        assert_eq!((r.name.as_str(), r.steps.as_str(), r.plays), ("Macro 2", "1 step", 0));
+        assert_eq!((r.name.as_str(), r.steps, r.plays), ("Macro 2", 1, 0));
         assert_eq!(r.buttons.row_count(), 0);
         let slots: Vec<_> = s.slot(XINPUT, 2).shown_macros().iter().map(|m| m.macro_slot).collect();
         assert_eq!(slots, [Some(0), Some(1), Some(2)], "in macro slot order");
@@ -385,7 +389,7 @@ mod tests {
         assert!(!row(&s, 0).filled && row(&s, 0).unsaved);
         assert_eq!(
             s.review_info((XINPUT, 2)).macro_changes.row_data(0).unwrap(),
-            "Jump (Macro 1) removed"
+            "Jump (Macro 1) removed."
         );
     }
 
@@ -406,7 +410,7 @@ mod tests {
         s.set_play_count(0, 3);
         s.set_play_pause(0, 100);
         let line = s.review_info((XINPUT, 2)).macro_changes.row_data(0).unwrap();
-        assert_eq!(line, "Jump (Macro 1) changed: plays once to 3 times, interval 0 to 100 ms");
+        assert_eq!(line, "Jump (Macro 1) changed. Plays: once → 3 times. Interval: 0 → 100 ms.");
         s.set_play_count(0, 1000);
         s.set_play_pause(0, -5);
         assert_eq!((row(&s, 0).count, row(&s, 0).pause), (99, 0));

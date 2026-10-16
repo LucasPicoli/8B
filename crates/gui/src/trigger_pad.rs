@@ -70,7 +70,7 @@ pub fn trigger_pads(state: &AppState, n: u8, step: usize) -> Vec<PadTrigger> {
         .into_iter()
         .map(|(button, side)| {
             let (control, _) = control(side);
-            let (glide_label, can_glide, tip) = glide_box(&steps, step, control, "pressure");
+            let (glide_label, can_glide, tip) = glide_box(&steps, step, control);
             let value = |i: usize| i32::from(steps.get(i).map_or(0, |s| axes(s, control)[0]));
             PadTrigger {
                 label: button.labels.get(&mode).map_or(button.id.as_str(), String::as_str).into(),

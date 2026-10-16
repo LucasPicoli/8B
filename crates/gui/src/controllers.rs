@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use controller_core::description::ControllerDescription;
 use controller_core::device::Model;
 use controller_core::model::{CanonicalProfile, Mode, ProfileReadResult};
+use tr::tr;
 
 use crate::state::{AppState, Install, SlotState};
 
@@ -283,10 +284,11 @@ impl AppState {
             .listed()
             .map(|c| {
                 let description = self.description_of(c);
-                let state =
-                    c.mode.map_or_else(|| "Disconnected".to_owned(), |m| description.mode_label(m));
                 let name = &description.short_name;
-                format!("{name} · {state}")
+                c.mode.map_or_else(
+                    || tr!("{name} · Disconnected", name = name),
+                    |m| tr!("{name} · {mode}", name = name, mode = description.mode_label(m)),
+                )
             })
             .collect();
         base.iter()
@@ -295,7 +297,7 @@ impl AppState {
                 let same = base.iter().filter(|b| *b == label).count();
                 let nth = base.iter().take(i + 1).filter(|b| *b == label).count();
                 if same > 1 {
-                    format!("{label} ({nth})")
+                    tr!("{label} ({n})", label = label, n = nth)
                 } else {
                     label.clone()
                 }

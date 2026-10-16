@@ -13,20 +13,22 @@ use controller_core::model::{MacroDefinition, Mode};
 use controller_core::service::validation::validate_macro;
 use serde_json::Value;
 use slint::{ModelRc, SharedString, VecModel};
+use tr::tr;
 
 use crate::buttons::output_label;
 use crate::files::{parse_json, swapped_letters};
 use crate::macros::label;
 use crate::reasons::{failure, problems};
-use crate::review::macro_edits::steps;
+use crate::render::and_list;
 use crate::state::{AppState, Notice};
 use crate::step_table::trigger_control;
 use crate::ui::{AppWindow, MacroImportInfo};
 
 /// Why a profile file picked as a macro file does not import, and where it goes.
-const PROFILE_FILE: &str = "This is a profile file, not a macro file. Import it with \
-     Import… at the top of the window. To move one macro, use Export macro… and Import \
-     macro… here.";
+fn profile_file() -> String {
+    tr!("This is a profile file, not a macro file. Import it with Import… at the top of the \
+         window. To move one macro, use Export macro… and Import macro… here.")
+}
 
 /// A macro file, put into the slot's mode, waiting for the user's yes.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -94,7 +96,7 @@ impl AppState {
         let (value, model) = parse_json(self.model(), text).map_err(one)?;
         // A profile file fails every macro rule; one reason says what it is instead.
         if value.get("kind").and_then(Value::as_str).is_some_and(|k| k.ends_with(".profile")) {
-            return Err(one(PROFILE_FILE.to_owned()));
+            return Err(one(profile_file()));
         }
         let d = self.description();
         let errors = validate_macro(model, &value).map_err(|e| one(failure(d, &e)))?;
@@ -106,19 +108,27 @@ impl AppState {
         let macros = slot.shown_macros();
         let mut dropped = Vec::new();
         file.trigger_buttons.retain(|b| {
-            let why = match (slot.macro_started_by(b).filter(|&o| o != n), self.mapped_to(b)) {
-                (Some(other), _) => format!("{} already uses it", label(&macros, other)),
-                (None, Some(output)) => format!("this slot gives it the output {output}"),
+            let button = output_label(d, mode, b);
+            dropped.push(match (slot.macro_started_by(b).filter(|&o| o != n), self.mapped_to(b)) {
+                (Some(other), _) => tr!(
+                    "{button} is imported unmapped, as {macro} already uses it.",
+                    button = button,
+                    macro = label(&macros, other)
+                ),
+                (None, Some(output)) => tr!(
+                    "{button} is imported unmapped, as this slot gives it the output {output}.",
+                    button = button,
+                    output = output
+                ),
                 (None, None) => return true,
-            };
-            dropped.push(format!("{} is imported unmapped, as {why}.", output_label(d, mode, b)));
+            });
             false
         });
         // The buttons are already checked against the slot, so the bank refuses none.
         let default = self
             .defaults()
             .get(&mode)
-            .ok_or_else(|| one("This controller has no such mode.".to_owned()))?;
+            .ok_or_else(|| one(tr!("This controller has no such mode.")))?;
         let bank = TargetBank { others: &[], profile: default, default };
         let (mut def, _) = convert_macro(d, &file, mode, &bank).map_err(|e| one(failure(d, &e)))?;
         def.macro_slot = Some(n);
@@ -145,8 +155,8 @@ impl AppState {
         });
         self.notice = Some(Notice {
             error: false,
-            title: format!("Imported “{file_name}” into Macro {}.", u16::from(n) + 1),
-            body: "Nothing reaches the controller until you write.".to_owned(),
+            title: tr!("Imported “{file}” into Macro {n}.", file = file_name, n = u16::from(n) + 1),
+            body: tr!("Nothing reaches the controller until you write."),
         });
     }
 
@@ -157,18 +167,20 @@ impl AppState {
 
     /// Saved macro slot `n` to a file, or failed to.
     pub fn exported_macro(&mut self, n: u8, unsaved: bool, result: Result<String, String>) {
-        let what = format!("Macro {}", u16::from(n) + 1);
+        let n = u16::from(n) + 1;
         self.notice = Some(match result {
             Ok(name) => Notice {
                 error: false,
-                title: format!("Saved {what} to “{name}”."),
+                title: tr!("Saved Macro {n} to “{file}”.", n = n, file = name),
                 body: if unsaved {
-                    "The file includes edits not yet written to the controller.".to_owned()
+                    tr!("The file includes edits not yet written to the controller.")
                 } else {
                     String::new()
                 },
             },
-            Err(e) => Notice { error: true, title: format!("Could not save {what}."), body: e },
+            Err(e) => {
+                Notice { error: true, title: tr!("Could not save Macro {n}.", n = n), body: e }
+            }
         });
     }
 }
@@ -187,7 +199,11 @@ pub fn content_losses(
         for b in &d.buttons {
             let Some(control) = b.step_trigger_value.map(trigger_control) else { continue };
             if was.glide.contains(&control) && !is.glide.contains(&control) {
-                glides.push(format!("{} in step {}", output_label(d, mode, &b.id), i + 1));
+                glides.push(tr!(
+                    "{button} in step {n}",
+                    button = output_label(d, mode, &b.id),
+                    n = i + 1
+                ));
             }
         }
     }
@@ -207,13 +223,13 @@ pub fn strings(items: &[String]) -> ModelRc<SharedString> {
     ModelRc::from(Rc::new(items.iter().map(SharedString::from).collect::<VecModel<_>>()))
 }
 
-/// The macro an import replaces, as the dialog names it: “Dash”, or the macro without
-/// a name.
+/// The sentence that names the macro an import replaces. A macro with no name gets a
+/// sentence of its own, for the article.
 fn replaced(def: &MacroDefinition) -> String {
     if def.name.is_empty() {
-        "the macro without a name".to_owned()
+        tr!("It replaces the macro without a name.")
     } else {
-        format!("“{}”", def.name)
+        tr!("It replaces “{name}”.", name = def.name)
     }
 }
 
@@ -240,14 +256,14 @@ pub fn macro_import_info(state: &AppState) -> MacroImportInfo {
         name: ready.def.name.as_str().into(),
         from_mode: d.mode_label(ready.from).into(),
         to_mode: d.mode_label(mode).into(),
-        steps: steps(ready.def.steps.len()).into(),
-        buttons: buttons.join(", ").into(),
+        steps: i32::try_from(ready.def.steps.len()).unwrap_or(i32::MAX),
+        buttons: and_list(&buttons).into(),
         replaces: slot.shown_macro(p.macro_slot).map(replaced).unwrap_or_default().into(),
         replaces_unsaved: slot.shown_macro(p.macro_slot).is_some()
             && slot.macro_unsaved(p.macro_slot),
         letters: swapped_letters(d, ready.from, mode).into(),
         full_presses: i32::try_from(ready.full_presses).unwrap_or(i32::MAX),
-        glides: ready.glides.join(", ").into(),
+        glides: and_list(&ready.glides).into(),
         dropped: strings(&ready.dropped),
         ..base
     }
@@ -300,9 +316,9 @@ mod tests {
         assert_eq!(r.def, jump, "its own buttons stay: the old macro goes");
         assert!(r.dropped.is_empty() && r.glides.is_empty() && r.full_presses == 0);
         let info = macro_import_info(&s);
-        assert_eq!(info.replaces, "“Jump”");
+        assert_eq!(info.replaces, "It replaces “Jump”.");
         assert!(!info.replaces_unsaved);
-        assert_eq!((info.buttons.as_str(), info.steps.as_str()), ("PR, PL", "3 steps"));
+        assert_eq!((info.buttons.as_str(), info.steps), ("PR and PL", 3));
         assert_eq!((info.from_mode.as_str(), info.to_mode.as_str()), ("XInput", "XInput"));
         assert_eq!(info.letters, "");
         s.confirm_macro_import();
@@ -398,7 +414,7 @@ mod tests {
         let info = macro_import_info(&s);
         assert_eq!(
             (info.replaces.as_str(), info.replaces_unsaved),
-            ("the macro without a name", true)
+            ("It replaces the macro without a name.", true)
         );
     }
 

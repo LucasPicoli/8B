@@ -7,7 +7,7 @@ use std::path::Path;
 use std::rc::Rc;
 
 use controller_core::convert::{convert_profile, ConversionLoss};
-use controller_core::description::{ControllerDescription, DISABLED_OUTPUT};
+use controller_core::description::{ControllerDescription, SettingsFrame, DISABLED_OUTPUT};
 use controller_core::device::Model;
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use controller_core::service::validation::{validate_profile, ValidationError};
@@ -17,11 +17,11 @@ use slint::{ModelRc, VecModel};
 use tr::tr;
 
 use crate::buttons::{output_label, target};
-use crate::embedded::{file_macros, kept_note, refs_note, replace_note, STEPS_UNREAD};
+use crate::embedded::{file_macros, kept_note, refs_note, replace_note, steps_unread};
 use crate::macro_files::strings;
 use crate::macros::label;
 use crate::reasons::{failure, problems};
-use crate::render::sentence;
+use crate::render::{and_list, slot_name};
 use crate::state::{AppState, Notice};
 use crate::ui::{AppWindow, Change, ImportWarning};
 
@@ -76,9 +76,9 @@ pub fn parse_json<'a>(
     model: Option<&'a dyn Model>,
     text: &str,
 ) -> Result<(Value, &'a dyn Model), String> {
-    let value: Value =
-        serde_json::from_str(text).map_err(|e| sentence(&format!("it is not JSON: {e}")))?;
-    let model = model.ok_or_else(|| sentence("this controller model cannot check files"))?;
+    let value: Value = serde_json::from_str(text)
+        .map_err(|e| tr!("This file is not JSON: {error}.", error = e))?;
+    let model = model.ok_or_else(|| tr!("This controller model cannot check files."))?;
     Ok((value, model))
 }
 
@@ -94,10 +94,6 @@ pub fn first_error(d: &ControllerDescription, errors: &[ValidationError]) -> Opt
     })
 }
 
-/// Why a macro file picked as a profile does not import, and where it goes.
-const MACRO_FILE: &str = "This is a macro file, not a profile. Import it with Import macro… \
-     on the Macros tab.";
-
 /// The profile in `text`, checked as a profile of `model`, which `d` describes.
 fn parse(
     d: &ControllerDescription,
@@ -108,7 +104,10 @@ fn parse(
     // A macro file fails every profile rule; one reason says what it is instead. Only a
     // macro file has steps.
     if value.get("steps").is_some_and(Value::is_array) {
-        return Err(MACRO_FILE.to_owned());
+        // Why a macro file picked as a profile does not import, and where it goes.
+        return Err(tr!(
+            "This is a macro file, not a profile. Import it with Import macro… on the Macros tab."
+        ));
     }
     let check = validate_profile(model, &value).map_err(|e| failure(d, &e))?;
     if let Some(e) = first_error(d, &check.errors) {
@@ -121,18 +120,27 @@ fn parse(
 impl AppState {
     /// Saved slot `slot`'s profile to a file, or failed to.
     pub fn exported(&mut self, slot: (Mode, u8), unsaved: bool, result: Result<String, String>) {
-        let title = format!("{} slot {}", self.description().mode_label(slot.0), slot.1);
+        let mode = self.description().mode_label(slot.0);
         self.notice = Some(match result {
             Ok(name) => Notice {
                 error: false,
-                title: format!("Saved {title} to “{name}”."),
+                title: tr!(
+                    "Saved {mode} slot {n} to “{file}”.",
+                    mode = mode,
+                    n = slot.1,
+                    file = name
+                ),
                 body: if unsaved {
-                    "The file includes edits not yet written to the controller.".to_owned()
+                    tr!("The file includes edits not yet written to the controller.")
                 } else {
                     String::new()
                 },
             },
-            Err(e) => Notice { error: true, title: format!("Could not save {title}."), body: e },
+            Err(e) => Notice {
+                error: true,
+                title: tr!("Could not save {mode} slot {n}.", mode = mode, n = slot.1),
+                body: e,
+            },
         });
     }
 
@@ -142,7 +150,8 @@ impl AppState {
     pub fn import(&mut self, slot: (Mode, u8), file_name: &str, text: Result<String, String>) {
         let parsed = text.and_then(|t| parse(self.description(), self.model(), &t));
         let converted = parsed.and_then(|mut p| {
-            let default = |m| self.defaults().get(&m).ok_or("This controller has no such mode.");
+            let default =
+                |m| self.defaults().get(&m).ok_or_else(|| tr!("This controller has no such mode."));
             let file = p.macros.take();
             let (profile, losses) =
                 convert_profile(self.description(), &p, default(p.mode)?, default(slot.0)?)
@@ -152,7 +161,7 @@ impl AppState {
                 None if p.macro_refs.is_empty() => (None, Vec::new()),
                 None => (None, vec![refs_note(p.macro_refs.len())]),
                 // The old steps tell an unchanged macro from a changed one in the review.
-                Some(_) if !target.macros_read() => return Err(STEPS_UNREAD.to_owned()),
+                Some(_) if !target.macros_read() => return Err(steps_unread()),
                 Some(file) => {
                     let (macros, losses) =
                         file_macros(self.description(), &file, slot.0, &profile, default(slot.0)?)?;
@@ -173,7 +182,7 @@ impl AppState {
             Err(body) => {
                 self.notice = Some(Notice {
                     error: true,
-                    title: format!("Could not import “{file_name}”."),
+                    title: tr!("Could not import “{file}”.", file = file_name),
                     body,
                 });
             }
@@ -231,8 +240,11 @@ impl AppState {
                     let button = output_label(d, key.0, &b.id);
                     let to = output_label(d, key.0, output);
                     let name = label(&macros, n);
-                    let sentence = format!(
-                        "The file maps {button} to {to}, so {button} no longer starts {name}."
+                    let sentence = tr!(
+                        "The file maps {button} to {output}, so {button} no longer starts {macro}.",
+                        button = button,
+                        output = to,
+                        macro = name
                     );
                     (b.id.clone(), sentence)
                 })
@@ -289,22 +301,24 @@ impl AppState {
         let notes: String = notes.into_iter().map(|n| n + " ").collect();
         self.notice = Some(Notice {
             error: false,
-            title: format!(
-                "Imported “{file_name}” into {} slot {number}.",
-                self.description().mode_label(mode)
+            title: tr!(
+                "Imported “{file}” into {mode} slot {n}.",
+                file = file_name,
+                mode = self.description().mode_label(mode),
+                n = number
             ),
-            body: lead + &left + &notes + "Nothing reaches the controller until you write.",
+            body: lead + &left + &notes + &tr!("Nothing reaches the controller until you write."),
         });
     }
 }
 
 /// Buttons whose letter in `to` names another button in `from`, as
-/// `XInput B is Switch A`. A label that only changes form, such as LB to L, is
-/// left out.
+/// `XInput B is Switch A`, joined for a sentence. A label that only changes form, such
+/// as LB to L, is left out.
 #[must_use]
 pub fn swapped_letters(description: &ControllerDescription, from: Mode, to: Mode) -> String {
     let label = |b: &controller_core::description::Button, m| b.labels.get(&m).cloned();
-    description
+    let pairs: Vec<String> = description
         .buttons
         .iter()
         .filter_map(|b| Some((label(b, from)?, label(b, to)?)))
@@ -312,10 +326,16 @@ pub fn swapped_letters(description: &ControllerDescription, from: Mode, to: Mode
             f != t && description.buttons.iter().any(|o| label(o, from).as_ref() == Some(t))
         })
         .map(|(f, t)| {
-            format!("{} {f} is {} {t}", description.mode_label(from), description.mode_label(to))
+            tr!(
+                "{mode} {button} is {other_mode} {other}",
+                mode = description.mode_label(from),
+                button = f,
+                other_mode = description.mode_label(to),
+                other = t
+            )
         })
-        .collect::<Vec<_>>()
-        .join(", ")
+        .collect();
+    and_list(&pairs)
 }
 
 /// Which of the slot's macros the file's replace, each named. `None` for a file with no
@@ -337,11 +357,11 @@ fn replaces_edits(state: &AppState, p: &PendingImport) -> bool {
 fn keep_note(state: &AppState, p: &PendingImport, lead: Option<&String>) -> String {
     let (Some(_), Some(file)) = (lead, &p.macros) else { return String::new() };
     let held = state.slot(p.slot.0, p.slot.1).shown_macros().len();
-    let kept = match (held, file.len()) {
-        (0, 1) => "Import without macros leaves it out.".to_owned(),
-        (0, _) => "Import without macros leaves them out.".to_owned(),
-        (1, _) => "Import without macros keeps the slot’s macro.".to_owned(),
-        (h, _) => format!("Import without macros keeps the slot’s {h} macros."),
+    let kept = match held {
+        0 => tr!("Import without macros leaves it out."
+            | "Import without macros leaves them out." % file.len()),
+        h => tr!("Import without macros keeps the slot’s macro."
+            | "Import without macros keeps the slot’s {n} macros." % h),
     };
     state.remapped_starters(p.slot, &p.profile).into_iter().fold(kept, |all, (_, s)| all + " " + &s)
 }
@@ -349,17 +369,19 @@ fn keep_note(state: &AppState, p: &PendingImport, lead: Option<&String>) -> Stri
 /// One sentence per kind of unwritten edit `p` discards, saying which choice keeps it.
 fn edit_notes(state: &AppState, p: &PendingImport, lead: Option<&String>) -> Vec<String> {
     let slot = state.slot(p.slot.0, p.slot.1);
-    let title = format!("{} slot {}", state.description().mode_label(p.slot.0), p.slot.1);
     let mut notes = Vec::new();
     if slot.profile_unsaved() {
-        notes.push(format!("Your profile edits to {title}, not written yet, are discarded."));
+        notes.push(tr!(
+            "Your profile edits to {mode} slot {n}, not written yet, are discarded.",
+            mode = state.description().mode_label(p.slot.0),
+            n = p.slot.1
+        ));
     }
     if p.macros.is_some() && slot.macros_unsaved() {
         notes.push(if lead.is_some() {
-            "Import discards your macro edits, not written yet. Import without macros keeps them."
-                .to_owned()
+            tr!("Import discards your macro edits, not written yet. Import without macros keeps them.")
         } else {
-            "Your macro edits, not written yet, are discarded.".to_owned()
+            tr!("Your macro edits, not written yet, are discarded.")
         });
     }
     notes
@@ -386,12 +408,12 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
         .collect();
     ImportWarning {
         shown: true,
-        slot_title: format!("{} slot {}", state.description().mode_label(to), p.slot.1).into(),
+        slot_title: slot_name(d, to, p.slot.1).into(),
         file_name: p.file_name.as_str().into(),
         from_mode: state.description().mode_label(from).into(),
         to_mode: state.description().mode_label(to).into(),
         lost: ModelRc::from(Rc::new(VecModel::from(lost))),
-        reset: reset_groups(&p.losses).into(),
+        reset: reset_frames(d, to, &p.losses).into(),
         letters: swapped_letters(d, from, to).into(),
         keep_note: keep_note(state, p, lead.as_ref()).into(),
         edit_notes: strings(&edit_notes(state, p, lead.as_ref())),
@@ -400,16 +422,33 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
     }
 }
 
-/// The settings groups a conversion reset, such as `triggers`, joined for a sentence.
-fn reset_groups(losses: &[ConversionLoss]) -> String {
-    let groups: Vec<&str> = losses
-        .iter()
-        .filter_map(|l| match l {
-            ConversionLoss::SettingsReset { group } => Some(group.as_str()),
-            ConversionLoss::OutputDisabled { .. } => None,
-        })
-        .collect();
-    groups.join(" and ")
+/// The titles of the frames of `mode` that show a settings group a conversion reset,
+/// such as "Left trigger and Right trigger", joined for a sentence. A group no frame
+/// shows reads as its key, such as `triggers`.
+fn reset_frames(d: &ControllerDescription, mode: Mode, losses: &[ConversionLoss]) -> String {
+    let mut titles: Vec<String> = Vec::new();
+    for l in losses {
+        let ConversionLoss::SettingsReset { group } = l else { continue };
+        let prefix = format!("/{group}/");
+        let shows = |f: &&SettingsFrame| {
+            let numbers = f.sliders.iter().flat_map(|s| std::iter::once(&s.low).chain(&s.high));
+            numbers
+                .map(|n| &n.field)
+                .chain(f.flags.iter().map(|f| &f.field))
+                .any(|p| p.starts_with(&prefix))
+        };
+        let frames: Vec<String> =
+            d.pages(mode).flat_map(|p| &p.frames).filter(shows).map(|f| f.title.clone()).collect();
+        if frames.is_empty() {
+            titles.push(group.clone());
+        }
+        for title in frames {
+            if !titles.contains(&title) {
+                titles.push(title);
+            }
+        }
+    }
+    and_list(&titles)
 }
 
 /// Pushes the import warning and the message bar.
@@ -615,7 +654,10 @@ mod tests {
         let text = crate::macro_files::macro_text(&def, "8bitdo-pro3").unwrap();
         s.import((XINPUT, 1), "xinput-slot1-macro0-Jump.json", Ok(text));
         let n = s.notice.take().unwrap();
-        assert_eq!(n.body, MACRO_FILE);
+        assert_eq!(
+            n.body,
+            "This is a macro file, not a profile. Import it with Import macro… on the Macros tab."
+        );
         assert_eq!(s.pending_import, None);
     }
 
@@ -658,7 +700,8 @@ mod tests {
         });
         s.import((XINPUT, 3), "s.json", Ok(text));
         let w = import_warning(&s);
-        assert!(w.shown && w.reset == "triggers");
+        assert!(w.shown);
+        assert_eq!(w.reset, "Left trigger, Right trigger and Swaps");
         assert_eq!((w.from_mode.as_str(), w.to_mode.as_str()), ("Switch", "XInput"));
         let lost: Vec<Change> = w.lost.iter().collect();
         assert_eq!(lost.len(), 1);
@@ -668,7 +711,7 @@ mod tests {
         );
         assert_eq!(
             w.letters,
-            "Switch A is XInput B, Switch B is XInput A, Switch X is XInput Y, Switch Y is XInput X"
+            "Switch A is XInput B, Switch B is XInput A, Switch X is XInput Y and Switch Y is XInput X"
         );
         let d = s.description();
         assert_eq!(swapped_letters(d, XINPUT, DINPUT), "");

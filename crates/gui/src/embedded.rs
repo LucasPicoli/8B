@@ -5,6 +5,7 @@
 use controller_core::convert_macro::{convert_macro, TargetBank};
 use controller_core::description::ControllerDescription;
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
+use tr::tr;
 
 use crate::buttons::{output_label, target};
 use crate::files::export_text;
@@ -12,50 +13,40 @@ use crate::macro_files::content_losses;
 use crate::macros::{named, title};
 use crate::reasons::failure;
 use crate::render::and_list;
-use crate::review::macro_edits::steps;
 use crate::state::SlotState;
 
 /// Why a slot cannot be exported, or take a file's macros, yet.
-pub const STEPS_UNREAD: &str =
-    "The slot’s macro steps are still being read from the controller. Try again in a moment.";
+#[must_use]
+pub fn steps_unread() -> String {
+    tr!("The slot’s macro steps are still being read from the controller. Try again in a moment.")
+}
 
 /// The export file of `slot`: the profile on screen, with the macros on screen in
 /// `macros` and no macro references. `None` for an empty slot.
 ///
 /// # Errors
-/// Returns [`STEPS_UNREAD`] while the slot's macro steps are being read, or why the
+/// Returns [`steps_unread`] while the slot's macro steps are being read, or why the
 /// profile could not be turned into JSON.
 pub fn export_file(slot: &SlotState) -> Option<Result<String, String>> {
     let mut profile = slot.shown()?.clone();
     let Some(macros) = slot.macros_as_shown() else {
-        return Some(Err(STEPS_UNREAD.to_owned()));
+        return Some(Err(steps_unread()));
     };
     profile.macro_refs.clear();
     profile.macros = Some(macros.into_iter().map(named).collect());
     Some(export_text(&profile))
 }
 
-/// "1 macro" or "n macros".
-fn macros(n: usize) -> String {
-    if n == 1 {
-        "1 macro".to_owned()
-    } else {
-        format!("{n} macros")
-    }
-}
-
 /// What an import says about a file with `refs` macro references and no `macros`.
 #[must_use]
 pub fn refs_note(refs: usize) -> String {
-    let held = if refs == 1 {
-        "macro sits in a separate file".to_owned()
-    } else {
-        format!("{refs} macros sit in separate files")
-    };
-    format!(
-        "The file’s {held} that 8B cannot read, so the slot keeps its macros. The command \
-         line’s upload --with-macros reads them."
-    )
+    let held =
+        tr!("The file’s macro sits in a separate file that 8B cannot read, so the slot keeps its \
+         macros."
+            | "The file’s {n} macros sit in separate files that 8B cannot read, so the slot \
+               keeps its macros."
+                % refs);
+    format!("{held} {}", tr!("The command line’s upload --with-macros reads them."))
 }
 
 /// The titles of `defs`, such as "Jump (Macro 1) and Dash (Macro 3)".
@@ -72,20 +63,29 @@ pub fn replace_note(file: &[MacroDefinition], held: &[&MacroDefinition]) -> Opti
     let (old, new) = (titles(held.iter().copied()), titles(file));
     match (file.len(), held.len()) {
         (0, 0) => None,
-        (0, 1) => Some(format!("The file holds no macros, so the slot’s macro {old} is removed.")),
-        (0, h) => {
-            Some(format!("The file holds no macros, so the slot’s {h} macros, {old}, are removed."))
-        }
-        (n, 0) => Some(format!("The file brings {}: {new}.", macros(n))),
-        (n, h) => {
-            let file = if n == 1 {
-                format!("macro {new} replaces")
-            } else {
-                format!("{n} macros, {new}, replace")
-            };
-            let slot = if h == 1 { format!("macro {old}") } else { format!("{h} macros, {old}") };
-            Some(format!("The file’s {file} the slot’s {slot}."))
-        }
+        (0, h) => Some(tr!(
+            "The file holds no macros, so the slot’s macro {old} is removed."
+                | "The file holds no macros, so the slot’s {n} macros, {old}, are removed." % h,
+            old = old
+        )),
+        (n, 0) => Some(tr!(
+            "The file brings {n} macro: {new}." | "The file brings {n} macros: {new}." % n,
+            new = new
+        )),
+        // One sentence per case, as the verb agrees with the file's count.
+        (1, h) => Some(tr!(
+            "The file’s macro {new} replaces the slot’s macro {old}."
+                | "The file’s macro {new} replaces the slot’s {n} macros, {old}." % h,
+            new = new,
+            old = old
+        )),
+        (f, h) => Some(tr!(
+            "The file’s {f} macros, {new}, replace the slot’s macro {old}."
+                | "The file’s {f} macros, {new}, replace the slot’s {n} macros, {old}." % h,
+            f = f,
+            new = new,
+            old = old
+        )),
     }
 }
 
@@ -95,8 +95,11 @@ pub fn replace_note(file: &[MacroDefinition], held: &[&MacroDefinition]) -> Opti
 pub fn kept_note(file: &[MacroDefinition]) -> Option<String> {
     match file.len() {
         0 => None,
-        1 => Some(format!("The file’s macro {} was not imported.", titles(file))),
-        n => Some(format!("The file’s {n} macros, {}, were not imported.", titles(file))),
+        n => Some(tr!(
+            "The file’s macro {list} was not imported."
+                | "The file’s {n} macros, {list}, were not imported." % n,
+            list = titles(file)
+        )),
     }
 }
 
@@ -131,9 +134,11 @@ pub fn file_macros(
                 return true;
             }
             let button = output_label(d, to, b);
-            notes.push(format!(
-                "The file maps {button} to {}, so {button} cannot start {name}.",
-                output_label(d, to, output)
+            notes.push(tr!(
+                "The file maps {button} to {output}, so {button} cannot start {macro}.",
+                button = button,
+                output = output_label(d, to, output),
+                macro = name
             ));
             false
         });
@@ -141,19 +146,30 @@ pub fn file_macros(
         let bank = TargetBank { others: &[], profile: default, default };
         let (def, _) = convert_macro(d, &kept, to, &bank).map_err(|e| failure(d, &e))?;
         let (glides, full) = content_losses(d, to, &kept, &def);
-        let mut lost = Vec::new();
+        let triggers = and_list(&triggers);
         if full > 0 {
-            lost.push(format!("presses them fully in {}", steps(full)));
+            notes.push(tr!(
+                "In {mode} mode, {triggers} are only on or off, so {macro} presses them fully \
+                 in {n} step."
+                    | "In {mode} mode, {triggers} are only on or off, so {macro} presses them \
+                       fully in {n} steps."
+                    % full,
+                mode = mode,
+                triggers = triggers,
+                macro = name
+            ));
         }
         if !glides.is_empty() {
-            let its = if glides.len() == 1 { "its glide" } else { "its glides" };
-            lost.push(format!("drops {its} on {}", and_list(&glides)));
-        }
-        if !lost.is_empty() {
-            notes.push(format!(
-                "{mode}’s {} are on or off, so {name} {}.",
-                and_list(&triggers),
-                lost.join(" and ")
+            notes.push(tr!(
+                "In {mode} mode, {triggers} are only on or off, so {macro} drops its glide on \
+                 {list}."
+                    | "In {mode} mode, {triggers} are only on or off, so {macro} drops its glides \
+                       on {list}."
+                    % glides.len(),
+                mode = mode,
+                triggers = triggers,
+                macro = name,
+                list = and_list(&glides)
             ));
         }
         out.push(def);
@@ -231,13 +247,13 @@ mod tests {
         let slot = s.controller_mut(PORT).unwrap().slots.get_mut(&(XINPUT, 2)).unwrap();
         let text = export_file(slot).unwrap().unwrap();
         slot.pad_macros[0] = PadMacro { loaded: false, ..slot.pad_macros[0].clone() };
-        assert_eq!(export_file(slot), Some(Err(STEPS_UNREAD.to_owned())));
+        assert_eq!(export_file(slot), Some(Err(steps_unread())));
         assert_eq!(export_file(&s.slot(XINPUT, 3)), None, "an empty slot");
 
         let before = s.slot(XINPUT, 2);
         s.import((XINPUT, 2), "a.json", Ok(text));
         let n = s.notice.take().unwrap();
-        assert!(n.error && n.body == STEPS_UNREAD, "{n:?}");
+        assert!(n.error && n.body == steps_unread(), "{n:?}");
         assert_eq!(s.slot(XINPUT, 2), before);
     }
 
@@ -416,8 +432,12 @@ mod tests {
         let notes: Vec<String> = w.macro_notes.iter().map(|n| n.to_string()).collect();
         assert_eq!(
             notes,
-            ["Switch’s ZL and ZR are on or off, so Ramp (Macro 1) presses them fully in 1 step \
-                 and drops its glide on ZL in step 1."]
+            [
+                "In Switch mode, ZL and ZR are only on or off, so Ramp (Macro 1) presses them \
+                 fully in 1 step.",
+                "In Switch mode, ZL and ZR are only on or off, so Ramp (Macro 1) drops its glide \
+                 on ZL in step 1."
+            ]
         );
         s.confirm_import();
         let body = s.notice.take().unwrap().body;

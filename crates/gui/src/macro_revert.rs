@@ -3,6 +3,7 @@
 //! leave the slot's other edits.
 
 use controller_core::model::CanonicalProfile;
+use tr::tr;
 
 use crate::buttons::output_label;
 use crate::macros::label;
@@ -41,11 +42,14 @@ impl AppState {
         let held = slot.held_macros().into_iter().find(|m| m.macro_slot == Some(n))?;
         held.trigger_buttons.iter().find_map(|b| {
             let name = output_label(self.description(), mode, b);
-            let clash = match slot.macro_started_by(b).filter(|&other| other != n) {
-                Some(other) => format!("{name} now starts {}.", label(&slot.shown_macros(), other)),
-                None => format!("{name} is now mapped to {}.", self.mapped_to(b)?),
+            let clash = if let Some(other) = slot.macro_started_by(b).filter(|&o| o != n) {
+                let other = label(&slot.shown_macros(), other);
+                tr!("{button} now starts {macro}.", button = name, macro = other)
+            } else {
+                let output = self.mapped_to(b)?;
+                tr!("{button} is now mapped to {output}.", button = name, output = output)
             };
-            Some(format!("{clash} Undo that first, or discard the slot's edits."))
+            Some(format!("{clash} {}", tr!("Undo that first, or discard the slot's edits.")))
         })
     }
 
@@ -62,8 +66,11 @@ impl AppState {
         }
         if let Some(body) = self.revert_refusal(n) {
             let title = label(&slot.shown_macros(), n);
-            self.notice =
-                Some(Notice { error: true, title: format!("Could not revert {title}."), body });
+            self.notice = Some(Notice {
+                error: true,
+                title: tr!("Could not revert {macro}.", macro = title),
+                body,
+            });
             return;
         }
         let held = slot.held_macros().into_iter().find(|m| m.macro_slot == Some(n)).cloned();

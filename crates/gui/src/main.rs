@@ -2,6 +2,8 @@
 
 // A binary crate: `pub` marks what other modules use.
 #![allow(unreachable_pub)]
+// `tr!` fills named placeholders at run time, after the translation.
+#![allow(clippy::literal_string_with_formatting_args)]
 
 mod batch;
 mod buttons;
@@ -72,6 +74,7 @@ use log::{info, warn};
 use slint::winit_030::winit::window::UserAttentionType;
 use slint::winit_030::WinitWindowAccessor as _;
 use slint::{CloseRequestResponse, ComponentHandle as _, Timer, TimerMode, Weak};
+use tr::tr;
 
 use crate::buttons::{hit, picked_output, render_views};
 use crate::closing::CloseOutcome;
@@ -106,8 +109,10 @@ fn read_macro_steps(commands: &Sender<Command>, state: &mut AppState, port: &str
 /// controller.
 fn read_failure(state: &AppState, error: &Error, holders: &[String]) -> String {
     let plain = plain::read_failure(error);
-    holders::hint(holders, state.sandboxed)
-        .map_or_else(|| plain.to_owned(), |names| format!("{plain} {names}"))
+    match holders::hint(holders, state.sandboxed) {
+        Some(names) => format!("{plain} {names}"),
+        None => plain,
+    }
 }
 
 /// Asks the worker to read every controller that is present.
@@ -235,13 +240,14 @@ fn on_thread(ui: Weak<AppWindow>, jobs: Sender<Job>, ask: impl FnOnce() -> Job +
 
 /// The message for a dialog the portal could not show.
 fn no_dialog(e: &str) -> Notice {
-    Notice { error: true, title: "The file dialog did not open.".to_owned(), body: sentence(e) }
+    Notice { error: true, title: tr!("The file dialog did not open."), body: sentence(e) }
 }
 
 /// Asks for a file and loads it into slot `slot`'s edits.
 fn import(ui: Weak<AppWindow>, jobs: Sender<Job>, slot: (Mode, u8)) {
     on_thread(ui, jobs, move || {
-        let read = chooser::open_json("Import a profile").map(|p| p.as_deref().map(read_file));
+        let read =
+            chooser::open_json(&tr!("Import a profile")).map(|p| p.as_deref().map(read_file));
         Box::new(move |state: &mut AppState| match read {
             Ok(None) => {}
             Ok(Some((name, text))) => state.import(slot, &name, text),
@@ -260,7 +266,7 @@ fn export(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState) {
     on_thread(ui, jobs, move || {
         let saved = match text {
             Err(e) => Ok(Some(Err(e))),
-            Ok(t) => chooser::save_json("Export the profile", &name).map(|p| {
+            Ok(t) => chooser::save_json(&tr!("Export the profile"), &name).map(|p| {
                 p.map(|p| {
                     std::fs::write(&p, t)
                         .map_err(|e| sentence(&e.to_string()))
@@ -284,7 +290,7 @@ fn read_file(path: &std::path::Path) -> (String, Result<String, String>) {
 /// Asks for a macro file and shows what it holds before it joins macro slot `n`.
 fn import_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, n: u8) {
     on_thread(ui, jobs, move || {
-        let read = chooser::open_json("Import a macro").map(|p| p.as_deref().map(read_file));
+        let read = chooser::open_json(&tr!("Import a macro")).map(|p| p.as_deref().map(read_file));
         Box::new(move |state: &mut AppState| match read {
             Ok(None) => {}
             Ok(Some((name, text))) => {
@@ -312,7 +318,7 @@ fn export_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState, n: u8)
     let (text, unsaved) = (macro_files::macro_text(def, &default.device), slot.macro_unsaved(n));
     let name = macro_file_name(mode, number, def);
     on_thread(ui, jobs, move || {
-        let saved = chooser::save_json("Export the macro", &name).map(|p| {
+        let saved = chooser::save_json(&tr!("Export the macro"), &name).map(|p| {
             p.map(|p| {
                 text.and_then(|t| std::fs::write(&p, t).map_err(|e| sentence(&e.to_string())))
                     .map(|()| files::display_name(&p))
@@ -738,6 +744,12 @@ fn wire_macros(
     });
 }
 
+/// Answers the window's globals: the diagnostics text and a screen reader's numbers.
+fn wire_globals(ui: &AppWindow) {
+    ui.global::<Diagnostics<'_>>().on_text(|| logging::diagnostics().into());
+    render::read_accessible_numbers(ui);
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sandboxed = udev::sandboxed();
     logging::init(sandboxed);
@@ -844,7 +856,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         hit(s.borrow().description(), usize::try_from(view).unwrap_or(usize::MAX), x, y)
     });
 
-    ui.global::<Diagnostics<'_>>().on_text(|| logging::diagnostics().into());
+    wire_globals(&ui);
 
     let weak = ui.as_weak();
     ui.on_theme_changed(move || {
