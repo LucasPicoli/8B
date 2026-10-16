@@ -33,6 +33,8 @@ export component NoControllerScreen inherits Rectangle {
         y: 0;
         height: self.preferred-height;
         padding: 16px;
+        // Clear of the ☰ in the corner.
+        padding-left: 54px;
         MessageBar {
             error: true;
             diagnostics: true;

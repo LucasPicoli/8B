@@ -1,0 +1,258 @@
+// The ☰ app menu. One entry today, "Language", whose submenu picks the interface
+// language. Each row takes keyboard focus, so a screen reader follows the arrow keys.
+import { Theme, Button } from "look/breeze/widgets.slint";
+import { Icons } from "parts.slint";
+
+export struct LanguageChoice {
+    // The folder code, such as `pt_BR`, or `en` for English.
+    code: string,
+    // The language in its own words.
+    name: string,
+}
+
+export global Languages {
+    // English, then each bundled translation.
+    in property <[LanguageChoice]> choices;
+    // The picked row: 0 is "System default", then 1 for the first choice.
+    in-out property <int> current;
+    callback picked(int);
+}
+
+component MenuRow inherits Rectangle {
+    in property <string> text;
+    in property <image> icon;
+    // A language: a radio button, filled when `checked`.
+    in property <bool> radio;
+    in property <bool> checked;
+    // Opens a submenu, shown while `expanded`.
+    in property <bool> submenu;
+    in property <bool> expanded;
+    // The keyboard is on this row: it takes focus.
+    in property <bool> highlighted;
+    out property <bool> hovered: ta.has-hover;
+    callback activated;
+    min-height: 30px;
+    border-radius: 3px;
+    background: root.highlighted || root.expanded || ta.has-hover ? Theme.hover : transparent;
+    // A language row sets `radio-button`: the role must be a constant.
+    accessible-role: button;
+    accessible-label: root.text;
+    accessible-checkable: root.radio;
+    accessible-checked: root.checked;
+    accessible-expandable: root.submenu;
+    accessible-expanded: root.expanded;
+    accessible-action-default => { root.activated(); }
+
+    init => {
+        if (root.highlighted) {
+            fs.focus();
+        }
+    }
+    changed highlighted => {
+        if (root.highlighted) {
+            fs.focus();
+        }
+    }
+    // Takes focus and no keys: the menu around it moves the highlight.
+    fs := FocusScope {
+        focus-on-click: false;
+    }
+
+    HorizontalLayout {
+        padding-left: 8px;
+        padding-right: 8px;
+        spacing: 8px;
+        VerticalLayout {
+            alignment: center;
+            if root.radio: Rectangle {
+                width: 16px;
+                height: 16px;
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: root.checked ? Theme.accent : Theme.line;
+                background: Theme.button;
+                if root.checked: Rectangle {
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 4px;
+                    background: Theme.accent;
+                }
+            }
+            if !root.radio: Image {
+                source: root.icon;
+                colorize: Theme.fg;
+                width: 16px;
+                height: 16px;
+            }
+        }
+        Text {
+            text: root.text;
+            color: Theme.fg;
+            vertical-alignment: center;
+            horizontal-stretch: 1;
+        }
+        if root.submenu: VerticalLayout {
+            alignment: center;
+            Image {
+                source: Icons.chevron-right;
+                colorize: Theme.fg-muted;
+                width: 14px;
+                height: 14px;
+            }
+        }
+    }
+
+    ta := TouchArea {
+        clicked => { root.activated(); }
+    }
+}
+
+component Panel inherits Rectangle {
+    background: Theme.view;
+    border-radius: Theme.radius;
+    border-width: 1px;
+    border-color: Theme.line;
+    drop-shadow-blur: 12px;
+    drop-shadow-offset-y: 4px;
+    drop-shadow-color: Theme.shadow;
+}
+
+export component AppMenu {
+    // The Language submenu is open, and the keyboard is in it.
+    property <bool> sub-open;
+    // The highlighted row, counted as `Languages.current` is.
+    property <int> highlight;
+    property <int> rows: Languages.choices.length + 1;
+
+    // Opens the submenu on the picked language.
+    function open-sub() {
+        if (!root.sub-open) {
+            root.highlight = Languages.current;
+            root.sub-open = true;
+        }
+    }
+    function pick(i: int) {
+        Languages.current = i;
+        Languages.picked(i);
+        popup.close();
+    }
+
+    // The button's own width keeps the icon centred: a narrower box overflows its padding.
+    HorizontalLayout {
+        Button {
+            icon: Icons.menu;
+            text: @tr("Menu");
+            icon-only: true;
+            flat: true;
+            clicked => {
+                root.sub-open = false;
+                popup.show();
+            }
+        }
+    }
+
+    popup := PopupWindow {
+        close-policy: close-on-click-outside;
+        x: 0;
+        y: root.height + 2px;
+
+        keys := FocusScope {
+            init => { self.focus(); }
+            key-pressed(e) => {
+                if (!root.sub-open) {
+                    if (e.text == Key.RightArrow || e.text == Key.DownArrow || e.text == Key.Return || e.text == " ") {
+                        root.open-sub();
+                        return accept;
+                    }
+                    return reject;
+                }
+                if (e.text == Key.DownArrow) {
+                    root.highlight = mod(root.highlight + 1, root.rows);
+                    return accept;
+                }
+                if (e.text == Key.UpArrow) {
+                    root.highlight = mod(root.highlight - 1 + root.rows, root.rows);
+                    return accept;
+                }
+                if (e.text == Key.Return || e.text == " ") {
+                    root.pick(root.highlight);
+                    return accept;
+                }
+                if (e.text == Key.LeftArrow) {
+                    root.sub-open = false;
+                    return accept;
+                }
+                reject
+            }
+
+            HorizontalLayout {
+                alignment: start;
+                spacing: 2px;
+                VerticalLayout {
+                    alignment: start;
+                    Panel {
+                        VerticalLayout {
+                            padding: 4px;
+                            MenuRow {
+                                text: @tr("Language");
+                                icon: Icons.languages;
+                                submenu: true;
+                                expanded: root.sub-open;
+                                highlighted: !root.sub-open;
+                                activated => { root.open-sub(); }
+                                changed hovered => {
+                                    if (self.hovered) {
+                                        root.open-sub();
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                // Laid out while closed too, so the popup is sized for it from the start.
+                Panel {
+                    visible: root.sub-open;
+                    VerticalLayout {
+                        padding: 4px;
+                        MenuRow {
+                            text: @tr("System default");
+                            radio: true;
+                            accessible-role: radio-button;
+                            checked: Languages.current == 0;
+                            highlighted: root.sub-open && root.highlight == 0;
+                            activated => { root.pick(0); }
+                            changed hovered => {
+                                if (self.hovered) {
+                                    root.highlight = 0;
+                                }
+                            }
+                        }
+                        Rectangle {
+                            height: 9px;
+                            Rectangle {
+                                x: 8px;
+                                y: 4px;
+                                width: parent.width - 16px;
+                                height: 1px;
+                                background: Theme.line-soft;
+                            }
+                        }
+                        for choice[i] in Languages.choices: MenuRow {
+                            text: choice.name;
+                            radio: true;
+                            accessible-role: radio-button;
+                            checked: Languages.current == i + 1;
+                            highlighted: root.sub-open && root.highlight == i + 1;
+                            activated => { root.pick(i + 1); }
+                            changed hovered => {
+                                if (self.hovered) {
+                                    root.highlight = i + 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

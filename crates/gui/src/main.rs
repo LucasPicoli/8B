@@ -23,6 +23,7 @@ mod macro_tab;
 mod macros;
 mod plain;
 mod portal;
+mod preferences;
 mod render;
 mod review;
 mod settings;
@@ -751,7 +752,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // The sandbox cannot see the host's rule files: ask only when a read is denied.
     first.rule = if sandboxed { Rule::Current } else { udev::rule_state() };
     let state = Rc::new(RefCell::new(first));
-    language::follow_system(&state.borrow(), &ui);
+    language::wire(&state, &ui);
     portal::follow_accent(ui.as_weak());
 
     // ponytail: polls every 200 ms; Slint gives Rust no resize callback.

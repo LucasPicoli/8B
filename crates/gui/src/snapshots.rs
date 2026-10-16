@@ -45,6 +45,7 @@ fn window(state: &AppState) -> AppWindow {
     // Each test runs on its own thread, and the platform is per thread.
     let _ = slint::platform::set_platform(Box::new(Headless));
     let ui = AppWindow::new().unwrap();
+    language::fill_menu(&ui);
     // A rerun under `GUI_TEST_LANG=pt_BR` draws every shot in that language.
     if let Some(code) = std::env::var_os("GUI_TEST_LANG") {
         let code = code.to_string_lossy();
@@ -2448,4 +2449,130 @@ fn pt_br_switches_the_slint_and_the_rust_text() {
     language::select(None, &state, &ui).unwrap();
     assert_eq!(ui.get_device_status(), "Not connected");
     assert_eq!(shown("Connect your controller"), 1);
+
+    // A pick from the ☰ menu survives a restart; "System default" forgets it.
+    let dir = tempfile::tempdir().unwrap();
+    let settings = dir.path().join("8b/settings.json");
+    language::pick(2, &settings, &state, &ui);
+    assert_eq!(ui.get_device_status(), "Não conectado");
+    let restarted = window(&state);
+    language::select(None, &state, &restarted).unwrap();
+    assert_eq!(restarted.get_device_status(), "Not connected");
+    language::start(&settings, &state, &restarted);
+    assert_eq!(restarted.get_device_status(), "Não conectado");
+    assert_eq!(restarted.global::<crate::ui::Languages<'_>>().get_current(), 2);
+    language::pick(0, &settings, &state, &restarted);
+    assert_eq!(crate::preferences::saved_language(&settings), None);
+    language::select(None, &state, &ui).unwrap();
+}
+
+/// Presses and releases `key` in the window.
+fn press(ui: &AppWindow, key: slint::platform::Key) {
+    use slint::platform::WindowEvent;
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: key.into() });
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text: key.into() });
+}
+
+/// The ☰ in the sidebar header, left of the controller name.
+const EDITOR_MENU: (f32, f32) = (30.0, 26.0);
+/// The ☰ in the corner of the no-controller and permission screens.
+const SCREEN_MENU: (f32, f32) = (30.0, 27.0);
+
+/// The ☰ menu open on its Language submenu, on the editor and on the no-controller
+/// screen, light and dark. Each language row is a radio button, and the picked one is
+/// checked.
+#[test]
+fn the_language_menu_opens_on_its_submenu() {
+    use crate::ui::Languages;
+    use i_slint_backend_testing::{AccessibleRole, ElementHandle};
+    for (name, state, (x, y)) in
+        [("menu-editor", connected(XINPUT), EDITOR_MENU), ("menu-start", new_state(), SCREEN_MENU)]
+    {
+        for dark in [false, true] {
+            let ui = window(&state);
+            if dark {
+                ui.global::<crate::ui::Palette<'_>>()
+                    .set_color_scheme(slint::language::ColorScheme::Dark);
+                render_views(state.description(), &ui);
+            }
+            click(&ui, x, y);
+            press(&ui, slint::platform::Key::RightArrow);
+            save(&format!("{name}-{}", if dark { "dark" } else { "light" }), &ui);
+        }
+    }
+    let ui = window(&connected(XINPUT));
+    ui.global::<Languages<'_>>().set_current(1);
+    click(&ui, EDITOR_MENU.0, EDITOR_MENU.1);
+    press(&ui, slint::platform::Key::RightArrow);
+    let row = |label: &str| ElementHandle::find_by_accessible_label(&ui, label).next().unwrap();
+    assert_eq!(row("Language").accessible_expanded(), Some(true));
+    for (label, checked) in
+        [("System default", false), ("English", true), ("Português (Brasil)", false)]
+    {
+        assert_eq!(row(label).accessible_role(), Some(AccessibleRole::RadioButton), "{label}");
+        assert_eq!(row(label).accessible_checked(), Some(checked), "{label}");
+    }
+}
+
+/// Tab, Return, then the arrow keys pick a language with no mouse. The submenu opens on
+/// the picked row, and the highlight wraps.
+#[test]
+fn the_language_menu_picks_from_the_keyboard() {
+    use crate::ui::Languages;
+    use slint::platform::Key;
+    let ui = window(&connected(XINPUT));
+    let got = Rc::new(std::cell::RefCell::new(Vec::new()));
+    let g = Rc::clone(&got);
+    ui.global::<Languages<'_>>().on_picked(move |row| g.borrow_mut().push(row));
+    ui.global::<Languages<'_>>().set_current(2);
+
+    press(&ui, Key::Tab);
+    press(&ui, Key::Return);
+    // Opens on Português, row 2; down wraps to System default, then English.
+    for key in [Key::RightArrow, Key::DownArrow, Key::DownArrow, Key::Return] {
+        press(&ui, key);
+    }
+    assert_eq!(*got.borrow(), [1]);
+    assert_eq!(ui.global::<Languages<'_>>().get_current(), 1);
+}
+
+/// The hovered ☰ draws its icon in the middle of its frame, on both screens.
+#[test]
+fn the_menu_icon_sits_in_the_middle_of_its_hover_frame() {
+    use slint::platform::WindowEvent;
+    for (name, state, (x, y)) in [
+        ("menu-hover-editor", connected(XINPUT), EDITOR_MENU),
+        ("menu-hover-start", new_state(), SCREEN_MENU),
+    ] {
+        let ui = window(&state);
+        let position = slint::LogicalPosition::new(x, y);
+        ui.window().dispatch_event(WindowEvent::PointerMoved { position });
+        save(name, &ui);
+        let shot = ui.window().take_snapshot().unwrap();
+        let width = shot.width() as usize;
+        // The bounds of the pixels in `xs` × `ys` that pass `hit`: left, right, top, bottom.
+        let bounds = |xs: std::ops::Range<usize>,
+                      ys: std::ops::Range<usize>,
+                      hit: &dyn Fn(u8, u8, u8) -> bool| {
+            let mut b = [usize::MAX, 0, usize::MAX, 0];
+            for py in ys {
+                for px in xs.clone() {
+                    let p = shot.as_slice()[py * width + px];
+                    if hit(p.r, p.g, p.b) {
+                        b = [b[0].min(px), b[1].max(px), b[2].min(py), b[3].max(py)];
+                    }
+                }
+            }
+            b
+        };
+        // The hover frame is the Breeze accent; the icon inside it is the dark text ink.
+        let frame = bounds(0..80, 0..60, &|r, g, b| (r, g, b) == (0x3d, 0xae, 0xe9));
+        let ink = bounds(frame[0]..frame[1], frame[2]..frame[3], &|r, g, b| {
+            u16::from(r) + u16::from(g) + u16::from(b) < 200
+        });
+        assert!(frame[0] < frame[1] && ink[0] < ink[1], "frame {frame:?}, ink {ink:?}");
+        let centre = |b: [usize; 4]| (b[0] + b[1], b[2] + b[3]);
+        let (f, i) = (centre(frame), centre(ink));
+        assert!(f.0.abs_diff(i.0) <= 1 && f.1.abs_diff(i.1) <= 1, "frame {frame:?}, ink {ink:?}");
+    }
 }

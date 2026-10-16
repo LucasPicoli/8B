@@ -11,8 +11,9 @@ import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.
 import { NoControllerScreen, PermissionScreen } from "screens.slint";
 import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Blocked, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
 import { Palette } from "std-widgets.slint";
+import { AppMenu, LanguageChoice, Languages } from "app_menu.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages }
 
 export component AppWindow inherits Window {
     title: (has-controller ? slot-title + " · " : "") + "8B";
@@ -305,6 +306,12 @@ export component AppWindow inherits Window {
         connected: root.connected;
         can-read-again: root.can-read-again;
         read-again => { root.read-again(); }
+    }
+
+    // The editor's ☰ sits in the sidebar header; these screens have it in the corner.
+    if root.asks-for-rule || !root.has-controller: AppMenu {
+        x: 12px;
+        y: 12px;
     }
 
     if !root.asks-for-rule && root.has-controller: HorizontalLayout {

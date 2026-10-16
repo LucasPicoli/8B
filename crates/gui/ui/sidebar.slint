@@ -2,6 +2,7 @@
 import { Theme, Button, ScrollView, Spinner } from "look/breeze/widgets.slint";
 import { Icons, Dot } from "parts.slint";
 import { Blocked, ModeGroup, Slot } from "types.slint";
+import { AppMenu } from "app_menu.slint";
 
 component SlotRow inherits Rectangle {
     in property <Slot> slot;
@@ -213,6 +214,10 @@ export component Sidebar inherits Rectangle {
                 padding-left: 12px;
                 padding-right: 12px;
                 spacing: 10px;
+                VerticalLayout {
+                    alignment: center;
+                    AppMenu { }
+                }
                 VerticalLayout {
                     alignment: center;
                     spacing: 1px;
