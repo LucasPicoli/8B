@@ -2147,20 +2147,20 @@ msgstr ""
 "step {n}’s pressure over this step’s {ms} ms.⟧"
 
 #: src/stick_pad.rs
-msgid "{stick}: the dead zone low end is {n} %."
-msgstr "⟦~~~~~~~~~~~~~~~~{stick}: the dead zone low end is {n} %.⟧"
+msgid "{stick}: the dead zone low end is {n}%."
+msgstr "⟦~~~~~~~~~~~~~~~~{stick}: the dead zone low end is {n}%.⟧"
 
 #: src/stick_pad.rs
 msgid ""
 "In {mode} mode, a macro moves a stick only when its dead zone low end is "
-"{floor} % or more."
+"{floor}% or more."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In {mode} mode, a macro moves a stick "
-"only when its dead zone low end is {floor} % or more.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In {mode} mode, a macro moves a stick "
+"only when its dead zone low end is {floor}% or more.⟧"
 
 #: src/stick_pad.rs
-msgid "Set to {floor} %"
-msgstr "⟦~~~~~~~Set to {floor} %⟧"
+msgid "Set to {floor}%"
+msgstr "⟦~~~~~~Set to {floor}%⟧"
 
 #: src/udev.rs
 msgid "pkexec is not installed."

@@ -1912,17 +1912,17 @@ msgid ""
 msgstr ""
 
 #: src/stick_pad.rs
-msgid "{stick}: the dead zone low end is {n} %."
+msgid "{stick}: the dead zone low end is {n}%."
 msgstr ""
 
 #: src/stick_pad.rs
 msgid ""
 "In {mode} mode, a macro moves a stick only when its dead zone low end is "
-"{floor} % or more."
+"{floor}% or more."
 msgstr ""
 
 #: src/stick_pad.rs
-msgid "Set to {floor} %"
+msgid "Set to {floor}%"
 msgstr ""
 
 #: src/udev.rs

@@ -94,8 +94,8 @@ fn warning(
     let floor = floor(description, mode)?;
     m.steps.iter().any(|s| moves(s, low.stick)).then(|| {
         format!(
-            "Macro '{}' moves the {}, but its dead zone low end is {} %. In {}, a macro \
-             cannot move a stick whose low end is below {floor} %.",
+            "Macro '{}' moves the {}, but its dead zone low end is {}%. In {}, a macro \
+             cannot move a stick whose low end is below {floor}%.",
             m.name,
             low.name.to_lowercase(),
             low.low,
@@ -157,8 +157,8 @@ mod tests {
             let warnings = macro_stick_warnings(description, mode, &profile(1, 0), &macros);
             assert_eq!(warnings.len(), 1, "{warnings:?}");
             assert!(warnings[0].contains("'Dash' moves the left stick"), "{}", warnings[0]);
-            assert!(warnings[0].contains("is 1 %"), "{}", warnings[0]);
-            assert!(warnings[0].contains("below 2 %"), "{}", warnings[0]);
+            assert!(warnings[0].contains("is 1%"), "{}", warnings[0]);
+            assert!(warnings[0].contains("below 2%"), "{}", warnings[0]);
         }
         assert_eq!(macro_stick_warnings(description, DINPUT, &profile(0, 0), &macros), NONE);
     }

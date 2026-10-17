@@ -188,17 +188,17 @@ pub fn floor_bar(state: &AppState, n: u8) -> Option<[String; 3]> {
     let mode = state.selected_slot().map(|(m, _)| state.description().mode_label(m))?;
     let title = low
         .iter()
-        .map(|l| tr!("{stick}: the dead zone low end is {n} %.", stick = prose(&l.name), n = l.low))
+        .map(|l| tr!("{stick}: the dead zone low end is {n}%.", stick = prose(&l.name), n = l.low))
         .collect::<Vec<_>>()
         .join(" ");
     Some([
         title,
         tr!(
-            "In {mode} mode, a macro moves a stick only when its dead zone low end is {floor} % or more.",
+            "In {mode} mode, a macro moves a stick only when its dead zone low end is {floor}% or more.",
             mode = mode,
             floor = floor
         ),
-        tr!("Set to {floor} %", floor = floor),
+        tr!("Set to {floor}%", floor = floor),
     ])
 }
 
@@ -355,14 +355,14 @@ mod tests {
         s.set_number("/sticks/right_min_pct", 1.0);
         let [title, body, action] = floor_bar(&s, 0).unwrap();
         assert_eq!(
-            title, "Left stick: the dead zone low end is 0 %.",
+            title, "Left stick: the dead zone low end is 0%.",
             "the right one does not move"
         );
         assert_eq!(
             body,
-            "In XInput mode, a macro moves a stick only when its dead zone low end is 2 % or more."
+            "In XInput mode, a macro moves a stick only when its dead zone low end is 2% or more."
         );
-        assert_eq!(action, "Set to 2 %");
+        assert_eq!(action, "Set to 2%");
         s.raise_to_stick_floor(0);
         assert_eq!(floor_bar(&s, 0), None);
         let pct = |f: &str| {
