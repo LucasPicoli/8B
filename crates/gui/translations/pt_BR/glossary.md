@@ -35,7 +35,7 @@ as a pattern.
 | macro | macro | feminine: "a macro", "na macro" |
 | macro trigger button | botão de ativação | never "gatilho", which is the analog L2/R2 |
 | step | passo | |
-| glide | transição | "Transição até o passo 4", "Em transição desde o passo 3", "não pode fazer transição" |
+| glide | transição | "Transição até o passo 4", "Transição do passo 3", "não pode fazer transição" |
 | write (to the controller) | gravar | "Gravar no controle", "Gravado", "Não gravado" |
 | read (from the controller) | ler | "Lendo o controle" |
 | stick | analógico | "analógico esquerdo", "analógico direito" |

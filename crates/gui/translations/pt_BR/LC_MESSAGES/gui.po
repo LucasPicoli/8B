@@ -921,11 +921,11 @@ msgstr "{} Y, 0 a 255, repouso 127"
 
 #: ui/step_panel.slint ui/trigger_pad.slint
 msgid "Glides in from step {}"
-msgstr "Em transição desde o passo {}"
+msgstr "Transição do passo {}"
 
 #: ui/step_panel.slint
 msgid "{} glides in from step {}. Select that step."
-msgstr "{} vem em transição desde o passo {}. Selecione esse passo."
+msgstr "{}: transição do passo {}. Selecione esse passo."
 
 #: ui/step_panel.slint
 msgid "Snap to edges and corners"
@@ -1072,7 +1072,7 @@ msgstr "Valor da pressão de {}, 0 a 255"
 
 #: ui/trigger_pad.slint
 msgid "{} pressure glides in from step {}. Select that step."
-msgstr "A pressão de {} vem em transição desde o passo {}. Selecione esse passo."
+msgstr "Pressão de {}: transição do passo {}. Selecione esse passo."
 
 #: src/batch.rs
 msgid "Wrote {n} slot to the controller."
