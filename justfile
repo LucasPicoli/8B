@@ -48,7 +48,7 @@ translations:
     } | msguniq --add-location=file | sed '/^#\. #-#-#-#-#/d' > translations/gui.pot
     for po in translations/*/LC_MESSAGES/gui.po; do
         [[ $po == translations/qps/* ]] && continue
-        msgmerge --quiet --update --backup=none --no-fuzzy-matching --add-location=file "$po" translations/gui.pot
+        msgmerge --quiet --update --backup=none --no-fuzzy-matching --no-wrap --add-location=file "$po" translations/gui.pot
     done
     # The qps pseudo-locale of the string coverage tests: each msgstr is its msgid in ⟦…⟧,
     # led by a `~` per 2.5 characters, so the text runs about 40 % longer, as pt-BR does.
