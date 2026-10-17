@@ -2563,7 +2563,7 @@ fn pt_br_a_screen_reader_sets_a_slider_with_a_decimal_point() {
         let v = s.slot(XINPUT, 1).shown().unwrap().setting("/vibration/left_level").cloned();
         v.and_then(|v| v.as_i64()).unwrap()
     };
-    let slider = ElementHandle::find_by_accessible_label(&ui, "Motors, Left motor")
+    let slider = ElementHandle::find_by_accessible_label(&ui, "Motores, Motor esquerdo")
         .find(|e| e.accessible_role() == Some(AccessibleRole::Slider))
         .unwrap();
     // AccessKit writes a screen reader's number with a point, whatever the language.
