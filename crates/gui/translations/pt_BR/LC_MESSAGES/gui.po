@@ -1896,6 +1896,10 @@ msgstr "Editando um perfil DInput: remapeamentos gravados em azul, alterações 
 msgid "Editing a macro: the step table, with a step's stick and trigger values below"
 msgstr "Editando uma macro: a tabela de passos, com os valores de analógico e gatilho de um passo abaixo"
 
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid "8B now runs in Brazilian Portuguese. It follows the system language, and the Language menu picks another one."
+msgstr "8B agora está disponível em português do Brasil. Ele usa o idioma do sistema, e você pode escolher outro no menu Idioma."
+
 #. Pro 3 /display_name
 msgid "8BitDo Pro 3"
 msgstr "8BitDo Pro 3"

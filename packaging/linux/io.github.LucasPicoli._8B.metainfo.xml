@@ -17,15 +17,20 @@
   <url type="bugtracker">https://github.com/LucasPicoli/8B/issues</url>
   <screenshots>
     <screenshot type="default">
-      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.2.1/docs/images/screenshot.png</image>
+      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.3.0/docs/images/screenshot.png</image>
       <caption>Editing a DInput profile: saved remaps in blue, unsaved edits in orange</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.2.1/docs/images/screenshot-macros.png</image>
+      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.3.0/docs/images/screenshot-macros.png</image>
       <caption>Editing a macro: the step table, with a step's stick and trigger values below</caption>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.3.0" date="2026-10-17">
+      <description>
+        <p>8B now runs in Brazilian Portuguese. It follows the system language, and the Language menu picks another one.</p>
+      </description>
+    </release>
     <release version="0.2.1" date="2026-10-14"/>
     <release version="0.2.0" date="2026-10-14"/>
     <release version="0.1.1" date="2026-10-09"/>
