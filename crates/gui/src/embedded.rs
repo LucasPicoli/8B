@@ -46,7 +46,7 @@ pub fn refs_note(refs: usize) -> String {
             | "The file’s {n} macros sit in separate files that 8B cannot read, so the slot \
                keeps its macros."
                 % refs);
-    format!("{held} {}", tr!("The command line’s upload --with-macros reads them."))
+    format!("{held} {}", tr!("The command 8b upload --with-macros reads them."))
 }
 
 /// The titles of `defs`, such as "Jump (Macro 1) and Dash (Macro 3)".
@@ -296,7 +296,7 @@ mod tests {
         );
         assert_eq!(
             import_warning(&s).keep_note,
-            "Import without macros keeps the slot’s 2 macros. The file maps R4 to A, so R4 no \
+            "“Import without macros” keeps the slot’s 2 macros. The file maps R4 to A, so R4 no \
              longer starts Dash (Macro 3)."
         );
         s.import_without_macros();
@@ -333,7 +333,7 @@ mod tests {
         let notes: Vec<String> = import_warning(&s).edit_notes.iter().map(Into::into).collect();
         assert_eq!(
             notes,
-            ["Import discards your macro edits, not written yet. Import without macros keeps them."]
+            ["“Import” discards your macro edits, not written yet. “Import without macros” keeps them."]
         );
         s.import_without_macros();
         assert_eq!(s.slot(XINPUT, 2).edited_macros.unwrap()[0].name, "Leap");

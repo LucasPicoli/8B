@@ -47,7 +47,7 @@ component MacroSlotRow inherits Rectangle {
     property <string> spoken: !root.item.filled ? @tr("Macro {}, empty", root.item.number)
         : root.item.name != "" ? @tr("Macro {}, {}", root.item.number, root.item.name)
         : @tr("Macro {0}, no name, written as Macro {0}", root.item.number);
-    accessible-label: root.item.error != "" ? @tr("{}, can't be written", spoken)
+    accessible-label: root.item.error != "" ? @tr("{}, cannot be written", spoken)
         : root.item.warned ? @tr("{}, a stick move may not play", spoken) : spoken;
     accessible-item-selected: root.selected;
     accessible-action-default => { root.picked(); }
@@ -210,7 +210,7 @@ component MacroViewArt {
     // Under the pointer only: a tip that stays covers the buttons beside it.
     for s in root.spots: ViewTip {
         visible: root.live && s.view == root.index && s.row == root.hover;
-        text: s.chip < 0 ? @tr("A step can't hold {}", s.label)
+        text: s.chip < 0 ? @tr("A step cannot hold {}", s.label)
             : root.chips[s.chip].on ? @tr("Stop holding {} in step {}", s.label, root.step)
             : @tr("Hold {} in step {}", s.label, root.step);
         x0: s.x0 * root.scale * 1px;
@@ -379,7 +379,7 @@ component MacroHeader inherits Frame {
                         width: 14px;
                         height: 14px;
                         accessible-role: image;
-                        accessible-label: root.item.error != "" ? @tr("Can't be written") : @tr("A stick move may not play");
+                        accessible-label: root.item.error != "" ? @tr("Cannot be written") : @tr("A stick move may not play");
                     }
                 }
                 Rectangle {
@@ -520,9 +520,9 @@ component MacroHeader inherits Frame {
                     spacing: 8px;
                     cross-axis-alignment: center;
                     plays-box := ComboBox {
-                        // "A number of times" at any font size.
+                        // "A set number of times" at any font size.
                         width: max(180px, 13.5rem);
-                        model: [@tr("Once"), @tr("A number of times"), @tr("Until pressed again")];
+                        model: [@tr("Once"), @tr("A set number of times"), @tr("Until pressed again")];
                         current-index: root.item.plays;
                         enabled: root.editable;
                         accessible-name: @tr("Plays");
@@ -746,7 +746,7 @@ export component MacrosTab {
             }
             if root.current.filled && root.current.error != "": MessageBar {
                 error: true;
-                title: @tr("Macro {} can't be written.", root.current.number);
+                title: @tr("Macro {} cannot be written.", root.current.number);
                 body: root.current.error;
             }
             if root.current.filled && root.floor-title != "": MessageBar {
@@ -794,7 +794,7 @@ export component MacrosTab {
                     Text {
                         // A staged delete: the controller still holds the macro.
                         text: root.current.unsaved
-                            ? @tr("Macro {} will be deleted when you write", root.current.number)
+                            ? @tr("Macro {} is deleted when you write", root.current.number)
                             : @tr("Macro {} is empty", root.current.number);
                         font-size: Theme.text-placeholder;
                         color: Theme.fg;

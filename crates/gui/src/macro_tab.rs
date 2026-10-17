@@ -226,7 +226,7 @@ fn reasons(d: &ControllerDescription, errors: &[ValidationError]) -> String {
     }
     let more = errors.len() - SHOWN_REASONS;
     let shown: Vec<_> = all.take(SHOWN_REASONS).collect();
-    let rest = tr!("And {n} more reason." | "And {n} more reasons." % more);
+    let rest = tr!("And {n} more problem." | "And {n} more problems." % more);
     format!("{}\n{rest}", shown.join("\n"))
 }
 
@@ -503,7 +503,7 @@ mod tests {
         assert_eq!(lines[0], worded(s.description(), &errors[0].reason));
         assert_eq!(lines[1], worded(s.description(), &errors[1].reason));
         let more = errors.len() - SHOWN_REASONS;
-        assert_eq!(lines[SHOWN_REASONS], format!("And {more} more reasons."));
+        assert_eq!(lines[SHOWN_REASONS], format!("And {more} more problems."));
     }
 
     #[test]

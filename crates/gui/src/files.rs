@@ -77,8 +77,14 @@ pub fn parse_json<'a>(
     model: Option<&'a dyn Model>,
     text: &str,
 ) -> Result<(Value, &'a dyn Model), String> {
-    let value: Value = serde_json::from_str(text)
-        .map_err(|e| tr!("This file is not JSON: {error}.", error = e))?;
+    let value: Value = serde_json::from_str(text).map_err(|e| {
+        log::info!("not JSON: {e}");
+        tr!(
+            "This file is not valid JSON (line {line}, column {column}).",
+            line = e.line(),
+            column = e.column()
+        )
+    })?;
     let model = model.ok_or_else(|| tr!("This controller model cannot check files."))?;
     Ok((value, model))
 }
@@ -107,7 +113,9 @@ fn parse(
     if value.get("steps").is_some_and(Value::is_array) {
         // Why a macro file picked as a profile does not import, and where it goes.
         return Err(tr!(
-            "This is a macro file, not a profile. Import it with Import macro… on the Macros tab."
+            "This is a macro file, not a profile. Import it with “{import}” on the {tab} tab.",
+            import = tr!("Import macro…"),
+            tab = tr!("Macros")
         ));
     }
     let check = validate_profile(model, &value).map_err(|e| failure(d, &e))?;
@@ -132,7 +140,7 @@ impl AppState {
                     file = name
                 ),
                 body: if unsaved {
-                    tr!("The file includes edits not yet written to the controller.")
+                    tr!("The file includes edits not written to the controller yet.")
                 } else {
                     String::new()
                 },
@@ -358,11 +366,16 @@ fn replaces_edits(state: &AppState, p: &PendingImport) -> bool {
 fn keep_note(state: &AppState, p: &PendingImport, lead: Option<&String>) -> String {
     let (Some(_), Some(file)) = (lead, &p.macros) else { return String::new() };
     let held = state.slot(p.slot.0, p.slot.1).shown_macros().len();
+    let keep = tr!("Import without macros");
     let kept = match held {
-        0 => tr!("Import without macros leaves it out."
-            | "Import without macros leaves them out." % file.len()),
-        h => tr!("Import without macros keeps the slot’s macro."
-            | "Import without macros keeps the slot’s {n} macros." % h),
+        0 => tr!(
+            "“{button}” leaves it out." | "“{button}” leaves them out." % file.len(),
+            button = keep
+        ),
+        h => tr!(
+            "“{button}” keeps the slot’s macro." | "“{button}” keeps the slot’s {n} macros." % h,
+            button = keep
+        ),
     };
     state.remapped_starters(p.slot, &p.profile).into_iter().fold(kept, |all, (_, s)| all + " " + &s)
 }
@@ -380,7 +393,11 @@ fn edit_notes(state: &AppState, p: &PendingImport, lead: Option<&String>) -> Vec
     }
     if p.macros.is_some() && slot.macros_unsaved() {
         notes.push(if lead.is_some() {
-            tr!("Import discards your macro edits, not written yet. Import without macros keeps them.")
+            tr!(
+                "“{import}” discards your macro edits, not written yet. “{keep}” keeps them.",
+                import = tr!("Import"),
+                keep = tr!("Import without macros")
+            )
         } else {
             tr!("Your macro edits, not written yet, are discarded.")
         });
@@ -657,7 +674,7 @@ mod tests {
         let n = s.notice.take().unwrap();
         assert_eq!(
             n.body,
-            "This is a macro file, not a profile. Import it with Import macro… on the Macros tab."
+            "This is a macro file, not a profile. Import it with “Import macro…” on the Macros tab."
         );
         assert_eq!(s.pending_import, None);
     }
@@ -686,7 +703,7 @@ mod tests {
         s.exported((SWITCH, 2), true, Ok("x.json".to_owned()));
         let n = s.notice.take().unwrap();
         assert_eq!(n.title, "Saved Switch slot 2 to “x.json”.");
-        assert!(n.body.contains("not yet written"));
+        assert!(n.body.contains("not written to the controller yet"));
         s.exported((SWITCH, 2), false, Ok("x.json".to_owned()));
         assert_eq!(s.notice.take().unwrap().body, "");
         s.exported((SWITCH, 2), false, Err("Permission denied.".to_owned()));

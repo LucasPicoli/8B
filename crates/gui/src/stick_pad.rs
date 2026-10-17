@@ -82,15 +82,15 @@ pub fn glide_box(steps: &[MacroStep], i: usize, control: GlideControl) -> (Strin
             let ms = s.map_or(0, |s| s.duration_ms);
             let tip = if stick {
                 tr!(
-                    "Moves in a straight line from here to step {n}'s position over this \
-                     step's {ms} ms.",
+                    "Moves in a straight line from here to step {n}’s position over this \
+                     step’s {ms} ms.",
                     n = next,
                     ms = ms
                 )
             } else {
                 tr!(
-                    "Moves in a straight line from here to step {n}'s pressure over this \
-                     step's {ms} ms.",
+                    "Moves in a straight line from here to step {n}’s pressure over this \
+                     step’s {ms} ms.",
                     n = next,
                     ms = ms
                 )
@@ -194,7 +194,7 @@ pub fn floor_bar(state: &AppState, n: u8) -> Option<[String; 3]> {
     Some([
         title,
         tr!(
-            "In {mode}, a macro moves a stick only when its low end is {floor} % or more.",
+            "In {mode} mode, a macro moves a stick only when its dead zone low end is {floor} % or more.",
             mode = mode,
             floor = floor
         ),
@@ -330,7 +330,7 @@ mod tests {
         assert!(first.can_glide);
         assert_eq!(
             first.glide_tip,
-            "Moves in a straight line from here to step 2's position over this step's 100 ms."
+            "Moves in a straight line from here to step 2’s position over this step’s 100 ms."
         );
         assert!(stick_pads(&s, 0, 3).is_empty(), "no step 4");
     }
@@ -358,7 +358,10 @@ mod tests {
             title, "Left stick: the dead zone low end is 0 %.",
             "the right one does not move"
         );
-        assert_eq!(body, "In XInput, a macro moves a stick only when its low end is 2 % or more.");
+        assert_eq!(
+            body,
+            "In XInput mode, a macro moves a stick only when its dead zone low end is 2 % or more."
+        );
         assert_eq!(action, "Set to 2 %");
         s.raise_to_stick_floor(0);
         assert_eq!(floor_bar(&s, 0), None);

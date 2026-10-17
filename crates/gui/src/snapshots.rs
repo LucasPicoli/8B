@@ -524,7 +524,7 @@ fn a_slider_drag_survives_the_render_after_each_move() {
     };
     let start = low();
     // The low knob of the left stick's dead zone at 1280×800, then two moves right.
-    let at = |x: f32| slint::LogicalPosition::new(x, 219.0);
+    let at = |x: f32| slint::LogicalPosition::new(x, 203.0);
     let button = PointerEventButton::Left;
     let x0 = 294.0 + 9.0 + 271.0 * f32::from(u8::try_from(start).unwrap()) / 100.0;
     ui.window().dispatch_event(WindowEvent::PointerMoved { position: at(x0) });
@@ -2563,7 +2563,7 @@ fn pt_br_a_screen_reader_sets_a_slider_with_a_decimal_point() {
         let v = s.slot(XINPUT, 1).shown().unwrap().setting("/vibration/left_level").cloned();
         v.and_then(|v| v.as_i64()).unwrap()
     };
-    let slider = ElementHandle::find_by_accessible_label(&ui, "Motors Left motor")
+    let slider = ElementHandle::find_by_accessible_label(&ui, "Motors, Left motor")
         .find(|e| e.accessible_role() == Some(AccessibleRole::Slider))
         .unwrap();
     // AccessKit writes a screen reader's number with a point, whatever the language.

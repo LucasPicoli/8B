@@ -276,7 +276,7 @@ export component TabBar inherits Rectangle {
         for section[i] in root.model: Rectangle {
             property <bool> on: i == root.current;
             accessible-role: tab;
-            accessible-label: section.error ? @tr("{}, holds a macro that can't be written", section.name) : section.name;
+            accessible-label: section.error ? @tr("{}, holds a macro that cannot be written", section.name) : section.name;
             accessible-item-selected: self.on;
             accessible-action-default => { root.current = i; }
             background: !self.on && tab-ta.has-hover ? Theme.hover : transparent;

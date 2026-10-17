@@ -92,7 +92,7 @@ impl AppState {
     }
 }
 
-/// Why the footer's write button is off, "Macro 2 can't be written." or "3 macros can't
+/// Why the footer's write button is off, "Macro 2 cannot be written." or "3 macros cannot
 /// be written.", and where Show leads: the first one. Empty text while the selected
 /// slot's macros are all valid.
 #[must_use]
@@ -101,13 +101,13 @@ pub fn write_blocked(state: &AppState) -> Blocked {
     let invalid = state.invalid_macros(key);
     let Some(first) = invalid.first() else { return Blocked::default() };
     let text = match invalid.len() {
-        1 => tr!("Macro {n} can't be written.", n = u16::from(first.macro_slot) + 1),
-        n => tr!("{n} macro can't be written." | "{n} macros can't be written." % n),
+        1 => tr!("Macro {n} cannot be written.", n = u16::from(first.macro_slot) + 1),
+        n => tr!("{n} macro cannot be written." | "{n} macros cannot be written." % n),
     };
     state.blocked(key, first.macro_slot, text)
 }
 
-/// Why Write all is off, "Macro 2 of `XInput` slot 2 can't be written." or "3 macros can't
+/// Why Write all is off, "Macro 2 of `XInput` slot 2 cannot be written." or "3 macros cannot
 /// be written.", and where Show leads: the first one. Empty text while every edited
 /// slot's macros are valid.
 #[must_use]
@@ -121,12 +121,12 @@ pub fn write_all_blocked(state: &AppState) -> Blocked {
     let Some(((mode, number), first)) = invalid.first() else { return Blocked::default() };
     let text = match invalid.len() {
         1 => tr!(
-            "Macro {n} of {mode} slot {slot} can't be written.",
+            "Macro {n} of {mode} slot {slot} cannot be written.",
             n = u16::from(first.macro_slot) + 1,
             mode = d.mode_label(*mode),
             slot = number
         ),
-        n => tr!("{n} macro can't be written." | "{n} macros can't be written." % n),
+        n => tr!("{n} macro cannot be written." | "{n} macros cannot be written." % n),
     };
     state.blocked((*mode, *number), first.macro_slot, text)
 }
@@ -198,9 +198,9 @@ mod tests {
         assert!(invalid.reason.ends_with("Shorten a glide or remove steps."), "{}", invalid.reason);
         assert!(!s.can_write() && !s.can_write_all());
         let footer = write_blocked(&s);
-        assert_eq!(footer.text, "Macro 1 can't be written.");
+        assert_eq!(footer.text, "Macro 1 cannot be written.");
         assert_eq!((footer.mode, footer.slot, footer.macro_slot), (0, 1, 0));
-        assert_eq!(write_all_blocked(&s).text, "Macro 1 of XInput slot 2 can't be written.");
+        assert_eq!(write_all_blocked(&s).text, "Macro 1 of XInput slot 2 cannot be written.");
         s.select(1, 0);
         assert!(write_blocked(&s).text.is_empty(), "another slot is selected");
         let all = write_all_blocked(&s);
@@ -215,18 +215,18 @@ mod tests {
         s.new_macro(1);
         s.edit_macro(1, long);
         let footer = write_blocked(&s);
-        assert_eq!(footer.text, "2 macros can't be written.");
+        assert_eq!(footer.text, "2 macros cannot be written.");
         assert_eq!((footer.mode, footer.slot, footer.macro_slot), (0, 1, 0));
         let all = write_all_blocked(&s);
-        assert_eq!(all.text, "2 macros can't be written.");
+        assert_eq!(all.text, "2 macros cannot be written.");
         assert_eq!((all.mode, all.slot, all.macro_slot), (0, 1, 0));
         // One more in another slot counts in Write all, not in the footer.
         hold_macros(&mut s, (XINPUT, 1), &[macro_def(0, "Jump", &["lp"], 3)]);
         s.select(0, 0);
         s.edit_macro(0, long);
         s.select(0, 1);
-        assert_eq!(write_blocked(&s).text, "2 macros can't be written.");
-        assert_eq!(write_all_blocked(&s).text, "3 macros can't be written.");
+        assert_eq!(write_blocked(&s).text, "2 macros cannot be written.");
+        assert_eq!(write_all_blocked(&s).text, "3 macros cannot be written.");
     }
 
     #[test]

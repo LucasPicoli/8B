@@ -109,22 +109,9 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         Reason::Excludes { flag, clashes, mode } => excludes(d, *mode, flag, clashes),
         Reason::NameEmpty { max } => tr!("Give the macro a name of at most {n} character."
             | "Give the macro a name of at most {n} characters." % *max),
-        Reason::NameTooLong { len, max, .. } => format!(
-            "{} {}",
-            tr!("The name is {n} character long." | "The name is {n} characters long." % *len),
-            tr!("This controller takes at most {max}.", max = max)
-        ),
-        Reason::TooManySteps { needed, max, .. } => format!(
-            "{} {}",
-            tr!("The macro has {n} step." | "The macro has {n} steps." % *needed),
-            tr!("This controller holds at most {max}. Remove steps.", max = max)
-        ),
-        Reason::TooManyGlideSteps { needed, max } => format!(
-            "{} {}",
-            tr!("With its glides, this macro needs {n} step on the controller."
-                | "With its glides, this macro needs {n} steps on the controller." % *needed),
-            tr!("The controller holds at most {max}. Shorten a glide or remove steps.", max = max)
-        ),
+        Reason::NameTooLong { .. }
+        | Reason::TooManySteps { .. }
+        | Reason::TooManyGlideSteps { .. } => too_big(reason),
         Reason::RepeatCount { .. } => tr!("The macro must play at least once."),
         Reason::PressAndRelease { step, button, mode } => tr!(
             "Step {n}: {button} appears in both press and release.",
@@ -132,7 +119,7 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
             button = output_label(d, *mode, button)
         ),
         Reason::GlideNoNextStep { step, name } => tr!(
-            "Step {n}: {name} cannot glide, there is no next step.",
+            "Step {n}: {name} cannot glide, because there is no next step.",
             n = step,
             name = prose(name)
         ),
@@ -150,6 +137,33 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         Reason::InMacro { index, reason } => {
             tr!("Macro {n}: {reason}", n = index.saturating_add(1), reason = worded(d, reason))
         }
+    }
+}
+
+/// The two sentences for a macro name or step count over the controller's limit.
+fn too_big(reason: &Reason) -> String {
+    match reason {
+        Reason::NameTooLong { len, max, .. } => format!(
+            "{} {}",
+            tr!("The name is {n} character long." | "The name is {n} characters long." % *len),
+            tr!("This controller takes at most {n} character."
+                | "This controller takes at most {n} characters." % *max)
+        ),
+        Reason::TooManySteps { needed, max, .. } => format!(
+            "{} {}",
+            tr!("The macro has {n} step." | "The macro has {n} steps." % *needed),
+            tr!("This controller holds at most {n} step. Remove steps."
+                | "This controller holds at most {n} steps. Remove steps." % *max)
+        ),
+        Reason::TooManyGlideSteps { needed, max } => format!(
+            "{} {}",
+            tr!("With its glides, this macro needs {n} step on the controller."
+                | "With its glides, this macro needs {n} steps on the controller." % *needed),
+            tr!("This controller holds at most {n} step. Shorten a glide or remove steps."
+                | "This controller holds at most {n} steps. Shorten a glide or remove steps."
+                    % *max)
+        ),
+        _ => String::new(),
     }
 }
 
@@ -256,7 +270,7 @@ mod tests {
         let reason = Reason::NameTooLong { len: 1, short_name: "Pro 3".into(), max: 16 };
         assert_eq!(
             worded(d(), &reason),
-            "The name is 1 character long. This controller takes at most 16."
+            "The name is 1 character long. This controller takes at most 16 characters."
         );
         let reason = Reason::NoMode(XINPUT);
         assert_eq!(worded(d(), &reason), "This controller has no XInput mode.");

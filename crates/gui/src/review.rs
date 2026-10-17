@@ -473,7 +473,11 @@ fn clash_text(description: &ControllerDescription, profile: &CanonicalProfile) -
                 flag = prose(&flag.label),
                 list = and_list(&named)
             ),
-            tr!("Cancel and turn one of them off on the {tab} tab.", tab = prose(&page.label))
+            tr!(
+                "Choose “{cancel}”, then turn one of them off on the {tab} tab.",
+                cancel = tr!("Cancel"),
+                tab = prose(&page.label)
+            )
         );
     }
     String::new()
@@ -761,7 +765,7 @@ mod tests {
         s.write_finished(PORT, &[lost], None);
         assert_eq!(
             s.write.failed.clone().unwrap().detail,
-            "Could not reach the controller, so nothing was written. Check the cable and that the mode switch has not moved."
+            "Could not reach the controller, so nothing was written. Check the cable and the mode switch."
         );
         assert!(s.slot(XINPUT, 1).unsaved(), "the edits stay");
     }

@@ -159,10 +159,10 @@ export component ImportDialog inherits DialogShell {
         model: root.warning.lost;
     }
     if root.warning.reset != "": Bullet {
-        text: @tr("{0} sets these settings another way, so they start from the {0} defaults: {1}.", root.warning.to-mode, root.warning.reset);
+        text: @tr("{0} mode handles these settings differently, so they start from its defaults: {1}.", root.warning.to-mode, root.warning.reset);
     }
     if root.warning.letters != "": Bullet {
-        text: @tr("Some printed letters name another button: {}.", root.warning.letters);
+        text: @tr("Some buttons have a different letter in each mode: {}.", root.warning.letters);
     }
     Text {
         text: @tr("Nothing reaches the controller until you write.");
@@ -213,11 +213,11 @@ export component MacroImportDialog inherits DialogShell {
         text: @tr("Each button keeps its place on the controller and takes its {} label.", root.info.to-mode);
     }
     if root.ok && root.info.letters != "": Bullet {
-        text: @tr("Some printed letters name another button: {}.", root.info.letters);
+        text: @tr("Some buttons have a different letter in each mode: {}.", root.info.letters);
     }
     if root.ok && root.info.full-presses > 0: Bullet {
-        text: @tr("{} triggers are on or off, so {n} step presses its trigger fully."
-            | "{} triggers are on or off, so {n} steps press their triggers fully." % root.info.full-presses, root.info.to-mode);
+        text: @tr("In {} mode, triggers are only on or off, so {n} step presses its trigger fully."
+            | "In {} mode, triggers are only on or off, so {n} steps press their triggers fully." % root.info.full-presses, root.info.to-mode);
     }
     if root.ok && root.info.glides != "": Bullet {
         text: @tr("Trigger glides that {} cannot play are dropped: {}.", root.info.to-mode, root.info.glides);
@@ -236,7 +236,7 @@ export component FailedDialog inherits DialogShell {
     icon: Icons.error;
     alarm: true;
     card-width: 560px;
-    title: info.is-clear ? @tr("Clearing {} failed", info.slot-title) : @tr("Writing to {} failed", info.slot-title);
+    title: info.is-clear ? @tr("Clearing {} failed", info.slot-title) : @tr("Writing {} failed", info.slot-title);
     subtitle: info.detail;
     cancel-text: @tr("Close");
     accept-text: info.is-clear ? @tr("Try again") : @tr("Write again");

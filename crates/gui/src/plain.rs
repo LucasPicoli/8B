@@ -46,7 +46,7 @@ pub fn write_failure(result: &WriteResult) -> String {
     }
     match result.error_category {
         ErrorCategory::Timeout | ErrorCategory::ConnectionFailure => {
-            tr!("Check the cable and that the mode switch has not moved.")
+            tr!("Check the cable and the mode switch.")
         }
         ErrorCategory::ValidationFailure => {
             tr!("These edits do not make a valid profile, so nothing was written.")

@@ -409,7 +409,7 @@
     {
       "id": "sticks",
       "label": "Sticks",
-      "lead": "Inside the low end of the dead zone the stick reads as centred. Past the high end it reads as pushed all the way. In XInput and Switch, a macro cannot move a stick whose low end is below 2 %.",
+      "lead": "Inside the low end of the dead zone the stick reads as centred. Past the high end it reads as pushed all the way.",
       "frames": [
         {
           "title": "Left stick",
@@ -555,7 +555,7 @@
       "modes": [
         "switch"
       ],
-      "lead": "In this mode each trigger is a button. It presses once pulled past the press point.",
+      "lead": "In this mode each trigger is a button. It counts as pressed once pulled past the press point.",
       "frames": [
         {
           "title": "Left trigger",

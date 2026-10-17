@@ -49,7 +49,7 @@ impl AppState {
                 let output = self.mapped_to(b)?;
                 tr!("{button} is now mapped to {output}.", button = name, output = output)
             };
-            Some(format!("{clash} {}", tr!("Undo that first, or discard the slot's edits.")))
+            Some(format!("{clash} {}", tr!("Undo that first, or discard the slot’s edits.")))
         })
     }
 
@@ -211,7 +211,7 @@ mod tests {
         assert_eq!(notice.title, "Could not revert Jump (Macro 1).");
         assert_eq!(
             notice.body,
-            "PR now starts Dash (Macro 3). Undo that first, or discard the slot's edits."
+            "PR now starts Dash (Macro 3). Undo that first, or discard the slot’s edits."
         );
     }
 

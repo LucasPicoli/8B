@@ -407,7 +407,7 @@ export component StepTable inherits Frame {
                 }
                 for tool in [
                     { text: @tr("Duplicate step"), icon: Icons.copy, edit: 1, on: !root.full },
-                    { text: @tr("Split step in two halves"), icon: Icons.split, edit: 2, on: !root.full && root.rows[root.selected].duration-ms >= 2 },
+                    { text: @tr("Split step in two"), icon: Icons.split, edit: 2, on: !root.full && root.rows[root.selected].duration-ms >= 2 },
                     { text: @tr("Move step up (Alt+Up)"), icon: Icons.up, edit: 3, on: root.selected > 0 },
                     { text: @tr("Move step down (Alt+Down)"), icon: Icons.down, edit: 4, on: root.selected < root.last },
                     { text: @tr("Delete step (Delete)"), icon: Icons.clear, edit: 5, on: root.rows.length > 1 },

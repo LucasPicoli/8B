@@ -43,7 +43,7 @@ msgstr "⟦~~~~~~~~~~Looking for controllers⟧"
 msgid "Profile name"
 msgstr "⟦~~~~~Profile name⟧"
 
-#: ui/app.slint
+#: ui/app.slint src/macro_files.rs
 msgid "Import…"
 msgstr "⟦~~~Import…⟧"
 
@@ -205,7 +205,7 @@ msgstr[1] "⟦~~~~~~~Writing {n} slots⟧"
 msgid "Keep the controller plugged in."
 msgstr "⟦~~~~~~~~~~~~~Keep the controller plugged in.⟧"
 
-#: ui/batch.slint
+#: ui/batch.slint ui/dialogs.slint
 msgid "Writing {} failed"
 msgstr "⟦~~~~~~~Writing {} failed⟧"
 
@@ -321,7 +321,7 @@ msgstr "⟦~~~~~~~~Write to controller⟧"
 msgid "Profile"
 msgstr "⟦~~~Profile⟧"
 
-#: ui/dialogs.slint src/buttons.rs
+#: ui/dialogs.slint src/buttons.rs src/files.rs
 msgid "Macros"
 msgstr "⟦~~~Macros⟧"
 
@@ -382,12 +382,12 @@ msgstr ""
 "place on the controller.⟧"
 
 #. One button closes a bad file's dialog, as in the other one-button dialogs.
-#: ui/dialogs.slint
+#: ui/dialogs.slint src/files.rs
 msgid "Import"
 msgstr "⟦~~~Import⟧"
 
 #. Import replaces.
-#: ui/dialogs.slint
+#: ui/dialogs.slint src/files.rs
 msgid "Import without macros"
 msgstr "⟦~~~~~~~~~Import without macros⟧"
 
@@ -401,15 +401,17 @@ msgstr[1] ""
 
 #: ui/dialogs.slint
 msgid ""
-"{0} sets these settings another way, so they start from the {0} defaults: "
-"{1}."
+"{0} mode handles these settings differently, so they start from its "
+"defaults: {1}."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{0} sets these settings another way, so "
-"they start from the {0} defaults: {1}.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{0} mode handles these settings "
+"differently, so they start from its defaults: {1}.⟧"
 
 #: ui/dialogs.slint
-msgid "Some printed letters name another button: {}."
-msgstr "⟦~~~~~~~~~~~~~~~~~~Some printed letters name another button: {}.⟧"
+msgid "Some buttons have a different letter in each mode: {}."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~Some buttons have a different letter in each mode: "
+"{}.⟧"
 
 #: ui/dialogs.slint src/files.rs src/macro_files.rs
 msgid "Nothing reaches the controller until you write."
@@ -435,7 +437,7 @@ msgstr[1] ""
 msgid "no button"
 msgstr "⟦~~~~no button⟧"
 
-#: ui/dialogs.slint ui/parts.slint
+#: ui/dialogs.slint ui/parts.slint src/review.rs
 msgid "Cancel"
 msgstr "⟦~~~Cancel⟧"
 
@@ -452,15 +454,18 @@ msgstr ""
 "and takes its {} label.⟧"
 
 #: ui/dialogs.slint
-msgid "{} triggers are on or off, so {n} step presses its trigger fully."
+msgid ""
+"In {} mode, triggers are only on or off, so {n} step presses its trigger "
+"fully."
 msgid_plural ""
-"{} triggers are on or off, so {n} steps press their triggers fully."
+"In {} mode, triggers are only on or off, so {n} steps press their triggers "
+"fully."
 msgstr[0] ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~{} triggers are on or off, so {n} step presses "
-"its trigger fully.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In {} mode, triggers are only on or off, so "
+"{n} step presses its trigger fully.⟧"
 msgstr[1] ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~{} triggers are on or off, so {n} steps press "
-"their triggers fully.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In {} mode, triggers are only on or off, "
+"so {n} steps press their triggers fully.⟧"
 
 #: ui/dialogs.slint
 msgid "Trigger glides that {} cannot play are dropped: {}."
@@ -470,10 +475,6 @@ msgstr ""
 #: ui/dialogs.slint
 msgid "Clearing {} failed"
 msgstr "⟦~~~~~~~~Clearing {} failed⟧"
-
-#: ui/dialogs.slint
-msgid "Writing to {} failed"
-msgstr "⟦~~~~~~~~Writing to {} failed⟧"
 
 #: ui/dialogs.slint
 msgid "Write again"
@@ -666,8 +667,8 @@ msgid "Macro {0}, no name, written as Macro {0}"
 msgstr "⟦~~~~~~~~~~~~~~~~Macro {0}, no name, written as Macro {0}⟧"
 
 #: ui/macros.slint
-msgid "{}, can't be written"
-msgstr "⟦~~~~~~~~{}, can't be written⟧"
+msgid "{}, cannot be written"
+msgstr "⟦~~~~~~~~~{}, cannot be written⟧"
 
 #: ui/macros.slint
 msgid "{}, a stick move may not play"
@@ -695,8 +696,8 @@ msgid "No button"
 msgstr "⟦~~~~No button⟧"
 
 #: ui/macros.slint
-msgid "A step can't hold {}"
-msgstr "⟦~~~~~~~~A step can't hold {}⟧"
+msgid "A step cannot hold {}"
+msgstr "⟦~~~~~~~~~A step cannot hold {}⟧"
 
 #: ui/macros.slint
 msgid "Stop holding {} in step {}"
@@ -719,18 +720,18 @@ msgid "{}, not held"
 msgstr "⟦~~~~~{}, not held⟧"
 
 #: ui/macros.slint
-msgid "Can't be written"
-msgstr "⟦~~~~~~~Can't be written⟧"
+msgid "Cannot be written"
+msgstr "⟦~~~~~~~Cannot be written⟧"
 
 #: ui/macros.slint
 msgid "A stick move may not play"
 msgstr "⟦~~~~~~~~~~A stick move may not play⟧"
 
-#: ui/macros.slint
+#: ui/macros.slint src/files.rs src/macro_files.rs
 msgid "Import macro…"
 msgstr "⟦~~~~~~Import macro…⟧"
 
-#: ui/macros.slint
+#: ui/macros.slint src/macro_files.rs
 msgid "Export macro…"
 msgstr "⟦~~~~~~Export macro…⟧"
 
@@ -771,8 +772,8 @@ msgid "Once"
 msgstr "⟦~~Once⟧"
 
 #: ui/macros.slint
-msgid "A number of times"
-msgstr "⟦~~~~~~~A number of times⟧"
+msgid "A set number of times"
+msgstr "⟦~~~~~~~~~A set number of times⟧"
 
 #: ui/macros.slint
 msgid "Until pressed again"
@@ -821,12 +822,12 @@ msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~Pick a step in the table to see the buttons it holds.⟧"
 
 #: ui/macros.slint
-msgid "Macro {} can't be written."
-msgstr "⟦~~~~~~~~~~~Macro {} can't be written.⟧"
+msgid "Macro {} cannot be written."
+msgstr "⟦~~~~~~~~~~~Macro {} cannot be written.⟧"
 
 #: ui/macros.slint
-msgid "Macro {} will be deleted when you write"
-msgstr "⟦~~~~~~~~~~~~~~~~Macro {} will be deleted when you write⟧"
+msgid "Macro {} is deleted when you write"
+msgstr "⟦~~~~~~~~~~~~~~Macro {} is deleted when you write⟧"
 
 #: ui/macros.slint
 msgid "Macro {} is empty"
@@ -861,8 +862,8 @@ msgid "Unsaved edits"
 msgstr "⟦~~~~~~Unsaved edits⟧"
 
 #: ui/parts.slint
-msgid "{}, holds a macro that can't be written"
-msgstr "⟦~~~~~~~~~~~~~~~~{}, holds a macro that can't be written⟧"
+msgid "{}, holds a macro that cannot be written"
+msgstr "⟦~~~~~~~~~~~~~~~~{}, holds a macro that cannot be written⟧"
 
 #: ui/parts.slint
 msgid "{}  →  {}"
@@ -872,7 +873,7 @@ msgstr "⟦~~~~{}  →  {}⟧"
 msgid "{} to {}"
 msgstr "⟦~~~~{} to {}⟧"
 
-#: ui/parts.slint ui/step_panel.slint
+#: ui/parts.slint ui/settings.slint
 msgid "{}, {}"
 msgstr "⟦~~~{}, {}⟧"
 
@@ -1017,10 +1018,6 @@ msgstr "⟦~~~~~~~~~~Run this in a terminal:⟧"
 msgid "was {}"
 msgstr "⟦~~~was {}⟧"
 
-#: ui/settings.slint
-msgid "{} {}"
-msgstr "⟦~~{} {}⟧"
-
 #: ui/sidebar.slint
 msgid "Slot {}, empty"
 msgstr "⟦~~~~~~Slot {}, empty⟧"
@@ -1151,8 +1148,8 @@ msgid "Duplicate step"
 msgstr "⟦~~~~~~Duplicate step⟧"
 
 #: ui/steps.slint
-msgid "Split step in two halves"
-msgstr "⟦~~~~~~~~~~Split step in two halves⟧"
+msgid "Split step in two"
+msgstr "⟦~~~~~~~Split step in two⟧"
 
 #: ui/steps.slint
 msgid "Move step up (Alt+Up)"
@@ -1287,9 +1284,8 @@ msgstr[1] ""
 "files that 8B cannot read, so the slot keeps its macros.⟧"
 
 #: src/embedded.rs
-msgid "The command line’s upload --with-macros reads them."
-msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~The command line’s upload --with-macros reads them.⟧"
+msgid "The command 8b upload --with-macros reads them."
+msgstr "⟦~~~~~~~~~~~~~~~~~~~The command 8b upload --with-macros reads them.⟧"
 
 #: src/embedded.rs
 msgid "The file holds no macros, so the slot’s macro {old} is removed."
@@ -1372,8 +1368,10 @@ msgstr[1] ""
 "off, so {macro} drops its glides on {list}.⟧"
 
 #: src/files.rs
-msgid "This file is not JSON: {error}."
-msgstr "⟦~~~~~~~~~~~~~This file is not JSON: {error}.⟧"
+msgid "This file is not valid JSON (line {line}, column {column})."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~This file is not valid JSON (line {line}, column "
+"{column}).⟧"
 
 #: src/files.rs
 msgid "This controller model cannot check files."
@@ -1388,21 +1386,21 @@ msgstr[1] "⟦~~~~~~~~({n} more problems)⟧"
 #. Why a macro file picked as a profile does not import, and where it goes.
 #: src/files.rs
 msgid ""
-"This is a macro file, not a profile. Import it with Import macro… on the "
-"Macros tab."
+"This is a macro file, not a profile. Import it with “{import}” on the {tab} "
+"tab."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~This is a macro file, not a profile. "
-"Import it with Import macro… on the Macros tab.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~This is a macro file, not a profile. Import "
+"it with “{import}” on the {tab} tab.⟧"
 
 #: src/files.rs
 msgid "Saved {mode} slot {n} to “{file}”."
 msgstr "⟦~~~~~~~~~~~~~~Saved {mode} slot {n} to “{file}”.⟧"
 
 #: src/files.rs src/macro_files.rs
-msgid "The file includes edits not yet written to the controller."
+msgid "The file includes edits not written to the controller yet."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~The file includes edits not yet written to the "
-"controller.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~The file includes edits not written to the "
+"controller yet.⟧"
 
 #: src/files.rs
 msgid "Could not save {mode} slot {n}."
@@ -1432,17 +1430,16 @@ msgid "{mode} {button} is {other_mode} {other}"
 msgstr "⟦~~~~~~~~~~~~~~~~{mode} {button} is {other_mode} {other}⟧"
 
 #: src/files.rs
-msgid "Import without macros leaves it out."
-msgid_plural "Import without macros leaves them out."
-msgstr[0] "⟦~~~~~~~~~~~~~~~Import without macros leaves it out.⟧"
-msgstr[1] "⟦~~~~~~~~~~~~~~~~Import without macros leaves them out.⟧"
+msgid "“{button}” leaves it out."
+msgid_plural "“{button}” leaves them out."
+msgstr[0] "⟦~~~~~~~~~~“{button}” leaves it out.⟧"
+msgstr[1] "⟦~~~~~~~~~~~“{button}” leaves them out.⟧"
 
 #: src/files.rs
-msgid "Import without macros keeps the slot’s macro."
-msgid_plural "Import without macros keeps the slot’s {n} macros."
-msgstr[0] "⟦~~~~~~~~~~~~~~~~~~Import without macros keeps the slot’s macro.⟧"
-msgstr[1] ""
-"⟦~~~~~~~~~~~~~~~~~~~~Import without macros keeps the slot’s {n} macros.⟧"
+msgid "“{button}” keeps the slot’s macro."
+msgid_plural "“{button}” keeps the slot’s {n} macros."
+msgstr[0] "⟦~~~~~~~~~~~~~~“{button}” keeps the slot’s macro.⟧"
+msgstr[1] "⟦~~~~~~~~~~~~~~~~“{button}” keeps the slot’s {n} macros.⟧"
 
 #: src/files.rs
 msgid "Your profile edits to {mode} slot {n}, not written yet, are discarded."
@@ -1452,11 +1449,10 @@ msgstr ""
 
 #: src/files.rs
 msgid ""
-"Import discards your macro edits, not written yet. Import without macros "
-"keeps them."
+"“{import}” discards your macro edits, not written yet. “{keep}” keeps them."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Import discards your macro edits, not "
-"written yet. Import without macros keeps them.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~“{import}” discards your macro edits, not "
+"written yet. “{keep}” keeps them.⟧"
 
 #: src/files.rs
 msgid "Your macro edits, not written yet, are discarded."
@@ -1491,41 +1487,43 @@ msgstr ""
 "Close it and try again.⟧"
 
 #: src/macro_check.rs
-msgid "Macro {n} can't be written."
-msgstr "⟦~~~~~~~~~~~Macro {n} can't be written.⟧"
+msgid "Macro {n} cannot be written."
+msgstr "⟦~~~~~~~~~~~~Macro {n} cannot be written.⟧"
 
 #: src/macro_check.rs
-msgid "{n} macro can't be written."
-msgid_plural "{n} macros can't be written."
-msgstr[0] "⟦~~~~~~~~~~~{n} macro can't be written.⟧"
-msgstr[1] "⟦~~~~~~~~~~~~{n} macros can't be written.⟧"
+msgid "{n} macro cannot be written."
+msgid_plural "{n} macros cannot be written."
+msgstr[0] "⟦~~~~~~~~~~~~{n} macro cannot be written.⟧"
+msgstr[1] "⟦~~~~~~~~~~~~{n} macros cannot be written.⟧"
 
 #: src/macro_check.rs
-msgid "Macro {n} of {mode} slot {slot} can't be written."
+msgid "Macro {n} of {mode} slot {slot} cannot be written."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~Macro {n} of {mode} slot {slot} can't be written.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~Macro {n} of {mode} slot {slot} cannot be written.⟧"
 
 #: src/macro_files.rs
 msgid ""
-"This is a profile file, not a macro file. Import it with Import… at the top "
-"of the window. To move one macro, use Export macro… and Import macro… here."
+"This is a profile file, not a macro file. Import it with “{import}” at the "
+"top of the window. To move one macro, use “{export}” and “{import_macro}” "
+"here."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~This is a "
-"profile file, not a macro file. Import it with Import… at the top of the "
-"window. To move one macro, use Export macro… and Import macro… here.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~This is a "
+"profile file, not a macro file. Import it with “{import}” at the top of the "
+"window. To move one macro, use “{export}” and “{import_macro}” here.⟧"
 
 #: src/macro_files.rs
-msgid "{button} is imported unmapped, as {macro} already uses it."
+msgid "{button} is imported unmapped, because {macro} already uses it."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~{button} is imported unmapped, as {macro} already "
-"uses it.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~{button} is imported unmapped, because {macro} "
+"already uses it.⟧"
 
 #: src/macro_files.rs
 msgid ""
-"{button} is imported unmapped, as this slot gives it the output {output}."
+"{button} is imported unmapped, because this slot gives it the output "
+"{output}."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{button} is imported unmapped, as this slot "
-"gives it the output {output}.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~{button} is imported unmapped, because this "
+"slot gives it the output {output}.⟧"
 
 #: src/macro_files.rs
 msgid "Imported “{file}” into Macro {n}."
@@ -1560,18 +1558,18 @@ msgid "{button} is now mapped to {output}."
 msgstr "⟦~~~~~~~~~~~~~~{button} is now mapped to {output}.⟧"
 
 #: src/macro_revert.rs
-msgid "Undo that first, or discard the slot's edits."
-msgstr "⟦~~~~~~~~~~~~~~~~~~Undo that first, or discard the slot's edits.⟧"
+msgid "Undo that first, or discard the slot’s edits."
+msgstr "⟦~~~~~~~~~~~~~~~~~~Undo that first, or discard the slot’s edits.⟧"
 
 #: src/macro_revert.rs
 msgid "Could not revert {macro}."
 msgstr "⟦~~~~~~~~~~Could not revert {macro}.⟧"
 
 #: src/macro_tab.rs
-msgid "And {n} more reason."
-msgid_plural "And {n} more reasons."
-msgstr[0] "⟦~~~~~~~~And {n} more reason.⟧"
-msgstr[1] "⟦~~~~~~~~~And {n} more reasons.⟧"
+msgid "And {n} more problem."
+msgid_plural "And {n} more problems."
+msgstr[0] "⟦~~~~~~~~~And {n} more problem.⟧"
+msgstr[1] "⟦~~~~~~~~~And {n} more problems.⟧"
 
 #: src/macro_tab.rs
 msgid "{button} (Macro {n})"
@@ -1655,10 +1653,8 @@ msgstr ""
 "could not save a copy of the old profile.⟧"
 
 #: src/plain.rs
-msgid "Check the cable and that the mode switch has not moved."
-msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~Check the cable and that the mode switch has not "
-"moved.⟧"
+msgid "Check the cable and the mode switch."
+msgstr "⟦~~~~~~~~~~~~~~~Check the cable and the mode switch.⟧"
 
 #: src/plain.rs
 msgid "These edits do not make a valid profile, so nothing was written."
@@ -1783,43 +1779,6 @@ msgstr[1] ""
 "⟦~~~~~~~~~~~~~~~~~~~~Give the macro a name of at most {n} characters.⟧"
 
 #: src/reasons.rs
-msgid "The name is {n} character long."
-msgid_plural "The name is {n} characters long."
-msgstr[0] "⟦~~~~~~~~~~~~~The name is {n} character long.⟧"
-msgstr[1] "⟦~~~~~~~~~~~~~The name is {n} characters long.⟧"
-
-#: src/reasons.rs
-msgid "This controller takes at most {max}."
-msgstr "⟦~~~~~~~~~~~~~~~This controller takes at most {max}.⟧"
-
-#: src/reasons.rs
-msgid "The macro has {n} step."
-msgid_plural "The macro has {n} steps."
-msgstr[0] "⟦~~~~~~~~~~The macro has {n} step.⟧"
-msgstr[1] "⟦~~~~~~~~~~The macro has {n} steps.⟧"
-
-#: src/reasons.rs
-msgid "This controller holds at most {max}. Remove steps."
-msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~This controller holds at most {max}. Remove steps.⟧"
-
-#: src/reasons.rs
-msgid "With its glides, this macro needs {n} step on the controller."
-msgid_plural "With its glides, this macro needs {n} steps on the controller."
-msgstr[0] ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~With its glides, this macro needs {n} step on the "
-"controller.⟧"
-msgstr[1] ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~With its glides, this macro needs {n} steps on the "
-"controller.⟧"
-
-#: src/reasons.rs
-msgid "The controller holds at most {max}. Shorten a glide or remove steps."
-msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~The controller holds at most {max}. Shorten a "
-"glide or remove steps.⟧"
-
-#: src/reasons.rs
 msgid "The macro must play at least once."
 msgstr "⟦~~~~~~~~~~~~~~The macro must play at least once.⟧"
 
@@ -1829,9 +1788,10 @@ msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~Step {n}: {button} appears in both press and release.⟧"
 
 #: src/reasons.rs
-msgid "Step {n}: {name} cannot glide, there is no next step."
+msgid "Step {n}: {name} cannot glide, because there is no next step."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~Step {n}: {name} cannot glide, there is no next step.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~Step {n}: {name} cannot glide, because there is no "
+"next step.⟧"
 
 #: src/reasons.rs
 msgid ""
@@ -1849,6 +1809,55 @@ msgstr ""
 #: src/reasons.rs
 msgid "Macro {n}: {reason}"
 msgstr "⟦~~~~~~~~Macro {n}: {reason}⟧"
+
+#: src/reasons.rs
+msgid "The name is {n} character long."
+msgid_plural "The name is {n} characters long."
+msgstr[0] "⟦~~~~~~~~~~~~~The name is {n} character long.⟧"
+msgstr[1] "⟦~~~~~~~~~~~~~The name is {n} characters long.⟧"
+
+#: src/reasons.rs
+msgid "This controller takes at most {n} character."
+msgid_plural "This controller takes at most {n} characters."
+msgstr[0] "⟦~~~~~~~~~~~~~~~~~~This controller takes at most {n} character.⟧"
+msgstr[1] "⟦~~~~~~~~~~~~~~~~~~This controller takes at most {n} characters.⟧"
+
+#: src/reasons.rs
+msgid "The macro has {n} step."
+msgid_plural "The macro has {n} steps."
+msgstr[0] "⟦~~~~~~~~~~The macro has {n} step.⟧"
+msgstr[1] "⟦~~~~~~~~~~The macro has {n} steps.⟧"
+
+#: src/reasons.rs
+msgid "This controller holds at most {n} step. Remove steps."
+msgid_plural "This controller holds at most {n} steps. Remove steps."
+msgstr[0] ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~This controller holds at most {n} step. Remove steps.⟧"
+msgstr[1] ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~This controller holds at most {n} steps. Remove "
+"steps.⟧"
+
+#: src/reasons.rs
+msgid "With its glides, this macro needs {n} step on the controller."
+msgid_plural "With its glides, this macro needs {n} steps on the controller."
+msgstr[0] ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~With its glides, this macro needs {n} step on the "
+"controller.⟧"
+msgstr[1] ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~With its glides, this macro needs {n} steps on the "
+"controller.⟧"
+
+#: src/reasons.rs
+msgid ""
+"This controller holds at most {n} step. Shorten a glide or remove steps."
+msgid_plural ""
+"This controller holds at most {n} steps. Shorten a glide or remove steps."
+msgstr[0] ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~This controller holds at most {n} step. "
+"Shorten a glide or remove steps.⟧"
+msgstr[1] ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~This controller holds at most {n} steps. "
+"Shorten a glide or remove steps.⟧"
 
 #: src/reasons.rs
 msgid "{frame}, {slider} must be {lo} to {hi}."
@@ -2056,9 +2065,10 @@ msgid "“{flag}” cannot be on together with {list}."
 msgstr "⟦~~~~~~~~~~~~~~~~~~“{flag}” cannot be on together with {list}.⟧"
 
 #: src/review.rs
-msgid "Cancel and turn one of them off on the {tab} tab."
+msgid "Choose “{cancel}”, then turn one of them off on the {tab} tab."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~Cancel and turn one of them off on the {tab} tab.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~Choose “{cancel}”, then turn one of them off on "
+"the {tab} tab.⟧"
 
 #: src/review.rs
 msgid "“{name}”"
@@ -2122,19 +2132,19 @@ msgstr ""
 
 #: src/stick_pad.rs
 msgid ""
-"Moves in a straight line from here to step {n}'s position over this step's "
+"Moves in a straight line from here to step {n}’s position over this step’s "
 "{ms} ms."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Moves in a straight line from here to "
-"step {n}'s position over this step's {ms} ms.⟧"
+"step {n}’s position over this step’s {ms} ms.⟧"
 
 #: src/stick_pad.rs
 msgid ""
-"Moves in a straight line from here to step {n}'s pressure over this step's "
+"Moves in a straight line from here to step {n}’s pressure over this step’s "
 "{ms} ms."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Moves in a straight line from here to "
-"step {n}'s pressure over this step's {ms} ms.⟧"
+"step {n}’s pressure over this step’s {ms} ms.⟧"
 
 #: src/stick_pad.rs
 msgid "{stick}: the dead zone low end is {n} %."
@@ -2142,10 +2152,11 @@ msgstr "⟦~~~~~~~~~~~~~~~~{stick}: the dead zone low end is {n} %.⟧"
 
 #: src/stick_pad.rs
 msgid ""
-"In {mode}, a macro moves a stick only when its low end is {floor} % or more."
+"In {mode} mode, a macro moves a stick only when its dead zone low end is "
+"{floor} % or more."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In {mode}, a macro moves a stick only when "
-"its low end is {floor} % or more.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In {mode} mode, a macro moves a stick "
+"only when its dead zone low end is {floor} % or more.⟧"
 
 #: src/stick_pad.rs
 msgid "Set to {floor} %"
@@ -2471,13 +2482,11 @@ msgstr "⟦~~~Sticks⟧"
 #. Pro 3 /settings/0/lead
 msgid ""
 "Inside the low end of the dead zone the stick reads as centred. Past the "
-"high end it reads as pushed all the way. In XInput and Switch, a macro "
-"cannot move a stick whose low end is below 2 %."
+"high end it reads as pushed all the way."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Inside "
-"the low end of the dead zone the stick reads as centred. Past the high end "
-"it reads as pushed all the way. In XInput and Switch, a macro cannot move a "
-"stick whose low end is below 2 %.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Inside the low end of the "
+"dead zone the stick reads as centred. Past the high end it reads as pushed "
+"all the way.⟧"
 
 #. Pro 3 /settings/0/frames/0/sliders/0/label
 #. Pro 3 /settings/0/frames/1/sliders/0/label
@@ -2553,11 +2562,11 @@ msgstr "⟦~~~~~~~~~~~~~Swap the left and right triggers⟧"
 
 #. Pro 3 /settings/2/lead
 msgid ""
-"In this mode each trigger is a button. It presses once pulled past the press "
-"point."
+"In this mode each trigger is a button. It counts as pressed once pulled past "
+"the press point."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In this mode each trigger is a button. It "
-"presses once pulled past the press point.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In this mode each trigger is a "
+"button. It counts as pressed once pulled past the press point.⟧"
 
 #. Pro 3 /settings/2/frames/0/sliders/0/label
 #. Pro 3 /settings/2/frames/1/sliders/0/label

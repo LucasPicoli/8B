@@ -172,7 +172,7 @@ mod tests {
         assert_eq!(lt.glide_label, "Glide to step 2");
         assert_eq!(
             lt.glide_tip,
-            "Moves in a straight line from here to step 2's pressure over this step's 100 ms."
+            "Moves in a straight line from here to step 2’s pressure over this step’s 100 ms."
         );
         let arriving = &trigger_pads(&s, 0, 1)[0];
         assert_eq!((arriving.glides_in_from, arriving.can_glide), (1, false));

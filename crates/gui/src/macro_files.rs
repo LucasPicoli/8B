@@ -26,8 +26,13 @@ use crate::ui::{AppWindow, MacroImportInfo};
 
 /// Why a profile file picked as a macro file does not import, and where it goes.
 fn profile_file() -> String {
-    tr!("This is a profile file, not a macro file. Import it with Import… at the top of the \
-         window. To move one macro, use Export macro… and Import macro… here.")
+    tr!(
+        "This is a profile file, not a macro file. Import it with “{import}” at the top of the \
+         window. To move one macro, use “{export}” and “{import_macro}” here.",
+        import = tr!("Import…"),
+        export = tr!("Export macro…"),
+        import_macro = tr!("Import macro…")
+    )
 }
 
 /// A macro file, put into the slot's mode, waiting for the user's yes.
@@ -111,12 +116,12 @@ impl AppState {
             let button = output_label(d, mode, b);
             dropped.push(match (slot.macro_started_by(b).filter(|&o| o != n), self.mapped_to(b)) {
                 (Some(other), _) => tr!(
-                    "{button} is imported unmapped, as {macro} already uses it.",
+                    "{button} is imported unmapped, because {macro} already uses it.",
                     button = button,
                     macro = label(&macros, other)
                 ),
                 (None, Some(output)) => tr!(
-                    "{button} is imported unmapped, as this slot gives it the output {output}.",
+                    "{button} is imported unmapped, because this slot gives it the output {output}.",
                     button = button,
                     output = output
                 ),
@@ -173,7 +178,7 @@ impl AppState {
                 error: false,
                 title: tr!("Saved Macro {n} to “{file}”.", n = n, file = name),
                 body: if unsaved {
-                    tr!("The file includes edits not yet written to the controller.")
+                    tr!("The file includes edits not written to the controller yet.")
                 } else {
                     String::new()
                 },
@@ -367,9 +372,9 @@ mod tests {
         assert_eq!(
             r.dropped,
             [
-                "R4 is imported unmapped, as Dash (Macro 3) already uses it.",
-                "L4 is imported unmapped, as this slot gives it the output A.",
-                "PR is imported unmapped, as Jump (Macro 1) already uses it."
+                "R4 is imported unmapped, because Dash (Macro 3) already uses it.",
+                "L4 is imported unmapped, because this slot gives it the output A.",
+                "PR is imported unmapped, because Jump (Macro 1) already uses it."
             ]
         );
         assert_eq!(r.def.trigger_buttons, ["r3"]);
@@ -473,7 +478,7 @@ mod tests {
         s.exported_macro(1, true, Ok("x.json".to_owned()));
         let n = s.notice.take().unwrap();
         assert_eq!(n.title, "Saved Macro 2 to “x.json”.");
-        assert!(n.body.contains("not yet written"));
+        assert!(n.body.contains("not written to the controller yet"));
         s.exported_macro(1, false, Err("Permission denied.".to_owned()));
         assert!(s.notice.unwrap().error);
     }
