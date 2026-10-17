@@ -520,8 +520,8 @@ component MacroHeader inherits Frame {
                     spacing: 8px;
                     cross-axis-alignment: center;
                     plays-box := ComboBox {
-                        // "A set number of times" at any font size.
-                        width: max(180px, 13.5rem);
+                        // Every entry in full, in any language and at any font size.
+                        width: max(180px, self.fit-width);
                         model: [@tr("Once"), @tr("A set number of times"), @tr("Until pressed again")];
                         current-index: root.item.plays;
                         enabled: root.editable;

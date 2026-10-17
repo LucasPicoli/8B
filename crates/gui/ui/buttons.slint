@@ -203,10 +203,13 @@ export component ButtonsTab {
                                     }
                                 }
                                 if r.fixed: Text {
+                                    horizontal-stretch: 1;
                                     text: @tr("Cannot be remapped");
                                     color: Theme.fg-muted;
                                     font-italic: true;
                                     vertical-alignment: center;
+                                    // Two lines fit the row, in a longer language.
+                                    wrap: word-wrap;
                                 }
                                 if !r.fixed: VerticalLayout {
                                     alignment: center;

@@ -356,9 +356,12 @@ export component ChangeRow inherits Rectangle {
     // A 1px rule under the row.
     in property <bool> rule;
     min-height: 32px;
+    // A long label or value wraps, so a longer language loses no words.
     HorizontalLayout {
         padding-left: 10px;
         padding-right: 10px;
+        padding-top: 6px;
+        padding-bottom: 6px;
         spacing: 10px;
         Text {
             width: 46%;
@@ -366,12 +369,14 @@ export component ChangeRow inherits Rectangle {
             font-weight: 600;
             color: Theme.fg;
             vertical-alignment: center;
-            overflow: elide;
+            wrap: word-wrap;
         }
         Text {
+            horizontal-stretch: 1;
             text: @tr("{}  →  {}", root.change.from, root.change.to);
             color: Theme.fg;
             vertical-alignment: center;
+            wrap: word-wrap;
         }
     }
     if root.rule: Rectangle {
@@ -495,7 +500,8 @@ export component DialogShell inherits Rectangle {
     init => { fs.focus(); }
 
     card := Rectangle {
-        width: root.card-width;
+        // Wider when a longer language needs it, so the footer buttons stay inside.
+        width: max(root.card-width, ceil(body.min-width / 1phx) * 1phx);
         // Centred on whole physical pixels: a fractional offset blurs the text.
         x: round((root.width - self.width) / 2 / 1phx) * 1phx;
         y: round((root.height - self.height) / 2 / 1phx) * 1phx;

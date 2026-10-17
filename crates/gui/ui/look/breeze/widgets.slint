@@ -183,6 +183,10 @@ export component ComboBox {
     min-height: small ? 26px : Theme.control-height;
     max-height: self.min-height;
     min-width: 120px;
+    // Pinned, so the `widest` probe below leaves the box's size alone.
+    preferred-width: 120px;
+    // The width that shows the longest entry in full: its text, the 8px inset and the arrow.
+    out property <length> fit-width: ceil((widest.preferred-width + 34px) / 1phx) * 1phx;
     accessible-role: combobox;
     accessible-label: accessible-name;
     accessible-value: root.said(current-index);
@@ -251,6 +255,15 @@ export component ComboBox {
             height: 14px;
             source: @image-url("../../icons/chevron.svg");
             colorize: Theme.fg-muted;
+        }
+    }
+
+    // Measures `fit-width`, never drawn.
+    widest := VerticalLayout {
+        visible: false;
+        for m in root.model: Text {
+            text: m;
+            accessible-role: none;
         }
     }
 
