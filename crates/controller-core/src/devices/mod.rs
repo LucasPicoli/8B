@@ -7,6 +7,7 @@ mod inline_pad;
 pub mod pro3;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_pad;
+pub mod ultimate;
 
 use std::path::Path;
 
