@@ -260,6 +260,15 @@ The model supplies:
 3. The codec: `map_profile`, `compile_profile`, `default_profile`, the macro
    functions, and the rest of `ProtocolCodec`. The `device` and `kind` of
    `default_profile` are what validation checks every profile against.
+
+   Where the steps live is a codec choice. The Pro 3 keeps a macro's descriptor in
+   the blob and its steps on a page of their own, and the default
+   `macro_steps_in_blob`, `false`, says so. A model that keeps the steps inside the
+   blob returns `true`. Its `decode_macro_metadata` then returns the real steps,
+   its `set_macro` writes them, and the services read, write, back up and roll back
+   no page: a macro put sends the bank and apply only, and the read-back compares
+   the macros decoded from the blob, steps included. The tests in
+   `devices/inline_pad.rs` check this on a mock.
 4. The `ControllerSpec` values. `apply_argument` is required: the argument the apply
    command (`0x06`) carries, `0x0123` on the Pro 3. `firmware_request` and
    `firmware_version` read the firmware: the request to send and how to read the
@@ -318,7 +327,7 @@ nothing, returns `Ok(None)` from `begin_write` and `Ok(())` from `end_write`, an
 the blob of `blob_size` bytes onto its own reads and writes. A macro put sends the
 bank, apply, then `write_macro_stream` (erase the macro's page, then write its steps),
 then apply. A model without macro slots never gets the call: the put is refused before any
-write. The
+write. Nor does a model whose steps live in the blob. The
 lone 8BitDo erase, the patch write and the status query are methods of `HidrawDevice`
 only, so a transport of its own does not implement them.
 

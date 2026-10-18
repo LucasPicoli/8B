@@ -2,6 +2,8 @@
 //!
 //! A new model gets its own folder next to `pro3/` and one entry in [`MODELS`].
 
+#[cfg(test)]
+mod inline_pad;
 pub mod pro3;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_pad;

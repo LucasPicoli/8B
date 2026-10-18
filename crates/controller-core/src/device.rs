@@ -160,7 +160,16 @@ pub trait ProtocolCodec {
         Ok(Vec::new())
     }
 
-    /// Decodes Section-4 macro metadata for `profile_slot` (steps left empty).
+    /// Whether the model keeps each macro's steps inside the profile blob, so that no
+    /// step page is read, written or backed up. The default, `false`, keeps them on a
+    /// step page of their own beside the blob.
+    fn macro_steps_in_blob(&self) -> bool {
+        false
+    }
+
+    /// Decodes Section-4 macro metadata for `profile_slot`. Each macro's `steps` are
+    /// placeholders, one per step the descriptor counts, unless
+    /// [`Self::macro_steps_in_blob`] says the blob holds the real ones.
     ///
     /// # Errors
     /// Returns [`crate::Error::Decode`] on malformed input.
@@ -236,7 +245,8 @@ pub trait ProtocolCodec {
 
     /// Returns `blob` with macro slot `macro_slot` of `slot` holding `def`'s descriptor,
     /// or empty when `def` is `None`. The slot's other macros stay byte for byte, and the
-    /// blob's checksum is sealed again. The step page is not part of the blob.
+    /// blob's checksum is sealed again. The blob holds `def`'s steps only when
+    /// [`Self::macro_steps_in_blob`] is true; otherwise they go on the step page.
     ///
     /// # Errors
     /// Returns [`crate::Error::Validation`] if `blob` is not a full profile blob, the

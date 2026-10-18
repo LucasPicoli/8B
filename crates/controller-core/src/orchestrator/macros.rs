@@ -3,7 +3,8 @@
 //! [`ProfileWriteOrchestrator::put_macro`] and [`ProfileWriteOrchestrator::delete_macro`]
 //! are one-job [`ProfileWriteOrchestrator::write_slots`] runs. The batch plans each job's
 //! macro edits here: the new descriptors go in the bank, and each put adds a step page
-//! that [`super::pages`] writes after it.
+//! that [`super::pages`] writes after it. A model that keeps the steps in the blob gets
+//! them in the bank with the descriptors, and no page.
 
 use serde_json::Value;
 
@@ -53,8 +54,8 @@ impl ProfileWriteOrchestrator<'_> {
         }
     }
 
-    /// Removes the macro in macro slot `macro_slot` of `slot` in `mode`. Only its
-    /// descriptor is zeroed; the step page stays. An empty macro slot succeeds without a
+    /// Removes the macro in macro slot `macro_slot` of `slot` in `mode`. On a model with
+    /// step pages only its descriptor is zeroed; the step page stays. An empty macro slot succeeds without a
     /// write. `policy` is asked before the macro goes.
     #[must_use]
     pub fn delete_macro(
@@ -128,7 +129,8 @@ impl ProfileWriteOrchestrator<'_> {
     }
 
     /// Plans the macro edits of `job` into `bank`: the descriptors in its blob, the
-    /// pages of the puts with the old steps of each replace read as backups.
+    /// pages of the puts with the old steps of each replace read as backups. A model
+    /// that keeps the steps in the blob gets no page and no backup read.
     ///
     /// `rb` is the slot as read, and `carries_profile` says the job writes a profile
     /// into it. `policy` is asked before a macro is replaced or removed. Returns the
@@ -214,6 +216,10 @@ impl ProfileWriteOrchestrator<'_> {
         for edit in edits {
             let MacroEdit::Put { macro_slot, definition } = edit else { continue };
             self.check_bank(&blob, mode, slot, *macro_slot, definition)?;
+            // `set_macro` already put the steps in the blob.
+            if self.model.macro_steps_in_blob() {
+                continue;
+            }
             let steps = expand(definition, step_ms).steps;
             let stream = self.model.encode_macro_steps(&steps, mode)?;
             let old = match held_in(*macro_slot) {

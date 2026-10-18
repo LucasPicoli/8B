@@ -15,6 +15,9 @@
 //! 3. The last `APPLY` fails: reported, no rollback, as for a profile.
 //!
 //! After every bank went out, the banks and pages are read back and compared.
+//!
+//! A model that keeps the steps in the blob has no pages: its bank goes out and rolls
+//! back as a profile's does, and the read-back compares the steps decoded from the blob.
 
 use std::fmt::Write as _;
 

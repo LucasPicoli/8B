@@ -55,7 +55,8 @@ pub fn read_profiles(dev: &dyn DeviceIo) -> Result<ProfileReadResult> {
 /// 3. Verify the blob is the model's blob size.
 /// 4. Check that `profile_slot` is active; inactive slot → `Err`.
 /// 5. Decode macro metadata descriptors from Section 4.
-/// 6. For each descriptor, read the step stream, decode it and fold its glides.
+/// 6. For each descriptor, read the step stream, decode it and fold its glides. A model
+///    that keeps the steps in the blob has them from step 5, and reads no stream.
 ///
 /// # Errors
 /// - [`Error::Validation`] if the slot is past the model's slot count or inactive.
@@ -88,6 +89,11 @@ pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result
     if metadata.is_empty() {
         return Ok(MacroReadResult { macros: Vec::new() });
     }
+    let glide_step_ms = codec.description()?.limits.glide_step_ms;
+    if codec.macro_steps_in_blob() {
+        let macros = metadata.iter().map(|def| fold(def, glide_step_ms)).collect();
+        return Ok(MacroReadResult { macros });
+    }
 
     // 6. Read the step streams of every macro in one session, then decode.
     let mut streams = Vec::with_capacity(metadata.len());
@@ -99,7 +105,6 @@ pub fn read_macros(dev: &dyn DeviceIo, mode: Mode, profile_slot: Slot) -> Result
         streams.push(MacroStream { mode, profile_slot, macro_slot, step_count: def.steps.len() });
     }
     let read = dev.read_macro_streams(&streams)?;
-    let glide_step_ms = codec.description()?.limits.glide_step_ms;
     let mut macros = metadata;
     for (def, stream) in macros.iter_mut().zip(read) {
         let step_count = def.steps.len();
@@ -132,13 +137,19 @@ pub type MacroAt = ((Mode, u8), MacroDefinition);
 /// with the runs of short steps folded back into glides.
 ///
 /// Each macro is a summary from [`macro_summaries`]: its placeholder `steps` count the
-/// steps to read.
+/// steps to read. A model that keeps the steps in the blob reads no stream: the summary
+/// already holds them, and only the glides are folded.
 ///
 /// # Errors
 /// - [`Error::Decode`] if a summary has no macro slot or a stream does not decode.
 /// - [`Error::Validation`] if a profile or macro slot is out of range.
 /// - Any [`Error`] from [`DeviceIo::read_macro_streams`].
 pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<MacroAt>> {
+    let model = dev.model()?;
+    let glide_step_ms = model.description()?.limits.glide_step_ms;
+    if model.macro_steps_in_blob() {
+        return Ok(macros.into_iter().map(|(at, def)| (at, fold(&def, glide_step_ms))).collect());
+    }
     let streams = macros
         .iter()
         .map(|&((mode, slot), ref def)| {
@@ -153,8 +164,6 @@ pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<
             })
         })
         .collect::<Result<Vec<_>>>()?;
-    let model = dev.model()?;
-    let glide_step_ms = model.description()?.limits.glide_step_ms;
     dev.read_macro_streams(&streams)?
         .into_iter()
         .zip(macros)
@@ -168,8 +177,9 @@ pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<
 /// The macro descriptors of every slot of a full read, empty slots included.
 ///
 /// Each slot's macros are in macro-slot order. Their `steps` are placeholders, one per
-/// step the descriptor counts; [`DeviceIo::read_macro_streams`] reads the real ones. A
-/// slot with no descriptor, or whose descriptors cannot be decoded, is left out.
+/// step the descriptor counts, and [`read_macro_steps`] reads the real ones, unless the
+/// model keeps the steps in the blob. A slot with no descriptor, or whose descriptors
+/// cannot be decoded, is left out.
 #[must_use]
 pub fn macro_summaries(
     model: &dyn Model,
