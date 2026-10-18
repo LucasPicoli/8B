@@ -806,7 +806,7 @@ msgid "Connect your controller"
 msgstr ""
 
 #: ui/screens.slint
-msgid "Plug it in with a USB cable, in any mode. 8B finds it on its own."
+msgid "Plug it in with a USB cable, in any mode."
 msgstr ""
 
 #: ui/screens.slint src/render.rs
