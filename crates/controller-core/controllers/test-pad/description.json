@@ -1,9 +1,7 @@
 {
   "display_name": "Test Pad",
   "short_name": "Test Pad",
-  "model_ids": [
-    "0x7e57"
-  ],
+  "model_ids": [],
   "config_ports": [
     {
       "usb": {

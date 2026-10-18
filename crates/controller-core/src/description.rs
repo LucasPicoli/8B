@@ -35,7 +35,8 @@ pub struct ControllerDescription {
     pub display_name: String,
     /// Short model name for tight places, such as the controller picker.
     pub short_name: String,
-    /// Model ids the `START_CONFIG` reply carries for this controller.
+    /// Model ids the `START_CONFIG` reply carries for this controller. Empty for a
+    /// model that its config ports name, which no other model may list.
     #[serde(deserialize_with = "hex_u16_list")]
     pub model_ids: Vec<u16>,
     /// The config interface of every current mode, one per USB id.
@@ -450,8 +451,8 @@ impl ControllerDescription {
         if modes.is_empty() || modes.len() != self.modes.len() {
             return Err("modes must be listed once each, at least one".to_owned());
         }
-        if self.model_ids.is_empty() || self.slot_count == 0 {
-            return Err("model_ids and slot_count must not be empty".to_owned());
+        if self.slot_count == 0 {
+            return Err("slot_count must be above 0".to_owned());
         }
         if let Some(port) = self.config_ports.iter().find(|p| !modes.contains(&p.mode)) {
             return Err(format!("config port for unlisted mode '{}'", port.mode));

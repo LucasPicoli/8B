@@ -159,7 +159,8 @@ pub(super) fn send_slot_select(session: &mut Session, mode: Mode) -> Result<()> 
 }
 
 pub(super) fn send_apply(session: &mut Session) -> Result<()> {
-    command(session, &build_apply(), CMD_APPLY, "apply")
+    let packet = build_apply(session.model()?.apply_argument());
+    command(session, &packet, CMD_APPLY, "apply")
 }
 
 pub(super) fn query_status(session: &mut Session) -> Result<()> {

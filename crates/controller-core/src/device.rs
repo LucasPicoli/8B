@@ -65,6 +65,21 @@ pub trait ControllerSpec {
     fn description(&self) -> Result<&'static ControllerDescription>;
     /// Profile blob size in bytes.
     fn blob_size(&self) -> usize;
+    /// The argument the apply command (`0x06`) carries, such as `0x0123`.
+    fn apply_argument(&self) -> u16;
+    /// Normal-layout packet that asks for the firmware version. `None`, the default,
+    /// reads it from the `START_CONFIG` reply instead.
+    fn firmware_request(&self) -> Option<[u8; PACKET_LEN]> {
+        None
+    }
+    /// Reads the firmware version, such as `1.04`, from the reply to
+    /// [`Self::firmware_request`]. The default reads a `START_CONFIG` reply.
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Decode`] if the reply is too short.
+    fn firmware_version(&self, reply: &[u8]) -> Result<String> {
+        crate::protocol::wire::decode_firmware_version(reply)
+    }
     /// Value sent in the slot-select command (`0x14`) to target `mode`'s slots.
     ///
     /// # Errors

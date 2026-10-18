@@ -1,7 +1,7 @@
 //! A made-up second controller, for tests only.
 //!
-//! It differs from the Pro 3 on purpose: one mode, two slots, no macros, a 64-byte blob
-//! and its own model id. A test that passes for both models shows that the code around
+//! It differs from the Pro 3 on purpose: one mode, two slots, no macros, a 64-byte blob,
+//! no model id (its USB id names it) and a firmware request of its own. A test that passes for both models shows that the code around
 //! the codec does not assume the Pro 3.
 //!
 //! Blob layout, 64 bytes:
@@ -24,6 +24,7 @@ use crate::model::{
     RawProfilePayload, Slot,
 };
 use crate::protocol::bytes::{put_slice, read_u8, take};
+use crate::protocol::wire_write::PACKET_LEN;
 
 /// Blob size in bytes.
 const BLOB_SIZE: usize = 0x40;
@@ -35,6 +36,8 @@ const FEEL_OFFSET: usize = 0x10;
 const NAME_OFFSET: usize = 0x20;
 /// Bytes per profile name.
 const NAME_LEN: usize = 16;
+/// Head of the made-up firmware request.
+const FIRMWARE_REQUEST: [u8; 4] = [0x81, 0x04, 0x21, 0x00];
 
 /// The made-up controller.
 #[derive(Debug, Clone, Copy, Default)]
@@ -72,6 +75,18 @@ impl ControllerSpec for TestPad {
     }
     fn blob_size(&self) -> usize {
         BLOB_SIZE
+    }
+    fn apply_argument(&self) -> u16 {
+        0x0123
+    }
+    fn firmware_request(&self) -> Option<[u8; PACKET_LEN]> {
+        let mut p = [0u8; PACKET_LEN];
+        p[..4].copy_from_slice(&FIRMWARE_REQUEST);
+        Some(p)
+    }
+    /// The major and minor version sit at reply bytes 2 and 3.
+    fn firmware_version(&self, reply: &[u8]) -> Result<String> {
+        Ok(format!("{}.{:02}", read_u8(reply, 2)?, read_u8(reply, 3)?))
     }
     /// The test pad answers through a mock, the way a pad with another protocol
     /// brings its own transport.
@@ -203,7 +218,7 @@ mod tests {
     use super::*;
     use crate::device::Model;
     use crate::devices::pro3::XINPUT;
-    use crate::devices::{find_model, pro3::Pro3};
+    use crate::devices::{find_model, find_model_by_port, pro3::Pro3};
     use crate::model::ProfileReadResult;
     use crate::orchestrator::ProfileWriteOrchestrator;
     use crate::service::read::{leftover_macros, read_macros};
@@ -260,14 +275,16 @@ mod tests {
     }
 
     #[test]
-    fn the_description_loads_and_the_model_id_finds_it() {
+    fn the_description_loads_and_the_usb_id_finds_it() {
         let d = TestPad.description().unwrap();
         assert_eq!((d.modes.len(), d.slot_count, d.macro_slot_count), (1, 2, 0));
+        assert!(d.model_ids.is_empty(), "the test pad is named by its config port");
         let models: [&'static dyn Model; 2] = [&Pro3, &TestPad];
-        let found = find_model(&models, 0x7e57).unwrap();
+        let found = find_model_by_port(&models, d.config_ports[0].usb).unwrap();
         assert_eq!(found.blob_size(), BLOB_SIZE);
         assert_eq!(find_model(&models, 0x6009).unwrap().blob_size(), 0x092C);
         assert!(find_model(&models, 0x1234).is_none());
+        assert_eq!(TestPad.firmware_version(&[0x02, 0x04, 1, 7, 0x21]).unwrap(), "1.07");
     }
 
     #[test]

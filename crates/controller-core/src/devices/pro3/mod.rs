@@ -108,6 +108,9 @@ impl ControllerSpec for Pro3 {
     fn blob_size(&self) -> usize {
         0x092C
     }
+    fn apply_argument(&self) -> u16 {
+        0x0123
+    }
     fn slot_select_value(&self, mode: Mode) -> Result<u8> {
         mode_byte(mode)
     }
@@ -239,6 +242,7 @@ mod tests {
         assert_eq!(d.model_ids, [0x6009, 0x600A]);
         assert_eq!((d.slot_count, d.macro_slot_count), (3, 4));
         assert_eq!(Pro3.blob_size(), 0x092C);
+        assert_eq!(Pro3.apply_argument(), 0x0123);
         let via: Vec<Option<Mode>> = d.config_ports.iter().map(|p| p.write_via).collect();
         assert_eq!(via, [None, Some(DINPUT), None]);
     }

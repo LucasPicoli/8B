@@ -1,7 +1,7 @@
 //! 64-byte interrupt packet builders and response decoding (config protocol).
 
 use crate::error::{Error, Result};
-use crate::protocol::bytes::{read_u16_le, take};
+use crate::protocol::bytes::{read_u16_le, read_u8, take};
 use crate::protocol::crc16::crc16_modbus;
 
 const PACKET_LEN: usize = 64;
@@ -18,6 +18,26 @@ pub const fn build_start_config() -> [u8; PACKET_LEN] {
     p[2] = 0x00;
     p[3] = 0x01;
     p
+}
+
+/// `START_CONFIG` reply bytes that carry the firmware version times 100
+/// (little-endian).
+const FIRMWARE_VERSION_OFFSET: usize = 18;
+/// `START_CONFIG` reply byte that carries the firmware beta number, `0` for a release.
+const FIRMWARE_BETA_OFFSET: usize = 20;
+
+/// Reads the firmware version from a `START_CONFIG` reply: `1.04`, or
+/// `1.04 beta 12` for a beta build.
+///
+/// # Errors
+/// Returns [`Error::Decode`] if the reply is too short.
+pub fn decode_firmware_version(reply: &[u8]) -> Result<String> {
+    let raw = read_u16_le(reply, FIRMWARE_VERSION_OFFSET)?;
+    let version = format!("{}.{:02}", raw / 100, raw % 100);
+    Ok(match read_u8(reply, FIRMWARE_BETA_OFFSET)? {
+        0 => version,
+        beta => format!("{version} beta {beta}"),
+    })
 }
 
 /// Builds the `SLOT_SELECT` (`CMD_0x14`) packet for the given slot-select value.
@@ -221,6 +241,18 @@ pub fn decode_read_macro_response(
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn firmware_version_reads_the_vendor_bytes() -> Result<()> {
+        let mut reply = vec![0u8; PACKET_LEN];
+        reply[FIRMWARE_VERSION_OFFSET..FIRMWARE_VERSION_OFFSET + 2]
+            .copy_from_slice(&104u16.to_le_bytes());
+        assert_eq!(decode_firmware_version(&reply)?, "1.04");
+        reply[FIRMWARE_BETA_OFFSET] = 12;
+        assert_eq!(decode_firmware_version(&reply)?, "1.04 beta 12");
+        Ok(())
+    }
+
     #[test]
     fn upload_packet_has_header_size_and_crc() {
         let chunk = [0xCCu8; 45];

@@ -19,7 +19,6 @@ const CMD_PROFILE_WRITE: u8 = 0x01;
 const CMD_WRITE_MACRO: u8 = 0x03;
 const CMD_ERASE_MACRO: u8 = 0x04;
 const CMD_APPLY: u8 = 0x06;
-const APPLY_CONST: [u8; 2] = [0x23, 0x01];
 
 const OFF_CHUNK_SIZE: usize = 6;
 const OFF_CRC: usize = 8;
@@ -76,12 +75,12 @@ pub fn build_write_packet(offset: u16, chunk: &[u8], blob_size: u16) -> [u8; PAC
     p
 }
 
-/// Builds the `PROFILE_APPLY` packet (`81 04 06 00 23 01`).
+/// Builds the `PROFILE_APPLY` packet with the model's `argument`, little-endian:
+/// `81 04 06 00 23 01` for `0x0123`.
 #[must_use]
-pub const fn build_apply() -> [u8; PACKET_LEN] {
+pub fn build_apply(argument: u16) -> [u8; PACKET_LEN] {
     let mut p = header(CMD_APPLY, 0x00);
-    p[4] = APPLY_CONST[0];
-    p[5] = APPLY_CONST[1];
+    put16(&mut p, 4, argument);
     p
 }
 
@@ -216,6 +215,7 @@ pub fn validate_write_macro_response(resp: &[u8]) -> Result<()> {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::protocol::framing::Framing;
 
     fn response(b2: u8, cmd: u8) -> Vec<u8> {
         let mut r = vec![0u8; PACKET_LEN];
@@ -238,9 +238,13 @@ mod tests {
 
     #[test]
     fn apply_bytes() {
-        let p = build_apply();
+        let p = build_apply(0x0123);
         assert_eq!(&p[0..6], &[0x81, 0x04, 0x06, 0x00, 0x23, 0x01]);
         assert!(p[6..].iter().all(|&b| b == 0));
+        // A length-framed pad that takes `0x0015`.
+        let wire = Framing::Length.request(&build_apply(0x0015));
+        assert_eq!(&wire[..6], &[0x81, 0x11, 0x04, 0x06, 0x00, 0x15]);
+        assert!(wire[6..].iter().all(|&b| b == 0));
     }
 
     #[test]

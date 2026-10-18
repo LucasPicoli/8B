@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::description::ControllerDescription;
 use crate::detect::scan_sysfs_all;
-use crate::device::{ConfigPort, Model};
+use crate::device::{ConfigPort, Model, UsbId};
 use crate::transport::{DeviceIo, HidrawDevice};
 
 /// Where sysfs lists the USB devices.
@@ -36,6 +36,19 @@ pub fn descriptions() -> impl Iterator<Item = &'static ControllerDescription> {
 #[must_use]
 pub fn find_model(models: &[&'static dyn Model], model_id: u16) -> Option<&'static dyn Model> {
     models.iter().copied().find(|m| m.description().is_ok_and(|d| d.model_ids.contains(&model_id)))
+}
+
+/// The model among `models` that USB id `usb` names on its own: its description lists
+/// no model ids, and no other description lists `usb`.
+#[must_use]
+pub fn find_model_by_port(models: &[&'static dyn Model], usb: UsbId) -> Option<&'static dyn Model> {
+    let lists = |m: &&&dyn Model| {
+        m.description().is_ok_and(|d| d.config_ports.iter().any(|p| p.usb == usb))
+    };
+    match models.iter().filter(lists).collect::<Vec<_>>()[..] {
+        [model] if model.description().is_ok_and(|d| d.model_ids.is_empty()) => Some(*model),
+        _ => None,
+    }
 }
 
 /// The config ports of every supported model. A USB id that two models share appears
@@ -88,9 +101,10 @@ fn own_transport(
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
+    use crate::device::ControllerSpec as _;
     use crate::devices::{pro3::Pro3, test_pad::TestPad};
 
     /// A sysfs tree with a Pro 3 in `XInput` on `3-1` and the test pad on `3-2`.
@@ -109,6 +123,28 @@ mod tests {
     fn every_registered_description_loads() {
         for model in models() {
             model.description().unwrap();
+        }
+    }
+
+    #[test]
+    fn a_model_named_by_its_port_must_be_alone_on_it() {
+        let pad = TestPad.description().unwrap().config_ports[0].usb;
+        let pro3 = Pro3.description().unwrap().config_ports[0].usb;
+        let both: [&'static dyn Model; 2] = [&Pro3, &TestPad];
+        assert!(find_model_by_port(&both, pad).is_some());
+        // The Pro 3 lists model ids, so its port names no model.
+        assert!(find_model_by_port(&both, pro3).is_none());
+        // Two descriptions that list the same port: the port names neither.
+        let twice: [&'static dyn Model; 2] = [&TestPad, &TestPad];
+        assert!(find_model_by_port(&twice, pad).is_none());
+        // Every registered model without model ids is found by each of its ports.
+        for model in models() {
+            let d = model.description().unwrap();
+            if d.model_ids.is_empty() {
+                for port in &d.config_ports {
+                    assert!(find_model_by_port(models(), port.usb).is_some(), "{}", d.short_name);
+                }
+            }
         }
     }
 

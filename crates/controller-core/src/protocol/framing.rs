@@ -112,7 +112,7 @@ mod tests {
         assert_eq!(&wire[11..17], &[0x74, 0x06, 0x00, 0x00, 0x2D, 0x00]);
         assert_eq!(&wire[19..], &normal[18..63], "the payload moves one byte");
         // Apply has no chunk, so its length is 17: `81 11 04 06`.
-        let apply = Framing::Length.request(&build_apply());
+        let apply = Framing::Length.request(&build_apply(0x0123));
         assert_eq!(&apply[..4], &[0x81, 0x11, 0x04, 0x06]);
     }
 

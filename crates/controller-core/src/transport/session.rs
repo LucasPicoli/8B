@@ -15,7 +15,7 @@ use rustix::io::Errno;
 
 use crate::detect::{config_hidraw, scan_sysfs_all, DetectedUsb};
 use crate::device::Model;
-use crate::devices::{config_ports, find_model, models};
+use crate::devices::{config_ports, find_model, find_model_by_port, models};
 use crate::error::{Error, Result};
 use crate::model::Mode;
 use crate::protocol::bytes::{hex, read_u16_le, read_u8};
@@ -41,11 +41,6 @@ const LOG_HEADER_LEN: usize = 18;
 const REQUEST_CMD_OFFSET: usize = 2;
 /// `START_CONFIG` reply bytes that carry the model id (little-endian).
 const MODEL_ID_OFFSET: usize = 22;
-/// `START_CONFIG` reply bytes that carry the firmware version times 100
-/// (little-endian), as the vendor app reads it (`HIDManage.readGamePadNewVersion`).
-const FIRMWARE_VERSION_OFFSET: usize = 18;
-/// `START_CONFIG` reply byte that carries the firmware beta number, `0` for a release.
-const FIRMWARE_BETA_OFFSET: usize = 20;
 
 /// A controller to talk to: the USB port path it sits on, such as `8-5`. With no port,
 /// the first supported controller found. The session finds out the model.
@@ -76,9 +71,10 @@ pub(super) struct Session {
     pub(super) current_mode: Mode,
     /// The mode to flip to before a write, from the matched config port.
     pub(super) write_via: Option<Mode>,
-    /// The firmware version from the `START_CONFIG` reply, such as `1.04`.
+    /// The firmware version, such as `1.04`. Empty when the model has no way to read it.
     pub(super) firmware_version: String,
-    /// The model the `START_CONFIG` reply named. [`Self::open`] always sets it.
+    /// The model the `START_CONFIG` reply or the config port named. [`Self::open`]
+    /// always sets it.
     model: Option<&'static dyn Model>,
     /// The last frame written, as sent on the wire. For the failure log.
     last_sent: [u8; PACKET_LEN],
@@ -87,12 +83,14 @@ pub(super) struct Session {
 }
 
 impl Session {
-    /// Finds the target controller, opens its config node, pauses its input and
-    /// identifies the model from the `START_CONFIG` reply.
+    /// Finds the target controller, opens its config node, pauses its input,
+    /// identifies the model and reads its firmware version.
     ///
-    /// Every current mode is identified: several 8BitDo pads share one USB id, so
-    /// the id alone does not name the model. The pause and `START_CONFIG` are the
-    /// only packets sent before the model id is confirmed. The Pro 3 answers nothing
+    /// A model whose description lists no model ids is named by its config port, and
+    /// gets no `START_CONFIG`. Every other current mode is identified from the
+    /// `START_CONFIG` reply: several 8BitDo pads share one USB id, so the id alone does
+    /// not name the model. The pause and `START_CONFIG` are the only packets sent
+    /// before the model id is confirmed. The Pro 3 answers nothing
     /// in Switch position until its input is paused. On a wrapped id (shared with a
     /// genuine Nintendo Pro Controller) both carry `0x00` at wire byte 10, the no-op
     /// subcommand of a Nintendo pad, and if `START_CONFIG` gets no reply nothing
@@ -118,6 +116,17 @@ impl Session {
             .write(true)
             .open(&node)
             .map_err(|e| open_error(&node, &e))?;
+        Self::start(file, &found, models(), timeout)
+    }
+
+    /// The work of [`Self::open`] once the node of `found` is open as `file`: pauses,
+    /// identifies the model among `models` and reads the firmware version.
+    fn start(
+        file: File,
+        found: &DetectedUsb,
+        models: &[&'static dyn Model],
+        timeout: Duration,
+    ) -> Result<Self> {
         let mut session = Self {
             file,
             timeout,
@@ -131,26 +140,41 @@ impl Session {
             last_received: None,
         };
         session.pause().inspect_err(|e| warn!("cannot pause the input stream: {e}"))?;
-        let reply = match session.send_recv(&build_start_config()) {
-            Ok(reply) => reply,
-            Err(e) => {
-                // A wrapped id that stays silent may be a Nintendo pad: send nothing more.
-                session.paused = session.framing != Framing::Wrapped;
-                return Err(e);
-            }
+        let usb = found.port.usb;
+        let (model, start_reply, named_by) = if let Some(model) = find_model_by_port(models, usb) {
+            (model, None, format!("USB id {:04x}:{:04x}", usb.vendor, usb.product))
+        } else {
+            let reply = session.first_reply(&build_start_config())?;
+            let model = identify(&reply, models, found)
+                .inspect_err(|e| warn!("cannot identify the controller: {e}"))?;
+            let id = read_u16_le(&reply, MODEL_ID_OFFSET)?;
+            (model, Some(reply), format!("model 0x{id:04x}"))
         };
-        session.model = Some(
-            identify(&reply, models(), &found)
-                .inspect_err(|e| warn!("cannot identify the controller: {e}"))?,
-        );
-        let model = read_u16_le(&reply, MODEL_ID_OFFSET)?;
-        session.firmware_version = firmware_version(&reply)
-            .inspect_err(|e| warn!("cannot read the firmware version: {e}"))?;
+        session.model = Some(model);
+        let firmware_reply = match (model.firmware_request(), start_reply) {
+            (Some(request), None) => Some(session.first_reply(&request)?),
+            (Some(request), Some(_)) => Some(session.send_recv(&request)?),
+            (None, start_reply) => start_reply,
+        };
+        if let Some(reply) = firmware_reply {
+            session.firmware_version = model
+                .firmware_version(&reply)
+                .inspect_err(|e| warn!("cannot read the firmware version: {e}"))?;
+        }
         info!(
-            "controller opened: model 0x{model:04x}, mode {:?}, firmware {}",
+            "controller opened: {named_by}, mode {:?}, firmware {}",
             session.current_mode, session.firmware_version
         );
         Ok(session)
+    }
+
+    /// Sends the first packet after the pause that waits for a reply.
+    ///
+    /// # Errors
+    /// The errors of [`Self::send_recv`]. When a wrapped id stays silent, the pad may
+    /// be a Nintendo one, so nothing more is sent, not even the resume.
+    fn first_reply(&mut self, packet: &[u8; PACKET_LEN]) -> Result<Vec<u8>> {
+        self.send_recv(packet).inspect_err(|_| self.paused = self.framing != Framing::Wrapped)
     }
 
     /// The model the controller named when the session opened.
@@ -363,17 +387,6 @@ fn header_hex(frame: &[u8]) -> String {
     }
 }
 
-/// Reads the firmware version from a `START_CONFIG` reply: `1.04`, or
-/// `1.04 beta 12` for a beta build.
-fn firmware_version(reply: &[u8]) -> Result<String> {
-    let raw = read_u16_le(reply, FIRMWARE_VERSION_OFFSET)?;
-    let version = format!("{}.{:02}", raw / 100, raw % 100);
-    Ok(match read_u8(reply, FIRMWARE_BETA_OFFSET)? {
-        0 => version,
-        beta => format!("{version} beta {beta}"),
-    })
-}
-
 #[cfg(test)]
 #[allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::significant_drop_tightening)]
 mod tests {
@@ -383,6 +396,7 @@ mod tests {
     use super::*;
     use crate::device::{ConfigPort, ControllerSpec as _};
     use crate::devices::pro3::{Pro3, DINPUT};
+    use crate::devices::test_pad::TestPad;
     use crate::protocol::wire_write::build_write_packet;
 
     /// Keeps every record, so a test can read back what the session logged.
@@ -442,14 +456,61 @@ mod tests {
         reply
     }
 
+    /// Starts a session with `port` on a scripted pad that answers the first request
+    /// after the pause with `reply`. Returns the model's short name and the firmware,
+    /// and the first four bytes of every frame the pad got, the resume included.
+    fn start_scripted(
+        port: ConfigPort,
+        reply: Vec<u8>,
+    ) -> (Result<(String, String)>, Vec<Vec<u8>>) {
+        let (ours, mut peer) = UnixStream::pair().unwrap();
+        let pad = std::thread::spawn(move || {
+            let mut heads = Vec::new();
+            let mut frame = [0u8; PACKET_LEN];
+            while peer.read_exact(&mut frame).is_ok() {
+                heads.push(frame[..4].to_vec());
+                // The pause gets no reply, the request after it does.
+                if heads.len() == 2 {
+                    peer.write_all(&reply).unwrap();
+                }
+            }
+            heads
+        });
+        let found = DetectedUsb {
+            vendor_id: String::new(),
+            product_id: String::new(),
+            sysfs_path: String::new(),
+            port,
+        };
+        let models: [&'static dyn Model; 2] = [&Pro3, &TestPad];
+        let file = File::from(std::os::fd::OwnedFd::from(ours));
+        let opened = Session::start(file, &found, &models, Duration::from_secs(2)).and_then(|s| {
+            Ok((s.model()?.description()?.short_name.clone(), s.firmware_version.clone()))
+        });
+        (opened, pad.join().unwrap())
+    }
+
     #[test]
-    fn firmware_version_reads_the_vendor_bytes() -> Result<()> {
+    fn a_model_named_by_its_port_opens_without_start_config() -> Result<()> {
+        let request = TestPad.firmware_request().unwrap();
         let mut reply = vec![0u8; PACKET_LEN];
-        reply[FIRMWARE_VERSION_OFFSET..FIRMWARE_VERSION_OFFSET + 2]
-            .copy_from_slice(&104u16.to_le_bytes());
-        assert_eq!(firmware_version(&reply)?, "1.04");
-        reply[FIRMWARE_BETA_OFFSET] = 12;
-        assert_eq!(firmware_version(&reply)?, "1.04 beta 12");
+        reply[..5].copy_from_slice(&[0x02, 0x04, 1, 7, request[2]]);
+        let (opened, heads) = start_scripted(TestPad.description()?.config_ports[0], reply);
+        assert_eq!(opened?, ("Test Pad".to_owned(), "1.07".to_owned()));
+        let pause = build_input_stream(false)[..4].to_vec();
+        assert_eq!(heads, [pause.clone(), request[..4].to_vec(), pause]);
+        Ok(())
+    }
+
+    #[test]
+    fn the_pro3_opens_with_start_config_and_reads_its_firmware_there() -> Result<()> {
+        let mut reply = reply_with(0x6009);
+        reply[..2].copy_from_slice(&[0x02, 0x04]);
+        reply[18] = 104; // Firmware 1.04, times 100, at byte 18.
+        let (opened, heads) = start_scripted(Pro3.description()?.config_ports[0], reply);
+        assert_eq!(opened?, ("Pro 3".to_owned(), "1.04".to_owned()));
+        let pause = build_input_stream(false)[..4].to_vec();
+        assert_eq!(heads, [pause.clone(), build_start_config()[..4].to_vec(), pause]);
         Ok(())
     }
 

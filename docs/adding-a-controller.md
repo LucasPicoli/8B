@@ -169,6 +169,13 @@ mode the Pro 3 enumerates as `2dc8:310b`, and so does the Ultimate 2 (model id
 `0x6012`). The USB id finds a candidate. Only the model id says what it is. List
 every model id the model answers with, and the id of no other pad.
 
+A pad that never answers `START_CONFIG` leaves `model_ids` empty. Its config ports
+name it, so the session skips `START_CONFIG` and takes the model from the port
+(`find_model_by_port` in [`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs)).
+No other description may list any of its config port USB ids. If one does, the port
+names neither model, and the pad fails with `UnsupportedModel`. The test pad works
+this way.
+
 Each `config_ports` entry in `description.json` has these fields. One USB id stands for
 one mode, so the loader refuses a description that lists an id twice.
 
@@ -253,7 +260,13 @@ The model supplies:
 3. The codec: `map_profile`, `compile_profile`, `default_profile`, the macro
    functions, and the rest of `ProtocolCodec`. The `device` and `kind` of
    `default_profile` are what validation checks every profile against.
-4. The per-mode `ControllerSpec` values: `slot_select_value`, `macro_gamepad_mode`,
+4. The `ControllerSpec` values. `apply_argument` is required: the argument the apply
+   command (`0x06`) carries, `0x0123` on the Pro 3. `firmware_request` and
+   `firmware_version` read the firmware: the request to send and how to read the
+   version from its reply. By default no request goes out, and the version comes
+   from the `START_CONFIG` reply, as on the Pro 3. A model with empty `model_ids`
+   gets no `START_CONFIG`, so it sets both, or its firmware shows as unknown. The
+   per-mode values: `slot_select_value`, `macro_gamepad_mode`,
    `mode_flip_command`, `mode_close_command`. `slot_select_value` and
    `macro_gamepad_mode` refuse a mode the model does not have, and by default they
    refuse every mode. `mode_flip_command` and `mode_close_command` return `None` by
@@ -330,9 +343,8 @@ never through hidraw. These places still assume the Pro 3:
 2. Two models that share a USB id must also share its interface and framing.
    Detection opens the node of the first model that lists the id before the model id
    says which pad it is.
-3. Every request carries a CRC-16/MODBUS, and apply always sends the parameter
-   `0x0123`. TheJayMann's Pro 2 scripts send a zero CRC and the parameter `0x15`, so
-   a Pro 2 port needs both to come from the model.
+3. Every request carries a CRC-16/MODBUS. TheJayMann's Pro 2 scripts send a zero
+   CRC, so a Pro 2 port needs it to come from the model.
 4. Before the first read, the app shows the first model in `MODELS`, so the Pro 3
    stays first in the registry.
 5. The command-line tool is named `8bitdo-pro-3`, and its help text names the Pro 3.
