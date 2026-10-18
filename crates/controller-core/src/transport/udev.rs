@@ -24,6 +24,9 @@ pub const UDEV_RULE_PATH: &str = "/etc/udev/rules.d/70-8b.rules";
 ///
 /// A vendor with a `match_vendor` port gets one vendor line, any other port a line for
 /// its USB id. Each line appears once, in the order the descriptions list their ports.
+/// After them, each vendor of a description that declares a lock gets a line for its
+/// usbfs nodes, `/dev/bus/usb/BBB/DDD`, where the unlock sequence goes. A rule
+/// installed before a line was added no longer matches, so it reads as outdated.
 /// [`access_rule`] is this over every supported model.
 ///
 /// A vendor line matches every hidraw node of the vendor, so a new model of that vendor
@@ -34,8 +37,8 @@ pub const UDEV_RULE_PATH: &str = "/etc/udev/rules.d/70-8b.rules";
 pub fn access_rule_for<'a>(
     descriptions: impl IntoIterator<Item = &'a ControllerDescription>,
 ) -> String {
-    let ports: Vec<&ConfigPort> =
-        descriptions.into_iter().flat_map(|d| d.config_ports.iter()).collect();
+    let descriptions: Vec<&ControllerDescription> = descriptions.into_iter().collect();
+    let ports: Vec<&ConfigPort> = descriptions.iter().flat_map(|d| d.config_ports.iter()).collect();
     let mut lines: Vec<String> = Vec::new();
     for port in &ports {
         let UsbId { vendor, product } = port.usb;
@@ -48,6 +51,14 @@ pub fn access_rule_for<'a>(
                  ATTRS{{idProduct}}==\"{product:04x}\", TAG+=\"uaccess\"\n"
             )
         };
+        if !lines.contains(&line) {
+            lines.push(line);
+        }
+    }
+    for lock in descriptions.iter().filter_map(|d| d.lock.as_ref()) {
+        let vendor = lock.locked.usb.vendor;
+        let line =
+            format!("SUBSYSTEM==\"usb\", ATTR{{idVendor}}==\"{vendor:04x}\", TAG+=\"uaccess\"\n");
         if !lines.contains(&line) {
             lines.push(line);
         }
@@ -167,12 +178,13 @@ fn tee(text: &str, path: &str) -> String {
 }
 
 /// One shell line that installs [`access_rule`] with `sudo`, reloads the rules, and
-/// re-applies them to present hidraw nodes, so no replug is needed.
+/// re-applies them to present hidraw and usbfs nodes, so no replug is needed.
 #[must_use]
 pub fn manual_command() -> String {
     format!(
         "{} && sudo udevadm control --reload-rules \
-         && sudo udevadm trigger --subsystem-match=hidraw --action=change",
+         && sudo udevadm trigger --subsystem-match=hidraw --subsystem-match=usb \
+         --action=change",
         tee(&access_rule(), UDEV_RULE_PATH),
     )
 }
@@ -201,6 +213,7 @@ mod tests {
     use super::*;
     use crate::device::ControllerSpec as _;
     use crate::devices::pro3::Pro3;
+    use crate::devices::ultimate::Ultimate;
 
     /// A single quote would end the shell argument early.
     fn assert_quotable(text: &str) {
@@ -287,17 +300,34 @@ mod tests {
             access_rule(),
             "KERNEL==\"hidraw*\", ATTRS{idVendor}==\"2dc8\", TAG+=\"uaccess\"\n\
              KERNEL==\"hidraw*\", ATTRS{idVendor}==\"057e\", ATTRS{idProduct}==\"2009\", \
-             TAG+=\"uaccess\"\n"
+             TAG+=\"uaccess\"\n\
+             SUBSYSTEM==\"usb\", ATTR{idVendor}==\"2dc8\", TAG+=\"uaccess\"\n"
         );
     }
 
     #[test]
-    fn the_0_1_0_rule_is_the_access_rule_plus_one_keepalive_line() {
-        assert!(UDEV_RULE_0_1_0.starts_with(&access_rule()));
-        let rest = &UDEV_RULE_0_1_0[access_rule().len()..];
+    fn the_0_1_0_rule_is_the_pro_3_access_rule_plus_one_keepalive_line() {
+        let pro3 = access_rule_for([Pro3.description().unwrap()]);
+        assert!(UDEV_RULE_0_1_0.starts_with(&pro3));
+        let rest = &UDEV_RULE_0_1_0[pro3.len()..];
         assert_eq!(rest.lines().count(), 1);
         assert!(rest.starts_with("KERNEL==\"event*\""));
-        assert!(rule_0_1_0_is_current());
+        // The Ultimate's lock added the usbfs line, which 0.1.0 lacks.
+        assert!(!rule_0_1_0_is_current());
+    }
+
+    #[test]
+    fn a_lock_adds_one_usb_line_per_vendor() {
+        let pro3 = Pro3.description().unwrap();
+        let ultimate = Ultimate.description().unwrap();
+        let usb = "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"2dc8\", TAG+=\"uaccess\"\n";
+        let rule = access_rule_for([pro3, ultimate]);
+        assert_eq!(rule, format!("{}{usb}", access_rule_for([pro3])));
+        assert_eq!(access_rule_for([pro3, ultimate, ultimate]), rule);
+        assert!(!access_rule_for([pro3]).contains("SUBSYSTEM"), "no lock, no usb line");
+        assert_eq!(access_rule(), rule);
+        assert_quotable(&rule);
+        assert!(manual_command().contains("--subsystem-match=usb"));
     }
 
     /// The Pro 3 description with every port moved to `vendor`, `match_vendor` set to
@@ -334,7 +364,7 @@ mod tests {
         assert!(rule.contains("ATTRS{idVendor}==\"1234\", TAG"), "whole vendor, no product");
         assert!(rule.contains("ATTRS{idVendor}==\"5678\", ATTRS{idProduct}==\"00b2\""));
         assert_quotable(&rule);
-        assert!(rule.starts_with(&access_rule()), "the Pro 3 lines keep their place");
+        assert!(rule.starts_with(&access_rule_for([pro3])), "the Pro 3 lines keep their place");
     }
 
     #[test]

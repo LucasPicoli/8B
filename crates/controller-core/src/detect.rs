@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::device::ConfigPort;
+use crate::device::{ConfigPort, UsbId};
 use crate::error::Result;
 use crate::model::Slot;
 use crate::protocol::bytes::take;
@@ -76,6 +76,13 @@ pub fn scan_sysfs_all(root: &Path, ports: &[ConfigPort]) -> Vec<DetectedUsb> {
         .collect();
     found.sort_by(|a, b| a.sysfs_path.cmp(&b.sysfs_path));
     found
+}
+
+/// The USB id of the device at sysfs directory `device_dir`, if it has one.
+#[must_use]
+pub fn usb_id(device_dir: &Path) -> Option<UsbId> {
+    let hex = |name: &str| u16::from_str_radix(&read_trimmed(&device_dir.join(name))?, 16).ok();
+    Some(UsbId { vendor: hex("idVendor")?, product: hex("idProduct")? })
 }
 
 /// Returns the `/dev/hidrawN` node of USB `interface` of the device at `device_dir`.

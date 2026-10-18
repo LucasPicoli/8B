@@ -3,10 +3,12 @@ pub mod device_io;
 pub mod feature;
 pub mod hidraw_device;
 mod hidraw_write;
+pub mod lock;
 pub mod mock;
 pub mod raw;
 mod session;
 pub mod udev;
+pub mod usbfs;
 pub mod write_input;
 
 pub use device_io::{DeviceIo, MacroStream};

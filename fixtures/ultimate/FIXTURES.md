@@ -16,6 +16,10 @@ compare skips the blob CRC at `0x00C`..`0x00F`, which the pad does not check.
   hex, from a USB capture of the vendor app. Bytes 2 and 3, `6d 00`, are the version
   times 100: 1.09.
 
+- `unlock-relock.txt`: the unlock sequence the vendor app sent to the locked pad's
+  interrupt OUT endpoint `0x02`, and the relock it sent to the config port, with their
+  times, from two USB captures on Windows.
+
 ## Saved by the vendor app
 
 Each file is the full image of one save, rebuilt from its 37 write packets in a USB

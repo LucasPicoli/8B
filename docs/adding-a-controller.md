@@ -227,6 +227,29 @@ The loader refuses an odd hex length, a time that goes down, an empty sequence, 
 endpoint, and a locked USB id that is also a config port. A description without a
 `lock` always shows its config port.
 
+How 8B acts on it, all in the core:
+
+- `devices::locked_ports()` lists the locked controllers attached, each with its model,
+  its USB port path and its usbfs node, `/dev/bus/usb/BBB/DDD`.
+- `transport::lock::unlock` opens the usbfs node, takes `interface` from its kernel
+  driver, claims it, waits half a second for the pad to take in whatever that driver
+  sent last, and writes each packet at its `at_ms`. It keeps the claim while it
+  waits for the config port, and gives the interface back to the driver only after.
+  A driver given it back at once sends its own start-up packets in the second before
+  the pad acts, and the Ultimate then often stays locked. The result is the config
+  port's hidraw node, once it opens to read and write, or `Unsupported` with the USB id
+  when the port path comes back as an id no description lists.
+- `transport::lock::relock` sends `relock` to the config port and waits for the locked
+  USB id on the same port path.
+- The access rule gains `SUBSYSTEM=="usb", ATTR{idVendor}=="2dc8", TAG+="uaccess"`
+  for each vendor with a lock, so the user at the seat may open the usbfs node. A rule
+  installed before the line was added reads as outdated, and the app offers to
+  install the new one. A denied usbfs node gives the same error as a denied hidraw
+  node.
+
+`unlock_and_relock_ten_times` in `tests/ultimate/hardware_lock.rs` runs both on a
+locked Ultimate with `just hw`.
+
 ## Text and translations
 
 Write the description's text in English only. Translators pick it up from the
@@ -444,7 +467,9 @@ and starts a new read.
 
 A pad that talks through HID feature reports can use `get_feature` and `set_feature`
 in [`transport/feature.rs`](../crates/controller-core/src/transport/feature.rs) on its
-hidraw node. They are the `HIDIOCGFEATURE` and `HIDIOCSFEATURE` ioctls, and the only
+hidraw node. They are the `HIDIOCGFEATURE` and `HIDIOCSFEATURE` ioctls. They and
+the usbfs ioctls in
+[`transport/usbfs.rs`](../crates/controller-core/src/transport/usbfs.rs) are the only
 `unsafe` code in the workspace, so a driver needs none of its own.
 
 ## What is tied to the Pro 3 today

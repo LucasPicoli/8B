@@ -11,3 +11,6 @@ mod description;
 mod golden_codec;
 mod golden_packets;
 mod write_orchestrator;
+
+#[cfg(feature = "hardware")]
+mod hardware_lock;

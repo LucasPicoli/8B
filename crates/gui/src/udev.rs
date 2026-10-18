@@ -19,11 +19,11 @@ use controller_core::transport::udev::{
 
 use crate::state::Rule;
 
-/// Writes `$1` to `$2`, reloads the rules, re-applies them to present hidraw nodes,
+/// Writes `$1` to `$2`, reloads the rules, re-applies them to present hidraw and usbfs nodes,
 /// and waits until udev has set the new access, so the next open needs no replug.
 const ACCESS_SCRIPT: &str = "printf '%s' \"$1\" > \"$2\" \
     && udevadm control --reload-rules \
-    && udevadm trigger --subsystem-match=hidraw --action=change \
+    && udevadm trigger --subsystem-match=hidraw --subsystem-match=usb --action=change \
     && udevadm settle";
 
 /// Writes `$1` to `$2` and `$3` to `$4`, reloads systemd and the rules, and
@@ -140,8 +140,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_0_1_0_combined_rule_reads_as_current() {
-        assert_eq!(classify(Some(UDEV_RULE_0_1_0)), Rule::Current);
+    fn the_0_1_0_combined_rule_reads_as_outdated_once_a_line_is_added() {
+        assert_eq!(classify(Some(UDEV_RULE_0_1_0)), Rule::Outdated);
         assert_eq!(classify(Some(&access_rule())), Rule::Current);
     }
 

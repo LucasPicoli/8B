@@ -9,7 +9,7 @@ pub mod pro3;
 pub mod test_pad;
 pub mod ultimate;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::description::ControllerDescription;
 use crate::detect::scan_sysfs_all;
@@ -75,6 +75,55 @@ fn ports_of(models: &[&'static dyn Model]) -> Vec<ConfigPort> {
     ports
 }
 
+/// A locked controller on the USB bus: one a model's lock declaration names by its USB
+/// id and product string.
+#[derive(Debug, Clone)]
+pub struct LockedController {
+    /// The model whose lock declaration matched.
+    pub model: &'static dyn Model,
+    /// The USB port path, such as `8-5`. The config port shows on the same one.
+    pub port_path: String,
+    /// The usbfs node of the device, such as `/dev/bus/usb/008/102`.
+    pub usb_node: PathBuf,
+}
+
+/// Every locked controller attached, sorted by port path.
+#[must_use]
+pub fn locked_ports() -> Vec<LockedController> {
+    locked_in(models(), Path::new(SYSFS_USB))
+}
+
+/// The locked controllers of `models` in sysfs at `root`, sorted by port path.
+fn locked_in(models: &[&'static dyn Model], root: &Path) -> Vec<LockedController> {
+    let Ok(dir) = std::fs::read_dir(root) else { return Vec::new() };
+    let mut found: Vec<LockedController> =
+        dir.flatten()
+            .filter_map(|entry| {
+                let base = entry.path();
+                let attr = |name: &str| {
+                    std::fs::read_to_string(base.join(name)).ok().map(|s| s.trim().to_owned())
+                };
+                let usb = crate::detect::usb_id(&base)?;
+                let product = attr("product")?;
+                let model = models.iter().copied().find(|m| {
+                    m.description().ok().and_then(|d| d.lock.as_ref()).is_some_and(|lock| {
+                        lock.locked.usb == usb && lock.locked.product == product
+                    })
+                })?;
+                let number = |name: &str| attr(name)?.parse::<u16>().ok();
+                let usb_node = PathBuf::from(format!(
+                    "/dev/bus/usb/{:03}/{:03}",
+                    number("busnum")?,
+                    number("devnum")?
+                ));
+                let port_path = entry.file_name().to_str()?.to_owned();
+                Some(LockedController { model, port_path, usb_node })
+            })
+            .collect();
+    found.sort_by(|a, b| a.port_path.cmp(&b.port_path));
+    found
+}
+
 /// The transport for the controller on USB port path `port`, such as `8-5`, or for the
 /// first supported controller when `port` is `None`. Nothing is opened yet.
 ///
@@ -120,6 +169,37 @@ mod tests {
             std::fs::write(at.join("idProduct"), format!("{product}\n")).unwrap();
         }
         dir
+    }
+
+    /// Adds a USB device on `port` to the sysfs tree at `root`.
+    fn device(root: &Path, port: &str, product_id: &str, product: &str, devnum: &str) {
+        let at = root.join(port);
+        std::fs::create_dir_all(&at).unwrap();
+        for (name, value) in [
+            ("idVendor", "2dc8"),
+            ("idProduct", product_id),
+            ("product", product),
+            ("busnum", "8"),
+            ("devnum", devnum),
+        ] {
+            std::fs::write(at.join(name), format!("{value}\n")).unwrap();
+        }
+    }
+
+    #[test]
+    fn a_locked_controller_is_found_by_its_usb_id_and_product_string() {
+        let dir = tempfile::tempdir().unwrap();
+        device(dir.path(), "8-5", "3106", "8BitDo Ultimate Controller", "102");
+        // The Pro 2 wired shares the locked USB id under another product string.
+        device(dir.path(), "8-6", "3106", "8BitDo Pro 2 Wired Controller", "7");
+        device(dir.path(), "8-1", "6007", "8BitDo Ultimate Controller", "9");
+        let found = locked_in(models(), dir.path());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].port_path, "8-5");
+        assert_eq!(found[0].usb_node, Path::new("/dev/bus/usb/008/102"));
+        assert_eq!(found[0].model.description().unwrap().short_name, "Ultimate");
+        let no_lock: [&'static dyn Model; 2] = [&Pro3, &TestPad];
+        assert!(locked_in(&no_lock, dir.path()).is_empty());
     }
 
     #[test]
