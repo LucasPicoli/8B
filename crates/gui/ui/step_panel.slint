@@ -118,8 +118,9 @@ component StickPad {
                     height: root.size;
                     viewbox-width: root.size / 1px;
                     viewbox-height: root.size / 1px;
-                    commands: "M " + (root.c + root.stick.at.x * root.r) / 1px + " " + (root.c + root.stick.at.y * root.r) / 1px
-                        + " L " + (root.c + root.stick.at.to-x * root.r) / 1px + " " + (root.c + root.stick.at.to-y * root.r) / 1px;
+                    // Unlocalized: a pt-BR decimal comma would split each number in two.
+                    commands: "M " + ((root.c + root.stick.at.x * root.r) / 1px).to-string-unlocalized() + " " + ((root.c + root.stick.at.y * root.r) / 1px).to-string-unlocalized()
+                        + " L " + ((root.c + root.stick.at.to-x * root.r) / 1px).to-string-unlocalized() + " " + ((root.c + root.stick.at.to-y * root.r) / 1px).to-string-unlocalized();
                     stroke: Theme.accent-ink;
                     stroke-width: 2px;
                 }

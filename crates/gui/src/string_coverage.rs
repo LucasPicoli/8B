@@ -350,3 +350,55 @@ fn a_string_passes_as_one_unit_or_whole_sentences() {
     assert!(stays("+3 %", &english) && stays("XInput", &english) && !stays("Dead zone", &english));
     assert!(stays("/etc/udev/rules.d/70-8b.rules", &english) && !stays("/ is a path", &english));
 }
+
+/// The top-level `+` terms of `expr`: a `+` inside brackets or a string is not a split.
+fn terms(expr: &str) -> Vec<&str> {
+    let (mut out, mut depth, mut quoted, mut from) = (Vec::new(), 0_i32, false, 0);
+    for (i, c) in expr.char_indices() {
+        match c {
+            '"' => quoted = !quoted,
+            '(' if !quoted => depth += 1,
+            ')' if !quoted => depth -= 1,
+            '+' if !quoted && depth == 0 => {
+                out.push(expr[from..i].trim());
+                from = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(expr[from..].trim());
+    out
+}
+
+/// A number glued into a `Path`'s `commands` goes through `to-string-unlocalized()`. A
+/// plain `+` or `\{}` prints it with the language's decimal separator, and the path parser reads
+/// pt-BR's `72,5` as two numbers.
+#[test]
+fn path_commands_print_numbers_unlocalized() {
+    use i_slint_compiler::diagnostics::BuildDiagnostics;
+
+    let mut bad = Vec::new();
+    for path in slint_files() {
+        let source = std::fs::read_to_string(&path).unwrap();
+        let doc = i_slint_compiler::parser::parse(
+            source.clone(),
+            Some(&path),
+            &mut BuildDiagnostics::default(),
+        );
+        for element in doc.descendants().filter(|n| n.kind() == SyntaxKind::Element) {
+            let Some(commands) = binding(&element, "commands") else { continue };
+            let loose = terms(&commands).into_iter().filter(|t| {
+                let literal = t.starts_with('"') && t.ends_with('"') && !t.contains("\\{");
+                !(literal || t.ends_with(".to-string-unlocalized()"))
+            });
+            // A bare `s.commands` comes from Rust, whose `format!` always prints a point.
+            let built = commands.contains('+') || commands.contains("\\{");
+            for term in loose.filter(|_| built) {
+                let file = path.strip_prefix(env!("CARGO_MANIFEST_DIR")).unwrap_or(&path).display();
+                bad.push(format!("crates/gui/{file}:{}: {term}", line(&source, &element)));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "append .to-string-unlocalized() to:\n{}", bad.join("\n"));
+    assert_eq!(terms(r#""M " + (a + b).x() + " L""#), [r#""M ""#, "(a + b).x()", r#"" L""#]);
+}

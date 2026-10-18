@@ -73,7 +73,8 @@ component LaneCell inherits Rectangle {
         property <float> bl: (root.left(root.bottom) + root.spread) / 1px;
         property <float> tw: max(0, (root.top - 2 * root.spread) / 1px);
         property <float> bw: max(0, (root.bottom - 2 * root.spread) / 1px);
-        commands: "M " + self.tl + " " + self.ya + " L " + (self.tl + self.tw) + " " + self.ya + " L " + (self.bl + self.bw) + " " + self.yb + " L " + self.bl + " " + self.yb + " Z";
+        // Unlocalized: a pt-BR decimal comma would split each number in two.
+        commands: "M " + self.tl.to-string-unlocalized() + " " + self.ya.to-string-unlocalized() + " L " + (self.tl + self.tw).to-string-unlocalized() + " " + self.ya.to-string-unlocalized() + " L " + (self.bl + self.bw).to-string-unlocalized() + " " + self.yb.to-string-unlocalized() + " L " + self.bl.to-string-unlocalized() + " " + self.yb.to-string-unlocalized() + " Z";
         fill: root.ink;
     }
     if root.cell.held && root.cell.top != root.cell.bottom && root.cell.joins-up: Rectangle {
@@ -125,7 +126,8 @@ component StickGlyph inherits Rectangle {
         height: root.height;
         viewbox-width: 24;
         viewbox-height: 24;
-        commands: "M " + (root.c + root.stick.x * root.r) + " " + (root.c + root.stick.y * root.r) + " L " + (root.c + root.stick.to-x * root.r) + " " + (root.c + root.stick.to-y * root.r);
+        // Unlocalized: a pt-BR decimal comma would split each number in two.
+        commands: "M " + (root.c + root.stick.x * root.r).to-string-unlocalized() + " " + (root.c + root.stick.y * root.r).to-string-unlocalized() + " L " + (root.c + root.stick.to-x * root.r).to-string-unlocalized() + " " + (root.c + root.stick.to-y * root.r).to-string-unlocalized();
         stroke: Theme.accent;
         stroke-width: 1.5px;
     }

@@ -669,7 +669,8 @@ export component Spinner {
         viewbox-height: 18;
         stroke: Theme.accent;
         stroke-width: 2px;
-        commands: "M " + (9 + 7 * cos(root.a)) + " " + (9 + 7 * sin(root.a))
-            + " A 7 7 0 1 1 " + (9 + 7 * cos(root.a + 270deg)) + " " + (9 + 7 * sin(root.a + 270deg));
+        // Unlocalized: a pt-BR decimal comma would split each number in two.
+        commands: "M " + (9 + 7 * cos(root.a)).to-string-unlocalized() + " " + (9 + 7 * sin(root.a)).to-string-unlocalized()
+            + " A 7 7 0 1 1 " + (9 + 7 * cos(root.a + 270deg)).to-string-unlocalized() + " " + (9 + 7 * sin(root.a + 270deg)).to-string-unlocalized();
     }
 }
