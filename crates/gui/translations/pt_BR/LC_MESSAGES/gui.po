@@ -1027,7 +1027,7 @@ msgstr "Começa em"
 
 #: ui/steps.slint
 msgid "L stick"
-msgstr "Analóg. E"
+msgstr "An. E"
 
 #. Pro 3 /settings/0/frames/0/title
 #: ui/steps.slint src/stick_pad.rs
@@ -1036,7 +1036,7 @@ msgstr "Analógico esquerdo"
 
 #: ui/steps.slint
 msgid "R stick"
-msgstr "Analóg. D"
+msgstr "An. D"
 
 #: ui/steps.slint
 msgid "Duration"

@@ -58,4 +58,4 @@ as a pattern.
 | diagnostics | diagnóstico | |
 
 Names stay as they are: 8B, Pro 3, XInput, Switch, DInput, L4, R4, Home ("botão Home"). A short
-label such as "L stick" abbreviates the pt-BR term: "Analóg. E".
+label such as "L stick" abbreviates the pt-BR term: "An. E".
