@@ -609,30 +609,6 @@ msgstr "{}, pressionado"
 msgid "{}, not held"
 msgstr "{}, solto"
 
-#: ui/macros.slint
-msgid "Cannot be written"
-msgstr "Não pode ser gravada"
-
-#: ui/macros.slint
-msgid "A stick move may not play"
-msgstr "Um movimento de analógico pode não ser reproduzido"
-
-#: ui/macros.slint src/files.rs src/macro_files.rs
-msgid "Import macro…"
-msgstr "Importar macro…"
-
-#: ui/macros.slint src/macro_files.rs
-msgid "Export macro…"
-msgstr "Exportar macro…"
-
-#: ui/macros.slint
-msgid "Revert"
-msgstr "Reverter"
-
-#: ui/macros.slint
-msgid "Delete"
-msgstr "Excluir"
-
 #: ui/macros.slint src/review.rs
 msgid "Name"
 msgstr "Nome"
@@ -640,18 +616,6 @@ msgstr "Nome"
 #: ui/macros.slint
 msgid "Macro name"
 msgstr "Nome da macro"
-
-#: ui/macros.slint
-msgid "Starts with"
-msgstr "Ativada por"
-
-#: ui/macros.slint
-msgid "Remove {}"
-msgstr "Remover {}"
-
-#: ui/macros.slint
-msgid "Add a button"
-msgstr "Adicionar um botão"
 
 #: ui/macros.slint
 msgid "Plays"
@@ -676,6 +640,42 @@ msgstr "Vezes"
 #: ui/macros.slint
 msgid "times"
 msgstr "vezes"
+
+#: ui/macros.slint
+msgid "Cannot be written"
+msgstr "Não pode ser gravada"
+
+#: ui/macros.slint
+msgid "A stick move may not play"
+msgstr "Um movimento de analógico pode não ser reproduzido"
+
+#: ui/macros.slint src/files.rs src/macro_files.rs
+msgid "Import macro…"
+msgstr "Importar macro…"
+
+#: ui/macros.slint src/macro_files.rs
+msgid "Export macro…"
+msgstr "Exportar macro…"
+
+#: ui/macros.slint
+msgid "Revert"
+msgstr "Reverter"
+
+#: ui/macros.slint
+msgid "Delete"
+msgstr "Excluir"
+
+#: ui/macros.slint
+msgid "Starts with"
+msgstr "Ativada por"
+
+#: ui/macros.slint
+msgid "Remove {}"
+msgstr "Remover {}"
+
+#: ui/macros.slint
+msgid "Add a button"
+msgstr "Adicionar um botão"
 
 #: ui/macros.slint
 msgid "Interval"
@@ -900,6 +900,7 @@ msgstr "Controle"
 msgid "Current mode"
 msgstr "Modo atual"
 
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
 #: ui/step_panel.slint
 msgid "Centre"
 msgstr "Centralizar"
@@ -939,6 +940,46 @@ msgstr "{}, encaixar nas bordas e nos cantos"
 #: ui/step_panel.slint
 msgid "Step {} of {}"
 msgstr "Passo {} de {}"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Up"
+msgstr "Para cima"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Up right"
+msgstr "Para cima e à direita"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Right"
+msgstr "Para a direita"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Down right"
+msgstr "Para baixo e à direita"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Down"
+msgstr "Para baixo"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Down left"
+msgstr "Para baixo e à esquerda"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Left"
+msgstr "Para a esquerda"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Up left"
+msgstr "Para cima e à esquerda"
 
 #: ui/steps.slint
 msgid "Step {}, starts at {}, pause, lasts {}"
@@ -1610,6 +1651,10 @@ msgid "Connected over USB · {mode}"
 msgstr "Conectado via USB · {mode}"
 
 #: src/render.rs
+msgid "Connected · {mode} · Firmware {version}"
+msgstr "Conectado · {mode} · Firmware {version}"
+
+#: src/render.rs
 msgid "{controller} · edits in {n} slot"
 msgid_plural "{controller} · edits in {n} slots"
 msgstr[0] "{controller} · alterações em {n} slot"
@@ -1618,6 +1663,10 @@ msgstr[1] "{controller} · alterações em {n} slots"
 #: src/render.rs
 msgid "{slot} · {name}"
 msgstr "{slot} · {name}"
+
+#: src/render.rs
+msgid "Profile {n}"
+msgstr "Perfil {n}"
 
 #: src/render.rs
 msgid "{mode} slot {n}"
@@ -1784,6 +1833,18 @@ msgstr "{low} a {high}{unit}"
 #: src/settings.rs
 msgid "{low} of {max}"
 msgstr "{low} de {max}"
+
+#: src/settings.rs
+msgid "{item} (firmware {min} or later)"
+msgstr "{item} (firmware {min} ou mais recente)"
+
+#: src/settings.rs
+msgid "8B could not read the firmware version, so it hides: {items}."
+msgstr "O 8B não conseguiu ler a versão do firmware, então oculta: {items}."
+
+#: src/settings.rs
+msgid "Firmware {min} or later adds: {items}."
+msgstr "O firmware {min} ou mais recente adiciona: {items}."
 
 #: src/step_table.rs
 msgid "x {x}, y {y}"
@@ -2361,15 +2422,38 @@ msgstr "8BitDo Ultimate"
 msgid "Ultimate"
 msgstr "Ultimate"
 
+#. Ultimate /modes/0/extra_outputs/0/hint
+#. Ultimate /modes/1/extra_outputs/0/hint
+msgid "Hold a button and press this one to turn turbo on or off for it."
+msgstr "Segure um botão e pressione este para ligar ou desligar o turbo nele."
+
 #. Ultimate /modes/0/extra_outputs/1/label
 #. Ultimate /modes/1/extra_outputs/1/label
 msgid "Auto turbo"
 msgstr "Turbo automático"
 
+#. Ultimate /modes/0/extra_outputs/1/hint
+#. Ultimate /modes/1/extra_outputs/1/hint
+msgid "Hold a button and press this one: it fires on its own until you do it again."
+msgstr "Segure um botão e pressione este: ele dispara sozinho até você repetir o gesto."
+
 #. Ultimate /modes/0/extra_outputs/2/label
 #. Ultimate /modes/1/extra_outputs/2/label
 msgid "Swap"
 msgstr "Troca"
+
+#. Ultimate /modes/0/extra_outputs/2/hint
+msgid "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
+msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para trocá-los. Segure um deles e pressione este de novo para desfazer."
+
+#. Ultimate /modes/0/extra_outputs/2/leaving_hint
+#. Ultimate /modes/1/extra_outputs/2/leaving_hint
+msgid "A swap you made stays until you undo it with a Swap button."
+msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca."
+
+#. Ultimate /modes/1/extra_outputs/2/hint
+msgid "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
+msgstr "Segure dois entre A, B, X, Y, L, R, LS, RS e pressione este para trocá-los. Segure um deles e pressione este de novo para desfazer."
 
 #. Ultimate /buttons/12/labels/switch
 #. Ultimate /buttons/12/labels/xinput

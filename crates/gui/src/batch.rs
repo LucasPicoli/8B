@@ -254,7 +254,8 @@ impl AppState {
         let mut rows = Vec::new();
         for (i, key) in self.edited_slots().into_iter().enumerate() {
             let review = self.review_info(key);
-            let removes = self.slot(key.0, key.1).touches_held_macro() || review.leftover > 0;
+            let removes = self.slot(key.0, key.1).touches_held_macro(self.macro_names())
+                || review.leftover > 0;
             info.any_new |= review.is_new;
             if !review.is_new {
                 info.total_changes = info.total_changes.saturating_add(review.total);

@@ -188,6 +188,7 @@ mod tests {
         let profiles_result = ProfileReadResult {
             profiles: vec![dummy_summary()],
             raw_blobs: vec![vec![0u8; 0x092C], vec![0u8; 0x092C]],
+            ..Default::default()
         };
         let dev = MockDevice::new().with_readiness(readiness).with_profiles(profiles_result);
 
@@ -212,6 +213,7 @@ mod tests {
         let profiles_result = ProfileReadResult {
             profiles: vec![dummy_summary()],
             raw_blobs: vec![vec![0u8; 0x092C], vec![0u8; 0x092C]],
+            ..Default::default()
         };
         let dev = MockDevice::new().with_readiness(readiness).with_profiles(profiles_result);
 

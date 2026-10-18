@@ -53,7 +53,8 @@ impl SlotState {
 
     /// Every macro slot the controller or the macro edits hold a macro in, in order. A
     /// macro with no macro slot is left out: the Macros tab gives each macro one.
-    fn macro_changes(&self) -> Vec<MacroChange> {
+    /// `names`: the controller's macros have names.
+    fn macro_changes(&self, names: bool) -> Vec<MacroChange> {
         let dropped = self.dropped_buttons();
         let held = self.pad_macros.iter().map(|m| &m.def);
         let mut slots: Vec<u8> = held
@@ -69,7 +70,13 @@ impl SlotState {
                 let old = held.clone().find(|d| d.macro_slot == Some(slot)).cloned();
                 let mut new = self.edited_macros.as_ref().map_or_else(
                     || old.clone(),
-                    |edited| edited.iter().find(|d| d.macro_slot == Some(slot)).cloned().map(named),
+                    |edited| {
+                        edited
+                            .iter()
+                            .find(|d| d.macro_slot == Some(slot))
+                            .cloned()
+                            .map(|d| named(d, names))
+                    },
                 );
                 let edited = new != old;
                 if let Some(new) = &mut new {
@@ -82,8 +89,8 @@ impl SlotState {
 
     /// The macro edits the slot's write job carries: a put for each macro the edits add
     /// or change, a delete for each they remove. `None` for a macro slot out of range.
-    pub(super) fn macro_edits(&self) -> Option<Vec<MacroEdit>> {
-        self.macro_changes()
+    pub(super) fn macro_edits(&self, names: bool) -> Option<Vec<MacroEdit>> {
+        self.macro_changes(names)
             .into_iter()
             .filter(|c| c.edited)
             .map(|c| {
@@ -97,27 +104,27 @@ impl SlotState {
     }
 
     /// The macros the slot's write job puts, each as the job carries it.
-    pub(crate) fn macro_puts(&self) -> Vec<MacroDefinition> {
-        self.macro_changes().into_iter().filter(|c| c.edited).filter_map(|c| c.new).collect()
+    pub(crate) fn macro_puts(&self, names: bool) -> Vec<MacroDefinition> {
+        self.macro_changes(names).into_iter().filter(|c| c.edited).filter_map(|c| c.new).collect()
     }
 
     /// How many macros the controller holds that the write leaves in their macro slot,
     /// unedited. A macro that loses a button to a remap stays.
-    pub(super) fn macros_kept(&self) -> usize {
-        self.macro_changes()
+    pub(super) fn macros_kept(&self, names: bool) -> usize {
+        self.macro_changes(names)
             .iter()
             .filter(|c| c.old.is_some() && c.new.is_some() && !c.edited)
             .count()
     }
 
     /// How many macros the macro edits add, change or remove.
-    pub(super) fn macros_edited(&self) -> usize {
-        self.macro_changes().iter().filter(|c| c.edited).count()
+    pub(super) fn macros_edited(&self, names: bool) -> usize {
+        self.macro_changes(names).iter().filter(|c| c.edited).count()
     }
 
     /// Whether the write replaces or removes a macro the controller holds.
-    pub(crate) fn touches_held_macro(&self) -> bool {
-        self.macro_changes().iter().any(MacroChange::touches_held)
+    pub(crate) fn touches_held_macro(&self, names: bool) -> bool {
+        self.macro_changes(names).iter().any(MacroChange::touches_held)
     }
 }
 
@@ -200,7 +207,7 @@ impl AppState {
         // A macro with no name, "", gets whole sentences of its own, for the article.
         let name = |d: &Option<MacroDefinition>| d.as_ref().map(|d| d.name.clone());
         self.slot(slot.0, slot.1)
-            .macro_changes()
+            .macro_changes(self.macro_names())
             .iter()
             .filter(|c| c.edited)
             .filter_map(|c| {
@@ -239,7 +246,7 @@ impl AppState {
     /// slot order. A button that joins or leaves a macro reads under that macro.
     pub(super) fn macro_lines(&self, slot: (Mode, u8)) -> Vec<SharedString> {
         self.slot(slot.0, slot.1)
-            .macro_changes()
+            .macro_changes(self.macro_names())
             .iter()
             .filter_map(|c| self.macro_line(slot.0, c))
             .map(SharedString::from)

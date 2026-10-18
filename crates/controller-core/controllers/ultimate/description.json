@@ -27,7 +27,8 @@
             "star",
             "p1",
             "p2"
-          ]
+          ],
+          "hint": "Hold a button and press this one to turn turbo on or off for it."
         },
         {
           "id": "auto turbo",
@@ -36,7 +37,8 @@
             "star",
             "p1",
             "p2"
-          ]
+          ],
+          "hint": "Hold a button and press this one: it fires on its own until you do it again."
         },
         {
           "id": "swap",
@@ -45,7 +47,9 @@
             "star",
             "p1",
             "p2"
-          ]
+          ],
+          "hint": "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button."
         }
       ]
     },
@@ -61,7 +65,8 @@
             "star",
             "p1",
             "p2"
-          ]
+          ],
+          "hint": "Hold a button and press this one to turn turbo on or off for it."
         },
         {
           "id": "auto turbo",
@@ -70,7 +75,8 @@
             "star",
             "p1",
             "p2"
-          ]
+          ],
+          "hint": "Hold a button and press this one: it fires on its own until you do it again."
         },
         {
           "id": "swap",
@@ -79,7 +85,9 @@
             "star",
             "p1",
             "p2"
-          ]
+          ],
+          "hint": "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button."
         },
         {
           "id": "screenshot",

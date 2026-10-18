@@ -28,6 +28,13 @@ impl FirmwareVersion {
     }
 }
 
+impl std::fmt::Display for FirmwareVersion {
+    /// Writes the version as the pad reports it, such as `1.03`.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}.{:0width$}", self.major, self.minor, width = MINOR_DIGITS)
+    }
+}
+
 impl<'de> Deserialize<'de> for FirmwareVersion {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let text = String::deserialize(d)?;
@@ -71,6 +78,12 @@ mod tests {
             assert!(!firmware_allows(gate, unknown), "{unknown:?}");
         }
         assert!(firmware_allows(None, ""));
+    }
+
+    #[test]
+    fn a_version_prints_as_the_pad_reports_it() {
+        assert_eq!(FirmwareVersion { major: 1, minor: 3 }.to_string(), "1.03");
+        assert_eq!(FirmwareVersion { major: 12, minor: 40 }.to_string(), "12.40");
     }
 
     #[test]

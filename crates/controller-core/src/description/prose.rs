@@ -37,8 +37,22 @@ impl ControllerDescription {
             });
             for (o, extra) in mode.extra_outputs.iter().enumerate() {
                 // Mixed: "Screenshot" is prose, "PR" a name. A name maps to itself.
-                let pointer = format!("/modes/{m}/extra_outputs/{o}/label");
-                out.push(Prose { pointer, text: &extra.label, is_name: false });
+                let at = format!("/modes/{m}/extra_outputs/{o}");
+                out.push(Prose {
+                    pointer: format!("{at}/label"),
+                    text: &extra.label,
+                    is_name: false,
+                });
+                out.push(Prose {
+                    pointer: format!("{at}/hint"),
+                    text: &extra.hint,
+                    is_name: false,
+                });
+                out.push(Prose {
+                    pointer: format!("{at}/leaving_hint"),
+                    text: &extra.leaving_hint,
+                    is_name: false,
+                });
             }
         }
         for (b, button) in self.buttons.iter().enumerate() {
@@ -112,11 +126,21 @@ mod tests {
     use serde_json::Value;
 
     use crate::device::ControllerSpec as _;
-    use crate::devices::{pro3::Pro3, test_pad::TestPad};
+    use crate::devices::{pro3::Pro3, test_pad::TestPad, ultimate::Ultimate};
 
     /// Keys whose string values, at any depth below, a person reads.
-    const TEXT_KEYS: [&str; 8] =
-        ["display_name", "short_name", "label", "labels", "spoken_labels", "lead", "title", "unit"];
+    const TEXT_KEYS: [&str; 10] = [
+        "display_name",
+        "short_name",
+        "label",
+        "labels",
+        "spoken_labels",
+        "lead",
+        "title",
+        "unit",
+        "hint",
+        "leaving_hint",
+    ];
 
     /// The pointer of every non-empty string under a [`TEXT_KEYS`] key in `json`.
     fn text_leaves(json: &Value, at: &str, text: bool, out: &mut BTreeSet<String>) {
@@ -146,6 +170,10 @@ mod tests {
             (
                 TestPad.description().unwrap(),
                 include_str!("../../controllers/test-pad/description.json"),
+            ),
+            (
+                Ultimate.description().unwrap(),
+                include_str!("../../controllers/ultimate/description.json"),
             ),
         ];
         for (description, raw) in models {

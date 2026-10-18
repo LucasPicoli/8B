@@ -3,14 +3,16 @@
 
 use std::rc::Rc;
 
-use controller_core::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT};
+use controller_core::description::{
+    firmware_allows, ControllerDescription, ExtraOutput, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT,
+};
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use controller_core::view::{VIEW_FILL_COLOR, VIEW_LINE_COLOR};
 use slint::{Color, ComponentHandle as _, Image, Model as _, ModelRc, SharedString, VecModel};
 use tr::tr;
 
 use crate::language::prose;
-use crate::macros::{label, macro_number, macro_output};
+use crate::macros::{label, macro_number, macro_output, takes_trigger};
 use crate::state::{AppState, SlotState};
 use crate::ui::{AppWindow, MapRow, PadView, Section, Spot, Theme};
 
@@ -69,9 +71,16 @@ pub fn output_text(
     macro_number(id).map_or_else(|| output_label(description, mode, id), |n| label(macros, n))
 }
 
+/// Whether the picker offers `extra` to `button` on a controller with `firmware`.
+#[must_use]
+pub fn extra_offered(extra: &ExtraOutput, button: &str, firmware: &str) -> bool {
+    extra.allows(button) && firmware_allows(extra.min_firmware, firmware)
+}
+
 /// The outputs the picker offers `button` in `mode`, as (id, label): each macro of the
 /// selected slot when the button can start one, then every button that can be an
-/// output, then the mode's extra outputs, then Disabled. The button's default output
+/// output, then the mode's extra outputs this button and firmware may take, then
+/// Disabled. The button's default output
 /// and its `current` one come first when missing, so Turbo can go back to Turbo and an
 /// unrecognised entry shows as Unknown. A macro whose steps are still being read waits
 /// to be offered, as picking it would copy them.
@@ -84,14 +93,22 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
     let macros = slot.shown_macros();
     let offered =
         description.button(button).is_some_and(|b| b.can_start_macro) && slot.macros_editable();
-    let mut slots: Vec<u8> =
-        macros.iter().filter_map(|m| m.macro_slot).filter(|_| offered).collect();
+    let mut slots: Vec<u8> = macros
+        .iter()
+        .filter(|m| offered && takes_trigger(description, m, button))
+        .filter_map(|m| m.macro_slot)
+        .collect();
     slots.sort_unstable();
     let mut list: Vec<String> = slots
         .into_iter()
         .map(macro_output)
         .chain(description.buttons.iter().filter(|b| b.can_be_output).map(|b| b.id.clone()))
-        .chain(extras.iter().map(|o| o.id.clone()))
+        .chain(
+            extras
+                .iter()
+                .filter(|o| extra_offered(o, button, state.firmware()))
+                .map(|o| o.id.clone()),
+        )
         .chain([DISABLED_OUTPUT.to_owned()])
         .collect();
     let default = state.defaults().get(&mode).map(|p| target(p, button));
@@ -149,6 +166,22 @@ pub fn sections(state: &AppState) -> Vec<Section> {
     .collect()
 }
 
+/// The hint of the picker of `button`: a warning when the controller holds an output
+/// with a leaving hint and the edits set another one, else the hint of its `current`
+/// extra output. Empty for none.
+fn hint(state: &AppState, mode: Mode, button: &str, current: &str) -> String {
+    let extra = |id: &str| {
+        state.description().mode(mode).and_then(|m| m.extra_outputs.iter().find(|o| o.id == id))
+    };
+    let held = state.selected_slot().and_then(|(m, n)| held_current(&state.slot(m, n), button));
+    let leaving = held.as_deref().filter(|&h| h != current).and_then(extra);
+    match (leaving, extra(current)) {
+        (Some(left), _) if !left.leaving_hint.is_empty() => prose(&left.leaving_hint),
+        (_, Some(now)) if !now.hint.is_empty() => prose(&now.hint),
+        _ => String::new(),
+    }
+}
+
 /// Whether `button`, a remappable button, outputs something other than it does in
 /// `mode`'s default profile.
 fn remapped(state: &AppState, mode: Mode, button: &str, current: &str) -> bool {
@@ -193,6 +226,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                 fixed: !b.can_be_remapped,
                 remapped: b.can_be_remapped && remapped(state, mode, &b.id, &current),
                 unknown: current == UNRECOGNISED_OUTPUT,
+                hint: hint(state, mode, &b.id, &current).into(),
                 changed: held_current(&slot, &b.id).is_some_and(|held| held != current),
             }
         })
@@ -635,5 +669,53 @@ mod tests {
         assert_eq!(dots, [true, false, false, false, false]);
         let names: Vec<String> = sections(&s).iter().map(|t| t.name.to_string()).collect();
         assert_eq!(&names[..2], ["Buttons", "Macros"]);
+    }
+
+    #[test]
+    fn an_extra_output_is_offered_only_on_its_buttons() {
+        use controller_core::devices::ultimate::{SWITCH, XINPUT};
+        let s = crate::state::tests::ultimate("1.09");
+        let has =
+            |mode, button: &str, id: &str| ids(&choices(&s, mode, button, button)).contains(&id);
+        for button in ["star", "p1", "p2"] {
+            for id in ["turbo", "auto turbo", "swap"] {
+                assert!(has(XINPUT, button, id) && has(SWITCH, button, id), "{button} {id}");
+            }
+        }
+        assert!(has(SWITCH, "star", "screenshot"));
+        assert!(!has(SWITCH, "p1", "screenshot") && !has(XINPUT, "star", "screenshot"));
+        for id in ["turbo", "auto turbo", "swap", "screenshot"] {
+            assert!(!has(SWITCH, "right face", id) && !has(XINPUT, "l1", id), "{id}");
+        }
+    }
+
+    #[test]
+    fn a_gated_extra_output_needs_the_firmware() {
+        let gated: controller_core::description::ExtraOutput = serde_json::from_value(
+            serde_json::json!({ "id": "swap", "label": "Swap", "min_firmware": "1.05" }),
+        )
+        .unwrap();
+        assert!(extra_offered(&gated, "star", "1.09"));
+        assert!(!extra_offered(&gated, "star", "1.04"));
+        assert!(!extra_offered(&gated, "star", ""), "unknown firmware");
+    }
+
+    #[test]
+    fn a_row_explains_its_extra_output_and_warns_when_it_leaves_swap() {
+        let mut s = crate::state::tests::ultimate("1.09");
+        let hint = |s: &AppState, id: &str| rows(s)[row_of(s, id)].hint.to_string();
+        assert!(hint(&s, "star").starts_with("Hold a button and press this one to turn turbo"));
+        assert_eq!(hint(&s, "p1"), "", "no hint for Disabled");
+        s.set_output("p1", "swap");
+        assert!(hint(&s, "p1").starts_with("Hold two of A, B, X, Y, LB, RB, LS, RS"));
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.button_mappings.retain(|m| m.source != "p2");
+        pad.button_mappings.push(controller_core::model::ButtonMapping {
+            source: "p2".to_owned(),
+            target: "swap".to_owned(),
+        });
+        s.set_output("p2", "disabled");
+        assert_eq!(hint(&s, "p2"), "A swap you made stays until you undo it with a Swap button.");
     }
 }

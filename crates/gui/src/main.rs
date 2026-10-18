@@ -263,7 +263,7 @@ fn import(ui: Weak<AppWindow>, jobs: Sender<Job>, slot: (Mode, u8)) {
 fn export(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState) {
     let Some(slot) = state.selected_slot() else { return };
     let shown = state.slot(slot.0, slot.1);
-    let Some(text) = embedded::export_file(&shown) else { return };
+    let Some(text) = embedded::export_file(&shown, state.macro_names()) else { return };
     let (unsaved, name) = (shown.unsaved(), files::file_name(slot.0, slot.1));
     on_thread(ui, jobs, move || {
         let saved = match text {
@@ -316,7 +316,7 @@ fn export_macro(ui: Weak<AppWindow>, jobs: Sender<Job>, state: &AppState, n: u8)
     let (Some(def), Some(default)) = (slot.shown_macro(n), state.defaults().get(&mode)) else {
         return;
     };
-    let def = &named(def.clone());
+    let def = &named(def.clone(), state.macro_names());
     let (text, unsaved) = (macro_files::macro_text(def, &default.device), slot.macro_unsaved(n));
     let name = macro_file_name(mode, number, def);
     on_thread(ui, jobs, move || {
@@ -643,6 +643,35 @@ fn wire_views(ui: &AppWindow, state: Rc<RefCell<AppState>>) {
     });
 }
 
+/// Wires the stick edits of the step panel: each names the macro slot, the step and the
+/// stick.
+fn wire_sticks(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static)) {
+    let c = change.clone();
+    ui.on_stick_set(move |n, step, stick, x, y, apart| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.set_stick(macro_slot(n), step, stick, [x, y], apart));
+    });
+    let c = change.clone();
+    ui.on_stick_dragged(move |n, step, stick, x, y, snap| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.drag_stick(macro_slot(n), step, stick, [x, y], snap));
+    });
+    let c = change.clone();
+    ui.on_stick_glided(move |n, step, stick, on| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.set_stick_glide(macro_slot(n), step, stick, on));
+    });
+    let c = change.clone();
+    ui.on_stick_aimed(move |n, step, stick, direction| {
+        let (Ok(step), Ok(stick), Ok(direction)) =
+            (usize::try_from(step), usize::try_from(stick), usize::try_from(direction))
+        else {
+            return;
+        };
+        c(&|s| s.aim_stick(macro_slot(n), step, stick, direction));
+    });
+}
+
 /// Wires the Macros tab: each edit names the macro slot it is for.
 fn wire_macros(
     ui: &AppWindow,
@@ -681,21 +710,7 @@ fn wire_macros(
         let (Ok(step), Ok(chip)) = (usize::try_from(step), usize::try_from(chip)) else { return };
         c(&|s| s.toggle_step_button(macro_slot(n), step, chip));
     });
-    let c = change.clone();
-    ui.on_stick_set(move |n, step, stick, x, y, apart| {
-        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
-        c(&|s| s.set_stick(macro_slot(n), step, stick, [x, y], apart));
-    });
-    let c = change.clone();
-    ui.on_stick_dragged(move |n, step, stick, x, y, snap| {
-        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
-        c(&|s| s.drag_stick(macro_slot(n), step, stick, [x, y], snap));
-    });
-    let c = change.clone();
-    ui.on_stick_glided(move |n, step, stick, on| {
-        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
-        c(&|s| s.set_stick_glide(macro_slot(n), step, stick, on));
-    });
+    wire_sticks(ui, change);
     let c = change.clone();
     ui.on_trigger_set(move |n, step, k, v, apart| {
         let (Ok(step), Ok(k)) = (usize::try_from(step), usize::try_from(k)) else { return };

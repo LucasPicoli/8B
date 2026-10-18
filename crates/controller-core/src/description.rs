@@ -251,6 +251,14 @@ pub struct ExtraOutput {
     /// The oldest firmware that has this output. `None` for every firmware.
     #[serde(default)]
     pub min_firmware: Option<FirmwareVersion>,
+    /// How to use this output on the pad, shown beside a button that has it. Empty for
+    /// none.
+    #[serde(default)]
+    pub hint: String,
+    /// A warning shown when a button the controller holds on this output is set to
+    /// another one. Empty for none.
+    #[serde(default)]
+    pub leaving_hint: String,
 }
 
 impl ExtraOutput {

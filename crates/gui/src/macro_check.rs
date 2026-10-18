@@ -37,7 +37,7 @@ impl AppState {
     #[must_use]
     pub fn macro_errors(&self, (mode, number): (Mode, u8), n: u8) -> Vec<ValidationError> {
         let Some(model) = self.model() else { return Vec::new() };
-        let puts = self.slot(mode, number).macro_puts();
+        let puts = self.slot(mode, number).macro_puts(self.macro_names());
         let Some(def) = puts.iter().find(|d| d.macro_slot == Some(n)) else { return Vec::new() };
         let device = model.default_profile(mode).device;
         CHECKED.with_borrow_mut(|checked| {
@@ -57,7 +57,7 @@ impl AppState {
     /// Each macro the write of `slot` puts that the controller refuses, by macro slot.
     #[must_use]
     pub fn invalid_macros(&self, (mode, number): (Mode, u8)) -> Vec<Invalid> {
-        let puts = self.slot(mode, number).macro_puts();
+        let puts = self.slot(mode, number).macro_puts(self.macro_names());
         let mut slots: Vec<u8> = puts.iter().filter_map(|d| d.macro_slot).collect();
         slots.sort_unstable();
         slots
@@ -168,10 +168,10 @@ mod tests {
         let mut s = held();
         s.rename_macro(0, "");
         assert_eq!(s.invalid_macro((XINPUT, 2)), None);
-        let puts = s.slot(XINPUT, 2).macro_puts();
+        let puts = s.slot(XINPUT, 2).macro_puts(s.macro_names());
         assert_eq!(puts[0].name, "Macro 1");
         assert!(s.can_write());
-        let file = crate::embedded::export_file(&s.slot(XINPUT, 2)).unwrap().unwrap();
+        let file = crate::embedded::export_file(&s.slot(XINPUT, 2), true).unwrap().unwrap();
         assert!(file.contains("\"name\": \"Macro 1\""), "the export names it too");
     }
 

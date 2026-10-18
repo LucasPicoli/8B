@@ -228,6 +228,9 @@ pub struct ProfileReadResult {
     pub profiles: Vec<CanonicalProfileSummary>,
     /// Raw blobs for diagnostics/dump.
     pub raw_blobs: Vec<Vec<u8>>,
+    /// Firmware version the pad reports, such as `1.09`. Empty when the model has no
+    /// way to read it.
+    pub firmware_version: String,
 }
 
 /// Builds the canonical `{mode}-slot-{slot}-index-{index}` id.

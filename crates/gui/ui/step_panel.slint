@@ -1,7 +1,7 @@
 // The step panel of the Macros tab, under the step table: the sticks and the trigger
 // pressure the selected step holds. The controller views beside the tab set its buttons,
 // and the table's row its duration.
-import { Theme, Button, CheckBox, LinkButton } from "look/breeze/widgets.slint";
+import { Theme, Button, CheckBox, ComboBox, LinkButton } from "look/breeze/widgets.slint";
 import { Frame, Icons, NumberEdit, SmallHead } from "parts.slint";
 import { PadStick, PadTrigger } from "types.slint";
 import { PadSize, TriggerPad } from "trigger_pad.slint";
@@ -270,6 +270,10 @@ export component StepPanel inherits Frame {
     callback stick-set(int, int, int, bool);
     callback stick-dragged(int, float, float, bool);
     callback stick-glided(int, bool);
+    // The controller stores stick directions only: each stick gets a direction picker in
+    // place of its pad. An edit names the stick, then the direction (`PadStick.direction`).
+    in property <bool> directions;
+    callback stick-aimed(int, int);
     // A pad asks to select step n (0-based).
     callback step-picked(int);
 
@@ -306,7 +310,29 @@ export component StepPanel inherits Frame {
         // columns so each side's controls group apart. One under the other in a narrow
         // window, each pad at its own width. Every pad in a column starts from the same
         // width, so the trigger rows line up with the sticks.
-        if !root.stacked: HorizontalLayout {
+        if root.directions: HorizontalLayout {
+            spacing: 16px;
+            alignment: start;
+            for s[i] in root.sticks: VerticalLayout {
+                spacing: 8px;
+                SmallHead {
+                    text: s.label;
+                }
+                ComboBox {
+                    width: max(180px, self.fit-width);
+                    // In the order of `DIRECTIONS` in `stick_pad.rs`.
+                    model: [@tr("Centre"), @tr("Up"), @tr("Up right"), @tr("Right"), @tr("Down right"), @tr("Down"), @tr("Down left"), @tr("Left"), @tr("Up left")];
+                    current-index: s.direction;
+                    enabled: root.enabled;
+                    accessible-name: s.label;
+                    selected => {
+                        root.stick-aimed(i, self.current-index);
+                        self.current-index = s.direction;
+                    }
+                }
+            }
+        }
+        if !root.directions && !root.stacked: HorizontalLayout {
             spacing: 16px;
             for s[i] in root.sticks: StickPad {
                 horizontal-stretch: 1;
@@ -328,7 +354,7 @@ export component StepPanel inherits Frame {
                 step-picked(n) => { root.step-picked(n); }
             }
         }
-        if root.stacked: VerticalLayout {
+        if !root.directions && root.stacked: VerticalLayout {
             spacing: 16px;
             alignment: start;
             for s[i] in root.sticks: HorizontalLayout {

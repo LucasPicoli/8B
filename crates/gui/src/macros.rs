@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use controller_core::description::ControllerDescription;
 use controller_core::model::glide::expanded_len;
 use controller_core::model::{MacroDefinition, MacroStep, Mode};
 use tr::tr;
@@ -36,11 +37,26 @@ pub fn macro_number(id: &str) -> Option<u8> {
     id.strip_prefix(MACRO_OUTPUT)?.parse().ok()
 }
 
-/// `def` as 8B writes and saves it: a macro with no name is named "Macro n", n its
-/// 1-based macro slot, as the controller needs a name.
+/// Whether `button` may start `def` on a controller described by `description`: it
+/// starts it already, or the macro has room for another trigger button.
 #[must_use]
-pub fn named(mut def: MacroDefinition) -> MacroDefinition {
-    if def.name.is_empty() {
+pub fn takes_trigger(
+    description: &ControllerDescription,
+    def: &MacroDefinition,
+    button: &str,
+) -> bool {
+    def.trigger_buttons.iter().any(|b| b == button)
+        || description
+            .limits
+            .triggers_per_macro
+            .is_none_or(|most| def.trigger_buttons.len() < usize::from(most))
+}
+
+/// `def` as 8B writes and saves it: a macro with no name is named "Macro n", n its
+/// 1-based macro slot, on a controller whose macros have `names`, as it needs one.
+#[must_use]
+pub fn named(mut def: MacroDefinition, names: bool) -> MacroDefinition {
+    if names && def.name.is_empty() {
         def.name = tr!("Macro {}", def.macro_slot.map_or(1, |s| u16::from(s) + 1));
     }
     def
@@ -213,6 +229,12 @@ impl SlotState {
 }
 
 impl AppState {
+    /// Whether the shown controller's macros have names.
+    #[must_use]
+    pub fn macro_names(&self) -> bool {
+        self.description().limits.macro_name_length.is_some()
+    }
+
     /// Records the macro descriptors a read of the controller on `port` found, by
     /// slot. An empty slot gets none. A slot whose macros changed under macro edits
     /// goes in the changed list, as a changed profile does.
@@ -274,7 +296,9 @@ impl AppState {
         let Some((mode, number)) = self.selected_slot() else { return };
         let slot = self.slot(mode, number);
         let startable = self.description().button(button).is_some_and(|b| b.can_start_macro);
-        let held = slot.shown_macros().iter().any(|m| m.macro_slot == Some(macro_slot));
+        let held = slot.shown_macros().iter().any(|m| {
+            m.macro_slot == Some(macro_slot) && takes_trigger(self.description(), m, button)
+        });
         if !(startable && held && slot.macros_editable()) {
             return;
         }

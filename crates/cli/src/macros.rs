@@ -290,7 +290,7 @@ pub mod tests {
         let raw_blobs = vec![bank, empty.clone(), empty];
         let mut dev = MockDevice::new()
             .with_model(&Pro3)
-            .with_profiles(ProfileReadResult { profiles, raw_blobs })
+            .with_profiles(ProfileReadResult { profiles, raw_blobs, ..Default::default() })
             .keeping_writes();
         for m in macros {
             let stream = Pro3.encode_macro_steps(&m.steps, XINPUT).unwrap();

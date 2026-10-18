@@ -434,8 +434,12 @@ impl AppState {
         });
     }
 
-    /// Renames the selected slot's profile, cut to the controller's name length.
+    /// Renames the selected slot's profile, cut to the controller's name length. A
+    /// model that cannot rename a profile keeps the name.
     pub fn set_name(&mut self, name: &str) {
+        if !self.description().profile_rename {
+            return;
+        }
         let name = cut_name(name, self.description().limits.profile_name_length.max);
         self.edit(|p| p.name = name);
     }
@@ -448,13 +452,17 @@ impl AppState {
         }
     }
 
-    /// Fills an empty selected slot's working copy with the mode's default profile.
+    /// Fills an empty selected slot's working copy with the mode's default profile,
+    /// named "New profile" where the model can rename it.
     pub fn start_from_default(&mut self) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let Some(mut profile) = self.defaults().get(&mode).cloned() else { return };
-        // A default name is data once made: it keeps the language it was made in.
-        profile.name =
-            cut_name(&tr!("New profile"), self.description().limits.profile_name_length.max);
+        // A default name is data once made: it keeps the language it was made in. A
+        // model that cannot rename a profile keeps the default's name.
+        if self.description().profile_rename {
+            profile.name =
+                cut_name(&tr!("New profile"), self.description().limits.profile_name_length.max);
+        }
         if let Some(slot) = self.selected_mut().filter(|s| s.shown().is_none()) {
             slot.edited = Some(profile);
         }
@@ -540,7 +548,7 @@ pub mod tests {
                 ]
             })
             .collect();
-        ProfileReadResult { profiles, raw_blobs: vec![] }
+        ProfileReadResult { profiles, raw_blobs: vec![], ..Default::default() }
     }
 
     /// [`full_read`] with the `XInput` fixture bank as each mode's raw bank: slot 1
@@ -721,6 +729,32 @@ pub mod tests {
         s
     }
 
+    /// An Ultimate on firmware `firmware`, current mode `XInput`, read with slot 1 of
+    /// each mode holding the mode's default profile with no name, slots 2 and 3 empty.
+    pub fn ultimate(firmware: &str) -> AppState {
+        use controller_core::devices::ultimate::{self, Ultimate};
+        let summary = |mode: Mode, number: u8| CanonicalProfileSummary {
+            id: if number == 1 { format!("{mode}-{number}") } else { String::new() },
+            name: String::new(),
+            mode,
+            source_slot: number,
+            source_profile_index: number - 1,
+            canonical: Ultimate.default_profile(mode),
+        };
+        let mut s = new_state();
+        s.presence(PORT, Some(ultimate::XINPUT));
+        s.set_model(PORT, &Ultimate);
+        let profiles =
+            ultimate::MODES.iter().flat_map(|&m| (1..=3).map(move |n| summary(m, n))).collect();
+        let read = ProfileReadResult {
+            profiles,
+            firmware_version: firmware.to_owned(),
+            ..Default::default()
+        };
+        s.read_finished(PORT, Ok(read));
+        s
+    }
+
     /// A read of the test pad: slot 1 named `name`, slot 2 empty.
     pub fn test_pad_read(name: &str) -> ProfileReadResult {
         use controller_core::devices::test_pad::{self, TestPad};
@@ -738,7 +772,7 @@ pub mod tests {
                 canonical,
             }
         };
-        ProfileReadResult { profiles: vec![summary(1, name), summary(2, "")], raw_blobs: vec![] }
+        ProfileReadResult { profiles: vec![summary(1, name), summary(2, "")], ..Default::default() }
     }
 
     /// A macro of `XInput` in macro slot `slot` (0-based) named `name`, started by

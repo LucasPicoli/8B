@@ -43,6 +43,8 @@ export component AppWindow inherits Window {
     // The profile name field, cut to `name-max` characters by Rust.
     in-out property <string> profile-name;
     in property <int> name-max;
+    // The model lets the user rename a profile: else the name shows as text.
+    in property <bool> can-rename: true;
     in property <bool> unsaved;
     in property <[Section]> sections;
     in property <[PadView]> views;
@@ -232,6 +234,10 @@ export component AppWindow inherits Window {
     callback stick-set(int, int, int, int, int, bool);
     callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
+    // A direction pick on a controller that stores stick directions only: the macro
+    // slot, the step, the stick and the direction (`PadStick.direction`).
+    in property <bool> stick-directions;
+    callback stick-aimed(int, int, int, int);
     // A trigger pressure edit: the macro slot, the step, the trigger (its place in the
     // panel), then the value and whether the edit is its own undo; or the glide.
     callback trigger-set(int, int, int, int, bool);
@@ -365,7 +371,12 @@ export component AppWindow inherits Window {
                         color: Theme.fg;
                         vertical-alignment: center;
                     }
-                    if !root.empty-slot: HorizontalLayout {
+                    if !root.empty-slot && !root.can-rename: Text {
+                        text: root.profile-name;
+                        color: Theme.fg-muted;
+                        vertical-alignment: center;
+                    }
+                    if !root.empty-slot && root.can-rename: HorizontalLayout {
                         padding-left: 6px;
                         spacing: 6px;
                         VerticalLayout {
@@ -558,6 +569,8 @@ export component AppWindow inherits Window {
                         stick-set(n, i, k, x, y, apart) => { root.stick-set(n, i, k, x, y, apart); }
                         stick-dragged(n, i, k, x, y, snap) => { root.stick-dragged(n, i, k, x, y, snap); }
                         stick-glided(n, i, k, on) => { root.stick-glided(n, i, k, on); }
+                        stick-directions: root.stick-directions;
+                        stick-aimed(n, i, k, d) => { root.stick-aimed(n, i, k, d); }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         neighbour(v, from, dir) => { return root.macro-neighbour(v, from, dir); }

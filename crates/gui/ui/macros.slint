@@ -333,13 +333,99 @@ component Field inherits HorizontalLayout {
     }
 }
 
+// The macro's name and its length, cut to `name-max` by Rust. Its own component, so the
+// header leaves it out for a controller whose macros have no name.
+component NameField inherits Field {
+    in property <MacroRow> item;
+    in property <bool> editable;
+    in property <int> name-max;
+    callback renamed(string);
+    // The field follows another macro once one is picked.
+    property <string> name: item.name;
+    changed name => { if (name-field.text != self.name) { name-field.text = self.name; } }
+    label: @tr("Name");
+    HorizontalLayout {
+        spacing: 8px;
+        name-field := LineEdit {
+            width: 240px;
+            text: root.item.name;
+            enabled: root.editable;
+            // The name 8B writes for a macro with none.
+            placeholder-text: @tr("Macro {}", root.item.number);
+            accessible-name: @tr("Macro name");
+            edited(t) => {
+                root.renamed(t);
+                // Rust cuts the name to the limit.
+                if (self.text != root.item.name) {
+                    self.text = root.item.name;
+                }
+            }
+        }
+        Text {
+            text: name-field.text.character-count + "/" + root.name-max;
+            font-size: Theme.text-small;
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
+    }
+}
+
+// How often the macro plays. Its own component, so the header leaves it out for a
+// controller whose macro plays once per press.
+component PlaysField inherits Field {
+    in property <MacroRow> item;
+    in property <bool> editable;
+    in property <int> count-min;
+    in property <int> count-max;
+    callback plays-picked(int);
+    callback count-changed(int);
+    // The picker follows another macro once one is picked.
+    property <int> plays: item.plays;
+    changed plays => { plays-box.current-index = self.plays; }
+    label: @tr("Plays");
+    fill: true;
+    // The picker, then the count: on a second line when both do not fit.
+    FlexboxLayout {
+        spacing: 8px;
+        cross-axis-alignment: center;
+        plays-box := ComboBox {
+            // Every entry in full, in any language and at any font size.
+            width: max(180px, self.fit-width);
+            model: [@tr("Once"), @tr("A set number of times"), @tr("Until pressed again")];
+            current-index: root.item.plays;
+            enabled: root.editable;
+            accessible-name: @tr("Plays");
+            selected => {
+                root.plays-picked(self.current-index);
+                self.current-index = root.item.plays;
+            }
+        }
+        if root.item.plays == 1: NumberEdit {
+            value: root.item.count;
+            minimum: root.count-min;
+            maximum: root.count-max;
+            enabled: root.editable;
+            step: 1;
+            accessible-name: @tr("Times");
+            committed(v) => { root.count-changed(v); }
+        }
+        if root.item.plays == 1: FieldLabel {
+            height: Theme.control-height;
+            text: @tr("times");
+        }
+    }
+}
+
 // The selected macro: its name, the buttons that start it, how often it plays.
 component MacroHeader inherits Frame {
     in property <MacroRow> item;
     in property <bool> editable;
+    // 0 when a macro has no name.
     in property <int> name-max;
     in property <int> count-min;
+    // 0 when a macro plays once per press.
     in property <int> count-max;
+    // 0 when a macro has no pause between plays.
     in property <int> pause-max;
     // A narrow window: Import and Export show their icons only.
     in property <bool> narrow;
@@ -354,11 +440,6 @@ component MacroHeader inherits Frame {
     // An entry of `item.addable`, and a chip's index.
     callback button-added(int);
     callback button-removed(int);
-    // The pickers and the name field follow another macro once one is picked.
-    property <string> name: item.name;
-    property <int> plays: item.plays;
-    changed name => { if (name-field.text != self.name) { name-field.text = self.name; } }
-    changed plays => { plays-box.current-index = self.plays; }
 
     VerticalLayout {
         Rectangle {
@@ -431,32 +512,11 @@ component MacroHeader inherits Frame {
         VerticalLayout {
             padding: 12px;
             spacing: 10px;
-            Field {
-                label: @tr("Name");
-                HorizontalLayout {
-                    spacing: 8px;
-                    name-field := LineEdit {
-                        width: 240px;
-                        text: root.item.name;
-                        enabled: root.editable;
-                        // The name 8B writes for a macro with none.
-                        placeholder-text: @tr("Macro {}", root.item.number);
-                        accessible-name: @tr("Macro name");
-                        edited(t) => {
-                            root.renamed(t);
-                            // Rust cuts the name to the limit.
-                            if (self.text != root.item.name) {
-                                self.text = root.item.name;
-                            }
-                        }
-                    }
-                    Text {
-                        text: name-field.text.character-count + "/" + root.name-max;
-                        font-size: Theme.text-small;
-                        color: Theme.fg-muted;
-                        vertical-alignment: center;
-                    }
-                }
+            if root.name-max > 0: NameField {
+                item: root.item;
+                editable: root.editable;
+                name-max: root.name-max;
+                renamed(t) => { root.renamed(t); }
             }
             Field {
                 label: @tr("Starts with");
@@ -512,41 +572,15 @@ component MacroHeader inherits Frame {
                     }
                 }
             }
-            Field {
-                label: @tr("Plays");
-                fill: true;
-                // The picker, then the count: on a second line when both do not fit.
-                FlexboxLayout {
-                    spacing: 8px;
-                    cross-axis-alignment: center;
-                    plays-box := ComboBox {
-                        // Every entry in full, in any language and at any font size.
-                        width: max(180px, self.fit-width);
-                        model: [@tr("Once"), @tr("A set number of times"), @tr("Until pressed again")];
-                        current-index: root.item.plays;
-                        enabled: root.editable;
-                        accessible-name: @tr("Plays");
-                        selected => {
-                            root.plays-picked(self.current-index);
-                            self.current-index = root.item.plays;
-                        }
-                    }
-                    if root.item.plays == 1: NumberEdit {
-                        value: root.item.count;
-                        minimum: root.count-min;
-                        maximum: root.count-max;
-                        enabled: root.editable;
-                        step: 1;
-                        accessible-name: @tr("Times");
-                        committed(v) => { root.count-changed(v); }
-                    }
-                    if root.item.plays == 1: FieldLabel {
-                        height: Theme.control-height;
-                        text: @tr("times");
-                    }
-                }
+            if root.count-max > 0: PlaysField {
+                item: root.item;
+                editable: root.editable;
+                count-min: root.count-min;
+                count-max: root.count-max;
+                plays-picked(p) => { root.plays-picked(p); }
+                count-changed(v) => { root.count-changed(v); }
             }
-            if root.item.plays != 0: Field {
+            if root.item.plays != 0 && root.pause-max > 0: Field {
                 label: @tr("Interval");
                 NumberEdit {
                     value: root.item.pause;
@@ -608,6 +642,10 @@ export component MacrosTab {
     callback stick-set(int, int, int, int, int, bool);
     callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
+    // The controller stores stick directions only; a direction pick names the macro
+    // slot, the step, the stick and the direction.
+    in property <bool> stick-directions;
+    callback stick-aimed(int, int, int, int);
     // A stick the macro moves sits under the dead zone floor: the bar's words and its
     // action, which raises the low ends of macro slot n to the floor.
     in property <string> floor-title;
@@ -784,6 +822,8 @@ export component MacrosTab {
                 stick-set(k, x, y, apart) => { root.stick-set(root.selected, root.selected-step, k, x, y, apart); }
                 stick-dragged(k, x, y, snap) => { root.stick-dragged(root.selected, root.selected-step, k, x, y, snap); }
                 stick-glided(k, on) => { root.stick-glided(root.selected, root.selected-step, k, on); }
+                directions: root.stick-directions;
+                stick-aimed(k, d) => { root.stick-aimed(root.selected, root.selected-step, k, d); }
                 step-picked(n) => { root.selected-step = n; }
             }
             if !root.current.filled: Frame {

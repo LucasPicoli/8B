@@ -4,13 +4,14 @@
 
 use std::rc::Rc;
 
-use controller_core::description as described;
+use controller_core::description::{self as described, firmware_allows, FirmwareVersion};
 use controller_core::model::{CanonicalProfile, Mode};
 use serde_json::Value;
 use slint::{Model as _, ModelRc, VecModel};
 use tr::tr;
 
 use crate::language::prose;
+use crate::render::and_list;
 use crate::state::AppState;
 use crate::ui::{AppWindow, Setting, SettingFrame, SettingsPage, Toggle};
 
@@ -86,13 +87,78 @@ fn shown_value(slider: &described::Slider, low: i64, high: Option<i64>) -> Strin
     }
 }
 
+/// The oldest firmware that has `slider`: the slider and each of its fields may name
+/// one. `None` for every firmware.
+fn slider_gate(slider: &described::Slider) -> Option<FirmwareVersion> {
+    [Some(&slider.low), slider.high.as_ref()]
+        .into_iter()
+        .flatten()
+        .map(|f| f.min_firmware)
+        .chain([slider.min_firmware])
+        .max()
+        .flatten()
+}
+
+/// Every item of `spec` with a firmware gate, as (its name, its gate), in tab order.
+fn gated(spec: &described::SettingsPage) -> Vec<(String, FirmwareVersion)> {
+    spec.frames
+        .iter()
+        .flat_map(|f| {
+            let sliders = f.sliders.iter().map(|s| (&s.label, slider_gate(s)));
+            sliders.chain(f.flags.iter().map(|f| (&f.label, f.min_firmware)))
+        })
+        .filter_map(|(label, gate)| Some((prose(label), gate?)))
+        .collect()
+}
+
+/// The line under a tab that names what `firmware` hides of it. Empty when it hides
+/// nothing.
+fn hidden_note(spec: &described::SettingsPage, firmware: &str) -> String {
+    let hidden: Vec<_> = gated(spec)
+        .into_iter()
+        .filter(|(_, gate)| !firmware_allows(Some(*gate), firmware))
+        .collect();
+    if hidden.is_empty() {
+        return String::new();
+    }
+    if FirmwareVersion::parse(firmware).is_none() {
+        let items: Vec<String> = hidden
+            .iter()
+            .map(|(item, gate)| tr!("{item} (firmware {min} or later)", item = item, min = gate))
+            .collect();
+        return tr!(
+            "8B could not read the firmware version, so it hides: {items}.",
+            items = and_list(&items)
+        );
+    }
+    let mut gates: Vec<FirmwareVersion> = hidden.iter().map(|(_, gate)| *gate).collect();
+    gates.sort_unstable();
+    gates.dedup();
+    gates
+        .into_iter()
+        .map(|gate| {
+            let items: Vec<String> =
+                hidden.iter().filter(|(_, g)| *g == gate).map(|(item, _)| item.clone()).collect();
+            tr!("Firmware {min} or later adds: {items}.", min = gate, items = and_list(&items))
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// `spec` filled from `shown`, the profile on screen, with what differs from `pad`,
-/// what the controller holds.
+/// what the controller holds. An item `firmware` lacks is left out, and so is a frame
+/// left with nothing; the page's note names them.
 // The values are profile percentages and levels, far inside f32's exact range.
 #[allow(clippy::cast_precision_loss)]
-fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> SettingsPage {
+fn page(
+    spec: &described::SettingsPage,
+    shown: &Value,
+    pad: Option<&Value>,
+    firmware: &str,
+) -> SettingsPage {
     let frames = spec.frames.iter().map(|frame| {
-        let settings = frame.sliders.iter().filter_map(|s| {
+        let sliders = frame.sliders.iter().filter(|s| firmware_allows(slider_gate(s), firmware));
+        let settings = sliders.filter_map(|s| {
             let values = |json: &Value| -> Option<(i64, Option<i64>)> {
                 let low = number(json, &s.low.field)?;
                 let high = match &s.high {
@@ -119,7 +185,8 @@ fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> S
                 was: was.into(),
             })
         });
-        let toggles = frame.flags.iter().filter_map(|flag| {
+        let flags = frame.flags.iter().filter(|f| firmware_allows(f.min_firmware, firmware));
+        let toggles = flags.filter_map(|flag| {
             let pointer = flag.field.as_str();
             let on = shown.pointer(pointer)?.as_bool()?;
             Some(Toggle {
@@ -129,15 +196,17 @@ fn page(spec: &described::SettingsPage, shown: &Value, pad: Option<&Value>) -> S
                 changed: pad.and_then(|p| p.pointer(pointer)?.as_bool()).is_some_and(|o| o != on),
             })
         });
-        SettingFrame {
+        let (settings, toggles): (Vec<_>, Vec<_>) = (settings.collect(), toggles.collect());
+        (!settings.is_empty() || !toggles.is_empty()).then(|| SettingFrame {
             title: prose(&frame.title).into(),
-            settings: ModelRc::from(Rc::new(settings.collect::<VecModel<_>>())),
-            toggles: ModelRc::from(Rc::new(toggles.collect::<VecModel<_>>())),
-        }
+            settings: ModelRc::from(Rc::new(VecModel::from(settings))),
+            toggles: ModelRc::from(Rc::new(VecModel::from(toggles))),
+        })
     });
     SettingsPage {
         lead: prose(&spec.lead).into(),
-        frames: ModelRc::from(Rc::new(frames.collect::<VecModel<_>>())),
+        note: hidden_note(spec, firmware).into(),
+        frames: ModelRc::from(Rc::new(frames.flatten().collect::<VecModel<_>>())),
     }
 }
 
@@ -155,7 +224,8 @@ pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> Vec<SettingsPag
     let Some(shown) = slot.shown() else { return Vec::new() };
     let Ok(json) = serde_json::to_value(shown) else { return Vec::new() };
     let pad = slot.pad.as_ref().and_then(|p| serde_json::to_value(p).ok());
-    state.description().pages(mode).map(|spec| page(spec, &json, pad.as_ref())).collect()
+    let firmware = state.firmware();
+    state.description().pages(mode).map(|spec| page(spec, &json, pad.as_ref(), firmware)).collect()
 }
 
 /// Copies `new` into the models `old` already shows, when both have the same frames
@@ -163,6 +233,7 @@ pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> Vec<SettingsPag
 /// the shape differs and nothing was copied.
 fn update(old: &SettingsPage, new: &SettingsPage) -> bool {
     let same = old.lead == new.lead
+        && old.note == new.note
         && old.frames.row_count() == new.frames.row_count()
         && old.frames.iter().zip(new.frames.iter()).all(|(o, n)| {
             o.title == n.title
@@ -363,5 +434,66 @@ mod tests {
         s.start_from_default();
         let threshold = pages(&s).remove(1);
         assert!(!update(&analog, &threshold), "another lead");
+    }
+
+    /// The toggle fields of each frame of the Sticks tab of the Ultimate on `firmware`
+    /// in `mode`, by frame title.
+    fn stick_toggles(firmware: &str, mode: Mode) -> Vec<(String, Vec<String>)> {
+        let mut s = crate::state::tests::ultimate(firmware);
+        let index = s.description().modes.iter().position(|m| m.id == mode).unwrap();
+        s.select(index, 0);
+        let page = pages(&s).into_iter().next().unwrap();
+        page.frames
+            .iter()
+            .map(|f| (f.title.to_string(), f.toggles.iter().map(|t| t.field.to_string()).collect()))
+            .collect()
+    }
+
+    #[test]
+    fn a_gated_item_shows_from_its_firmware_on() {
+        use controller_core::devices::ultimate::{SWITCH, XINPUT};
+        let last = |firmware, mode| stick_toggles(firmware, mode).pop().unwrap();
+        let both = ["/sticks/no_dead_zone", "/sticks/dpad_four_way"].map(String::from);
+        assert_eq!(last("1.09", XINPUT).1, both);
+        assert_eq!(last("1.03", XINPUT).1, both);
+        assert_eq!(last("1.02", XINPUT).1, ["/sticks/no_dead_zone"]);
+        assert_eq!(last("", XINPUT).1, ["/sticks/no_dead_zone"], "unknown firmware");
+        assert_eq!(last("1.09", SWITCH).0, "D-pad");
+        assert!(
+            stick_toggles("1.02", SWITCH).iter().all(|(t, _)| t != "D-pad"),
+            "an empty frame goes"
+        );
+    }
+
+    #[test]
+    fn a_tab_names_what_the_firmware_hides() {
+        use controller_core::devices::ultimate::{SWITCH, XINPUT};
+        let note = |firmware: &str, mode, tab: usize| {
+            let mut s = crate::state::tests::ultimate(firmware);
+            let index = s.description().modes.iter().position(|m| m.id == mode).unwrap();
+            s.select(index, 0);
+            pages(&s)[tab].note.to_string()
+        };
+        assert_eq!(note("1.02", XINPUT, 0), "Firmware 1.03 or later adds: D-pad four-way only.");
+        assert_eq!(note("1.02", SWITCH, 0), "Firmware 1.03 or later adds: D-pad four-way only.");
+        assert_eq!(
+            note("", XINPUT, 0),
+            "8B could not read the firmware version, so it hides: D-pad four-way only \
+             (firmware 1.03 or later)."
+        );
+        assert_eq!(note("1.03", XINPUT, 0), "", "nothing hidden");
+        assert_eq!(note("", XINPUT, 1), "", "a tab with no gate");
+    }
+
+    #[test]
+    fn each_mode_shows_its_own_settings() {
+        use controller_core::devices::ultimate::{SWITCH, XINPUT};
+        let fields =
+            |mode| stick_toggles("1.09", mode).into_iter().flat_map(|(_, f)| f).collect::<Vec<_>>();
+        let (xinput, switch) = (fields(XINPUT), fields(SWITCH));
+        assert!(xinput.contains(&"/sticks/no_dead_zone".to_owned()));
+        assert!(!switch.contains(&"/sticks/no_dead_zone".to_owned()));
+        assert!(switch.contains(&"/sticks/swap_right_stick_with_triggers".to_owned()));
+        assert!(!xinput.contains(&"/sticks/swap_right_stick_with_triggers".to_owned()));
     }
 }

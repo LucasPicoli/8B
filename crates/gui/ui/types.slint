@@ -41,6 +41,9 @@ export struct MapRow {
     remapped: bool,
     // The controller holds an output 8B does not recognise.
     unknown: bool,
+    // How to use the output on the pad, or a warning about leaving the one the
+    // controller holds. Empty for none.
+    hint: string,
     // Differs from what the controller holds: not written yet.
     changed: bool,
 }
@@ -120,6 +123,8 @@ export struct SettingFrame {
 export struct SettingsPage {
     lead: string,
     frames: [SettingFrame],
+    // What the controller's firmware hides of the tab. Empty for nothing.
+    note: string,
 }
 
 // The warning before importing a file made for another mode.
@@ -399,6 +404,9 @@ export struct PadStick {
     label: string,
     value-x: int,
     value-y: int,
+    // The direction the step holds, as the direction picker lists it: 0 the centre,
+    // 1 to 8 up clockwise. -1 for a position between them.
+    direction: int,
     at: StickInfo,
     glide-label: string,
     can-glide: bool,

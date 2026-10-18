@@ -322,6 +322,7 @@ mod tests {
         let mut read = ProfileReadResult {
             profiles: vec![summary(1, ""), summary(2, "")],
             raw_blobs: vec![meta, zeroed_blob(), zeroed_blob()],
+            ..Default::default()
         };
         let found = leftover_macros(&Pro3, &read);
         assert_eq!(found.get(&(XINPUT, 1)), Some(&1), "slot 1 holds the fixture macro");

@@ -459,6 +459,57 @@ fn tab(name: &str, state: &AppState, tab: i32, dark: bool) {
     save(&format!("{name}-{}", if dark { "dark" } else { "light" }), &ui);
 }
 
+/// The Buttons, Macros and Sticks tabs of an Ultimate in each mode: Star on Turbo with
+/// its hint, P1 moved off a Swap the controller holds, and a macro with one trigger and a
+/// stick direction. Then the Sticks tab's note on firmware older than an item and on an
+/// unread one. The shot names end in `suffix`.
+fn ultimate_tabs(suffix: &str) {
+    use controller_core::devices::ultimate::MODES;
+    for (index, mode) in MODES.into_iter().enumerate() {
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.select(index, 0);
+        let pad = s.active_mut().unwrap().slots.get_mut(&(mode, 1)).unwrap().pad.as_mut().unwrap();
+        pad.button_mappings.retain(|m| m.source != "p1");
+        pad.button_mappings.push(controller_core::model::ButtonMapping {
+            source: "p1".to_owned(),
+            target: "swap".to_owned(),
+        });
+        s.set_output("p1", "auto turbo");
+        s.new_macro(0);
+        s.add_macro_button(0, "right face");
+        s.aim_stick(0, 0, 0, 2);
+        let ui = window(&s);
+        ui.window().set_size(PhysicalSize::new(1280, 1300));
+        let star = s.description().buttons.iter().position(|b| b.id == "star").unwrap();
+        ui.set_selected_row(i32::try_from(star).unwrap());
+        save(&format!("ultimate-buttons-{mode}{suffix}"), &ui);
+        for (tab, name) in [(1, "macros"), (2, "sticks")] {
+            ui.set_tab(tab);
+            render(&s, &ui);
+            save(&format!("ultimate-{name}-{mode}{suffix}"), &ui);
+        }
+    }
+    // The note under a tab whose items the firmware hides: older, and unread.
+    for (firmware, name) in [("1.02", "older"), ("", "unread")] {
+        tab(
+            &format!("ultimate-sticks-firmware-{name}{suffix}"),
+            &crate::state::tests::ultimate(firmware),
+            2,
+            false,
+        );
+    }
+}
+
+#[test]
+fn ultimate_tabs_in_each_mode() {
+    ultimate_tabs("");
+}
+
+#[test]
+fn pt_br_ultimate_tabs_in_each_mode() {
+    ultimate_tabs("-pt-br");
+}
+
 /// A Switch slot with an edit on every settings tab.
 fn edited_settings() -> AppState {
     let mut s = connected(SWITCH);

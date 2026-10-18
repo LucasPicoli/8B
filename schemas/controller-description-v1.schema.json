@@ -265,7 +265,15 @@
                 "uniqueItems": true,
                 "items": { "type": "string", "minLength": 1 }
               },
-              "min_firmware": { "$ref": "#/$defs/FirmwareVersion" }
+              "min_firmware": { "$ref": "#/$defs/FirmwareVersion" },
+              "hint": {
+                "description": "Optional. How to use this output on the pad, shown beside a button that has it.",
+                "type": "string"
+              },
+              "leaving_hint": {
+                "description": "Optional. A warning shown when a button the controller holds on this output is set to another one.",
+                "type": "string"
+              }
             }
           }
         }

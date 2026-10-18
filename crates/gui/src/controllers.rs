@@ -38,6 +38,9 @@ pub struct Controller {
     pub description: Option<&'static ControllerDescription>,
     /// The profile a new slot of each of the model's modes starts from.
     pub defaults: BTreeMap<Mode, CanonicalProfile>,
+    /// The firmware version the last good read reported, such as `1.09`. Empty when
+    /// the model cannot report it.
+    pub firmware: String,
 }
 
 impl Controller {
@@ -57,6 +60,7 @@ impl Controller {
     /// stored profile changed under real edits goes in [`Self::changed`]; an edit
     /// copy equal to the old stored profile is dropped, so it cannot undo the change.
     fn take_read(&mut self, read: ProfileReadResult) {
+        self.firmware = read.firmware_version;
         for summary in read.profiles {
             let key = (summary.mode, summary.source_slot);
             // An empty slot reads back as a summary with no id.
@@ -111,6 +115,12 @@ impl AppState {
     #[must_use]
     pub fn shown(&self) -> Option<&Controller> {
         self.active().or_else(|| self.controllers.first())
+    }
+
+    /// The firmware version of the shown controller, such as `1.09`. Empty when unknown.
+    #[must_use]
+    pub fn firmware(&self) -> &str {
+        self.shown().map_or("", |c| c.firmware.as_str())
     }
 
     /// The mode the shown controller presents now. `None` while unplugged or absent.

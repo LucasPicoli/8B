@@ -11,6 +11,7 @@ use slint::{Model as _, ModelRc, SharedString, VecModel};
 use tr::tr;
 
 use crate::buttons::{keep_same, output_label, push_model, target};
+use crate::macros::takes_trigger;
 use crate::reasons::worded;
 use crate::state::{cut_name, AppState, SlotState};
 use crate::stick_pad::floor_bar;
@@ -97,16 +98,18 @@ impl AppState {
 
     /// The buttons the "Add a button…" picker of macro slot `n` offers: each that can
     /// start a macro, is not mapped and does not start this one, in the description's
-    /// order. A button that starts another macro moves.
+    /// order, while the macro has room for another. A button that starts another macro
+    /// moves.
     #[must_use]
     pub fn addable_buttons(&self, n: u8) -> Vec<String> {
         let Some((mode, number)) = self.selected_slot() else { return Vec::new() };
         let slot = self.slot(mode, number);
-        let own = slot.shown_macro(n).map(|m| m.trigger_buttons.clone()).unwrap_or_default();
+        let Some(def) = slot.shown_macro(n) else { return Vec::new() };
         self.description()
             .buttons
             .iter()
-            .filter(|b| b.can_start_macro && !own.contains(&b.id))
+            .filter(|b| b.can_start_macro && !def.trigger_buttons.contains(&b.id))
+            .filter(|b| takes_trigger(self.description(), def, &b.id))
             .filter(|b| self.mapped_to(&b.id).is_none())
             .map(|b| b.id.clone())
             .collect()
@@ -159,8 +162,12 @@ impl AppState {
     }
 
     /// Sets how often the macro in macro slot `n` plays. Once drops the pause, and a
-    /// number of times starts at two.
+    /// number of times starts at two. A controller whose macro plays once per press
+    /// keeps it so.
     pub fn set_plays(&mut self, n: u8, plays: Plays) {
+        if self.description().limits.macro_repeat_count.is_none() {
+            return;
+        }
         let least = self.least_times();
         self.edit_macro(n, |m| match plays {
             Plays::Once => {
@@ -324,7 +331,8 @@ pub fn render_macros(state: &AppState, ui: &AppWindow) {
     );
     ui.set_macro_name_max(name_max(description));
     ui.set_macro_count_min(i32::try_from(state.least_times()).unwrap_or(2));
-    ui.set_macro_count_max(limits.macro_repeat_count.map_or(1, |r| r.max));
+    // 0 hides Plays: the macro plays once per press.
+    ui.set_macro_count_max(limits.macro_repeat_count.map_or(0, |r| r.max));
     ui.set_macro_pause_max(limits.macro_interval_ms.map_or(0, |r| r.max));
 }
 
@@ -527,5 +535,50 @@ mod tests {
         s.new_macro(1);
         s.rename_macro(0, "Run");
         assert!(!s.slot(XINPUT, 2).unsaved());
+    }
+
+    #[test]
+    fn a_macro_takes_one_trigger_where_the_model_says_so() {
+        use controller_core::devices::ultimate::XINPUT;
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.new_macro(0);
+        s.new_macro(1);
+        assert!(s.addable_buttons(0).contains(&"right face".to_owned()));
+        s.add_macro_button(0, "right face");
+        assert!(s.addable_buttons(0).is_empty(), "the one trigger is taken");
+        s.add_macro_button(0, "l1");
+        s.join_macro("l1", 0);
+        let triggers =
+            |s: &AppState, n: u8| s.slot(XINPUT, 1).shown_macro(n).unwrap().trigger_buttons.clone();
+        assert_eq!(triggers(&s, 0), ["right face"]);
+        let offered = |button: &str| {
+            let list = crate::buttons::choices(&s, XINPUT, button, button);
+            list.iter().any(|(id, _)| *id == crate::macros::macro_output(0))
+        };
+        assert!(
+            offered("right face") && !offered("l1"),
+            "a full macro is offered to its trigger only"
+        );
+        s.add_macro_button(1, "right face");
+        assert!(triggers(&s, 0).is_empty(), "it moves");
+        assert_eq!(triggers(&s, 1), ["right face"]);
+    }
+
+    #[test]
+    fn a_macro_without_a_name_or_plays_stays_without() {
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.new_macro(0);
+        let r = row(&s, 0);
+        assert_eq!((r.name.as_str(), r.plays), ("", 0));
+        s.set_plays(0, Plays::Times);
+        s.set_play_pause(0, 100);
+        s.rename_macro(0, "Jump");
+        let m =
+            s.slot(controller_core::devices::ultimate::XINPUT, 1).shown_macro(0).cloned().unwrap();
+        assert_eq!((m.name.as_str(), m.repeat_count, m.interval_ms), ("", 1, 0));
+        s.add_macro_button(0, "right face");
+        let key = (controller_core::devices::ultimate::XINPUT, 1);
+        assert_eq!(s.macro_errors(key, 0), [], "the write puts it with no name");
+        assert_eq!(s.slot(key.0, key.1).macro_puts(s.macro_names())[0].name, "");
     }
 }

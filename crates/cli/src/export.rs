@@ -186,8 +186,11 @@ fn held_macros(
     model: &dyn Model,
     read: &DetectAndReadResult,
 ) -> Result<Vec<MacroAt>> {
-    let read =
-        ProfileReadResult { profiles: read.profiles.clone(), raw_blobs: read.raw_blobs.clone() };
+    let read = ProfileReadResult {
+        profiles: read.profiles.clone(),
+        raw_blobs: read.raw_blobs.clone(),
+        ..Default::default()
+    };
     let held = |at: &(Mode, u8)| {
         read.profiles.iter().any(|p| (p.mode, p.source_slot) == *at && !p.id.is_empty())
     };
@@ -362,7 +365,7 @@ mod tests {
         let mut dev = MockDevice::new()
             .with_model(&Pro3)
             .with_readiness(readiness)
-            .with_profiles(ProfileReadResult { profiles, raw_blobs });
+            .with_profiles(ProfileReadResult { profiles, raw_blobs, ..Default::default() });
         for def in xinput.iter().chain(&dinput) {
             let stream = Pro3.encode_macro_steps(&def.steps, def.mode).unwrap();
             let m = MacroSlot::new(def.macro_slot.unwrap()).unwrap();

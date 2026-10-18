@@ -1,7 +1,10 @@
 //! The stick pads of the step panel: where the selected step holds each stick and its
-//! glide. Also the Macros tab's bar for a stick whose dead zone hides the macro's moves. A pad drawn as a round gate maps to the square of
-//! values the way the step table's glyph does ([`disc`]).
+//! glide, or, on a controller that stores directions only, which direction. Also the
+//! Macros tab's bar for a stick whose dead zone hides the macro's moves. A pad drawn as a
+//! round gate maps to the square of values the way the step table's glyph does
+//! ([`disc`]).
 
+use controller_core::description::MacroSticks;
 use controller_core::model::glide::{axes, set_axes};
 use controller_core::model::macros::STICK_CENTER;
 use controller_core::model::{GlideControl, MacroStep};
@@ -24,6 +27,12 @@ const SNAP: f32 = 0.15;
 /// The 8 snap points on the rim: each full or rest value on each axis, centre left out.
 const RIM: [[u8; 2]; 8] =
     [[127, 0], [255, 0], [255, 127], [255, 255], [127, 255], [0, 255], [0, 127], [0, 0]];
+
+/// The positions a stick picks from on a controller that stores directions only: the
+/// centre, then the rim points from up clockwise. The direction picker in
+/// `step_panel.slint` names them in this order.
+const DIRECTIONS: [[u8; 2]; 9] =
+    [[STICK_CENTER, STICK_CENTER], RIM[0], RIM[1], RIM[2], RIM[3], RIM[4], RIM[5], RIM[6], RIM[7]];
 
 /// `u` from -1 to 1 as a value from 0 to 255, rest at 0.
 fn value(u: f32) -> u8 {
@@ -126,6 +135,13 @@ impl AppState {
         self.set_stick(n, step, stick, [i32::from(vx), i32::from(vy)], false);
     }
 
+    /// Sets stick `stick` of step `step` of macro slot `n` to entry `direction` of
+    /// [`DIRECTIONS`], as its own undo. An unknown direction changes nothing.
+    pub fn aim_stick(&mut self, n: u8, step: usize, stick: usize, direction: usize) {
+        let Some(&[x, y]) = DIRECTIONS.get(direction) else { return };
+        self.set_stick(n, step, stick, [i32::from(x), i32::from(y)], true);
+    }
+
     /// Turns the glide of stick `stick` of step `step` of macro slot `n` on or off. A
     /// glide that cannot play stays off.
     pub fn set_stick_glide(&mut self, n: u8, step: usize, stick: usize, on: bool) {
@@ -159,6 +175,11 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
                 label: label.into(),
                 value_x: i32::from(x),
                 value_y: i32::from(y),
+                direction: DIRECTIONS
+                    .iter()
+                    .position(|&d| d == [x, y])
+                    .and_then(|i| i32::try_from(i).ok())
+                    .unwrap_or(-1),
                 at: stick(&steps, step, control),
                 glide_label: glide_label.into(),
                 can_glide,
@@ -224,6 +245,7 @@ pub fn render_sticks(state: &AppState, ui: &AppWindow) {
     ui.set_floor_body(body.into());
     ui.set_floor_action(action.into());
     push_model(&ui.get_step_sticks(), stick_pads(state, n, at), |m| ui.set_step_sticks(m));
+    ui.set_stick_directions(state.description().macro_sticks == MacroSticks::Directions8);
 }
 
 #[cfg(test)]
@@ -369,5 +391,28 @@ mod tests {
             s.slot(XINPUT, 2).shown().unwrap().setting(f).and_then(serde_json::Value::as_i64)
         };
         assert_eq!((pct("/sticks/left_min_pct"), pct("/sticks/right_min_pct")), (Some(2), Some(1)));
+    }
+
+    #[test]
+    fn a_direction_sets_the_stick_to_full_deflection() {
+        use controller_core::devices::ultimate::XINPUT as ULTIMATE_XINPUT;
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.new_macro(0);
+        s.aim_stick(0, 0, 1, 3);
+        let step = s.slot(ULTIMATE_XINPUT, 1).shown_macro(0).unwrap().steps[0].clone();
+        assert_eq!(axes(&step, GlideControl::RightStick), [255, 127], "right");
+        assert_eq!(axes(&step, GlideControl::LeftStick), [127, 127]);
+        let pads = stick_pads(&s, 0, 0);
+        assert_eq!((pads[0].direction, pads[1].direction), (0, 3));
+        s.aim_stick(0, 0, 1, 8);
+        assert_eq!(stick_pads(&s, 0, 0)[1].direction, 8, "up left");
+        s.aim_stick(0, 0, 1, 9);
+        assert_eq!(stick_pads(&s, 0, 0)[1].direction, 8, "no such direction");
+    }
+
+    #[test]
+    fn an_analog_position_is_no_direction() {
+        let s = holding(vec![MacroStep { left_stick_x: 200, ..MacroStep::default() }]);
+        assert_eq!(stick_pads(&s, 0, 0)[0].direction, -1);
     }
 }

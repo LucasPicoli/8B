@@ -6,7 +6,7 @@ use std::rc::Rc;
 use slint::{ModelRc, VecModel};
 
 use crate::controllers::Controller;
-use crate::render::slot_name;
+use crate::render::{shown_name, slot_name};
 use crate::review::count;
 use crate::state::{AppState, SlotState};
 use crate::ui::{AppWindow, CloseGroup, CloseInfo, CloseSlot};
@@ -112,7 +112,7 @@ impl AppState {
                             .slots
                             .get(&(mode, n))
                             .and_then(SlotState::shown)
-                            .map(|p| p.name.as_str())
+                            .map(|p| shown_name(&p.name, n))
                             .unwrap_or_default()
                             .into(),
                     })

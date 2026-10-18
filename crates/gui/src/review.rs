@@ -18,7 +18,7 @@ use crate::buttons::{current, held_current, output_text};
 use crate::controllers::Controller;
 use crate::language::prose;
 use crate::macros::{descriptor, named, PadMacro};
-use crate::render::{and_list, slot_name};
+use crate::render::{and_list, shown_name, slot_name};
 use crate::settings::pages_of;
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, Change, ClearInfo, FailedInfo, ReviewInfo};
@@ -206,7 +206,7 @@ impl AppState {
             op: WriteOp::Upload {
                 profile,
                 drop_macros: state.dropped_buttons(),
-                macro_edits: state.macro_edits()?,
+                macro_edits: state.macro_edits(self.macro_names())?,
             },
         })
     }
@@ -304,6 +304,7 @@ impl AppState {
             return;
         }
         let glide_step_ms = self.description().limits.glide_step_ms;
+        let names = self.macro_names();
         if let Some(slot) = self.controller_mut(port).and_then(|c| c.slots.get_mut(&key)) {
             match job.op {
                 // A job with only macro edits leaves the profile. The written macros
@@ -318,7 +319,7 @@ impl AppState {
                             .into_iter()
                             .filter(|m| m.macro_slot.is_some())
                             .map(|m| PadMacro {
-                                def: descriptor(&named(m), glide_step_ms),
+                                def: descriptor(&named(m, names), glide_step_ms),
                                 loaded: false,
                             })
                             .collect();
@@ -402,19 +403,25 @@ impl AppState {
         // as the rows of the Write all review do.
         let [profile_flipped, macros_flipped] = self.write.review_flipped;
         let macros_first = changes.is_empty();
-        let macros_open = macros_first || state.touches_held_macro() || leftover > 0;
+        let macros_open =
+            macros_first || state.touches_held_macro(self.macro_names()) || leftover > 0;
         ReviewInfo {
             profile_open: !profile_flipped,
             macros_open: macros_open != macros_flipped,
             shown: true,
             slot_title: slot_name(self.description(), slot.0, slot.1).into(),
-            name: state.shown().map(|e| e.name.as_str()).unwrap_or_default().into(),
-            replaces: state.pad.as_ref().map(|p| p.name.as_str()).unwrap_or_default().into(),
+            name: state.shown().map(|e| shown_name(&e.name, slot.1)).unwrap_or_default().into(),
+            replaces: state
+                .pad
+                .as_ref()
+                .map(|p| shown_name(&p.name, slot.1))
+                .unwrap_or_default()
+                .into(),
             is_new: state.pad.is_none(),
             keeps_profile: state.pad.is_some() && !state.profile_unsaved(),
-            total: count(changes.len().saturating_add(state.macros_edited())),
+            total: count(changes.len().saturating_add(state.macros_edited(self.macro_names()))),
             changes: ModelRc::from(Rc::new(VecModel::from(changes))),
-            macros_stay: count(state.macros_kept()),
+            macros_stay: count(state.macros_kept(self.macro_names())),
             macro_changes: ModelRc::from(Rc::new(VecModel::from(lines))),
             leftover: count(leftover),
             problem: state

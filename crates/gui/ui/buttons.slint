@@ -222,12 +222,12 @@ export component ButtonsTab {
                                                 spoken: r.spoken-outputs;
                                                 current-index <=> r.output;
                                                 accessible-name: @tr("Output for {}", r.spoken);
-                                                accessible-description: r.unknown ? @tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.") : "";
+                                                accessible-description: r.unknown ? @tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.") : r.hint;
                                                 focused => { root.selected = i; }
                                                 selected => { root.output-picked(i, self.current-index); }
                                             }
                                         }
-                                        if r.unknown: Tooltip {
+                                        if r.unknown || r.hint != "": Tooltip {
                                             text: @markdown("\{output.accessible-description}");
                                         }
                                     }

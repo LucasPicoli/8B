@@ -22,18 +22,19 @@ pub fn steps_unread() -> String {
 }
 
 /// The export file of `slot`: the profile on screen, with the macros on screen in
-/// `macros` and no macro references. `None` for an empty slot.
+/// `macros` and no macro references. `names`: the controller's macros have names.
+/// `None` for an empty slot.
 ///
 /// # Errors
 /// Returns [`steps_unread`] while the slot's macro steps are being read, or why the
 /// profile could not be turned into JSON.
-pub fn export_file(slot: &SlotState) -> Option<Result<String, String>> {
+pub fn export_file(slot: &SlotState, names: bool) -> Option<Result<String, String>> {
     let mut profile = slot.shown()?.clone();
     let Some(macros) = slot.macros_as_shown() else {
         return Some(Err(steps_unread()));
     };
     profile.macro_refs.clear();
-    profile.macros = Some(macros.into_iter().map(named).collect());
+    profile.macros = Some(macros.into_iter().map(|d| named(d, names)).collect());
     Some(export_text(&profile))
 }
 
@@ -205,7 +206,7 @@ mod tests {
 
     /// The export of slot `number` of `mode`.
     fn export(s: &AppState, mode: Mode, number: u8) -> String {
-        export_file(&s.slot(mode, number)).unwrap().unwrap()
+        export_file(&s.slot(mode, number), true).unwrap().unwrap()
     }
 
     /// `text` with its `macros` replaced by `macros`.
@@ -245,10 +246,10 @@ mod tests {
     fn an_export_or_a_macro_import_waits_for_the_steps() {
         let mut s = held();
         let slot = s.controller_mut(PORT).unwrap().slots.get_mut(&(XINPUT, 2)).unwrap();
-        let text = export_file(slot).unwrap().unwrap();
+        let text = export_file(slot, true).unwrap().unwrap();
         slot.pad_macros[0] = PadMacro { loaded: false, ..slot.pad_macros[0].clone() };
-        assert_eq!(export_file(slot), Some(Err(steps_unread())));
-        assert_eq!(export_file(&s.slot(XINPUT, 3)), None, "an empty slot");
+        assert_eq!(export_file(slot, true), Some(Err(steps_unread())));
+        assert_eq!(export_file(&s.slot(XINPUT, 3), true), None, "an empty slot");
 
         let before = s.slot(XINPUT, 2);
         s.import((XINPUT, 2), "a.json", Ok(text));

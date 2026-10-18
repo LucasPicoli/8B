@@ -41,7 +41,8 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
                 Slot {
                     mode: gi,
                     number: i32::from(number),
-                    name: shown.map_or_else(SharedString::new, |p| p.name.as_str().into()),
+                    name: shown
+                        .map_or_else(SharedString::new, |p| shown_name(&p.name, number).into()),
                     empty: shown.is_none(),
                     // Every macro shown, so one that no button starts counts too.
                     macros: i32::try_from(shown.map_or(0, |_| slot.shown_macros().len()))
@@ -58,21 +59,19 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
         .collect()
 }
 
-/// The line under the controller name in the sidebar.
+/// The line under the controller name in the sidebar. A connected controller that
+/// reports its firmware shows it in place of "over USB", the only link 8B supports, so
+/// the line fits the sidebar.
 #[must_use]
 pub fn device_status(state: &AppState) -> String {
     let failed = state.shown().is_some_and(|c| c.read_error.is_some());
-    match state.current_mode() {
-        None => tr!("Not connected"),
-        Some(mode) if state.reading() => {
-            tr!("Reading over USB · {mode}", mode = state.description().mode_label(mode))
-        }
-        Some(mode) if failed => {
-            tr!("Could not read · {mode}", mode = state.description().mode_label(mode))
-        }
-        Some(mode) => {
-            tr!("Connected over USB · {mode}", mode = state.description().mode_label(mode))
-        }
+    let Some(mode) = state.current_mode() else { return tr!("Not connected") };
+    let mode = state.description().mode_label(mode);
+    match state.firmware() {
+        _ if state.reading() => tr!("Reading over USB · {mode}", mode = mode),
+        _ if failed => tr!("Could not read · {mode}", mode = mode),
+        "" => tr!("Connected over USB · {mode}", mode = mode),
+        version => tr!("Connected · {mode} · Firmware {version}", mode = mode, version = version),
     }
 }
 
@@ -104,10 +103,34 @@ pub fn changed_slots(state: &AppState) -> Vec<String> {
         .changed_slots()
         .into_iter()
         .map(|(mode, n)| {
-            let name = state.slot(mode, n).shown().map(|p| p.name.clone()).unwrap_or_default();
+            let name =
+                state.slot(mode, n).shown().map(|p| shown_name(&p.name, n)).unwrap_or_default();
             tr!("{slot} · {name}", slot = slot_name(state.description(), mode, n), name = name)
         })
         .collect()
+}
+
+/// A profile's name as shown: `name`, or "Profile 2" for slot 2 when it has none.
+#[must_use]
+pub fn shown_name(name: &str, number: u8) -> String {
+    if name.trim().is_empty() {
+        tr!("Profile {n}", n = number)
+    } else {
+        name.to_owned()
+    }
+}
+
+/// The name in the header of the selected slot: the text of its name field, or the name
+/// as shown when the model cannot rename a profile. Empty for an empty slot.
+#[must_use]
+pub fn profile_name(state: &AppState) -> String {
+    let Some((mode, n)) = state.selected_slot() else { return String::new() };
+    let Some(profile) = state.slot(mode, n).shown().cloned() else { return String::new() };
+    if state.description().profile_rename {
+        profile.name
+    } else {
+        shown_name(&profile.name, n)
+    }
 }
 
 /// The title of the selected slot, such as `XInput slot 2`.
@@ -197,11 +220,11 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_slot_title(slot_title(state).into());
     ui.set_empty_slot(selected_empty(state));
     let selected = state.selected_slot().map(|(m, n)| state.slot(m, n));
-    let name =
-        selected.as_ref().and_then(|s| s.shown()).map(|p| p.name.as_str()).unwrap_or_default();
+    let name = profile_name(state);
     if ui.get_profile_name() != name {
         ui.set_profile_name(name.into());
     }
+    ui.set_can_rename(state.description().profile_rename);
     ui.set_name_max(state.description().limits.profile_name_length.max);
     ui.set_unsaved(selected.is_some_and(|s| s.unsaved()));
     render_buttons(state, ui);
@@ -390,5 +413,31 @@ mod tests {
         assert!(selected_empty(&s));
         s.presence(PORT, None);
         assert_eq!(device_status(&s), "Not connected");
+    }
+
+    #[test]
+    fn the_status_line_shows_a_reported_firmware() {
+        let mut s = crate::state::tests::ultimate("1.09");
+        assert_eq!(device_status(&s), "Connected · XInput · Firmware 1.09");
+        s.read_started(PORT);
+        assert_eq!(device_status(&s), "Reading over USB · XInput", "a read keeps its text");
+        let s = crate::state::tests::ultimate("");
+        assert_eq!(device_status(&s), "Connected over USB · XInput", "none reported");
+    }
+
+    #[test]
+    fn an_unnamed_profile_shows_its_slot_number() {
+        use controller_core::devices::ultimate::XINPUT;
+        let mut s = crate::state::tests::ultimate("1.09");
+        let first = groups(&s)[0].slots.row_data(0).unwrap();
+        assert_eq!((first.name.as_str(), first.empty), ("Profile 1", false));
+        assert!(groups(&s)[0].slots.row_data(1).unwrap().name.is_empty(), "an empty slot");
+        assert_eq!(profile_name(&s), "Profile 1");
+        s.set_name("Racing");
+        assert_eq!(s.slot(XINPUT, 1).shown().unwrap().name, "", "no rename on this model");
+        s.select(0, 1);
+        s.start_from_default();
+        assert_eq!(s.slot(XINPUT, 2).shown().unwrap().name, "", "a new profile has no name");
+        assert_eq!(profile_name(&s), "Profile 2");
     }
 }

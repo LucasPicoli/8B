@@ -247,7 +247,11 @@ fn read_all_banks(session: &mut Session) -> Result<ProfileReadResult> {
     }
 
     select_current_bank(session)?;
-    Ok(ProfileReadResult { profiles, raw_blobs })
+    Ok(ProfileReadResult {
+        profiles,
+        raw_blobs,
+        firmware_version: session.firmware_version.clone(),
+    })
 }
 
 // ---------------------------------------------------------------------------

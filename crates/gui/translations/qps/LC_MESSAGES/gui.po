@@ -720,30 +720,6 @@ msgstr "⟦~~~~{}, held⟧"
 msgid "{}, not held"
 msgstr "⟦~~~~~{}, not held⟧"
 
-#: ui/macros.slint
-msgid "Cannot be written"
-msgstr "⟦~~~~~~~Cannot be written⟧"
-
-#: ui/macros.slint
-msgid "A stick move may not play"
-msgstr "⟦~~~~~~~~~~A stick move may not play⟧"
-
-#: ui/macros.slint src/files.rs src/macro_files.rs
-msgid "Import macro…"
-msgstr "⟦~~~~~~Import macro…⟧"
-
-#: ui/macros.slint src/macro_files.rs
-msgid "Export macro…"
-msgstr "⟦~~~~~~Export macro…⟧"
-
-#: ui/macros.slint
-msgid "Revert"
-msgstr "⟦~~~Revert⟧"
-
-#: ui/macros.slint
-msgid "Delete"
-msgstr "⟦~~~Delete⟧"
-
 #: ui/macros.slint src/review.rs
 msgid "Name"
 msgstr "⟦~~Name⟧"
@@ -751,18 +727,6 @@ msgstr "⟦~~Name⟧"
 #: ui/macros.slint
 msgid "Macro name"
 msgstr "⟦~~~~Macro name⟧"
-
-#: ui/macros.slint
-msgid "Starts with"
-msgstr "⟦~~~~~Starts with⟧"
-
-#: ui/macros.slint
-msgid "Remove {}"
-msgstr "⟦~~~~Remove {}⟧"
-
-#: ui/macros.slint
-msgid "Add a button"
-msgstr "⟦~~~~~Add a button⟧"
 
 #: ui/macros.slint
 msgid "Plays"
@@ -787,6 +751,42 @@ msgstr "⟦~~Times⟧"
 #: ui/macros.slint
 msgid "times"
 msgstr "⟦~~times⟧"
+
+#: ui/macros.slint
+msgid "Cannot be written"
+msgstr "⟦~~~~~~~Cannot be written⟧"
+
+#: ui/macros.slint
+msgid "A stick move may not play"
+msgstr "⟦~~~~~~~~~~A stick move may not play⟧"
+
+#: ui/macros.slint src/files.rs src/macro_files.rs
+msgid "Import macro…"
+msgstr "⟦~~~~~~Import macro…⟧"
+
+#: ui/macros.slint src/macro_files.rs
+msgid "Export macro…"
+msgstr "⟦~~~~~~Export macro…⟧"
+
+#: ui/macros.slint
+msgid "Revert"
+msgstr "⟦~~~Revert⟧"
+
+#: ui/macros.slint
+msgid "Delete"
+msgstr "⟦~~~Delete⟧"
+
+#: ui/macros.slint
+msgid "Starts with"
+msgstr "⟦~~~~~Starts with⟧"
+
+#: ui/macros.slint
+msgid "Remove {}"
+msgstr "⟦~~~~Remove {}⟧"
+
+#: ui/macros.slint
+msgid "Add a button"
+msgstr "⟦~~~~~Add a button⟧"
 
 #: ui/macros.slint
 msgid "Interval"
@@ -1044,6 +1044,7 @@ msgstr "⟦~~~~Controller⟧"
 msgid "Current mode"
 msgstr "⟦~~~~~Current mode⟧"
 
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
 #: ui/step_panel.slint
 msgid "Centre"
 msgstr "⟦~~~Centre⟧"
@@ -1083,6 +1084,46 @@ msgstr "⟦~~~~~~~~~~~~{}, snap to edges and corners⟧"
 #: ui/step_panel.slint
 msgid "Step {} of {}"
 msgstr "⟦~~~~~~Step {} of {}⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Up"
+msgstr "⟦~Up⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Up right"
+msgstr "⟦~~~~Up right⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Right"
+msgstr "⟦~~Right⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Down right"
+msgstr "⟦~~~~Down right⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Down"
+msgstr "⟦~~Down⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Down left"
+msgstr "⟦~~~~Down left⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Left"
+msgstr "⟦~~Left⟧"
+
+#. In the order of `DIRECTIONS` in `stick_pad.rs`.
+#: ui/step_panel.slint
+msgid "Up left"
+msgstr "⟦~~~Up left⟧"
 
 #: ui/steps.slint
 msgid "Step {}, starts at {}, pause, lasts {}"
@@ -1908,6 +1949,10 @@ msgid "Connected over USB · {mode}"
 msgstr "⟦~~~~~~~~~~~Connected over USB · {mode}⟧"
 
 #: src/render.rs
+msgid "Connected · {mode} · Firmware {version}"
+msgstr "⟦~~~~~~~~~~~~~~~~Connected · {mode} · Firmware {version}⟧"
+
+#: src/render.rs
 msgid "{controller} · edits in {n} slot"
 msgid_plural "{controller} · edits in {n} slots"
 msgstr[0] "⟦~~~~~~~~~~~~~{controller} · edits in {n} slot⟧"
@@ -1916,6 +1961,10 @@ msgstr[1] "⟦~~~~~~~~~~~~~~{controller} · edits in {n} slots⟧"
 #: src/render.rs
 msgid "{slot} · {name}"
 msgstr "⟦~~~~~~{slot} · {name}⟧"
+
+#: src/render.rs
+msgid "Profile {n}"
+msgstr "⟦~~~~~Profile {n}⟧"
 
 #: src/render.rs
 msgid "{mode} slot {n}"
@@ -2094,6 +2143,20 @@ msgstr "⟦~~~~~~~~~{low} to {high}{unit}⟧"
 #: src/settings.rs
 msgid "{low} of {max}"
 msgstr "⟦~~~~~~{low} of {max}⟧"
+
+#: src/settings.rs
+msgid "{item} (firmware {min} or later)"
+msgstr "⟦~~~~~~~~~~~~~{item} (firmware {min} or later)⟧"
+
+#: src/settings.rs
+msgid "8B could not read the firmware version, so it hides: {items}."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~8B could not read the firmware version, so it "
+"hides: {items}.⟧"
+
+#: src/settings.rs
+msgid "Firmware {min} or later adds: {items}."
+msgstr "⟦~~~~~~~~~~~~~~~~Firmware {min} or later adds: {items}.⟧"
 
 #: src/step_table.rs
 msgid "x {x}, y {y}"
@@ -2725,15 +2788,55 @@ msgstr "⟦~~~~~~8BitDo Ultimate⟧"
 msgid "Ultimate"
 msgstr "⟦~~~~Ultimate⟧"
 
+#. Ultimate /modes/0/extra_outputs/0/hint
+#. Ultimate /modes/1/extra_outputs/0/hint
+msgid "Hold a button and press this one to turn turbo on or off for it."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~Hold a button and press this one to turn turbo on "
+"or off for it.⟧"
+
 #. Ultimate /modes/0/extra_outputs/1/label
 #. Ultimate /modes/1/extra_outputs/1/label
 msgid "Auto turbo"
 msgstr "⟦~~~~Auto turbo⟧"
 
+#. Ultimate /modes/0/extra_outputs/1/hint
+#. Ultimate /modes/1/extra_outputs/1/hint
+msgid ""
+"Hold a button and press this one: it fires on its own until you do it again."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Hold a button and press this one: it fires "
+"on its own until you do it again.⟧"
+
 #. Ultimate /modes/0/extra_outputs/2/label
 #. Ultimate /modes/1/extra_outputs/2/label
 msgid "Swap"
 msgstr "⟦~~Swap⟧"
+
+#. Ultimate /modes/0/extra_outputs/2/hint
+msgid ""
+"Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold "
+"one of them and press it again to undo."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Hold two of A, B, X, Y, LB, "
+"RB, LS, RS and press this one to swap them. Hold one of them and press it "
+"again to undo.⟧"
+
+#. Ultimate /modes/0/extra_outputs/2/leaving_hint
+#. Ultimate /modes/1/extra_outputs/2/leaving_hint
+msgid "A swap you made stays until you undo it with a Swap button."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~A swap you made stays until you undo it with a Swap "
+"button.⟧"
+
+#. Ultimate /modes/1/extra_outputs/2/hint
+msgid ""
+"Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold "
+"one of them and press it again to undo."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Hold two of A, B, X, Y, L, R, "
+"LS, RS and press this one to swap them. Hold one of them and press it again "
+"to undo.⟧"
 
 #. Ultimate /buttons/12/labels/switch
 #. Ultimate /buttons/12/labels/xinput

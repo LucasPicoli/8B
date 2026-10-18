@@ -1,7 +1,7 @@
 // The Sticks, Triggers and Vibration tabs: frames of sliders and check boxes. Rust
 // sends the frames, so the markup names no profile field.
 import { Theme, Slider, CheckBox } from "look/breeze/widgets.slint";
-import { Frame, Dot, SmallHead, RangeSlider } from "parts.slint";
+import { Frame, Dot, Icons, SmallHead, RangeSlider } from "parts.slint";
 import { SettingsPage } from "types.slint";
 
 export component SettingsTab {
@@ -81,6 +81,27 @@ export component SettingsTab {
                         }
                     }
                 }
+            }
+        }
+        if root.page.note != "": HorizontalLayout {
+            spacing: 6px;
+            alignment: start;
+            VerticalLayout {
+                alignment: start;
+                padding-top: 2px;
+                Image {
+                    width: 14px;
+                    height: 14px;
+                    source: Icons.info;
+                    colorize: Theme.fg-muted;
+                    accessible-role: none;
+                }
+            }
+            Text {
+                text: root.page.note;
+                font-size: Theme.text-small;
+                color: Theme.fg-muted;
+                wrap: word-wrap;
             }
         }
     }
