@@ -51,6 +51,16 @@ pub struct ConfigPort {
     pub match_vendor: bool,
 }
 
+/// A request the session sends as it is, outside the config framing, and the first two
+/// bytes of the report that answers it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RawRequest {
+    /// The output report as it goes on the wire, zero padded.
+    pub wire: [u8; PACKET_LEN],
+    /// The first two bytes of the reply. Every other report is skipped.
+    pub reply_head: [u8; 2],
+}
+
 /// A controller model's description, its blob size and its transport.
 ///
 /// The methods with a default carry the bytes of the 8BitDo config protocol, which
@@ -67,9 +77,9 @@ pub trait ControllerSpec {
     fn blob_size(&self) -> usize;
     /// The argument the apply command (`0x06`) carries, such as `0x0123`.
     fn apply_argument(&self) -> u16;
-    /// Normal-layout packet that asks for the firmware version. `None`, the default,
-    /// reads it from the `START_CONFIG` reply instead.
-    fn firmware_request(&self) -> Option<[u8; PACKET_LEN]> {
+    /// The request that asks for the firmware version, sent as it is. `None`, the
+    /// default, reads it from the `START_CONFIG` reply instead.
+    fn firmware_request(&self) -> Option<RawRequest> {
         None
     }
     /// Reads the firmware version, such as `1.04`, from the reply to
@@ -79,6 +89,13 @@ pub trait ControllerSpec {
     /// Returns [`crate::Error::Decode`] if the reply is too short.
     fn firmware_version(&self, reply: &[u8]) -> Result<String> {
         crate::protocol::wire::decode_firmware_version(reply)
+    }
+    /// Whether every profile write is read back and compared, decoded, with what was
+    /// sent, and rolled back on a difference. Set it for a pad that checks no CRC of
+    /// its own, so a corrupted chunk shows only in the read-back. `false`, the default,
+    /// trusts each acknowledged chunk.
+    fn read_back_writes(&self) -> bool {
+        false
     }
     /// Value sent in the slot-select command (`0x14`) to target `mode`'s slots.
     ///

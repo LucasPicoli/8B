@@ -14,7 +14,7 @@ use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::io::Errno;
 
 use crate::detect::{config_hidraw, scan_sysfs_all, DetectedUsb};
-use crate::device::Model;
+use crate::device::{Model, RawRequest};
 use crate::devices::{config_ports, find_model, find_model_by_port, models};
 use crate::error::{Error, Result};
 use crate::model::Mode;
@@ -152,8 +152,12 @@ impl Session {
         };
         session.model = Some(model);
         let firmware_reply = match (model.firmware_request(), start_reply) {
-            (Some(request), None) => Some(session.first_reply(&request)?),
-            (Some(request), Some(_)) => Some(session.send_recv(&request)?),
+            (Some(request), None) => Some(
+                session
+                    .send_raw(&request)
+                    .inspect_err(|_| session.paused = session.framing != Framing::Wrapped)?,
+            ),
+            (Some(request), Some(_)) => Some(session.send_raw(&request)?),
             (None, start_reply) => start_reply,
         };
         if let Some(reply) = firmware_reply {
@@ -203,7 +207,12 @@ impl Session {
     }
 
     fn write(&mut self, packet: &[u8; PACKET_LEN]) -> Result<()> {
-        self.last_sent = self.framing.request(packet);
+        self.write_wire(self.framing.request(packet))
+    }
+
+    /// Writes `wire` as it is.
+    fn write_wire(&mut self, wire: [u8; PACKET_LEN]) -> Result<()> {
+        self.last_sent = wire;
         trace!("out {}", hex(&self.last_sent));
         self.file.write_all(&self.last_sent).map_err(|e| io_error(&e))
     }
@@ -242,10 +251,38 @@ impl Session {
     /// [`Error::Disconnected`] when the device goes away, and [`Error::Usb`] on
     /// any other I/O failure.
     pub(super) fn send_recv(&mut self, packet: &[u8; PACKET_LEN]) -> Result<Vec<u8>> {
+        let framing = self.framing;
+        self.send_wire(packet, framing.request(packet), |raw| framing.reply(raw, packet))
+    }
+
+    /// Sends `request` as it is, outside the framing, and returns the first report that
+    /// starts with its reply head, zero padded to a packet.
+    ///
+    /// # Errors
+    /// The errors of [`Self::send_recv`].
+    fn send_raw(&mut self, request: &RawRequest) -> Result<Vec<u8>> {
+        let reply = |raw: &[u8]| {
+            raw.starts_with(&request.reply_head).then(|| {
+                let mut reply = raw.to_vec();
+                reply.resize(PACKET_LEN, 0);
+                reply
+            })
+        };
+        self.send_wire(&request.wire, request.wire, reply)
+    }
+
+    /// The logging of [`Self::send_recv`] around writing `wire`, the frame of `packet`,
+    /// and waiting for the report `reply` takes.
+    fn send_wire(
+        &mut self,
+        packet: &[u8; PACKET_LEN],
+        wire: [u8; PACKET_LEN],
+        reply: impl Fn(&[u8]) -> Option<Vec<u8>>,
+    ) -> Result<Vec<u8>> {
         let start = Instant::now();
         let mut skipped = 0usize;
         self.last_received = None;
-        let result = self.exchange(packet, &mut skipped);
+        let result = self.exchange(wire, reply, &mut skipped);
         match &result {
             Ok(_) => debug!(
                 "command 0x{:02x} ok in {} ms, {skipped} other reports skipped",
@@ -257,9 +294,14 @@ impl Session {
         result
     }
 
-    /// The send and the wait of [`Self::send_recv`]; counts the reports it skips.
-    fn exchange(&mut self, packet: &[u8; PACKET_LEN], skipped: &mut usize) -> Result<Vec<u8>> {
-        self.write(packet)?;
+    /// The send and the wait of [`Self::send_wire`]; counts the reports it skips.
+    fn exchange(
+        &mut self,
+        wire: [u8; PACKET_LEN],
+        reply: impl Fn(&[u8]) -> Option<Vec<u8>>,
+        skipped: &mut usize,
+    ) -> Result<Vec<u8>> {
+        self.write_wire(wire)?;
         let deadline = Instant::now() + self.timeout;
         let mut buf = [0u8; PACKET_LEN];
         loop {
@@ -274,7 +316,7 @@ impl Session {
             let raw = buf.get(..n).unwrap_or(&buf);
             trace!("in {}", hex(raw));
             self.last_received = Some(raw.to_vec());
-            if let Some(reply) = self.framing.reply(raw, packet) {
+            if let Some(reply) = reply(raw) {
                 return Ok(reply);
             }
             *skipped += 1;
@@ -397,6 +439,7 @@ mod tests {
     use crate::device::{ConfigPort, ControllerSpec as _};
     use crate::devices::pro3::{Pro3, DINPUT};
     use crate::devices::test_pad::TestPad;
+    use crate::devices::ultimate::Ultimate;
     use crate::protocol::wire_write::build_write_packet;
 
     /// Keeps every record, so a test can read back what the session logged.
@@ -482,7 +525,7 @@ mod tests {
             sysfs_path: String::new(),
             port,
         };
-        let models: [&'static dyn Model; 2] = [&Pro3, &TestPad];
+        let models: [&'static dyn Model; 3] = [&Pro3, &TestPad, &Ultimate];
         let file = File::from(std::os::fd::OwnedFd::from(ours));
         let opened = Session::start(file, &found, &models, Duration::from_secs(2)).and_then(|s| {
             Ok((s.model()?.description()?.short_name.clone(), s.firmware_version.clone()))
@@ -494,11 +537,27 @@ mod tests {
     fn a_model_named_by_its_port_opens_without_start_config() -> Result<()> {
         let request = TestPad.firmware_request().unwrap();
         let mut reply = vec![0u8; PACKET_LEN];
-        reply[..5].copy_from_slice(&[0x02, 0x04, 1, 7, request[2]]);
+        reply[..4].copy_from_slice(&[0x02, 0x22, 1, 7]);
         let (opened, heads) = start_scripted(TestPad.description()?.config_ports[0], reply);
         assert_eq!(opened?, ("Test Pad".to_owned(), "1.07".to_owned()));
         let pause = build_input_stream(false)[..4].to_vec();
-        assert_eq!(heads, [pause.clone(), request[..4].to_vec(), pause]);
+        assert_eq!(heads, [pause.clone(), request.wire[..4].to_vec(), pause]);
+        Ok(())
+    }
+
+    /// The Ultimate's config port names it, and its firmware request goes out as the
+    /// pad takes it, outside the length framing of its other packets.
+    #[test]
+    fn the_ultimate_opens_on_its_port_and_reads_its_firmware() -> Result<()> {
+        let hex = include_str!("../../../../fixtures/ultimate/firmware-reply.txt").trim();
+        let reply: Vec<u8> = (0..hex.len())
+            .step_by(2)
+            .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+            .collect();
+        let (opened, heads) = start_scripted(Ultimate.description()?.config_ports[0], reply);
+        assert_eq!(opened?, ("Ultimate".to_owned(), "1.09".to_owned()));
+        let pause = [0x81, 0x11, 0x04, 0x07].to_vec();
+        assert_eq!(heads, [pause.clone(), [0x81, 0x05, 0x00, 0x21].to_vec(), pause]);
         Ok(())
     }
 

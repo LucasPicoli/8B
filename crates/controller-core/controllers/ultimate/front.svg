@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 356">
+  <rect x="24" y="40" width="452" height="280" rx="60" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="l3" cx="120" cy="120" r="34" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <rect data-button="d-pad up" x="180" y="184" width="20" height="24" rx="4" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <rect data-button="d-pad down" x="180" y="232" width="20" height="24" rx="4" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <rect data-button="d-pad left" x="154" y="210" width="24" height="20" rx="4" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <rect data-button="d-pad right" x="202" y="210" width="24" height="20" rx="4" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="top face" cx="380" cy="90" r="14" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="bottom face" cx="380" cy="150" r="14" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="left face" cx="350" cy="120" r="14" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="right face" cx="410" cy="120" r="14" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="r3" cx="310" cy="220" r="34" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="select/back" cx="210" cy="110" r="9" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="start/menu" cx="290" cy="110" r="9" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="star" cx="250" cy="80" r="9" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="home/guide" cx="250" cy="140" r="11" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+</svg>

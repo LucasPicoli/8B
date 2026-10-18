@@ -1,7 +1,8 @@
 //! Write orchestrator: the one pipeline behind upload, deactivate, remap and the patches.
 //!
 //! Every operation reads the slot back first, builds the new blob from that readback,
-//! then does slot select, write, apply, with rollback if the write fails. Building from
+//! then does slot select, write, apply, with rollback if the write fails or, for a model
+//! that reads its writes back, if the controller then holds something else. Building from
 //! the readback is what keeps the other slots intact, and the macro handling in
 //! [`ProtocolCodec::compile_profile_keep_macros`] keeps the target slot's macros.
 
@@ -11,10 +12,10 @@ use serde_json::Value;
 
 use crate::device::Model;
 use crate::error::{Error, ErrorCategory, Result};
-use crate::model::{CanonicalProfile, Mode, Slot, WriteResult};
+use crate::model::{CanonicalProfile, Mode, RawProfilePayload, Slot, WriteResult};
 use crate::service::validation::validate_profile;
 use crate::service::{
-    attempt_rollback, readback_and_confirm, ConfirmPolicy, FailedWrite, ReadbackResult,
+    attempt_rollback, bank_of, readback_and_confirm, ConfirmPolicy, FailedWrite, ReadbackResult,
 };
 use crate::transport::device_io::DeviceIo;
 
@@ -263,7 +264,63 @@ impl<'a> ProfileWriteOrchestrator<'a> {
                 format!("Write succeeded but APPLY failed: {e}"),
             );
         }
+        if self.model.read_back_writes() {
+            match self.read_back_slot(mode, blob) {
+                Ok(None) => {}
+                Ok(Some(differs)) => {
+                    let mut result = attempt_rollback(
+                        self.dev,
+                        mode,
+                        slot,
+                        backup,
+                        was_active,
+                        FailedWrite::default(),
+                        self.backup_dir,
+                    );
+                    result.message = format!(
+                        "Read-back check failed: slot {} on the controller differs from what \
+                         was written. {}",
+                        differs.get(),
+                        result.message
+                    );
+                    return result;
+                }
+                Err(e) => {
+                    return fail(
+                        ErrorCategory::WriteFailure,
+                        format!("Write succeeded but the read-back check failed: {e}"),
+                    )
+                }
+            }
+        }
         WriteResult::success(mode, slot, done)
+    }
+
+    /// Reads `mode`'s bank back and returns the first slot whose profile or macros,
+    /// decoded, differ from those of `sent`. A slot that does not decode differs.
+    fn read_back_slot(&self, mode: Mode, sent: &[u8]) -> Result<Option<Slot>> {
+        let read = self.dev.read_all_profiles()?;
+        let held = bank_of(self.model, &read, mode)?;
+        let model = self.model;
+        let decode = |blob: &[u8], slot: Slot| {
+            let active = model.slot_active(blob, slot).ok()?;
+            let raw = RawProfilePayload {
+                payload: blob.to_vec(),
+                source_slot: slot.get(),
+                source_profile_index: slot.get() - 1,
+                mode_hint: mode,
+            };
+            let profile = if active { Some(model.map_profile(&raw).ok()?.canonical) } else { None };
+            Some((profile, model.decode_macro_metadata(blob, slot).ok()?))
+        };
+        for n in 1..=model.description()?.slot_count {
+            let slot = Slot::new(n)?;
+            let want = decode(sent, slot);
+            if want.is_none() || want != decode(held, slot) {
+                return Ok(Some(slot));
+            }
+        }
+        Ok(None)
     }
 }
 

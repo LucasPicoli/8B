@@ -20,7 +20,7 @@ use crate::transport::{DeviceIo, HidrawDevice};
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
 
 /// Every supported controller model.
-static MODELS: [&dyn Model; 1] = [&pro3::Pro3];
+static MODELS: [&dyn Model; 2] = [&pro3::Pro3, &ultimate::Ultimate];
 
 /// Every supported controller model, in registry order.
 #[must_use]

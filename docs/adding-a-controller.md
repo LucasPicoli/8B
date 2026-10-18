@@ -368,11 +368,18 @@ The model supplies:
    the macros decoded from the blob, steps included. The tests in
    `devices/inline_pad.rs` check this on a mock.
 4. The `ControllerSpec` values. `apply_argument` is required: the argument the apply
-   command (`0x06`) carries, `0x0123` on the Pro 3. `firmware_request` and
-   `firmware_version` read the firmware: the request to send and how to read the
-   version from its reply. By default no request goes out, and the version comes
-   from the `START_CONFIG` reply, as on the Pro 3. A model with empty `model_ids`
-   gets no `START_CONFIG`, so it sets both, or its firmware shows as unknown. The
+   command (`0x06`) carries, `0x0123` on the Pro 3 and `0x0015` on the Ultimate.
+   `firmware_request` and `firmware_version` read the firmware: the request and how
+   to read the version from its reply. The request is a `RawRequest`: the report as
+   it goes on the wire, which the session sends without its framing, and the first
+   two bytes of the reply, which pick the reply out of the other reports. The
+   Ultimate sends `81 05 00 21 01` and takes the reply that starts `02 22`. By
+   default no request goes out, and the version comes from the `START_CONFIG`
+   reply, as on the Pro 3. A model with empty `model_ids` gets no `START_CONFIG`,
+   so it sets both, or its firmware shows as unknown. `read_back_writes`, `false` by
+   default, reads every profile write back and compares each slot's profile and
+   macros, decoded, with what was sent; a difference rolls the write back. The
+   Ultimate sets it, because it stores a chunk whose CRC is wrong. The
    per-mode values: `slot_select_value`, `macro_gamepad_mode`,
    `mode_flip_command`, `mode_close_command`. `slot_select_value` and
    `macro_gamepad_mode` refuse a mode the model does not have, and by default they

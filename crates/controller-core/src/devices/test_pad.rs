@@ -16,7 +16,7 @@ use std::sync::LazyLock;
 
 use crate::description::ControllerDescription;
 use crate::detect::ACTIVE_SLOT_MARKER;
-use crate::device::{ControllerSpec, ProtocolCodec};
+use crate::device::{ControllerSpec, ProtocolCodec, RawRequest};
 use crate::error::{Error, Result};
 use crate::model::profile::canonical_id;
 use crate::model::{
@@ -38,6 +38,8 @@ const NAME_OFFSET: usize = 0x20;
 const NAME_LEN: usize = 16;
 /// Head of the made-up firmware request.
 const FIRMWARE_REQUEST: [u8; 4] = [0x81, 0x04, 0x21, 0x00];
+/// Head of the made-up firmware reply.
+const FIRMWARE_REPLY: [u8; 2] = [0x02, 0x22];
 
 /// The made-up controller.
 #[derive(Debug, Clone, Copy, Default)]
@@ -79,10 +81,10 @@ impl ControllerSpec for TestPad {
     fn apply_argument(&self) -> u16 {
         0x0123
     }
-    fn firmware_request(&self) -> Option<[u8; PACKET_LEN]> {
-        let mut p = [0u8; PACKET_LEN];
-        p[..4].copy_from_slice(&FIRMWARE_REQUEST);
-        Some(p)
+    fn firmware_request(&self) -> Option<RawRequest> {
+        let mut wire = [0u8; PACKET_LEN];
+        wire[..4].copy_from_slice(&FIRMWARE_REQUEST);
+        Some(RawRequest { wire, reply_head: FIRMWARE_REPLY })
     }
     /// The major and minor version sit at reply bytes 2 and 3.
     fn firmware_version(&self, reply: &[u8]) -> Result<String> {

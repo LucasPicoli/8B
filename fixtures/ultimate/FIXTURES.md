@@ -12,6 +12,10 @@ compare skips the blob CRC at `0x00C`..`0x00F`, which the pad does not check.
 - `switch-erased.bin`: the Switch image before any save. Every byte is `ff` except
   the image's mode (`00 00`) and the selection (`06 00`).
 
+- `firmware-reply.txt`: the pad's reply to the firmware request `81 05 00 21 01`, in
+  hex, from a USB capture of the vendor app. Bytes 2 and 3, `6d 00`, are the version
+  times 100: 1.09.
+
 ## Saved by the vendor app
 
 Each file is the full image of one save, rebuilt from its 37 write packets in a USB
