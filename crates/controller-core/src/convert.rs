@@ -81,7 +81,7 @@ pub fn convert_profile(
         let target = mapping.target.as_str();
         let exists = target == DISABLED_OUTPUT
             || description.button(target).is_some()
-            || mode.extra_outputs.iter().any(|o| o.id == target);
+            || mode.extra_outputs.iter().any(|o| o.id == target && o.allows(&mapping.source));
         if !exists {
             losses.push(ConversionLoss::OutputDisabled {
                 source: mapping.source.clone(),

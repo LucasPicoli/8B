@@ -386,7 +386,7 @@ mod tests {
             range(&profile, &format!("{props}/name"), "minLength", "maxLength")
         );
         assert_eq!(
-            pair(l.macro_name_length),
+            pair(l.macro_name_length.unwrap()),
             range(&macro_, &format!("{props}/name"), "minLength", "maxLength")
         );
         let steps = range(&macro_, &format!("{props}/steps"), "minItems", "minItems");
@@ -396,12 +396,12 @@ mod tests {
             range(&macro_, &format!("{defs}/Step/properties/duration_ms"), "minimum", "maximum")
         );
         assert_eq!(
-            pair(l.macro_interval_ms),
+            pair(l.macro_interval_ms.unwrap()),
             range(&macro_, &format!("{defs}/Repeat/properties/interval_ms"), "minimum", "maximum")
         );
         let count = format!("{defs}/Repeat/properties/count");
         let count = range(&macro_, &count, "minimum", "minimum");
-        assert_eq!(l.macro_repeat_count.min, count.0, "the schema also holds continuous");
+        assert_eq!(l.macro_repeat_count.unwrap().min, count.0, "the schema also holds continuous");
         let d = Pro3.description().unwrap();
         let slots = i32::from(d.macro_slot_count);
         let embedded = format!("{props}/macros");
@@ -447,11 +447,12 @@ mod tests {
 
         let d = Pro3.description().unwrap();
         let l = d.limits;
+        let (interval, count) = (l.macro_interval_ms.unwrap(), l.macro_repeat_count.unwrap());
         assert_eq!((l.macro_step_ms.min, l.macro_step_ms.max), (0, i32::from(u16::MAX)));
-        assert_eq!((l.macro_interval_ms.min, l.macro_interval_ms.max), (0, i32::from(u16::MAX)));
-        assert_eq!((l.macro_repeat_count.min, l.macro_repeat_count.max), (1, 99));
-        assert!(u32::try_from(l.macro_repeat_count.max).unwrap() < REPEAT_CONTINUOUS);
-        assert!((1..=l.macro_step_ms.max).contains(&i32::from(l.glide_step_ms)));
+        assert_eq!((interval.min, interval.max), (0, i32::from(u16::MAX)));
+        assert_eq!((count.min, count.max), (1, 99));
+        assert!(u32::try_from(count.max).unwrap() < REPEAT_CONTINUOUS);
+        assert!((1..=l.macro_step_ms.max).contains(&i32::from(l.glide_step_ms.unwrap())));
 
         // 408 is the pad's cap: at 409 the steps fill the page and XInput and DInput
         // play a stray trigger at the end (`hardware_macro_probe`, case `count`).

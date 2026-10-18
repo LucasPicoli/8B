@@ -4,7 +4,8 @@
 //! files. [`expand`] turns each gliding step into short steps before a write, and
 //! [`fold`] turns a run of short steps back into one gliding step after a read. The
 //! rules are the same for every model; only the short step length differs, and it comes
-//! from the controller description (`limits.glide_step_ms`).
+//! from the controller description (`limits.glide_step_ms`). A controller without one
+//! has no glides: [`expand`] only drops glide marks and [`fold`] changes nothing.
 //!
 //! `expand(fold(x)) == x` for any steps `x`, so the pad bytes round-trip. `fold` is
 //! stable after one pass, so a file round-trips once its glides are in canonical form.
@@ -48,12 +49,14 @@ fn largest_change(step: &MacroStep, next: &MacroStep) -> u8 {
 }
 
 /// How many short steps the glide of `step` to `next` becomes: one per `glide_step_ms`
-/// of its duration, at most one per value of change, at least one.
-fn short_steps(step: &MacroStep, next: &MacroStep, glide_step_ms: u16) -> usize {
-    usize::from(step.duration_ms)
-        .div_ceil(usize::from(glide_step_ms.max(1)))
-        .min(usize::from(largest_change(step, next)))
-        .max(1)
+/// of its duration, at most one per value of change, at least one. One without glides.
+fn short_steps(step: &MacroStep, next: &MacroStep, glide_step_ms: Option<u16>) -> usize {
+    glide_step_ms.map_or(1, |ms| {
+        usize::from(step.duration_ms)
+            .div_ceil(usize::from(ms.max(1)))
+            .min(usize::from(largest_change(step, next)))
+            .max(1)
+    })
 }
 
 /// `a` moved `k` of `n` of the way to `b`, rounded half up.
@@ -64,7 +67,7 @@ fn lerp(a: u8, b: u8, k: usize, n: usize) -> u8 {
 }
 
 /// The short steps of `step`, which glides to `next`. A step with no glide is itself.
-fn expand_step(step: &MacroStep, next: &MacroStep, glide_step_ms: u16) -> Vec<MacroStep> {
+fn expand_step(step: &MacroStep, next: &MacroStep, glide_step_ms: Option<u16>) -> Vec<MacroStep> {
     let n = short_steps(step, next, glide_step_ms);
     let each = usize::from(step.duration_ms) / n;
     let last = usize::from(step.duration_ms) - each * (n - 1);
@@ -90,7 +93,7 @@ fn expand_step(step: &MacroStep, next: &MacroStep, glide_step_ms: u16) -> Vec<Ma
 /// A step that glides gets short steps of about `glide_step_ms`, at most one per value
 /// of change. The last step has no next step to glide to and stays as one step.
 #[must_use]
-pub fn expand(def: &MacroDefinition, glide_step_ms: u16) -> MacroDefinition {
+pub fn expand(def: &MacroDefinition, glide_step_ms: Option<u16>) -> MacroDefinition {
     let mut steps = Vec::with_capacity(def.steps.len());
     for (step, next) in def.steps.iter().zip(def.steps.iter().skip(1).map(Some).chain([None])) {
         match next {
@@ -105,7 +108,7 @@ pub fn expand(def: &MacroDefinition, glide_step_ms: u16) -> MacroDefinition {
 
 /// How many steps [`expand`] gives, without building them.
 #[must_use]
-pub fn expanded_len(steps: &[MacroStep], glide_step_ms: u16) -> usize {
+pub fn expanded_len(steps: &[MacroStep], glide_step_ms: Option<u16>) -> usize {
     steps
         .iter()
         .zip(steps.iter().skip(1).map(Some).chain([None]))
@@ -124,7 +127,10 @@ pub fn expanded_len(steps: &[MacroStep], glide_step_ms: u16) -> usize {
 /// longest run wins, so two glides at the same rate become one. A step that already
 /// glides is kept as it is.
 #[must_use]
-pub fn fold(def: &MacroDefinition, glide_step_ms: u16) -> MacroDefinition {
+pub fn fold(def: &MacroDefinition, glide_step_ms: Option<u16>) -> MacroDefinition {
+    if glide_step_ms.is_none() {
+        return def.clone();
+    }
     let steps = &def.steps;
     let mut out = Vec::with_capacity(steps.len());
     let mut i = 0;
@@ -150,7 +156,11 @@ pub fn fold(def: &MacroDefinition, glide_step_ms: u16) -> MacroDefinition {
 }
 
 /// The gliding step that expands to `run`, which glides to `next`, and the length of `run`.
-fn fold_run(run: &[MacroStep], next: &MacroStep, glide_step_ms: u16) -> Option<(MacroStep, usize)> {
+fn fold_run(
+    run: &[MacroStep],
+    next: &MacroStep,
+    glide_step_ms: Option<u16>,
+) -> Option<(MacroStep, usize)> {
     let first = run.first()?;
     let glide: BTreeSet<GlideControl> = [
         GlideControl::LeftStick,
@@ -176,7 +186,7 @@ mod tests {
     use super::*;
     use crate::devices::pro3::XINPUT;
 
-    const MS: u16 = 20;
+    const MS: Option<u16> = Some(20);
 
     fn def(steps: Vec<MacroStep>) -> MacroDefinition {
         MacroDefinition {
@@ -201,6 +211,16 @@ mod tests {
 
     fn xs(def: &MacroDefinition) -> Vec<(u16, u8)> {
         def.steps.iter().map(|s| (s.duration_ms, s.left_stick_x)).collect()
+    }
+
+    #[test]
+    fn a_controller_without_glides_keeps_every_step() {
+        let ramp = expand(&def(vec![gliding(100, 0), at(10, 90)]), MS);
+        assert_eq!(fold(&ramp, None), ramp, "no fold");
+        let marked = def(vec![gliding(100, 0), at(10, 90)]);
+        assert_eq!(xs(&expand(&marked, None)), [(100, 0), (10, 90)]);
+        assert!(expand(&marked, None).steps.iter().all(|s| s.glide.is_empty()));
+        assert_eq!(expanded_len(&marked.steps, None), 2);
     }
 
     #[test]

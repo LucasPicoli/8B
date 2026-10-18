@@ -164,11 +164,16 @@ fn semantic_errors(
             errors.push(error(format!("/button_mappings/{i}/source"), reason));
         }
         let target = mapping.target.as_str();
+        let extra = mode_entry.extra_outputs.iter().find(|o| o.id == target);
         let known = [DISABLED_OUTPUT, UNRECOGNISED_OUTPUT].contains(&target)
             || description.button(target).is_some()
-            || mode_entry.extra_outputs.iter().any(|o| o.id == target);
+            || extra.is_some();
         if !known {
             let reason = Reason::UnknownTarget { target: target.to_owned(), mode };
+            errors.push(error(format!("/button_mappings/{i}/target"), reason));
+        } else if extra.is_some_and(|o| !o.allows(&mapping.source)) {
+            let (source, target) = (mapping.source.clone(), target.to_owned());
+            let reason = Reason::TargetNotOnButton { source, target, mode };
             errors.push(error(format!("/button_mappings/{i}/target"), reason));
         }
     }
@@ -230,7 +235,7 @@ mod tests {
 
     use super::*;
     use crate::device::{ControllerSpec as _, ProtocolCodec as _};
-    use crate::devices::pro3::{Pro3, XINPUT};
+    use crate::devices::pro3::{Pro3, SWITCH, XINPUT};
     use crate::devices::test_pad::{TestPad, STANDARD};
     use crate::model::MacroDefinition;
 
@@ -246,6 +251,30 @@ mod tests {
             steps: vec![crate::model::MacroStep { duration_ms: 50, ..Default::default() }],
             macro_slot: Some(macro_slot),
         }
+    }
+
+    #[test]
+    fn an_extra_output_on_a_button_it_is_not_for_is_refused() {
+        let mut description = Pro3.description().unwrap().clone();
+        let switch = description.modes.iter_mut().find(|m| m.id == SWITCH).unwrap();
+        switch.extra_outputs[0].buttons = vec!["turbo".to_owned(), "l4".to_owned()];
+        let mut profile = Pro3.default_profile(SWITCH);
+        for (source, target) in [("l4", "screenshot"), ("r4", "screenshot")] {
+            let mapping =
+                crate::model::ButtonMapping { source: source.into(), target: target.into() };
+            profile.button_mappings.push(mapping);
+        }
+        let at = profile.button_mappings.len() - 1;
+        let json = serde_json::to_value(&profile).unwrap();
+        let reason = Reason::TargetNotOnButton {
+            source: "r4".into(),
+            target: "screenshot".into(),
+            mode: SWITCH,
+        };
+        let errors = semantic_errors(&Pro3, &description, &json);
+        assert_eq!(errors, [error(format!("/button_mappings/{at}/target"), reason)]);
+        let errors = semantic_errors(&Pro3, Pro3.description().unwrap(), &json);
+        assert_eq!(errors, [], "no list: every button takes it");
     }
 
     /// The Pro 3 schema stops a macro slot above 3, so only this reaches the rule.

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://8bspec.local/schema/controller-description-v1.schema.json",
   "title": "8BitDo controller description v1",
-  "description": "One file per controller model, at crates/controller-core/controllers/<model>/description.json. The loader also checks what this schema cannot: button ids are unique, every button has a label for exactly the listed modes, every config port names a listed mode, every limit has min <= max, no button sets can_start_macro or can_be_in_macro_step when macro_slot_count is 0, at least one button sets each when macro_slot_count is above 0, and no extra output reuses a button id, 'disabled' or 'unrecognised', view ids are unique, and every view's SVG is embedded. Each view SVG declares viewBox=\"0 0 <width> <height>\", paints only in #000000, #ffffff or none (in a fill or stroke attribute, or in style), uses only svg, g, defs, path, circle, rect and ellipse elements, and has no class or transform attribute. The loader skips title and metadata elements and Inkscape and Sodipodi elements with everything inside them. A path, circle or rect with a data-button=\"<button id>\" attribute is that button's hotspot: it must lie inside the viewBox, name a listed button, and appear at most once per view. Every button needs a hotspot in at least one view. How to draw a view: docs/controller-views.md.",
+  "description": "One file per controller model, at crates/controller-core/controllers/<model>/description.json. The loader also checks what this schema cannot: button ids are unique, every button has a label for exactly the listed modes, every config port names a listed mode, every limit has min <= max, no button sets can_start_macro or can_be_in_macro_step when macro_slot_count is 0, at least one button sets each when macro_slot_count is above 0, and no extra output reuses a button id, 'disabled' or 'unrecognised', an extra output's buttons are remappable buttons, glide_step_ms and triggers_per_macro are above 0, a lock's packets run forward in time and its locked USB id is no config port, view ids are unique, and every view's SVG is embedded. Each view SVG declares viewBox=\"0 0 <width> <height>\", paints only in #000000, #ffffff or none (in a fill or stroke attribute, or in style), uses only svg, g, defs, path, circle, rect and ellipse elements, and has no class or transform attribute. The loader skips title and metadata elements and Inkscape and Sodipodi elements with everything inside them. A path, circle or rect with a data-button=\"<button id>\" attribute is that button's hotspot: it must lie inside the viewBox, name a listed button, and appear at most once per view. Every button needs a hotspot in at least one view. How to draw a view: docs/controller-views.md.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -44,22 +44,28 @@
     },
     "slot_count": { "type": "integer", "minimum": 1, "maximum": 255 },
     "macro_slot_count": { "type": "integer", "minimum": 0, "maximum": 255 },
+    "profile_rename": {
+      "description": "Optional, true when omitted. False when the controller keeps its profile names as they are, so the editor offers no rename.",
+      "type": "boolean",
+      "default": true
+    },
+    "macro_sticks": {
+      "description": "Optional, analog when omitted. What a macro step stores of each stick. analog: any x and y from 0 to 255. directions8: the centre or one of 8 directions at full deflection.",
+      "enum": ["analog", "directions8"],
+      "default": "analog"
+    },
+    "lock": { "$ref": "#/$defs/Lock" },
     "limits": {
-      "description": "Name lengths and the macro limits the editor offers. They must fit the profile and macro schemas and the model's codec. The ranges of settings sit on each setting.",
+      "description": "Name lengths and the macro limits the editor offers. They must fit the profile and macro schemas and the model's codec. The ranges of settings sit on each setting. Omit an optional limit when the controller lacks that feature: the editor hides it and a macro file that uses it is refused.",
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "profile_name_length",
-        "macro_name_length",
-        "macro_steps",
-        "macro_step_ms",
-        "macro_repeat_count",
-        "macro_interval_ms",
-        "glide_step_ms"
-      ],
+      "required": ["profile_name_length", "macro_steps", "macro_step_ms"],
       "properties": {
         "profile_name_length": { "$ref": "#/$defs/Range" },
-        "macro_name_length": { "$ref": "#/$defs/Range" },
+        "macro_name_length": {
+          "description": "Optional. Omit it when a macro has no name.",
+          "$ref": "#/$defs/Range"
+        },
         "macro_steps": {
           "description": "Steps in one macro, as the pad stores them, after glides become short steps.",
           "$ref": "#/$defs/Range"
@@ -69,18 +75,24 @@
           "$ref": "#/$defs/Range"
         },
         "macro_repeat_count": {
-          "description": "Plays per trigger press. The editor also offers continuous, which plays until the next press.",
+          "description": "Optional. Plays per trigger press. The editor also offers continuous, which plays until the next press. Omit it when a macro plays once per press.",
           "$ref": "#/$defs/Range"
         },
         "macro_interval_ms": {
-          "description": "Pause between two plays in milliseconds.",
+          "description": "Optional. Pause between two plays in milliseconds. Omit it when a macro has no pause.",
           "$ref": "#/$defs/Range"
         },
         "glide_step_ms": {
-          "description": "Length of each short step a stick or trigger glide becomes on write, in milliseconds.",
+          "description": "Optional. Length of each short step a stick or trigger glide becomes on write, in milliseconds. Omit it when a macro step cannot glide.",
           "type": "integer",
           "minimum": 1,
           "maximum": 65535
+        },
+        "triggers_per_macro": {
+          "description": "Optional. The most trigger buttons one macro takes. Omit it for no limit.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 255
         }
       }
     },
@@ -104,6 +116,81 @@
   },
   "$defs": {
     "HexId": { "type": "string", "pattern": "^0x[0-9a-f]{4}$" },
+    "UsbId": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor", "product"],
+      "properties": {
+        "vendor": { "$ref": "#/$defs/HexId" },
+        "product": { "$ref": "#/$defs/HexId" }
+      }
+    },
+    "FirmwareVersion": {
+      "description": "The oldest firmware that has this item, as the pad reports it: a major number, a point and two digits, such as 1.03. The editor shows the item only when the controller's firmware is that version or later, and hides it when the firmware is unknown. Omit it for every firmware.",
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]{2}$"
+    },
+    "Lock": {
+      "description": "Optional. A controller that hides its config port until it gets an unlock sequence. Omit it when the config port always shows.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locked", "unlock", "relock"],
+      "properties": {
+        "locked": {
+          "description": "The controller while it is locked. Another pad may share the USB id, so the product string must match too.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["usb", "product"],
+          "properties": {
+            "usb": { "$ref": "#/$defs/UsbId" },
+            "product": { "description": "The USB product string.", "type": "string", "minLength": 1 }
+          }
+        },
+        "unlock": {
+          "description": "The sequence that shows the config port: written to an interrupt OUT endpoint of the locked controller's USB interface. The unlock worked when a config port shows on the same USB port within timeout_ms of the last packet.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["interface", "endpoint", "packets", "timeout_ms"],
+          "properties": {
+            "interface": { "description": "The USB interface to claim.", "type": "integer", "minimum": 0, "maximum": 255 },
+            "endpoint": {
+              "description": "The interrupt OUT endpoint address, such as 0x02.",
+              "type": "string",
+              "pattern": "^0x[0-7][0-9a-f]$"
+            },
+            "packets": { "$ref": "#/$defs/TimedPackets" },
+            "timeout_ms": { "type": "integer", "minimum": 1 }
+          }
+        },
+        "relock": {
+          "description": "The sequence that returns the controller to its locked mode: written to the config port as output reports, each zero padded to 64 bytes.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["packets"],
+          "properties": {
+            "packets": { "$ref": "#/$defs/TimedPackets" }
+          }
+        }
+      }
+    },
+    "TimedPackets": {
+      "description": "Packets in send order. at_ms counts from the first packet of the sequence and never goes down.",
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["at_ms", "data"],
+        "properties": {
+          "at_ms": { "type": "integer", "minimum": 0 },
+          "data": {
+            "description": "1 to 64 bytes in hex without spaces, such as 0008000100000000.",
+            "type": "string",
+            "pattern": "^([0-9a-fA-F]{2}){1,64}$"
+          }
+        }
+      }
+    },
     "ModeId": {
       "description": "A mode's id, such as xinput. Each model names its own modes.",
       "type": "string",
@@ -114,15 +201,7 @@
       "additionalProperties": false,
       "required": ["usb", "mode", "interface", "framing"],
       "properties": {
-        "usb": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["vendor", "product"],
-          "properties": {
-            "vendor": { "$ref": "#/$defs/HexId" },
-            "product": { "$ref": "#/$defs/HexId" }
-          }
-        },
+        "usb": { "$ref": "#/$defs/UsbId" },
         "mode": { "$ref": "#/$defs/ModeId" },
         "interface": {
           "description": "USB interface number whose hidraw node carries the config reports.",
@@ -171,7 +250,7 @@
           "minimum": 0
         },
         "extra_outputs": {
-          "description": "Outputs beyond the buttons and 'disabled', which every mode has.",
+          "description": "Outputs beyond the buttons and 'disabled', which every mode has. An output a mode does not list is not offered in that mode.",
           "type": "array",
           "items": {
             "type": "object",
@@ -179,7 +258,14 @@
             "required": ["id", "label"],
             "properties": {
               "id": { "type": "string", "minLength": 1 },
-              "label": { "type": "string", "minLength": 1 }
+              "label": { "type": "string", "minLength": 1 },
+              "buttons": {
+                "description": "Optional. The remappable buttons that may take this output in this mode. Omit it for every remappable button.",
+                "type": "array",
+                "uniqueItems": true,
+                "items": { "type": "string", "minLength": 1 }
+              },
+              "min_firmware": { "$ref": "#/$defs/FirmwareVersion" }
             }
           }
         }
@@ -228,7 +314,8 @@
           "description": "Optional, on a stick's dead zone slider. The macro stick whose moves stop playing when low is under the mode's macro_stick_floor.",
           "type": "string",
           "enum": ["left_stick", "right_stick"]
-        }
+        },
+        "min_firmware": { "$ref": "#/$defs/FirmwareVersion" }
       }
     },
     "NumberField": {
@@ -243,7 +330,8 @@
           "description": "Optional. A name for each value from min to max, in order, such as Off, Pulse and Wave for a choice. The app shows the name instead of the number.",
           "type": "array",
           "items": { "type": "string", "minLength": 1 }
-        }
+        },
+        "min_firmware": { "$ref": "#/$defs/FirmwareVersion" }
       }
     },
     "Flag": {
@@ -254,7 +342,8 @@
       "properties": {
         "label": { "type": "string" },
         "field": { "type": "string", "pattern": "^/" },
-        "excludes": { "type": "array", "items": { "type": "string", "pattern": "^/" } }
+        "excludes": { "type": "array", "items": { "type": "string", "pattern": "^/" } },
+        "min_firmware": { "$ref": "#/$defs/FirmwareVersion" }
       }
     },
     "Range": {

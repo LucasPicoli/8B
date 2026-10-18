@@ -25,16 +25,18 @@
       "const": "8bitdo-pro3"
     },
     "mode": {
+      "description": "A mode of the controller. The app narrows this to the modes of the controller description.",
       "type": "string",
       "enum": ["xinput", "switch", "dinput"]
     },
     "name": {
+      "description": "The app narrows the length to the description's macro_name_length. A controller whose description omits macro_name_length takes no name: leave it out or write an empty string.",
       "type": "string",
       "minLength": 1,
       "maxLength": 16
     },
     "trigger_buttons": {
-      "description": "The buttons that start the macro. Empty when no button starts it.",
+      "description": "The buttons that start the macro. Empty when no button starts it. The app caps the count at the description's triggers_per_macro.",
       "type": "array",
       "uniqueItems": true,
       "items": {

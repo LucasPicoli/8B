@@ -97,6 +97,11 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         Reason::UnknownTarget { mode, .. } => {
             tr!("The profile uses an output that {mode} mode does not have.", mode = label(mode))
         }
+        Reason::TargetNotOnButton { source, target, mode } => tr!(
+            "{button} cannot take {output}.",
+            button = output_label(d, *mode, source),
+            output = output_label(d, *mode, target)
+        ),
         Reason::TwoMacrosOneButton { button, mode } => tr!(
             "{button} starts two macros. A button starts at most one macro.",
             button = output_label(d, *mode, button)

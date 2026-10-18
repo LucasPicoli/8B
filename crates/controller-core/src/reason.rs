@@ -87,6 +87,15 @@ pub enum Reason {
         /// The profile's mode.
         mode: Mode,
     },
+    /// A mapping gives a button an output the mode keeps for other buttons.
+    TargetNotOnButton {
+        /// The file's source id.
+        source: String,
+        /// The file's target id.
+        target: String,
+        /// The profile's mode.
+        mode: Mode,
+    },
     /// One button starts two macros.
     TwoMacrosOneButton {
         /// The button's id.
@@ -242,6 +251,9 @@ impl fmt::Display for Reason {
             }
             Self::UnknownTarget { target, mode } => {
                 write!(f, "'{target}' is not an output in {mode} mode.")
+            }
+            Self::TargetNotOnButton { source, target, mode } => {
+                write!(f, "'{source}' cannot take '{target}' in {mode} mode.")
             }
             Self::TwoMacrosOneButton { button, .. } => {
                 write!(f, "'{button}' starts two macros. A button starts at most one macro.")

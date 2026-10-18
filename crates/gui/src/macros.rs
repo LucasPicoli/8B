@@ -72,7 +72,7 @@ pub fn label(defs: &[&MacroDefinition], slot: u8) -> String {
 /// `glide_step_ms`. Two macros with equal descriptors read back the same until a step
 /// read tells them apart.
 #[must_use]
-pub fn descriptor(def: &MacroDefinition, glide_step_ms: u16) -> MacroDefinition {
+pub fn descriptor(def: &MacroDefinition, glide_step_ms: Option<u16>) -> MacroDefinition {
     let len = expanded_len(&def.steps, glide_step_ms);
     MacroDefinition { steps: vec![MacroStep::default(); len], ..def.clone() }
 }
@@ -85,7 +85,7 @@ fn started_by(macros: &[&MacroDefinition], button: &str) -> Option<u8> {
 /// The descriptors of `macros`, in order.
 fn descriptors<'a>(
     macros: impl IntoIterator<Item = &'a MacroDefinition>,
-    glide_step_ms: u16,
+    glide_step_ms: Option<u16>,
 ) -> Vec<MacroDefinition> {
     macros.into_iter().map(|m| descriptor(m, glide_step_ms)).collect()
 }
@@ -97,7 +97,7 @@ impl SlotState {
         &self,
         old: &[PadMacro],
         new: &[MacroDefinition],
-        glide_step_ms: u16,
+        glide_step_ms: Option<u16>,
     ) -> bool {
         let new = descriptors(new, glide_step_ms);
         self.macros_unsaved()
@@ -108,7 +108,7 @@ impl SlotState {
     /// Takes the macros `fresh` the controller holds now. A macro whose descriptor did
     /// not change keeps its steps. Returns whether the change meets real macro edits;
     /// edits that only match the old macros are dropped, so they cannot undo it.
-    fn take_macros(&mut self, fresh: Vec<MacroDefinition>, glide_step_ms: u16) -> bool {
+    fn take_macros(&mut self, fresh: Vec<MacroDefinition>, glide_step_ms: Option<u16>) -> bool {
         let changed = self.macros_changed_under_edits(&self.pad_macros, &fresh, glide_step_ms);
         if !self.macros_unsaved() {
             self.edited_macros = None;
@@ -201,7 +201,7 @@ impl SlotState {
 
     /// Takes the edited macros of `from`, a slot of an unplugged controller, when it
     /// holds any. Returns whether this slot's macros changed under them.
-    pub(crate) fn take_macro_edits(&mut self, from: &Self, glide_step_ms: u16) -> bool {
+    pub(crate) fn take_macro_edits(&mut self, from: &Self, glide_step_ms: Option<u16>) -> bool {
         if !from.macros_unsaved() {
             return false;
         }
@@ -335,7 +335,7 @@ mod tests {
     use crate::state::tests::{connected, full_read, PORT};
 
     /// The Pro 3's `glide_step_ms`.
-    const GLIDE_MS: u16 = 20;
+    const GLIDE_MS: Option<u16> = Some(20);
     use crate::state::Dirty;
 
     /// A macro in macro slot `slot` named `name`, with `steps` steps of 100 ms each.

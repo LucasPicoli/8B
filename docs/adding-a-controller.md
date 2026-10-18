@@ -129,6 +129,104 @@ with a stricter JSON schema of its own, as the Pro 3 has in
 [`schemas/profile-v1.schema.json`](../schemas/profile-v1.schema.json), returns its
 errors from `ProtocolCodec::profile_schema_errors`.
 
+## Optional capabilities
+
+A description can say what a model lacks or limits. Each field below is optional, and
+leaving it out gives the Pro 3's behaviour. The 8BitDo Ultimate is the example.
+
+### Outputs limited to some buttons
+
+An extra output may list the buttons that take it. The Ultimate offers Turbo on Star,
+P1 and P2 only, in both modes, and Screenshot on Star in Switch mode only:
+
+```json
+{ "id": "turbo", "label": "Turbo", "buttons": ["star", "p1", "p2"] }
+```
+
+Without `buttons`, every remappable button takes the output. Each listed id must be a
+button with `can_be_remapped`. An output appears in the modes whose `extra_outputs`
+list it, so a Switch-only output sits in the Switch entry alone. The remap check,
+profile validation and mode conversion all refuse the output on any other button.
+
+### Firmware gates
+
+A flag, a slider, a number field or an extra output may carry `min_firmware`, the
+oldest firmware that has it, written as the pad reports it:
+
+```json
+{ "label": "D-pad four-way only", "field": "/dpad/four_way", "min_firmware": "1.03" }
+```
+
+`description::firmware_allows(min_firmware, firmware)` decides whether to show the
+item for the firmware string of a read. A pad on 1.09 shows a 1.03 item, and a pad
+on 1.02 does not. A firmware string that is empty or does not parse hides every gated
+item, so an unknown pad never gets a setting it may lack. An item without a gate
+always shows.
+
+### Profile names
+
+`"profile_rename": false` tells the editor to offer no rename. The Ultimate keeps the
+profile names as the pad holds them. `limits.profile_name_length` stays, because the
+codec still reads the stored name.
+
+### Macro shape
+
+The Ultimate's macros take one trigger button each, have no name, play once per press
+and hold each stick as a direction. Its macro limits, beside `profile_name_length`:
+
+```json
+"macro_sticks": "directions8",
+"limits": {
+  "macro_steps": { "min": 1, "max": 18 },
+  "macro_step_ms": { "min": 10, "max": 60990 },
+  "triggers_per_macro": 1
+}
+```
+
+- `triggers_per_macro` caps the trigger buttons of one macro. Leave it out for no
+  cap.
+- `macro_name_length`, `macro_repeat_count`, `macro_interval_ms` and `glide_step_ms`
+  are each optional. Leave one out when the pad lacks that feature: the macro
+  editor hides it, and macro validation refuses a file that uses it (a name, a
+  repeat count other than 1, a pause other than 0, or a glide).
+- `macro_sticks` is `analog` (any x and y from 0 to 255, the default) or
+  `directions8` (the centre or one of 8 directions at full deflection). The codec
+  maps each direction to its axis values.
+
+### A locked controller
+
+A pad that hides its config port until it gets an unlock sequence declares a `lock`.
+The declaration holds every byte and time, so the model needs no unlock code:
+
+```json
+"lock": {
+  "locked": { "usb": { "vendor": "0x2dc8", "product": "0x3106" },
+              "product": "8BitDo Ultimate Controller" },
+  "unlock": {
+    "interface": 0, "endpoint": "0x02", "timeout_ms": 3000,
+    "packets": [ { "at_ms": 0, "data": "0008000100000000" },
+                 { "at_ms": 16, "data": "0008000001000000" } ]
+  },
+  "relock": {
+    "packets": [ { "at_ms": 0, "data": "811104070001" },
+                 { "at_ms": 8, "data": "8105005102" } ]
+  }
+}
+```
+
+- `locked` is the USB id and the USB product string of the locked pad. Another pad
+  may share the USB id, so both must match.
+- `unlock` goes to the interrupt OUT `endpoint` of USB `interface` on the locked pad.
+  The unlock worked when a config port shows on the same USB port within
+  `timeout_ms` of the last packet.
+- `relock` goes to the config port as output reports, each zero padded to 64 bytes.
+- Each packet is 1 to 64 bytes of hex without spaces. `at_ms` counts from the first
+  packet of its sequence and never goes down.
+
+The loader refuses an odd hex length, a time that goes down, an empty sequence, an IN
+endpoint, and a locked USB id that is also a config port. A description without a
+`lock` always shows its config port.
+
 ## Text and translations
 
 Write the description's text in English only. Translators pick it up from the
@@ -286,7 +384,8 @@ The model supplies:
    continuous), `macro_interval_ms` (0 to 65535) and `glide_step_ms` (20). The
    editor reads them, and a test pins them to the codec, as
    `pro3_macro_limits_match_the_codec` does. A model with no macro slots still lists
-   them; the test pad gives each the narrowest range.
+   the required ones; the test pad gives each the narrowest range. The optional ones
+   are in [Macro shape](#macro-shape).
 6. The macro buttons, if the model has macro slots: set `can_start_macro` on each
    button that may start a macro and `can_be_in_macro_step` on each button that may
    appear in a macro step. Both default to `false`, are the same in every mode, and

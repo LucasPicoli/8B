@@ -60,7 +60,9 @@ const PROFILE_SCHEMA_JSON: &str = include_str!("../../../../../schemas/profile-v
 /// Compiles the macro schema for `description` and the profile `device` string of its
 /// model: the schema file accepts any non-empty button name, and this fills the trigger
 /// and step button lists from the flags `can_start_macro` and `can_be_in_macro_step`,
-/// and pins `device` to `device`.
+/// pins `device` to `device` and `mode` to the description's modes, caps the trigger
+/// buttons at `triggers_per_macro`, and refuses a name, a repeat, a pause or a glide
+/// when the description's limits leave that feature out.
 ///
 /// Compiled on each call: only macro validation uses it, and that is rare.
 ///
@@ -86,8 +88,30 @@ pub(crate) fn macro_validator(
             def.insert("enum".to_owned(), list);
         }
     }
-    if let Some(field) = schema.pointer_mut("/properties/device").and_then(Value::as_object_mut) {
-        field.insert("const".to_owned(), Value::from(device));
+    let modes: Value = description.modes.iter().map(|m| m.id.as_str()).collect();
+    let limits = &description.limits;
+    let mut narrow = vec![("/properties/device", "const", Value::from(device))];
+    narrow.push(("/properties/mode", "enum", modes));
+    if limits.macro_name_length.is_none() {
+        narrow.push(("/properties/name", "maxLength", Value::from(0)));
+        narrow.push(("/properties/name", "minLength", Value::from(0)));
+    }
+    if let Some(most) = limits.triggers_per_macro {
+        narrow.push(("/properties/trigger_buttons", "maxItems", Value::from(most)));
+    }
+    if limits.macro_repeat_count.is_none() {
+        narrow.push(("/$defs/Repeat/properties/count", "const", Value::from(1)));
+    }
+    if limits.macro_interval_ms.is_none() {
+        narrow.push(("/$defs/Repeat/properties/interval_ms", "const", Value::from(0)));
+    }
+    if limits.glide_step_ms.is_none() {
+        narrow.push(("/$defs/Step/properties/glide", "maxItems", Value::from(0)));
+    }
+    for (pointer, key, value) in narrow {
+        if let Some(field) = schema.pointer_mut(pointer).and_then(Value::as_object_mut) {
+            field.insert(key.to_owned(), value);
+        }
     }
     jsonschema::draft202012::new(&schema)
         .map_err(|e| Error::Decode(format!("macro schema compile failed: {e}")))

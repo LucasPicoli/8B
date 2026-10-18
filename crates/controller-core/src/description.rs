@@ -15,8 +15,12 @@ use crate::error::{Error, Result};
 use crate::model::{Mode, PROFILE_FIELDS};
 use crate::view::View;
 
+mod firmware;
+mod lock;
 mod prose;
 
+pub use firmware::{firmware_allows, FirmwareVersion};
+pub use lock::{Lock, LockedPort, Relock, TimedPacket, Unlock, MAX_PACKET_LEN};
 pub use prose::Prose;
 
 /// The output that turns a button off. Valid for every remappable button in every
@@ -49,6 +53,16 @@ pub struct ControllerDescription {
     pub macro_slot_count: u8,
     /// Value ranges the editor offers.
     pub limits: Limits,
+    /// The user may rename a profile. True when the JSON omits it.
+    #[serde(default = "yes")]
+    pub profile_rename: bool,
+    /// What a macro step stores of each stick.
+    #[serde(default)]
+    pub macro_sticks: MacroSticks,
+    /// The unlock and relock sequences of a controller that hides its config port.
+    /// `None` when the config port always shows.
+    #[serde(default)]
+    pub lock: Option<Lock>,
     /// Physical buttons, in display order.
     pub buttons: Vec<Button>,
     /// The settings tabs, in display order. Each names its values by JSON pointer into
@@ -118,6 +132,20 @@ pub struct Slider {
     /// [`ModeDescription::macro_stick_floor`]. Set on a stick's dead zone slider.
     #[serde(default)]
     pub macro_stick: Option<MacroStick>,
+    /// The oldest firmware that has this slider. `None` for every firmware.
+    #[serde(default)]
+    pub min_firmware: Option<FirmwareVersion>,
+}
+
+/// What a macro step stores of each stick.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum MacroSticks {
+    /// Any x and y from 0 to 255.
+    #[default]
+    Analog,
+    /// The centre or one of 8 directions at full deflection: each axis 0, 128 or 255.
+    Directions8,
 }
 
 /// A stick a macro step moves.
@@ -144,6 +172,9 @@ pub struct NumberField {
     /// a choice. Empty means the value shows as a number.
     #[serde(default)]
     pub labels: Vec<String>,
+    /// The oldest firmware that has this setting. `None` for every firmware.
+    #[serde(default)]
+    pub min_firmware: Option<FirmwareVersion>,
 }
 
 impl NumberField {
@@ -172,6 +203,9 @@ pub struct Flag {
     /// Flags of the same mode that may not be on together with this one.
     #[serde(default)]
     pub excludes: Vec<String>,
+    /// The oldest firmware that has this flag. `None` for every firmware.
+    #[serde(default)]
+    pub min_firmware: Option<FirmwareVersion>,
 }
 
 /// One mode of the controller.
@@ -211,6 +245,20 @@ pub struct ExtraOutput {
     pub id: String,
     /// Name shown to the user.
     pub label: String,
+    /// The buttons that may take this output. Empty means every remappable button.
+    #[serde(default)]
+    pub buttons: Vec<String>,
+    /// The oldest firmware that has this output. `None` for every firmware.
+    #[serde(default)]
+    pub min_firmware: Option<FirmwareVersion>,
+}
+
+impl ExtraOutput {
+    /// Whether the button `source` may take this output.
+    #[must_use]
+    pub fn allows(&self, source: &str) -> bool {
+        self.buttons.is_empty() || self.buttons.iter().any(|b| b == source)
+    }
 }
 
 /// An inclusive range of allowed values.
@@ -223,42 +271,48 @@ pub struct LimitRange {
     pub max: i32,
 }
 
-/// Name lengths and macro limits the editor offers. Each model's tests pin them to its
-/// codec and to the profile and macro schemas. The ranges of settings sit on their
-/// [`NumberField`]s.
+/// Name lengths and macro limits the editor offers.
+///
+/// Each model's tests pin them to its codec and to the profile and macro schemas. The
+/// ranges of settings sit on their [`NumberField`]s. An optional limit the JSON omits
+/// is a feature the controller lacks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Limits {
     /// Profile name length in characters.
     pub profile_name_length: LimitRange,
-    /// Macro name length in characters.
-    pub macro_name_length: LimitRange,
+    /// Macro name length in characters. `None` when a macro has no name.
+    pub macro_name_length: Option<LimitRange>,
     /// Number of steps in one macro, as the pad stores them.
     pub macro_steps: LimitRange,
     /// Length of one macro step in milliseconds.
     pub macro_step_ms: LimitRange,
     /// Number of plays per trigger press. The editor also offers
     /// [`REPEAT_CONTINUOUS`](crate::model::REPEAT_CONTINUOUS), which plays until the
-    /// next press.
-    pub macro_repeat_count: LimitRange,
-    /// Pause between two plays in milliseconds.
-    pub macro_interval_ms: LimitRange,
+    /// next press. `None` when a macro plays once per press.
+    pub macro_repeat_count: Option<LimitRange>,
+    /// Pause between two plays in milliseconds. `None` when a macro has no pause.
+    pub macro_interval_ms: Option<LimitRange>,
     /// Length of each short step a stick or trigger glide becomes on write, in
-    /// milliseconds.
-    pub glide_step_ms: u16,
+    /// milliseconds. `None` when a macro step cannot glide.
+    pub glide_step_ms: Option<u16>,
+    /// The most trigger buttons one macro takes. `None` for no limit.
+    pub triggers_per_macro: Option<u8>,
 }
 
 impl Limits {
-    /// Every range with its field name.
-    const fn named(&self) -> [(&'static str, LimitRange); 6] {
+    /// Every range the description sets, with its field name.
+    fn named(&self) -> impl Iterator<Item = (&'static str, LimitRange)> {
         [
-            ("profile_name_length", self.profile_name_length),
+            ("profile_name_length", Some(self.profile_name_length)),
             ("macro_name_length", self.macro_name_length),
-            ("macro_steps", self.macro_steps),
-            ("macro_step_ms", self.macro_step_ms),
+            ("macro_steps", Some(self.macro_steps)),
+            ("macro_step_ms", Some(self.macro_step_ms)),
             ("macro_repeat_count", self.macro_repeat_count),
             ("macro_interval_ms", self.macro_interval_ms),
         ]
+        .into_iter()
+        .filter_map(|(name, range)| Some((name, range?)))
     }
 }
 
@@ -412,12 +466,19 @@ impl ControllerDescription {
                 "Cannot remap '{source}': that button cannot be remapped."
             )));
         }
+        let extra = mode_entry.extra_outputs.iter().find(|o| o.id == target);
         if target == DISABLED_OUTPUT
             || target == source
             || self.button(target).is_some_and(|b| b.can_be_output)
-            || mode_entry.extra_outputs.iter().any(|o| o.id == target)
+            || extra.is_some_and(|o| o.allows(source))
         {
             return Ok(());
+        }
+        if let Some(extra) = extra {
+            return Err(Error::Validation(format!(
+                "Target '{target}' is only valid for {}.",
+                extra.buttons.join(", ")
+            )));
         }
         let elsewhere: Vec<&str> = self
             .modes
@@ -437,7 +498,9 @@ impl ControllerDescription {
             .filter(|b| b.can_be_output)
             .map(|b| b.id.as_str())
             .chain(std::iter::once(DISABLED_OUTPUT))
-            .chain(mode_entry.extra_outputs.iter().map(|o| o.id.as_str()))
+            .chain(
+                mode_entry.extra_outputs.iter().filter(|o| o.allows(source)).map(|o| o.id.as_str()),
+            )
             .collect();
         Err(Error::Validation(format!(
             "Invalid remap target '{target}'. Valid targets: {}.",
@@ -477,11 +540,20 @@ impl ControllerDescription {
                 ));
             }
         }
-        if let Some((name, _)) = self.limits.named().into_iter().find(|(_, r)| r.min > r.max) {
+        if let Some((name, _)) = self.limits.named().find(|(_, r)| r.min > r.max) {
             return Err(format!("limit '{name}' has min above max"));
         }
-        if self.limits.glide_step_ms == 0 {
-            return Err("limit 'glide_step_ms' must be above 0".to_owned());
+        if self.limits.glide_step_ms == Some(0) || self.limits.triggers_per_macro == Some(0) {
+            return Err(
+                "limits 'glide_step_ms' and 'triggers_per_macro' must be above 0".to_owned()
+            );
+        }
+        if let Some(lock) = &self.lock {
+            lock.check()?;
+            let usb = lock.locked.usb;
+            if self.config_ports.iter().any(|p| p.usb == usb) {
+                return Err("lock: the locked USB id is a config port".to_owned());
+            }
         }
         self.check_settings(&modes)?;
         let mut ids = BTreeSet::new();
@@ -511,6 +583,13 @@ impl ControllerDescription {
                     return Err(format!(
                         "extra output '{}' clashes in {} mode",
                         output.id, mode.id
+                    ));
+                }
+                let remappable = |id: &String| self.button(id).is_some_and(|b| b.can_be_remapped);
+                if let Some(id) = output.buttons.iter().find(|id| !remappable(id)) {
+                    return Err(format!(
+                        "extra output '{}' names '{id}', which is no remappable button",
+                        output.id
                     ));
                 }
             }
@@ -633,6 +712,11 @@ fn is_settings_pointer(pointer: &str) -> bool {
         .is_some_and(|group| !group.is_empty() && !PROFILE_FIELDS.contains(&group))
 }
 
+/// The default of a flag that is on unless the JSON says otherwise.
+const fn yes() -> bool {
+    true
+}
+
 fn invalid(e: &dyn std::fmt::Display) -> Error {
     Error::Decode(format!("controller description: {e}"))
 }
@@ -664,7 +748,7 @@ mod tests {
 
     use crate::devices::pro3::{DINPUT, SWITCH, XINPUT};
 
-    fn minimal() -> Value {
+    pub(super) fn minimal() -> Value {
         let range = json!({ "min": 0, "max": 1 });
         json!({
             "display_name": "Test pad",
@@ -738,7 +822,7 @@ mod tests {
         ControllerDescription::parse(&v.to_string(), &[("front.svg", front), ("back.svg", back)])
     }
 
-    fn parse(v: &Value) -> Result<ControllerDescription> {
+    pub(super) fn parse(v: &Value) -> Result<ControllerDescription> {
         parse_with(v, FRONT, BACK)
     }
 
@@ -781,7 +865,20 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 28] = [
+        let cases: [fn(&mut Value); 34] = [
+            |v| v["modes"][1]["extra_outputs"][0]["buttons"] = json!(["home"]),
+            |v| v["modes"][1]["extra_outputs"][0]["buttons"] = json!(["nothing"]),
+            |v| v["modes"][1]["extra_outputs"][0]["min_firmware"] = json!("1.3"),
+            |v| v["limits"]["triggers_per_macro"] = json!(0),
+            |v| v["macro_sticks"] = json!("directions4"),
+            |v| {
+                v["lock"] = json!({
+                    "locked": { "usb": { "vendor": "0x2dc8", "product": "0x310b" }, "product": "P" },
+                    "unlock": { "interface": 0, "endpoint": "0x02", "timeout_ms": 1,
+                                "packets": [{ "at_ms": 0, "data": "00" }] },
+                    "relock": { "packets": [{ "at_ms": 0, "data": "00" }] }
+                });
+            },
             |v| v["buttons"][1]["step_trigger_value"] = json!("left"),
             |v| {
                 v["buttons"][0]["step_trigger_value"] = json!("right");
@@ -829,6 +926,101 @@ mod tests {
             break_it(&mut v);
             assert!(parse(&v).is_err(), "case {i} should fail");
         }
+    }
+
+    /// `minimal` with every field a Pro 3 description leaves out.
+    fn every_new_field() -> Value {
+        let mut v = minimal();
+        v["profile_rename"] = json!(false);
+        v["macro_sticks"] = json!("directions8");
+        let limits = v["limits"].as_object_mut().unwrap();
+        for absent in
+            ["macro_name_length", "macro_repeat_count", "macro_interval_ms", "glide_step_ms"]
+        {
+            limits.remove(absent);
+        }
+        limits.insert("triggers_per_macro".into(), json!(1));
+        v["modes"][1]["extra_outputs"][0]["buttons"] = json!(["paddle"]);
+        v["modes"][1]["extra_outputs"][0]["min_firmware"] = json!("1.03");
+        let frame = &mut v["settings"][0]["frames"][0];
+        frame["flags"][0]["min_firmware"] = json!("1.03");
+        frame["sliders"][0]["min_firmware"] = json!("1.04");
+        frame["sliders"][0]["high"]["min_firmware"] = json!("1.05");
+        v["lock"] = lock::tests::a_lock();
+        v
+    }
+
+    #[test]
+    fn every_new_field_matches_the_schema() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../schemas/controller-description-v1.schema.json"
+        ))
+        .unwrap();
+        let validator = jsonschema::draft202012::new(&schema).unwrap();
+        for v in [minimal(), every_new_field()] {
+            let errors: Vec<String> = validator.iter_errors(&v).map(|e| e.to_string()).collect();
+            assert!(errors.is_empty(), "{errors:?}");
+        }
+        let mut odd = every_new_field();
+        odd["lock"]["unlock"]["packets"][0]["data"] = json!("0008000");
+        assert!(!validator.is_valid(&odd), "the schema refuses odd hex too");
+    }
+
+    #[test]
+    fn every_new_field_reads_back() {
+        let d = parse(&every_new_field()).unwrap();
+        let gate = |s| FirmwareVersion::parse(s);
+        assert!(!d.profile_rename);
+        assert_eq!(d.macro_sticks, MacroSticks::Directions8);
+        let l = d.limits;
+        assert_eq!(
+            (l.macro_name_length, l.macro_repeat_count, l.macro_interval_ms, l.glide_step_ms),
+            (None, None, None, None),
+            "absent: not offered"
+        );
+        assert_eq!(l.triggers_per_macro, Some(1));
+        let screenshot = &d.mode(SWITCH).unwrap().extra_outputs[0];
+        assert_eq!(
+            (screenshot.buttons.as_slice(), screenshot.min_firmware),
+            (&["paddle".to_owned()][..], gate("1.03"))
+        );
+        assert_eq!(d.flag(XINPUT, "/sticks/invert").unwrap().min_firmware, gate("1.03"));
+        let slider = &d.settings[0].frames[0].sliders[0];
+        assert_eq!(slider.min_firmware, gate("1.04"));
+        assert_eq!(d.number(XINPUT, "/sticks/max").unwrap().min_firmware, gate("1.05"));
+        assert_eq!(d.number(XINPUT, "/sticks/min").unwrap().min_firmware, None);
+        assert_eq!(d.lock.unwrap().relock.packets.len(), 2);
+    }
+
+    #[test]
+    fn a_pro_3_style_description_keeps_every_default() {
+        let d = parse(&minimal()).unwrap();
+        assert!(d.profile_rename);
+        assert_eq!(d.macro_sticks, MacroSticks::Analog);
+        assert_eq!(d.limits.glide_step_ms, Some(20));
+        assert_eq!(d.limits.triggers_per_macro, None);
+        assert!(d.lock.is_none());
+        let screenshot = &d.mode(SWITCH).unwrap().extra_outputs[0];
+        assert!(screenshot.buttons.is_empty() && screenshot.min_firmware.is_none());
+        assert!(screenshot.allows("a") && screenshot.allows("paddle"));
+    }
+
+    #[test]
+    fn an_extra_output_goes_only_on_its_buttons_and_in_its_modes() {
+        let d = parse(&every_new_field()).unwrap();
+        assert!(d.validate_remap(SWITCH, "paddle", "screenshot").is_ok());
+        assert!(matches!(
+            d.validate_remap(SWITCH, "a", "screenshot"),
+            Err(Error::Validation(m)) if m == "Target 'screenshot' is only valid for paddle."
+        ));
+        assert!(matches!(
+            d.validate_remap(XINPUT, "paddle", "screenshot"),
+            Err(Error::Validation(m)) if m == "Target 'screenshot' is only valid for switch mode."
+        ));
+        assert!(matches!(
+            d.validate_remap(SWITCH, "a", "nothing"),
+            Err(Error::Validation(m)) if m == "Invalid remap target 'nothing'. Valid targets: a, home, disabled."
+        ));
     }
 
     #[test]

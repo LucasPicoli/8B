@@ -4,7 +4,7 @@
 
 use std::rc::Rc;
 
-use controller_core::description::ControllerDescription;
+use controller_core::description::{ControllerDescription, LimitRange};
 use controller_core::model::{MacroDefinition, MacroStep, REPEAT_CONTINUOUS};
 use controller_core::service::validation::ValidationError;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
@@ -130,10 +130,7 @@ impl AppState {
         }
         let def = MacroDefinition {
             // The muted name `.slint` shows for an unnamed macro, and data once made.
-            name: cut_name(
-                &tr!("Macro {}", u16::from(n) + 1),
-                self.description().limits.macro_name_length.max,
-            ),
+            name: cut_name(&tr!("Macro {}", u16::from(n) + 1), name_max(self.description())),
             mode,
             trigger_buttons: Vec::new(),
             unknown_trigger_bits: 0,
@@ -157,7 +154,7 @@ impl AppState {
 
     /// Renames the macro in macro slot `n`, cut to the controller's name length.
     pub fn rename_macro(&mut self, n: u8, name: &str) {
-        let name = cut_name(name, self.description().limits.macro_name_length.max);
+        let name = cut_name(name, name_max(self.description()));
         self.edit_macro(n, |m| m.name = name);
     }
 
@@ -179,13 +176,16 @@ impl AppState {
     /// The fewest plays "A number of times" offers: two, or more when the controller
     /// asks for more.
     fn least_times(&self) -> u32 {
-        u32::try_from(self.description().limits.macro_repeat_count.min.max(2)).unwrap_or(2)
+        let least = self.description().limits.macro_repeat_count.map_or(2, |r| r.min.max(2));
+        u32::try_from(least).unwrap_or(2)
     }
 
     /// Sets the number of plays of the macro in macro slot `n`, within the controller's
     /// range. Only a macro that plays a number of times takes it.
     pub fn set_play_count(&mut self, n: u8, count: i32) {
-        let max = self.description().limits.macro_repeat_count.max;
+        let Some(LimitRange { max, .. }) = self.description().limits.macro_repeat_count else {
+            return;
+        };
         let Ok(count) = u32::try_from(count.min(max)) else { return };
         let count = count.max(self.least_times());
         self.edit_macro(n, |m| {
@@ -198,7 +198,7 @@ impl AppState {
     /// Sets the interval between plays of the macro in macro slot `n`, within the
     /// controller's range.
     pub fn set_play_pause(&mut self, n: u8, ms: i32) {
-        let range = self.description().limits.macro_interval_ms;
+        let Some(range) = self.description().limits.macro_interval_ms else { return };
         let Ok(ms) = u32::try_from(ms.clamp(range.min, range.max)) else { return };
         self.edit_macro(n, |m| m.interval_ms = ms);
     }
@@ -322,10 +322,15 @@ pub fn render_macros(state: &AppState, ui: &AppWindow) {
     ui.set_macros_editable(
         state.selected_slot().is_some_and(|(m, n)| state.slot(m, n).macros_editable()),
     );
-    ui.set_macro_name_max(limits.macro_name_length.max);
+    ui.set_macro_name_max(name_max(description));
     ui.set_macro_count_min(i32::try_from(state.least_times()).unwrap_or(2));
-    ui.set_macro_count_max(limits.macro_repeat_count.max);
-    ui.set_macro_pause_max(limits.macro_interval_ms.max);
+    ui.set_macro_count_max(limits.macro_repeat_count.map_or(1, |r| r.max));
+    ui.set_macro_pause_max(limits.macro_interval_ms.map_or(0, |r| r.max));
+}
+
+/// The longest macro name the controller stores: 0 when a macro has no name.
+fn name_max(description: &ControllerDescription) -> i32 {
+    description.limits.macro_name_length.map_or(0, |r| r.max)
 }
 
 #[cfg(test)]

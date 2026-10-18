@@ -48,13 +48,20 @@ fn check(
             reason: Reason::NoMacroSlots { display_name: description.display_name.clone() },
         }]);
     }
-    let max_name = usize::try_from(description.limits.macro_name_length.max)
-        .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
-    // The name check says it in plain words, so the schema's own name errors go.
-    let mut errors = name_errors(description, macro_json, max_name);
+    // The name check says it in plain words, so the schema's own name errors go. A model
+    // without macro names leaves the schema to refuse one.
+    let mut errors = match description.limits.macro_name_length {
+        Some(names) => {
+            let max_name = usize::try_from(names.max)
+                .map_err(|_| Error::Decode("macro name limit is negative".into()))?;
+            name_errors(description, macro_json, max_name)
+        }
+        None => Vec::new(),
+    };
+    let has_names = description.limits.macro_name_length.is_some();
     let schema =
         schema_errors(&macro_validator(description, device)?, macro_json, Reason::MacroSchema);
-    let schema: Vec<_> = schema.into_iter().filter(|e| e.path != "/name").collect();
+    let schema: Vec<_> = schema.into_iter().filter(|e| !has_names || e.path != "/name").collect();
     if !schema.is_empty() {
         errors.extend(schema);
         return Ok(errors);
@@ -231,5 +238,66 @@ mod tests {
             b.can_be_in_macro_step |= b.id == "l4";
         }
         assert_eq!(check(&description, "8bitdo-pro3", &a_macro()).unwrap(), []);
+    }
+
+    /// The Pro 3 with the macro shape of a pad that has no macro names, repeats, pauses
+    /// or glides, takes one trigger per macro, and has no `DInput` mode.
+    fn plain_macros() -> ControllerDescription {
+        let mut d = crate::devices::pro3::description().unwrap().clone();
+        for b in &mut d.buttons {
+            b.can_be_in_macro_step |= b.id == "l4";
+        }
+        d.modes.retain(|m| m.id != crate::devices::pro3::DINPUT);
+        let l = &mut d.limits;
+        (l.macro_name_length, l.macro_repeat_count, l.macro_interval_ms) = (None, None, None);
+        (l.glide_step_ms, l.triggers_per_macro) = (None, Some(1));
+        d
+    }
+
+    #[test]
+    fn a_model_without_a_macro_feature_takes_no_macro_that_uses_it() {
+        let d = plain_macros();
+        let mut nameless = a_macro();
+        nameless.as_object_mut().unwrap().remove("name");
+        assert_eq!(check(&d, "8bitdo-pro3", &nameless).unwrap(), []);
+        let mut empty = a_macro();
+        empty["name"] = json!("");
+        assert_eq!(check(&d, "8bitdo-pro3", &empty).unwrap(), []);
+        let cases: [fn(&mut Value); 6] = [
+            |m| m["name"] = json!("Named"),
+            |m| m["repeat"]["count"] = json!(2),
+            |m| m["repeat"]["interval_ms"] = json!(5),
+            |m| {
+                m.as_object_mut().unwrap().remove("trigger");
+                m["trigger_buttons"] = json!(["rp", "lp"]);
+            },
+            |m| m["steps"][0]["glide"] = json!(["left_stick"]),
+            |m| m["mode"] = json!("dinput"),
+        ];
+        for (i, use_it) in cases.iter().enumerate() {
+            let mut m = empty.clone();
+            use_it(&mut m);
+            assert_ne!(check(&d, "8bitdo-pro3", &m).unwrap(), [], "case {i} should fail");
+        }
+    }
+
+    #[test]
+    fn the_pro_3_still_takes_names_repeats_and_many_triggers() {
+        let mut d = crate::devices::pro3::description().unwrap().clone();
+        for b in &mut d.buttons {
+            b.can_be_in_macro_step |= b.id == "l4";
+        }
+        let mut m = a_macro();
+        m.as_object_mut().unwrap().remove("trigger");
+        m["trigger_buttons"] = json!(["rp", "lp"]);
+        m["repeat"] = json!({ "count": 3, "interval_ms": 40 });
+        m["mode"] = json!("dinput");
+        assert_eq!(check(&d, "8bitdo-pro3", &m).unwrap(), []);
+        m["name"] = json!("");
+        let errors = check(&d, "8bitdo-pro3", &m).unwrap();
+        assert!(matches!(
+            errors[..],
+            [ValidationError { reason: Reason::NameEmpty { max: 16 }, .. }]
+        ));
     }
 }

@@ -1570,6 +1570,10 @@ msgid "The profile uses an output that {mode} mode does not have."
 msgstr ""
 
 #: src/reasons.rs
+msgid "{button} cannot take {output}."
+msgstr ""
+
+#: src/reasons.rs
 msgid "{button} starts two macros. A button starts at most one macro."
 msgstr ""
 
