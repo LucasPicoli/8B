@@ -2791,6 +2791,15 @@ fn locked_shots(suffix: &str) {
         port: "3-1".to_owned(),
         model: &controller_core::devices::test_pad::UnvalidatedPad,
     }]);
+    // A pad of that model already on its config port: the same screen, naming the model.
+    let mut on_port = new_state();
+    on_port.refused_seen(
+        crate::worker::Target {
+            port: "3-1".to_owned(),
+            model: &controller_core::devices::test_pad::UnvalidatedPad,
+        },
+        controller_core::device::UsbId { vendor: 0x2dc8, product: 0x7e58 },
+    );
     let mut relocking = crate::state::tests::ultimate("1.09");
     relocking.set_output("p1", "auto turbo");
     relocking.relock_clicked(&tx);
@@ -2800,6 +2809,7 @@ fn locked_shots(suffix: &str) {
         ("not-unlocked", failed, 3),
         ("not-supported", unsupported, 4),
         ("not-checked", not_checked, 4),
+        ("not-checked-on-port", on_port, 4),
         ("relock-question", relocking, 0),
     ];
     for (name, state, view) in &states {

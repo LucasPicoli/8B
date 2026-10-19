@@ -99,6 +99,18 @@ impl AppState {
         self.locked.extend(kept);
     }
 
+    /// A pad of a refused model showed its config port: it is listed as a locked pad
+    /// with the refusal, and nothing is read from it.
+    pub fn refused_seen(&mut self, target: Target, usb: UsbId) {
+        let name = target.model.description().ok().map(|d| d.display_name.clone());
+        let status = LockStatus::Unsupported(usb, name);
+        if self.locked.iter().any(|p| p.port == target.port) {
+            self.set_lock_status(&target.port, status);
+        } else {
+            self.locked.push(LockedPad { port: target.port, model: target.model, status });
+        }
+    }
+
     /// An unsupported pad on `port` left the bus: its message goes.
     pub fn unplugged(&mut self, port: &str) {
         self.locked.retain(|p| p.port != port);
@@ -438,6 +450,11 @@ impl AppState {
         };
         let usb_id = |usb: &UsbId| format!("{:04x}:{:04x}", usb.vendor, usb.product);
         let (title, body) = match (&pad.status, description) {
+            // The id names a model no one has checked.
+            (LockStatus::Unsupported(usb, Some(model)), _) => (
+                tr!("{model} is not checked on a real pad yet", model = model),
+                tr!("USB ID {pid}. Replug it to get XInput back.", pid = usb_id(usb)),
+            ),
             // The product string names a model no one has checked: nothing was sent.
             (_, Some(d)) if refused => (
                 tr!("This {family} is not checked on a real pad yet", family = name),
@@ -446,11 +463,6 @@ impl AppState {
                     model = d.display_name,
                     pid = d.lock.as_ref().map_or(String::new(), |l| usb_id(&l.locked.usb))
                 ),
-            ),
-            // The unlocked id names a model no one has checked.
-            (LockStatus::Unsupported(usb, Some(model)), _) => (
-                tr!("{model} is not checked on a real pad yet", model = model),
-                tr!("USB ID {pid}. Replug it to get XInput back.", pid = usb_id(usb)),
             ),
             (LockStatus::Unsupported(usb, None), _) => (
                 tr!("This controller is not supported yet"),
@@ -650,6 +662,26 @@ mod tests {
         let info = s.locked_info();
         assert_eq!((info.view, info.title.as_str()), (4, "This controller is not supported yet"));
         assert_eq!(info.body, "USB ID 2dc8:1234. Replug it to get XInput back.");
+    }
+
+    #[test]
+    fn an_unvalidated_model_on_its_config_port_gets_the_refusal_screen() {
+        let usb = UsbId { vendor: 0x2dc8, product: 0x7e58 };
+        let mut s = new_state();
+        s.refused_seen(unchecked("1-2"), usb);
+        s.refused_seen(unchecked("1-2"), usb);
+        assert_eq!(s.locked.len(), 1, "once per pad");
+        assert!(s.shows_pad() && s.listed().next().is_none());
+        let info = s.locked_info();
+        assert_eq!(info.view, 4);
+        assert_eq!(info.title, "Unchecked Pad is not checked on a real pad yet");
+        assert_eq!(info.body, "USB ID 2dc8:7e58. Replug it to get XInput back.");
+        assert!(info.guide);
+        let (tx, rx) = mpsc::channel();
+        assert!(!s.unlock_requested(&tx, "1-2"));
+        assert!(rx.try_recv().is_err(), "nothing goes to the pad");
+        s.unplugged("1-2");
+        assert!(!s.shows_pad());
     }
 
     #[test]

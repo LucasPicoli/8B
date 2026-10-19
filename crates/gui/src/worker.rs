@@ -9,9 +9,11 @@ use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use controller_core::detect::{config_hidraw, scan_sysfs_all};
-use controller_core::device::{ConfigPort, Model};
-use controller_core::devices::{locked_ports, LockedController};
+use controller_core::detect::{config_hidraw, scan_sysfs_all, DetectedUsb};
+use controller_core::device::{ConfigPort, Model, UsbId};
+use controller_core::devices::{
+    find_model_by_port, locked_ports, models, refused, LockedController,
+};
 use controller_core::model::{Mode, ProfileReadResult, WriteResult};
 use controller_core::service::read::read_macro_steps;
 use controller_core::transport::lock::{self, Unlocked};
@@ -104,6 +106,9 @@ pub trait Locks: Send {
     /// # Errors
     /// As the core call.
     fn relock(&self, model: &dyn Model, port: &str) -> Result<(), Error>;
+    /// The model that config port `usb` names on its own, when the app refuses it: it is
+    /// not validated, and the user did not let it through. Such a pad is never opened.
+    fn refused(&self, usb: UsbId) -> Option<&'static dyn Model>;
 }
 
 /// The real bus.
@@ -121,6 +126,10 @@ impl Locks for SystemLocks {
 
     fn relock(&self, model: &dyn Model, port: &str) -> Result<(), Error> {
         lock::relock(model, port)
+    }
+
+    fn refused(&self, usb: UsbId) -> Option<&'static dyn Model> {
+        find_model_by_port(models(), usb).filter(|m| m.description().is_ok_and(refused))
     }
 }
 
@@ -194,6 +203,14 @@ pub enum Event {
         /// On success with a config port: its mode, so the window lists the pad without
         /// waiting for a settled sighting.
         mode: Option<Mode>,
+    },
+    /// A pad showed its config port, and its model is not validated: nothing is sent to
+    /// it. The window shows the refusal until [`Event::Unplugged`].
+    Refused {
+        /// The pad's port path and model.
+        target: Target,
+        /// The config port's USB id.
+        usb: UsbId,
     },
     /// A pad that came back from an unlock as an unsupported USB id left the bus: nothing
     /// is on its port path any more.
@@ -371,13 +388,17 @@ fn run(
                 );
             }
             Err(RecvTimeoutError::Timeout) => {
-                let found = scan_sysfs_all(sysfs, ports);
+                // A refused model is reported, never listed: nothing opens or reads it.
+                let (refused, found): (Vec<_>, Vec<_>) = scan_sysfs_all(sysfs, ports)
+                    .into_iter()
+                    .partition(|usb| hooks.locks.refused(usb.port.usb).is_some());
                 if Instant::now() < next_poll {
                     keepalive.hold(&found, |usb| devnum(&usb.sysfs_path));
                     continue;
                 }
                 next_poll = Instant::now() + POLL;
                 poll_locks(hooks, sysfs, (&mut locked_seen, &mut unsupported), emit);
+                report_refused(hooks, &refused, &mut unsupported, emit);
                 for v in keepalive.sync(&found, |usb| devnum(&usb.sysfs_path)) {
                     emit(Event::Fix { port: v.port, looping: v.looping });
                 }
@@ -406,6 +427,29 @@ fn run(
             Err(RecvTimeoutError::Disconnected) => return,
         }
     }
+}
+
+/// Reports each pad of `refused` once, and keeps its port in `unsupported` until it leaves.
+fn report_refused(
+    hooks: &Hooks,
+    refused: &[DetectedUsb],
+    unsupported: &mut BTreeSet<String>,
+    emit: &dyn Fn(Event),
+) {
+    for usb in refused {
+        let (port, id) = (usb.port_path().to_owned(), usb.port.usb);
+        if let Some(model) = hooks.locks.refused(id) {
+            if unsupported.insert(port.clone()) {
+                info!("{port}: {} is not validated, so it is left alone", model_name(model));
+                emit(Event::Refused { target: Target { port, model }, usb: id });
+            }
+        }
+    }
+}
+
+/// The display name of `model`, for the log.
+fn model_name(model: &dyn Model) -> &str {
+    model.description().map_or("unknown model", |d| d.display_name.as_str())
 }
 
 /// The open devices by USB port path.
@@ -564,6 +608,7 @@ mod tests {
 
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, XINPUT};
+    use controller_core::devices::test_pad::UnvalidatedPad;
     use controller_core::devices::ultimate::Ultimate;
     use controller_core::model::{MacroDefinition, MacroSlot, Slot};
     use controller_core::transport::mock::MockOp;
@@ -616,6 +661,54 @@ mod tests {
         fs::write(dev.join("idProduct"), format!("{product}\n")).unwrap();
     }
 
+    /// A worker watching a sysfs with the unvalidated test pad on its config port, which
+    /// the app refuses when `refuses`.
+    fn watching_unchecked(refuses: bool) -> (Sender<Command>, Receiver<Event>, tempfile::TempDir) {
+        let sysfs = tempfile::tempdir().unwrap();
+        plug(sysfs.path(), "2dc8", "7e58");
+        fs::write(sysfs.path().join("3-1/devnum"), "44\n").unwrap();
+        let ports = UnvalidatedPad.description().unwrap().config_ports.clone();
+        let (etx, events) = mpsc::channel();
+        let locks = FakeLocks { refuses, ..FakeLocks::default() };
+        let tx = spawn(
+            given(MockDevice::new()),
+            sysfs.path().to_owned(),
+            ports,
+            Hooks { install: installed, locks: Box::new(locks) },
+            PathBuf::new(),
+            false,
+            move |e| {
+                let _ = etx.send(e);
+            },
+        )
+        .unwrap();
+        (tx, events, sysfs)
+    }
+
+    #[test]
+    fn a_refused_model_on_its_config_port_is_reported_and_never_listed_or_read() {
+        let (tx, events, sysfs) = watching_unchecked(true);
+        match next(&events) {
+            Event::Refused { target, usb } => {
+                assert_eq!(target.port, PORT);
+                assert_eq!(usb.product, 0x7e58);
+            }
+            other => panic!("expected the refusal, got {other:?}"),
+        }
+        // Not again at the next poll, and no presence, so nothing reads the pad.
+        assert!(events.recv_timeout(POLL * 4).is_err());
+        // It leaves the bus: the refusal goes.
+        fs::remove_dir_all(sysfs.path().join(PORT)).unwrap();
+        assert!(matches!(next(&events), Event::Unplugged(p) if p == PORT));
+        drop(tx);
+    }
+
+    #[test]
+    fn an_unvalidated_model_the_user_let_through_is_listed_like_any_pad() {
+        let (_tx, events, _sysfs) = watching_unchecked(false);
+        assert!(matches!(next(&events), Event::Presence { mode: Some(_), .. }));
+    }
+
     #[test]
     fn a_replug_faster_than_the_debounce_is_a_new_presence() {
         let sysfs = tempfile::tempdir().unwrap();
@@ -663,9 +756,18 @@ mod tests {
         /// The ports relocked, in order; a port in `stuck` fails.
         relocks: Arc<Mutex<Vec<String>>>,
         stuck: Vec<String>,
+        /// The app refuses the unvalidated test pad, as it does without
+        /// `EIGHTB_UNVALIDATED=1`.
+        refuses: bool,
     }
 
     impl Locks for FakeLocks {
+        fn refused(&self, usb: UsbId) -> Option<&'static dyn Model> {
+            let pad = UnvalidatedPad.description().ok()?;
+            (self.refuses && pad.config_ports.iter().any(|p| p.usb == usb))
+                .then_some(&UnvalidatedPad as &'static dyn Model)
+        }
+
         fn locked(&self) -> Vec<LockedController> {
             self.locked.lock().unwrap().clone()
         }

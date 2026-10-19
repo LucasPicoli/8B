@@ -157,12 +157,15 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
                 }
             }
         }
-        Event::Locked(_) | Event::Unplugged(_) | Event::Unlock { .. } | Event::Relock { .. } => {}
+        // The worker or `lock_event` logs these.
+        Event::Locked(_)
+        | Event::Refused { .. }
+        | Event::Unplugged(_)
+        | Event::Unlock { .. }
+        | Event::Relock { .. } => {}
         Event::Installed(Ok(())) => info!("udev rule installed"),
         Event::Installed(Err(e)) => warn!("udev rule install failed: {e}"),
-        Event::Fix { port, looping } => {
-            info!("controller on {port} needs the keepalive fix; it reconnected while watched: {looping}");
-        }
+        Event::Fix { port, looping } => info!("{port} needs the keepalive fix, looping: {looping}"),
     }
     match event {
         Event::Presence { port, mode } => {
@@ -220,7 +223,11 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             let offer = if state.sandboxed { looping } else { !udev::keepalive_installed() };
             state.fix_verdict(&port, offer);
         }
-        Event::Locked(_) | Event::Unplugged(_) | Event::Unlock { .. } | Event::Relock { .. } => {
+        Event::Locked(_)
+        | Event::Refused { .. }
+        | Event::Unplugged(_)
+        | Event::Unlock { .. }
+        | Event::Relock { .. } => {
             lock_event(state, event, commands);
         }
         Event::Installed(result) => {
@@ -238,6 +245,7 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
 fn lock_event(state: &mut AppState, event: Event, commands: &Sender<Command>) {
     match event {
         Event::Locked(pads) => state.locked_seen(pads),
+        Event::Refused { target, usb } => state.refused_seen(target, usb),
         Event::Unplugged(port) => state.unplugged(&port),
         Event::Unlock { port, result, mode } => {
             match &result {

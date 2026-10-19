@@ -14,8 +14,10 @@ use rustix::event::{poll, PollFd, PollFlags, Timespec};
 use rustix::io::Errno;
 
 use crate::detect::{config_hidraw, scan_sysfs_all, DetectedUsb};
-use crate::device::{Model, RawRequest};
-use crate::devices::{config_ports, find_model, find_model_by_port, models};
+use crate::device::{Model, RawRequest, UsbId};
+use crate::devices::{
+    config_ports, find_model, find_model_by_port, models, refused_with, unvalidated_allowed,
+};
 use crate::error::{Error, Result};
 use crate::model::Mode;
 use crate::protocol::bytes::{hex, read_u16_le, read_u8};
@@ -104,6 +106,7 @@ impl Session {
     /// and the errors of [`Self::send_recv`].
     pub(super) fn open(to: Target<'_>, timeout: Duration) -> Result<Self> {
         let found = to.find().ok_or(Error::NoDevice)?;
+        refuse_unvalidated(models(), found.port.usb, unvalidated_allowed())?;
         let node =
             config_hidraw(Path::new(&found.sysfs_path), found.port.interface).ok_or_else(|| {
                 Error::Usb(format!(
@@ -402,6 +405,24 @@ pub(super) fn open_error(node: &Path, e: &std::io::Error) -> Error {
     }
 }
 
+/// Refuses a config port that names a model nobody has validated, unless `allowed`:
+/// nothing is sent to such a pad, not even the pause.
+///
+/// # Errors
+/// Returns [`Error::UnsupportedModel`] with the port's product id.
+fn refuse_unvalidated(models: &[&'static dyn Model], usb: UsbId, allowed: bool) -> Result<()> {
+    match find_model_by_port(models, usb) {
+        Some(model) if refused_with(model.description()?, allowed) => {
+            info!(
+                "{:04x}:{:04x} is a model nobody has validated: not opened",
+                usb.vendor, usb.product
+            );
+            Err(Error::UnsupportedModel(usb.product))
+        }
+        _ => Ok(()),
+    }
+}
+
 /// The model among `models` that a `START_CONFIG` reply names, checked against the
 /// config port the controller was found on.
 fn identify(
@@ -456,6 +477,21 @@ mod tests {
     }
 
     static CAPTURE: Capture = Capture(Mutex::new(Vec::new()));
+
+    #[test]
+    fn a_config_port_that_names_an_unvalidated_model_is_not_opened_unless_allowed() {
+        use crate::devices::test_pad::UnvalidatedPad;
+        use crate::devices::ultimate::Ultimate;
+        let models: [&'static dyn Model; 2] = [&Ultimate, &UnvalidatedPad];
+        let unchecked = UsbId { vendor: 0x2dc8, product: 0x7e58 };
+        let ultimate = UsbId { vendor: 0x2dc8, product: 0x6007 };
+        assert!(matches!(
+            refuse_unvalidated(&models, unchecked, false),
+            Err(Error::UnsupportedModel(0x7e58))
+        ));
+        refuse_unvalidated(&models, unchecked, true).unwrap();
+        refuse_unvalidated(&models, ultimate, false).unwrap();
+    }
 
     #[test]
     fn timeout_logs_one_warn_with_both_frames() {

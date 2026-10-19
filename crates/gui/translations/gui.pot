@@ -1415,19 +1415,19 @@ msgid "Replug it if this keeps happening."
 msgstr ""
 
 #: src/locked.rs
-msgid "This {family} is not checked on a real pad yet"
-msgstr ""
-
-#: src/locked.rs
-msgid "It reports itself as an {model}. USB ID {pid}."
-msgstr ""
-
-#: src/locked.rs
 msgid "{model} is not checked on a real pad yet"
 msgstr ""
 
 #: src/locked.rs
 msgid "USB ID {pid}. Replug it to get XInput back."
+msgstr ""
+
+#: src/locked.rs
+msgid "This {family} is not checked on a real pad yet"
+msgstr ""
+
+#: src/locked.rs
+msgid "It reports itself as an {model}. USB ID {pid}."
 msgstr ""
 
 #: src/locked.rs
