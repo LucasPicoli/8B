@@ -1534,6 +1534,10 @@ msgstr ""
 "Close it and try again.⟧"
 
 #: src/locked.rs
+msgid "{name} · Not checked"
+msgstr "⟦~~~~~~~~{name} · Not checked⟧"
+
+#: src/locked.rs
 msgid "8BitDo · Not supported"
 msgstr "⟦~~~~~~~~~8BitDo · Not supported⟧"
 
@@ -1568,6 +1572,10 @@ msgstr "⟦~~~~~~~~~~~~~~Replug it if this keeps happening.⟧"
 #: src/locked.rs
 msgid "{model} is not checked on a real pad yet"
 msgstr "⟦~~~~~~~~~~~~~~~~{model} is not checked on a real pad yet⟧"
+
+#: src/locked.rs
+msgid "USB ID {pid}."
+msgstr "⟦~~~~~~USB ID {pid}.⟧"
 
 #: src/locked.rs
 msgid "USB ID {pid}. Replug it to get XInput back."

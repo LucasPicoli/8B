@@ -38,6 +38,9 @@ pub enum LockStatus {
     /// replugging returns the pad to `XInput`. The name is the display name of the
     /// unvalidated model the id names, or `None` when no description lists the id.
     Unsupported(UsbId, Option<String>),
+    /// The pad showed its config port with no unlock, and its model is not validated.
+    /// Nothing was sent, and it never locked: no replug advice. Holds the model's name.
+    OnPort(UsbId, String),
 }
 
 /// A locked controller, listed in the picker as "locked".
@@ -77,11 +80,10 @@ impl AppState {
         self.locked = seen
             .into_iter()
             .map(|t| {
-                let status = old
-                    .iter()
-                    .find(|p| p.port == t.port)
-                    .map(|p| p.status.clone())
-                    .filter(|s| !matches!(s, LockStatus::Unsupported(..)));
+                let status =
+                    old.iter().find(|p| p.port == t.port).map(|p| p.status.clone()).filter(|s| {
+                        !matches!(s, LockStatus::Unsupported(..) | LockStatus::OnPort(..))
+                    });
                 LockedPad {
                     port: t.port,
                     model: t.model,
@@ -92,7 +94,7 @@ impl AppState {
         let kept: Vec<_> = old
             .into_iter()
             .filter(|p| {
-                matches!(p.status, LockStatus::Unsupported(..))
+                matches!(p.status, LockStatus::Unsupported(..) | LockStatus::OnPort(..))
                     && !self.locked.iter().any(|q| q.port == p.port)
             })
             .collect();
@@ -103,7 +105,7 @@ impl AppState {
     /// with the refusal, and nothing is read from it.
     pub fn refused_seen(&mut self, target: Target, usb: UsbId) {
         let name = target.model.description().ok().map(|d| d.display_name.clone());
-        let status = LockStatus::Unsupported(usb, name);
+        let status = LockStatus::OnPort(usb, name.unwrap_or_default());
         if self.locked.iter().any(|p| p.port == target.port) {
             self.set_lock_status(&target.port, status);
         } else {
@@ -121,7 +123,10 @@ impl AppState {
     pub fn unlock_requested(&mut self, commands: &Sender<Command>, port: &str) -> bool {
         let Some(pad) = self.locked.iter().find(|p| p.port == port) else { return false };
         if pad.refused()
-            || matches!(pad.status, LockStatus::Unlocking | LockStatus::Unsupported(..))
+            || matches!(
+                pad.status,
+                LockStatus::Unlocking | LockStatus::Unsupported(..) | LockStatus::OnPort(..)
+            )
         {
             return false;
         }
@@ -206,8 +211,12 @@ impl AppState {
             .locked
             .iter()
             .map(|p| {
-                if matches!(p.status, LockStatus::Unsupported(..)) {
-                    return tr!("8BitDo · Not supported");
+                match &p.status {
+                    LockStatus::Unsupported(_, Some(name)) | LockStatus::OnPort(_, name) => {
+                        return tr!("{name} · Not checked", name = name);
+                    }
+                    LockStatus::Unsupported(_, None) => return tr!("8BitDo · Not supported"),
+                    _ => {}
                 }
                 let name = p.model.description().map_or("", |d| d.family());
                 tr!("{name} · Locked", name = name)
@@ -416,7 +425,7 @@ impl AppState {
         let pad = self.shown_lock()?;
         Some(match pad.status {
             _ if pad.refused() => tr!("Not checked yet"),
-            LockStatus::Unsupported(_, Some(_)) => tr!("Not checked yet"),
+            LockStatus::Unsupported(_, Some(_)) | LockStatus::OnPort(..) => tr!("Not checked yet"),
             LockStatus::Locked => tr!("Locked"),
             LockStatus::Unlocking => tr!("Unlocking…"),
             LockStatus::Failed { denied: true, .. } => tr!("Locked"),
@@ -446,11 +455,16 @@ impl AppState {
                 }
                 (3, body)
             }
-            LockStatus::Unsupported(..) => (4, String::new()),
+            LockStatus::Unsupported(..) | LockStatus::OnPort(..) => (4, String::new()),
         };
         let usb_id = |usb: &UsbId| format!("{:04x}:{:04x}", usb.vendor, usb.product);
         let (title, body) = match (&pad.status, description) {
-            // The id names a model no one has checked.
+            // The pad showed its config port: it never locked.
+            (LockStatus::OnPort(usb, model), _) => (
+                tr!("{model} is not checked on a real pad yet", model = model),
+                tr!("USB ID {pid}.", pid = usb_id(usb)),
+            ),
+            // The unlocked id names a model no one has checked.
             (LockStatus::Unsupported(usb, Some(model)), _) => (
                 tr!("{model} is not checked on a real pad yet", model = model),
                 tr!("USB ID {pid}. Replug it to get XInput back.", pid = usb_id(usb)),
@@ -675,8 +689,9 @@ mod tests {
         let info = s.locked_info();
         assert_eq!(info.view, 4);
         assert_eq!(info.title, "Unchecked Pad is not checked on a real pad yet");
-        assert_eq!(info.body, "USB ID 2dc8:7e58. Replug it to get XInput back.");
+        assert_eq!(info.body, "USB ID 2dc8:7e58.", "it never locked: no replug advice");
         assert!(info.guide);
+        assert_eq!(s.picker_labels(), ["Unchecked Pad · Not checked"]);
         let (tx, rx) = mpsc::channel();
         assert!(!s.unlock_requested(&tx, "1-2"));
         assert!(rx.try_recv().is_err(), "nothing goes to the pad");
@@ -720,6 +735,7 @@ mod tests {
         assert_eq!(info.title, "Unchecked Pad is not checked on a real pad yet");
         assert_eq!(info.body, "USB ID 2dc8:7e58. Replug it to get XInput back.");
         assert!(info.guide);
+        assert_eq!(s.picker_labels(), ["Unchecked Pad · Not checked"]);
         s.unlock_finished("1-2", Ok(&Unlocked::Unsupported(usb, None)));
         let info = s.locked_info();
         assert_eq!(info.title, "This controller is not supported yet");

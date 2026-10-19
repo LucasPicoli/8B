@@ -1311,6 +1311,10 @@ msgid "Another program may be using the controller. Close it and try again."
 msgstr "Outro programa pode estar usando o controle. Feche e tente novamente."
 
 #: src/locked.rs
+msgid "{name} · Not checked"
+msgstr "{name} · Não testado"
+
+#: src/locked.rs
 msgid "8BitDo · Not supported"
 msgstr "8BitDo · Não suportado"
 
@@ -1345,6 +1349,10 @@ msgstr "Reconecte-o se isso continuar."
 #: src/locked.rs
 msgid "{model} is not checked on a real pad yet"
 msgstr "{model} ainda não foi testado em um controle real"
+
+#: src/locked.rs
+msgid "USB ID {pid}."
+msgstr "ID USB {pid}."
 
 #: src/locked.rs
 msgid "USB ID {pid}. Replug it to get XInput back."

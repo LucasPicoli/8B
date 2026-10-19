@@ -1383,6 +1383,10 @@ msgid "Another program may be using the controller. Close it and try again."
 msgstr ""
 
 #: src/locked.rs
+msgid "{name} · Not checked"
+msgstr ""
+
+#: src/locked.rs
 msgid "8BitDo · Not supported"
 msgstr ""
 
@@ -1416,6 +1420,10 @@ msgstr ""
 
 #: src/locked.rs
 msgid "{model} is not checked on a real pad yet"
+msgstr ""
+
+#: src/locked.rs
+msgid "USB ID {pid}."
 msgstr ""
 
 #: src/locked.rs
