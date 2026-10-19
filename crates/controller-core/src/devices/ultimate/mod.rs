@@ -244,3 +244,34 @@ impl ProtocolCodec for Ultimate {
         description()?.validate_remap(mode, source, target)
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::indexing_slicing)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ultimate_hotspots_sit_on_their_buttons() {
+        let views = &Ultimate.description().unwrap().views;
+        let hit = |view: usize, x: f64, y: f64| -> Vec<&str> {
+            let hotspots = views[view].hotspots.iter();
+            hotspots.filter(|h| h.contains(x, y)).map(|h| h.button.as_str()).collect()
+        };
+        assert_eq!(hit(0, 385.0, 147.0), ["bottom face"]);
+        assert_eq!(hit(0, 118.0, 112.0), ["l3"]);
+        assert_eq!(hit(0, 185.0, 150.0), ["d-pad up"]);
+        assert_eq!(hit(0, 185.0, 175.0), Vec::<&str>::new(), "d-pad centre");
+        assert_eq!(hit(0, 250.0, 76.0), ["home/guide"]);
+        assert_eq!(hit(0, 250.0, 110.0), ["star"], "below Home");
+        assert_eq!(hit(0, 216.0, 110.0), ["select/back"]);
+        assert_eq!(hit(0, 284.0, 110.0), ["start/menu"]);
+        assert_eq!(hit(0, 100.0, 36.0), ["l1"], "bumper on the front");
+        assert_eq!(hit(0, 400.0, 36.0), ["r1"]);
+        assert_eq!(hit(0, 60.0, 120.0), Vec::<&str>::new(), "body beside the left stick");
+        assert_eq!(hit(0, 60.0, 70.0), Vec::<&str>::new(), "body below the bumper");
+        assert_eq!(hit(1, 117.0, 50.0), ["r2"]);
+        assert_eq!(hit(1, 365.0, 165.0), ["p1"], "under the left hand, on the viewer's right");
+        assert_eq!(hit(1, 135.0, 165.0), ["p2"]);
+        assert_eq!(hit(1, 250.0, 100.0), Vec::<&str>::new(), "body between the triggers");
+    }
+}
