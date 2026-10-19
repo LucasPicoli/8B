@@ -1,5 +1,6 @@
 //! The stick pads of the step panel: where the selected step holds each stick and its
-//! glide, or, on a controller that stores directions only, which direction. Also the
+//! glide; on a controller that stores directions only, an edit snaps to one of 9
+//! positions ([`snap_direction`]). Also the
 //! Macros tab's bar for a stick whose dead zone hides the macro's moves. A pad drawn as a
 //! round gate maps to the square of values the way the step table's glyph does
 //! ([`disc`]).
@@ -28,11 +29,25 @@ const SNAP: f32 = 0.15;
 const RIM: [[u8; 2]; 8] =
     [[127, 0], [255, 0], [255, 127], [255, 255], [127, 255], [0, 255], [0, 127], [0, 0]];
 
-/// The positions a stick picks from on a controller that stores directions only: the
-/// centre, then the rim points from up clockwise. The direction picker in
-/// `step_panel.slint` names them in this order.
-const DIRECTIONS: [[u8; 2]; 9] =
-    [[STICK_CENTER, STICK_CENTER], RIM[0], RIM[1], RIM[2], RIM[3], RIM[4], RIM[5], RIM[6], RIM[7]];
+/// A point on the gate closer to the centre than this, in gate radii, is the centre
+/// where a controller stores directions only; a third leaves each of the 8 sectors wide.
+const DEAD_ZONE: f32 = 1.0 / 3.0;
+
+/// The values of the nearest of the 9 positions a directions-only controller stores for
+/// the point (`x`, `y`) on the gate, in gate radii from its centre, y down: the centre
+/// inside the dead zone, else the rim point whose 45 degree sector holds the angle. On a
+/// sector boundary the clockwise one wins.
+#[must_use]
+pub fn snap_direction(x: f32, y: f32) -> [u8; 2] {
+    if x.hypot(y) < DEAD_ZONE {
+        return [STICK_CENTER; 2];
+    }
+    // Eighths of a turn clockwise from up, -4 to 4; `RIM` runs from up clockwise.
+    #[allow(clippy::cast_possible_truncation)]
+    let sector = (x.atan2(-y) / std::f32::consts::FRAC_PI_4).round() as i32;
+    let at = usize::try_from(sector.rem_euclid(8)).unwrap_or(0);
+    RIM.get(at).copied().unwrap_or([STICK_CENTER; 2])
+}
 
 /// `u` from -1 to 1 as a value from 0 to 255, rest at 0.
 fn value(u: f32) -> u8 {
@@ -118,28 +133,50 @@ pub fn glides_in_from(steps: &[MacroStep], i: usize, control: GlideControl) -> i
 }
 
 impl AppState {
+    /// Whether the controller stores a stick as centre or one of 8 directions only.
+    fn sticks_snap(&self) -> bool {
+        self.description().macro_sticks == MacroSticks::Directions8
+    }
+
     /// Sets stick `stick` (0 left, 1 right) of step `step` of macro slot `n` to
-    /// (`x`, `y`), each clamped to 0 to 255. Edits of one stick in a row, such as a drag
-    /// or the arrows of a field, are one undo; `apart` makes this one its own.
+    /// (`x`, `y`), each clamped to 0 to 255, then to the nearest stored position on a
+    /// directions-only controller. Edits of one stick in a row, such as a drag or the
+    /// arrows of a field, are one undo; `apart` makes this one its own.
     pub fn set_stick(&mut self, n: u8, step: usize, stick: usize, [x, y]: [i32; 2], apart: bool) {
         let Some(&(control, label)) = STICKS.get(stick) else { return };
         let v = |a: i32| u8::try_from(a.clamp(0, 255)).unwrap_or(STICK_CENTER);
+        let mut at = [v(x), v(y)];
+        if self.sticks_snap() {
+            let (dx, dy) = disc(at[0], at[1]);
+            at = snap_direction(dx, dy);
+        }
         let key = (!apart).then_some((step, label));
-        self.edit_step_values(n, step, key, |s| set_axes(s, control, [v(x), v(y)]));
+        self.edit_step_values(n, step, key, |s| set_axes(s, control, at));
     }
 
     /// Sets stick `stick` of step `step` of macro slot `n` to the point (`x`, `y`) on its
-    /// gate, snapping to the rim with `snap`, see [`from_disc`].
+    /// gate, snapping to the rim with `snap`, see [`from_disc`]. A directions-only
+    /// controller always snaps to one of its 9 positions, see [`snap_direction`].
     pub fn drag_stick(&mut self, n: u8, step: usize, stick: usize, [x, y]: [f32; 2], snap: bool) {
-        let [vx, vy] = from_disc(x, y, snap);
+        let [vx, vy] =
+            if self.sticks_snap() { snap_direction(x, y) } else { from_disc(x, y, snap) };
         self.set_stick(n, step, stick, [i32::from(vx), i32::from(vy)], false);
     }
 
-    /// Sets stick `stick` of step `step` of macro slot `n` to entry `direction` of
-    /// [`DIRECTIONS`], as its own undo. An unknown direction changes nothing.
-    pub fn aim_stick(&mut self, n: u8, step: usize, stick: usize, direction: usize) {
-        let Some(&[x, y]) = DIRECTIONS.get(direction) else { return };
-        self.set_stick(n, step, stick, [i32::from(x), i32::from(y)], true);
+    /// Moves stick `stick` of step `step` of macro slot `n` one position along each axis
+    /// by `dx` and `dy` (-1, 0 or 1; y down), as an arrow key does on a directions-only
+    /// pad. It stops at full travel.
+    pub fn nudge_stick(&mut self, n: u8, step: usize, stick: usize, dx: i32, dy: i32) {
+        let Some(&(control, _)) = STICKS.get(stick) else { return };
+        let Some(s) = self.macro_steps(n).and_then(|m| m.get(step).cloned()) else { return };
+        let [x, y] = axes(&s, control);
+        // Positions 0 to 2 on an axis: low, rest, high.
+        let go = |v: u8, d: i32| {
+            let rank = |v: u8| i32::from(v >= 64) + i32::from(v >= 192);
+            let at = usize::try_from((rank(v) + d.signum()).clamp(0, 2)).unwrap_or(1);
+            [0, 127, 255].get(at).copied().unwrap_or(STICK_CENTER)
+        };
+        self.set_stick(n, step, stick, [go(x, dx).into(), go(y, dy).into()], true);
     }
 
     /// Turns the glide of stick `stick` of step `step` of macro slot `n` on or off. A
@@ -175,11 +212,6 @@ pub fn stick_pads(state: &AppState, n: u8, step: usize) -> Vec<PadStick> {
                 label: label.into(),
                 value_x: i32::from(x),
                 value_y: i32::from(y),
-                direction: DIRECTIONS
-                    .iter()
-                    .position(|&d| d == [x, y])
-                    .and_then(|i| i32::try_from(i).ok())
-                    .unwrap_or(-1),
                 at: stick(&steps, step, control),
                 glide_label: glide_label.into(),
                 can_glide,
@@ -393,26 +425,85 @@ mod tests {
         assert_eq!((pct("/sticks/left_min_pct"), pct("/sticks/right_min_pct")), (Some(2), Some(1)));
     }
 
-    #[test]
-    fn a_direction_sets_the_stick_to_full_deflection() {
-        use controller_core::devices::ultimate::XINPUT as ULTIMATE_XINPUT;
+    /// The Ultimate with a macro of one empty step, the step panel's stick pads.
+    fn ultimate_step() -> AppState {
         let mut s = crate::state::tests::ultimate("1.09");
         s.new_macro(0);
-        s.aim_stick(0, 0, 1, 3);
-        let step = s.slot(ULTIMATE_XINPUT, 1).shown_macro(0).unwrap().steps[0].clone();
-        assert_eq!(axes(&step, GlideControl::RightStick), [255, 127], "right");
-        assert_eq!(axes(&step, GlideControl::LeftStick), [127, 127]);
-        let pads = stick_pads(&s, 0, 0);
-        assert_eq!((pads[0].direction, pads[1].direction), (0, 3));
-        s.aim_stick(0, 0, 1, 8);
-        assert_eq!(stick_pads(&s, 0, 0)[1].direction, 8, "up left");
-        s.aim_stick(0, 0, 1, 9);
-        assert_eq!(stick_pads(&s, 0, 0)[1].direction, 8, "no such direction");
+        s
+    }
+
+    fn right_stick(s: &AppState) -> [u8; 2] {
+        let step = s.macro_steps(0).unwrap()[0].clone();
+        axes(&step, GlideControl::RightStick)
     }
 
     #[test]
-    fn an_analog_position_is_no_direction() {
-        let s = holding(vec![MacroStep { left_stick_x: 200, ..MacroStep::default() }]);
-        assert_eq!(stick_pads(&s, 0, 0)[0].direction, -1);
+    fn snapping_picks_each_of_the_nine_positions() {
+        let r = std::f32::consts::FRAC_1_SQRT_2;
+        let cases = [
+            ((0.0, 0.0), [127, 127]),
+            ((0.0, -1.0), [127, 0]),
+            ((r, -r), [255, 0]),
+            ((1.0, 0.0), [255, 127]),
+            ((r, r), [255, 255]),
+            ((0.0, 1.0), [127, 255]),
+            ((-r, r), [0, 255]),
+            ((-1.0, 0.0), [0, 127]),
+            ((-r, -r), [0, 0]),
+        ];
+        for ((x, y), want) in cases {
+            assert_eq!(snap_direction(x, y), want, "{x}, {y}");
+        }
+    }
+
+    #[test]
+    fn snapping_has_a_dead_zone_and_sectors_of_45_degrees() {
+        assert_eq!(snap_direction(0.0, -0.3), [127, 127], "inside the dead zone");
+        assert_eq!(snap_direction(0.0, -0.4), [127, 0], "just outside");
+        assert_eq!(snap_direction(-0.33, 0.0), [127, 127]);
+        // 20 degrees from up is still up, 25 degrees is up right.
+        let at = |deg: f32| (deg.to_radians().sin(), -deg.to_radians().cos());
+        assert_eq!(snap_direction(at(20.0).0, at(20.0).1), [127, 0]);
+        assert_eq!(snap_direction(at(25.0).0, at(25.0).1), [255, 0]);
+        assert_eq!(snap_direction(at(-25.0).0, at(-25.0).1), [0, 0]);
+        assert_eq!(snap_direction(at(70.0).0, at(70.0).1), [255, 127]);
+        assert_eq!(snap_direction(at(155.0).0, at(155.0).1), [255, 255]);
+        assert_eq!(snap_direction(5.0, 0.0), [255, 127], "far past the rim");
+    }
+
+    #[test]
+    fn a_drag_or_typed_value_on_a_directions_controller_stores_a_valid_position() {
+        let mut s = ultimate_step();
+        s.drag_stick(0, 0, 1, [0.6, -0.1], false);
+        assert_eq!(right_stick(&s), [255, 127], "snaps even with the box off");
+        s.drag_stick(0, 0, 1, [0.05, 0.1], true);
+        assert_eq!(right_stick(&s), [127, 127]);
+        s.set_stick(0, 0, 1, [200, 10], true);
+        assert_eq!(right_stick(&s), [255, 0], "typed values snap too");
+        let slot = s.slot(controller_core::devices::ultimate::XINPUT, 1);
+        let def = slot.shown_macro(0).unwrap();
+        controller_core::devices::ultimate::macros::encode_record(def).unwrap();
+    }
+
+    #[test]
+    fn arrow_keys_step_between_the_positions() {
+        let mut s = ultimate_step();
+        s.nudge_stick(0, 0, 1, 1, 0);
+        assert_eq!(right_stick(&s), [255, 127]);
+        s.nudge_stick(0, 0, 1, 1, 0);
+        assert_eq!(right_stick(&s), [255, 127], "stops at full travel");
+        s.nudge_stick(0, 0, 1, 0, -1);
+        assert_eq!(right_stick(&s), [255, 0]);
+        s.nudge_stick(0, 0, 1, -1, 0);
+        s.nudge_stick(0, 0, 1, -1, 0);
+        assert_eq!(right_stick(&s), [0, 0]);
+    }
+
+    #[test]
+    fn the_pro3_stick_does_not_snap_to_directions() {
+        let mut s = holding(vec![step(100)]);
+        s.drag_stick(0, 0, 0, [0.5, 0.0], false);
+        let [a, _] = axes(&s.macro_steps(0).unwrap()[0], GlideControl::LeftStick);
+        assert!((180..=200).contains(&a), "{a}");
     }
 }

@@ -982,7 +982,6 @@ msgstr ""
 msgid "Current mode"
 msgstr ""
 
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
 #: ui/step_panel.slint
 msgid "Centre"
 msgstr ""
@@ -1021,46 +1020,6 @@ msgstr ""
 
 #: ui/step_panel.slint
 msgid "Step {} of {}"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Up"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Up right"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Right"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Down right"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Down"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Down left"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Left"
-msgstr ""
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Up left"
 msgstr ""
 
 #: ui/steps.slint

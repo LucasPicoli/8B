@@ -642,10 +642,10 @@ export component MacrosTab {
     callback stick-set(int, int, int, int, int, bool);
     callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
-    // The controller stores stick directions only; a direction pick names the macro
-    // slot, the step, the stick and the direction.
+    // The controller stores stick directions only: its pads snap, and an arrow key
+    // nudges (dx, dy) in the macro slot, step and stick it names.
     in property <bool> stick-directions;
-    callback stick-aimed(int, int, int, int);
+    callback stick-nudged(int, int, int, int, int);
     // A stick the macro moves sits under the dead zone floor: the bar's words and its
     // action, which raises the low ends of macro slot n to the floor.
     in property <string> floor-title;
@@ -823,7 +823,7 @@ export component MacrosTab {
                 stick-dragged(k, x, y, snap) => { root.stick-dragged(root.selected, root.selected-step, k, x, y, snap); }
                 stick-glided(k, on) => { root.stick-glided(root.selected, root.selected-step, k, on); }
                 directions: root.stick-directions;
-                stick-aimed(k, d) => { root.stick-aimed(root.selected, root.selected-step, k, d); }
+                stick-nudged(k, dx, dy) => { root.stick-nudged(root.selected, root.selected-step, k, dx, dy); }
                 step-picked(n) => { root.selected-step = n; }
             }
             if !root.current.filled: Frame {

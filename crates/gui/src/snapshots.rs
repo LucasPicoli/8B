@@ -477,7 +477,7 @@ fn ultimate_tabs(suffix: &str) {
         s.set_output("p1", "auto turbo");
         s.new_macro(0);
         s.add_macro_button(0, "right face");
-        s.aim_stick(0, 0, 0, 2);
+        s.drag_stick(0, 0, 0, [0.7, -0.7], true);
         let ui = window(&s);
         ui.window().set_size(PhysicalSize::new(1280, 1300));
         let star = s.description().buttons.iter().position(|b| b.id == "star").unwrap();

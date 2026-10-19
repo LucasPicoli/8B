@@ -930,7 +930,6 @@ msgstr "Controle"
 msgid "Current mode"
 msgstr "Modo atual"
 
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
 #: ui/step_panel.slint
 msgid "Centre"
 msgstr "Centralizar"
@@ -970,46 +969,6 @@ msgstr "{}, encaixar nas bordas e nos cantos"
 #: ui/step_panel.slint
 msgid "Step {} of {}"
 msgstr "Passo {} de {}"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Up"
-msgstr "Para cima"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Up right"
-msgstr "Para cima e à direita"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Right"
-msgstr "Para a direita"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Down right"
-msgstr "Para baixo e à direita"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Down"
-msgstr "Para baixo"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Down left"
-msgstr "Para baixo e à esquerda"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Left"
-msgstr "Para a esquerda"
-
-#. In the order of `DIRECTIONS` in `stick_pad.rs`.
-#: ui/step_panel.slint
-msgid "Up left"
-msgstr "Para cima e à esquerda"
 
 #: ui/steps.slint
 msgid "Step {}, starts at {}, pause, lasts {}"
@@ -2580,3 +2539,27 @@ msgstr "Direcional"
 #. Ultimate /settings/3/lead
 msgid "In this mode each trigger is a button. It counts as pressed once pulled past its start point."
 msgstr "Neste modo, cada gatilho é um botão. Ele conta como pressionado quando puxado além do ponto de início."
+
+#~ msgid "Up"
+#~ msgstr "Para cima"
+
+#~ msgid "Up right"
+#~ msgstr "Para cima e à direita"
+
+#~ msgid "Right"
+#~ msgstr "Para a direita"
+
+#~ msgid "Down right"
+#~ msgstr "Para baixo e à direita"
+
+#~ msgid "Down"
+#~ msgstr "Para baixo"
+
+#~ msgid "Down left"
+#~ msgstr "Para baixo e à esquerda"
+
+#~ msgid "Left"
+#~ msgstr "Para a esquerda"
+
+#~ msgid "Up left"
+#~ msgstr "Para cima e à esquerda"

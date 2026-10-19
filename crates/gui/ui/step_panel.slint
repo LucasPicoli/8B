@@ -22,6 +22,11 @@ component StickPad {
     // the gate turns it on or off for this stick.
     in property <bool> snap;
     callback snap-toggled(bool);
+    // The controller stores centre or one of 8 directions only: every edit snaps, so the
+    // points always show, the Snap box and the Glide box go, and the arrow keys on the
+    // gate step between positions (dx, dy; y down).
+    in property <bool> snapped;
+    callback nudged(int, int);
     // The gate's size, and the reach of a full deflection from its centre.
     property <length> size: PadSize.gate;
     property <length> r: 52px;
@@ -57,6 +62,9 @@ component StickPad {
         // On its own line, so a longer language fits beside a second pad.
         glide-row := HorizontalLayout {
             alignment: start;
+            visible: !root.snapped;
+            min-height: root.snapped ? 0px : self.preferred-height;
+            max-height: root.snapped ? 0px : self.preferred-height;
             // What a glide does, or why it cannot, on hover. A tooltip cannot sit in a
             // layout, so the box gets a frame.
             glide-frame := Rectangle {
@@ -105,7 +113,7 @@ component StickPad {
                     background: Theme.line-soft;
                 }
                 // The 8 snap points on the rim, while a drag snaps to them.
-                for k in root.snap ? 8 : 0: Rectangle {
+                for k in (root.snap || root.snapped) ? 8 : 0: Rectangle {
                     x: root.c + root.r * cos(k * 45deg) - 2px;
                     y: root.c + root.r * sin(k * 45deg) - 2px;
                     width: 4px;
@@ -145,10 +153,27 @@ component StickPad {
                     border-width: 2px;
                     border-color: Theme.view;
                 }
+                // Arrow keys step a snapped stick between its positions.
+                gate-keys := FocusScope {
+                    enabled: root.enabled && root.snapped;
+                    key-pressed(e) => {
+                        if (e.text == Key.LeftArrow) { root.nudged(-1, 0); return accept; }
+                        if (e.text == Key.RightArrow) { root.nudged(1, 0); return accept; }
+                        if (e.text == Key.UpArrow) { root.nudged(0, -1); return accept; }
+                        if (e.text == Key.DownArrow) { root.nudged(0, 1); return accept; }
+                        reject
+                    }
+                }
+                if gate-keys.has-focus && gate-keys.enabled: Rectangle {
+                    border-width: 2px;
+                    border-color: Theme.accent-strong;
+                    border-radius: self.width / 2;
+                }
                 TouchArea {
                     enabled: root.enabled;
                     pointer-event(e) => {
                         if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                            gate-keys.focus();
                             root.dragged((self.mouse-x - root.c) / root.r, (self.mouse-y - root.c) / root.r);
                         }
                     }
@@ -179,7 +204,7 @@ component StickPad {
                             value: root.stick.value-x;
                             minimum: 0;
                             maximum: 255;
-                            step: 1;
+                            step: root.snapped ? 0 : 1;
                             enabled: root.enabled;
                             accessible-name: @tr("{} X, 0 to 255, rest 127", root.stick.label);
                             committed(v) => { root.set(v, root.stick.value-y, false); }
@@ -198,7 +223,7 @@ component StickPad {
                             value: root.stick.value-y;
                             minimum: 0;
                             maximum: 255;
-                            step: 1;
+                            step: root.snapped ? 0 : 1;
                             enabled: root.enabled;
                             accessible-name: @tr("{} Y, 0 to 255, rest 127", root.stick.label);
                             committed(v) => { root.set(root.stick.value-x, v, false); }
@@ -219,6 +244,9 @@ component StickPad {
         }
         HorizontalLayout {
             alignment: start;
+            visible: !root.snapped;
+            min-height: root.snapped ? 0px : self.preferred-height;
+            max-height: root.snapped ? 0px : self.preferred-height;
             snap-box := CheckBox {
                 text: @tr("Snap to edges and corners");
                 checked: root.snap;
@@ -270,10 +298,10 @@ export component StepPanel inherits Frame {
     callback stick-set(int, int, int, bool);
     callback stick-dragged(int, float, float, bool);
     callback stick-glided(int, bool);
-    // The controller stores stick directions only: each stick gets a direction picker in
-    // place of its pad. An edit names the stick, then the direction (`PadStick.direction`).
+    // The controller stores stick directions only: its pads snap to 9 positions, take no
+    // glide, and an arrow key nudges the stick (stick, dx, dy).
     in property <bool> directions;
-    callback stick-aimed(int, int);
+    callback stick-nudged(int, int, int);
     // A pad asks to select step n (0-based).
     callback step-picked(int);
 
@@ -310,29 +338,7 @@ export component StepPanel inherits Frame {
         // columns so each side's controls group apart. One under the other in a narrow
         // window, each pad at its own width. Every pad in a column starts from the same
         // width, so the trigger rows line up with the sticks.
-        if root.directions: HorizontalLayout {
-            spacing: 16px;
-            alignment: start;
-            for s[i] in root.sticks: VerticalLayout {
-                spacing: 8px;
-                SmallHead {
-                    text: s.label;
-                }
-                ComboBox {
-                    width: max(180px, self.fit-width);
-                    // In the order of `DIRECTIONS` in `stick_pad.rs`.
-                    model: [@tr("Centre"), @tr("Up"), @tr("Up right"), @tr("Right"), @tr("Down right"), @tr("Down"), @tr("Down left"), @tr("Left"), @tr("Up left")];
-                    current-index: s.direction;
-                    enabled: root.enabled;
-                    accessible-name: s.label;
-                    selected => {
-                        root.stick-aimed(i, self.current-index);
-                        self.current-index = s.direction;
-                    }
-                }
-            }
-        }
-        if !root.directions && !root.stacked: HorizontalLayout {
+        if !root.stacked: HorizontalLayout {
             spacing: 16px;
             for s[i] in root.sticks: StickPad {
                 horizontal-stretch: 1;
@@ -348,13 +354,15 @@ export component StepPanel inherits Frame {
                 }
                 min-width: root.pad-w;
                 preferred-width: root.pad-w;
+                snapped: root.directions;
+                nudged(dx, dy) => { root.stick-nudged(i, dx, dy); }
                 set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                 dragged(x, y) => { root.stick-dragged(i, x, y, self.snap); }
                 glided(on) => { root.stick-glided(i, on); }
                 step-picked(n) => { root.step-picked(n); }
             }
         }
-        if !root.directions && root.stacked: VerticalLayout {
+        if root.stacked: VerticalLayout {
             spacing: 16px;
             alignment: start;
             for s[i] in root.sticks: HorizontalLayout {
@@ -371,6 +379,8 @@ export component StepPanel inherits Frame {
                         }
                     }
                     min-width: root.pad-w;
+                    snapped: root.directions;
+                    nudged(dx, dy) => { root.stick-nudged(i, dx, dy); }
                     set(x, y, apart) => { root.stick-set(i, x, y, apart); }
                     dragged(x, y) => { root.stick-dragged(i, x, y, self.snap); }
                     glided(on) => { root.stick-glided(i, on); }

@@ -239,10 +239,10 @@ export component AppWindow inherits Window {
     callback stick-set(int, int, int, int, int, bool);
     callback stick-dragged(int, int, int, float, float, bool);
     callback stick-glided(int, int, int, bool);
-    // A direction pick on a controller that stores stick directions only: the macro
-    // slot, the step, the stick and the direction (`PadStick.direction`).
+    // A controller that stores stick directions only: its pads snap, and an arrow key
+    // nudges the stick: the macro slot, the step, the stick, then dx and dy (-1, 0, 1).
     in property <bool> stick-directions;
-    callback stick-aimed(int, int, int, int);
+    callback stick-nudged(int, int, int, int, int);
     // A trigger pressure edit: the macro slot, the step, the trigger (its place in the
     // panel), then the value and whether the edit is its own undo; or the glide.
     callback trigger-set(int, int, int, int, bool);
@@ -585,7 +585,7 @@ export component AppWindow inherits Window {
                         stick-dragged(n, i, k, x, y, snap) => { root.stick-dragged(n, i, k, x, y, snap); }
                         stick-glided(n, i, k, on) => { root.stick-glided(n, i, k, on); }
                         stick-directions: root.stick-directions;
-                        stick-aimed(n, i, k, d) => { root.stick-aimed(n, i, k, d); }
+                        stick-nudged(n, i, k, dx, dy) => { root.stick-nudged(n, i, k, dx, dy); }
                         hit(v, x, y) => { return root.hit(v, x, y); }
                         action-hit(v, n, i, x, y) => { return root.macro-hit(v, n, i, x, y); }
                         neighbour(v, from, dir) => { return root.macro-neighbour(v, from, dir); }

@@ -748,13 +748,9 @@ fn wire_sticks(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone
         c(&|s| s.set_stick_glide(macro_slot(n), step, stick, on));
     });
     let c = change.clone();
-    ui.on_stick_aimed(move |n, step, stick, direction| {
-        let (Ok(step), Ok(stick), Ok(direction)) =
-            (usize::try_from(step), usize::try_from(stick), usize::try_from(direction))
-        else {
-            return;
-        };
-        c(&|s| s.aim_stick(macro_slot(n), step, stick, direction));
+    ui.on_stick_nudged(move |n, step, stick, dx, dy| {
+        let (Ok(step), Ok(stick)) = (usize::try_from(step), usize::try_from(stick)) else { return };
+        c(&|s| s.nudge_stick(macro_slot(n), step, stick, dx, dy));
     });
 }
 
