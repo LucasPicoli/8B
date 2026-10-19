@@ -29,6 +29,9 @@ impl ControllerDescription {
             is_name: true,
         });
         out.push(Prose { pointer: "/short_name".into(), text: &self.short_name, is_name: true });
+        if let Some(family) = &self.family_name {
+            out.push(Prose { pointer: "/family_name".into(), text: family, is_name: true });
+        }
         for (m, mode) in self.modes.iter().enumerate() {
             out.push(Prose {
                 pointer: format!("/modes/{m}/label"),
@@ -136,8 +139,9 @@ mod tests {
     use crate::devices::{pro3::Pro3, test_pad::TestPad, ultimate::Ultimate};
 
     /// Keys whose string values, at any depth below, a person reads.
-    const TEXT_KEYS: [&str; 11] = [
+    const TEXT_KEYS: [&str; 12] = [
         "display_name",
+        "family_name",
         "short_name",
         "label",
         "labels",
@@ -181,7 +185,7 @@ mod tests {
             ),
             (
                 Ultimate.description().unwrap(),
-                include_str!("../../controllers/ultimate/description.json"),
+                include_str!("../../controllers/ultimate-bluetooth/description.json"),
             ),
         ];
         for (description, raw) in models {

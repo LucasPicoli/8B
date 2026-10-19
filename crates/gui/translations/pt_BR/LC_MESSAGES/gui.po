@@ -2461,12 +2461,16 @@ msgid "Back"
 msgstr "Traseira"
 
 #. Ultimate /display_name
-msgid "8BitDo Ultimate"
-msgstr "8BitDo Ultimate"
+msgid "Ultimate Bluetooth"
+msgstr "Ultimate Bluetooth"
 
 #. Ultimate /short_name
 msgid "Ultimate"
 msgstr "Ultimate"
+
+#. Ultimate /family_name
+msgid "8BitDo Ultimate"
+msgstr "8BitDo Ultimate"
 
 #. Ultimate /modes/0/extra_outputs/0/hint
 #. Ultimate /modes/1/extra_outputs/0/hint

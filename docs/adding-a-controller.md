@@ -163,6 +163,17 @@ on 1.02 does not. A firmware string that is empty or does not parse hides every 
 item, so an unknown pad never gets a setting it may lack. An item without a gate
 always shows.
 
+### Family and validation
+
+`"family_name"` is optional. A model of a family copies the family's name into its
+description, such as `8BitDo Ultimate`, and a locked pad shows that name until the unlock
+proves which model it is.
+
+`"validated": true` says the model has been checked on a real pad. Leave it out until
+then: absent means false, and the app refuses a model that is not validated. Setting
+`EIGHTB_UNVALIDATED=1` lets such a model through, and the app then saves a backup file
+before every write.
+
 ### Profile names
 
 `"profile_rename": false` tells the editor to offer no rename. The Ultimate keeps the
@@ -259,7 +270,7 @@ string and where it sits, and `just translations` adds new ones to each `gui.po`
 
 - Write prose in sentence case: page `label` and `lead`, frame `title`, slider and
   flag `label`, value `labels`, `spoken_labels`, view `label`.
-- Write names as the pad or its box prints them: `display_name`, `short_name`, mode
+- Write names as the pad or its box prints them: `display_name`, `short_name`, `family_name`, mode
   `label`, button `labels` and `printed_label`, `unit`. Every language keeps them as they are.
 - Keep each sentence whole inside one `lead`. Never split one sentence across fields.
 - Leave out of prose any number the app also shows, such as a range end.

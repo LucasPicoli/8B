@@ -25,6 +25,16 @@
       "type": "string",
       "minLength": 1
     },
+    "family_name": {
+      "description": "Optional. The family the model belongs to, such as 8BitDo Ultimate, copied into every model of the family. A locked pad shows it until the unlock proves the model.",
+      "type": "string",
+      "minLength": 1
+    },
+    "validated": {
+      "description": "Optional, false when omitted. True once the model has been checked on a real pad. The app refuses a model that is not validated, unless the user sets EIGHTB_UNVALIDATED=1.",
+      "type": "boolean",
+      "default": false
+    },
     "model_ids": {
       "description": "Model ids the START_CONFIG reply carries. Empty for a model that its config ports name: it gets no START_CONFIG, and no other description may list any of its config port USB ids.",
       "type": "array",

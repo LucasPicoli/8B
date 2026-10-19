@@ -1,6 +1,7 @@
 {
   "display_name": "Test Pad",
   "short_name": "Test Pad",
+  "validated": true,
   "model_ids": [],
   "config_ports": [
     {

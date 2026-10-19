@@ -112,10 +112,10 @@ pub struct Ultimate;
 /// The Ultimate controller description, parsed on first use.
 static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
     ControllerDescription::parse(
-        include_str!("../../../controllers/ultimate/description.json"),
+        include_str!("../../../controllers/ultimate-bluetooth/description.json"),
         &[
-            ("front.svg", include_str!("../../../controllers/ultimate/front.svg")),
-            ("back.svg", include_str!("../../../controllers/ultimate/back.svg")),
+            ("front.svg", include_str!("../../../controllers/ultimate-bluetooth/front.svg")),
+            ("back.svg", include_str!("../../../controllers/ultimate-bluetooth/back.svg")),
         ],
     )
 });

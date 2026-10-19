@@ -39,6 +39,14 @@ pub struct ControllerDescription {
     pub display_name: String,
     /// Short model name for tight places, such as the controller picker.
     pub short_name: String,
+    /// The name of the family the model belongs to, such as "8BitDo Ultimate". A locked
+    /// pad shows it until the unlock proves the model. `None` when the model has no family.
+    #[serde(default)]
+    pub family_name: Option<String>,
+    /// The model has been checked on a real pad. The app refuses a model that is not.
+    /// False when the JSON omits it.
+    #[serde(default)]
+    pub validated: bool,
     /// Model ids the `START_CONFIG` reply carries for this controller. Empty for a
     /// model that its config ports name, which no other model may list.
     #[serde(deserialize_with = "hex_u16_list")]
@@ -985,6 +993,8 @@ mod tests {
         frame["sliders"][0]["min_firmware"] = json!("1.04");
         frame["sliders"][0]["high"]["min_firmware"] = json!("1.05");
         v["lock"] = lock::tests::a_lock();
+        v["family_name"] = json!("Test family");
+        v["validated"] = json!(true);
         v
     }
 
@@ -1009,6 +1019,7 @@ mod tests {
         let d = parse(&every_new_field()).unwrap();
         let gate = |s| FirmwareVersion::parse(s);
         assert!(!d.profile_rename);
+        assert_eq!((d.family_name.as_deref(), d.validated), (Some("Test family"), true));
         assert_eq!(d.macro_sticks, MacroSticks::Directions8);
         let l = d.limits;
         assert_eq!(
@@ -1031,9 +1042,23 @@ mod tests {
     }
 
     #[test]
+    fn the_shipped_models_are_validated_and_the_ultimate_names_its_family() {
+        use crate::device::ControllerSpec as _;
+        use crate::devices::{pro3::Pro3, test_pad::TestPad, ultimate::Ultimate};
+        for d in [Pro3.description().unwrap(), TestPad.description().unwrap()] {
+            assert!(d.validated, "{}", d.short_name);
+        }
+        let ultimate = Ultimate.description().unwrap();
+        assert!(ultimate.validated);
+        assert_eq!(ultimate.family_name.as_deref(), Some("8BitDo Ultimate"));
+        assert_eq!(ultimate.display_name, "Ultimate Bluetooth");
+    }
+
+    #[test]
     fn a_pro_3_style_description_keeps_every_default() {
         let d = parse(&minimal()).unwrap();
         assert!(d.profile_rename);
+        assert_eq!((d.family_name.as_deref(), d.validated), (None, false));
         assert_eq!(d.macro_sticks, MacroSticks::Analog);
         assert_eq!(d.limits.glide_step_ms, Some(20));
         assert_eq!(d.limits.triggers_per_macro, None);

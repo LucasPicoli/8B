@@ -68,7 +68,7 @@ relocks it on close. You do not read the app to learn the sequences. You capture
    code that reads them is
    [`description/lock.rs`](../crates/controller-core/src/description/lock.rs). The
    Ultimate's own declaration is in
-   [`controllers/ultimate/description.json`](../crates/controller-core/controllers/ultimate/description.json).
+   [`controllers/ultimate-bluetooth/description.json`](../crates/controller-core/controllers/ultimate-bluetooth/description.json).
 4. Press "Unlock" in the app. It replays your declaration over usbfs. The access rule
    from the README includes the line that lets you open the pad's usbfs node.
 5. Capture that replay on usbmon and compare it with the Windows capture. The bytes

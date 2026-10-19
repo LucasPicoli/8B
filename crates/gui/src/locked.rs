@@ -586,7 +586,7 @@ mod tests {
         s.locked_seen(vec![target("1-2")]);
         let info = s.locked_info();
         assert_eq!(info.view, 1);
-        assert_eq!(info.title, "8BitDo Ultimate is locked");
+        assert_eq!(info.title, "Ultimate Bluetooth is locked");
         assert_eq!(info.body, "Unlocking takes it away from games until you relock it.");
         assert_eq!(s.lock_status().as_deref(), Some("Locked"));
         s.unlock_requested(&tx, "1-2");

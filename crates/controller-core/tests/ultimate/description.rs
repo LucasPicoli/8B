@@ -36,7 +36,8 @@ fn the_description_matches_its_schema() {
     ))
     .unwrap();
     let file: Value =
-        serde_json::from_str(include_str!("../../controllers/ultimate/description.json")).unwrap();
+        serde_json::from_str(include_str!("../../controllers/ultimate-bluetooth/description.json"))
+            .unwrap();
     let validator = jsonschema::draft202012::new(&schema).unwrap();
     let errors: Vec<String> = validator.iter_errors(&file).map(|e| e.to_string()).collect();
     assert_eq!(errors, Vec::<String>::new());

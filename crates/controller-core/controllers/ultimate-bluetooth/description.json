@@ -1,6 +1,8 @@
 {
-  "display_name": "8BitDo Ultimate",
+  "display_name": "Ultimate Bluetooth",
   "short_name": "Ultimate",
+  "family_name": "8BitDo Ultimate",
+  "validated": true,
   "model_ids": [],
   "config_ports": [
     {
