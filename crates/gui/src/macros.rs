@@ -37,19 +37,21 @@ pub fn macro_number(id: &str) -> Option<u8> {
     id.strip_prefix(MACRO_OUTPUT)?.parse().ok()
 }
 
-/// Whether `button` may start `def` on a controller described by `description`: it
-/// starts it already, or the macro has room for another trigger button.
+/// Whether `button` may start `def` in `slot` on a controller described by
+/// `description`: it starts it already, or the macro has room for another trigger
+/// button and, on a controller with one trigger per macro, no other macro of the slot
+/// uses the button. Where macros take several triggers, a button moves between them.
 #[must_use]
 pub fn takes_trigger(
     description: &ControllerDescription,
+    slot: &SlotState,
     def: &MacroDefinition,
     button: &str,
 ) -> bool {
+    let limit = description.limits.triggers_per_macro;
     def.trigger_buttons.iter().any(|b| b == button)
-        || description
-            .limits
-            .triggers_per_macro
-            .is_none_or(|most| def.trigger_buttons.len() < usize::from(most))
+        || (limit.is_none_or(|most| def.trigger_buttons.len() < usize::from(most))
+            && !(limit == Some(1) && slot.macro_started_by(button).is_some()))
 }
 
 /// `def` as 8B writes and saves it: a macro with no name is named "Macro n", n its
@@ -297,7 +299,7 @@ impl AppState {
         let slot = self.slot(mode, number);
         let startable = self.description().button(button).is_some_and(|b| b.can_start_macro);
         let held = slot.shown_macros().iter().any(|m| {
-            m.macro_slot == Some(macro_slot) && takes_trigger(self.description(), m, button)
+            m.macro_slot == Some(macro_slot) && takes_trigger(self.description(), &slot, m, button)
         });
         if !(startable && held && slot.macros_editable()) {
             return;

@@ -95,7 +95,7 @@ pub fn choices(state: &AppState, mode: Mode, button: &str, current: &str) -> Vec
         description.button(button).is_some_and(|b| b.can_start_macro) && slot.macros_editable();
     let mut slots: Vec<u8> = macros
         .iter()
-        .filter(|m| offered && takes_trigger(description, m, button))
+        .filter(|m| offered && takes_trigger(description, slot, m, button))
         .filter_map(|m| m.macro_slot)
         .collect();
     slots.sort_unstable();

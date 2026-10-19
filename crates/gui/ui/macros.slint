@@ -558,7 +558,7 @@ component MacroHeader inherits Frame {
                         text: @tr("No button");
                         muted: true;
                     }
-                    ComboBox {
+                    if root.item.can-add: ComboBox {
                         width: 180px;
                         menu: true;
                         model: root.item.addable;

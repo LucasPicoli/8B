@@ -1548,7 +1548,6 @@ msgstr[1] ""
 msgid "{button} (Macro {n})"
 msgstr ""
 
-#. The picker's first entry adds nothing.
 #: src/macro_tab.rs
 msgid "Add a button…"
 msgstr ""

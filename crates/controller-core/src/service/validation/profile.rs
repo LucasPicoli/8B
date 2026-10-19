@@ -290,6 +290,22 @@ mod tests {
     }
 
     #[test]
+    fn two_macros_of_one_profile_cannot_share_a_trigger() {
+        let description = Pro3.description().unwrap();
+        let started_by = |slot, button: &str| MacroDefinition {
+            trigger_buttons: vec![button.to_owned()],
+            ..tap(XINPUT, slot)
+        };
+        let profile = CanonicalProfile {
+            macros: Some(vec![started_by(0, "r4"), started_by(1, "r4")]),
+            ..Pro3.default_profile(XINPUT)
+        };
+        let errors = macro_errors(description, &profile);
+        let reason = Reason::TwoMacrosOneButton { button: "r4".into(), mode: XINPUT };
+        assert_eq!(errors, [error("/macros/1/trigger_buttons", reason)]);
+    }
+
+    #[test]
     fn a_controller_with_no_macro_slots_takes_no_embedded_macro() {
         let mut profile = serde_json::to_value(TestPad.default_profile(STANDARD)).unwrap();
         profile["macros"] = json!([]);

@@ -98,8 +98,8 @@ impl AppState {
 
     /// The buttons the "Add a button…" picker of macro slot `n` offers: each that can
     /// start a macro, is not mapped and does not start this one, in the description's
-    /// order, while the macro has room for another. A button that starts another macro
-    /// moves.
+    /// order, while the macro has room for another. Where macros take several triggers, a
+    /// button that starts another macro moves; where they take one, it is not offered.
     #[must_use]
     pub fn addable_buttons(&self, n: u8) -> Vec<String> {
         let Some((mode, number)) = self.selected_slot() else { return Vec::new() };
@@ -109,7 +109,7 @@ impl AppState {
             .buttons
             .iter()
             .filter(|b| b.can_start_macro && !def.trigger_buttons.contains(&b.id))
-            .filter(|b| takes_trigger(self.description(), def, &b.id))
+            .filter(|b| takes_trigger(self.description(), &slot, def, &b.id))
             .filter(|b| self.mapped_to(&b.id).is_none())
             .map(|b| b.id.clone())
             .collect()
@@ -290,6 +290,10 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 },
                 pause: i32::try_from(m.interval_ms).unwrap_or(i32::MAX),
                 // The picker's first entry adds nothing.
+                can_add: description
+                    .limits
+                    .triggers_per_macro
+                    .is_none_or(|most| m.trigger_buttons.len() < usize::from(most)),
                 addable: strings(std::iter::once(tr!("Add a button…")).chain(addable)),
                 error: reasons(state.description(), &errors).into(),
                 steps_invalid: errors.iter().any(|e| e.path == "/steps"),
@@ -559,9 +563,22 @@ mod tests {
             offered("right face") && !offered("l1"),
             "a full macro is offered to its trigger only"
         );
+        assert!(!s.addable_buttons(1).contains(&"right face".to_owned()), "taken in the profile");
         s.add_macro_button(1, "right face");
-        assert!(triggers(&s, 0).is_empty(), "it moves");
-        assert_eq!(triggers(&s, 1), ["right face"]);
+        assert_eq!(triggers(&s, 0), ["right face"], "it stays");
+        assert_eq!(triggers(&s, 1).len(), 0);
+        assert!(s.addable_buttons(1).contains(&"l1".to_owned()));
+    }
+
+    #[test]
+    fn the_picker_hides_once_a_one_trigger_macro_has_its_trigger() {
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.new_macro(0);
+        assert!(row(&s, 0).can_add);
+        s.add_macro_button(0, "right face");
+        assert!(!row(&s, 0).can_add);
+        s.remove_macro_button(0, "right face");
+        assert!(row(&s, 0).can_add, "removing the trigger brings it back");
     }
 
     #[test]

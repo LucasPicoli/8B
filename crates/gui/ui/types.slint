@@ -320,6 +320,8 @@ export struct MacroRow {
     pause: int,
     // "Add a button…", then each button that can join the macro.
     addable: [string],
+    // Whether the macro has room for another trigger button, so the picker shows.
+    can-add: bool,
     // The validator's reasons, one line each, when the controller would refuse the macro, and
     // whether it is the step count.
     error: string,
