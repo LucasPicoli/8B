@@ -122,6 +122,8 @@ msgstr "⟦~~~~~~~~~~Checking the controller…⟧"
 
 #. Pro 3 /buttons/11/labels/xinput
 #. Ultimate /buttons/11/labels/xinput
+#. Ultimate Wired /buttons/11/labels/dinput
+#. Ultimate Wired /buttons/11/labels/xinput
 msgid "Menu"
 msgstr "⟦~~Menu⟧"
 
@@ -1174,6 +1176,8 @@ msgstr "⟦~~Step⟧"
 #. Pro 3 /settings/0/frames/1/title
 #. Ultimate /settings/0/frames/1/title
 #. Ultimate /settings/1/frames/1/title
+#. Ultimate Wired /settings/0/frames/1/title
+#. Ultimate Wired /settings/1/frames/1/title
 #: ui/steps.slint src/stick_pad.rs
 msgid "Right stick"
 msgstr "⟦~~~~~Right stick⟧"
@@ -1223,6 +1227,8 @@ msgstr "⟦~~~L stick⟧"
 #. Pro 3 /settings/0/frames/0/title
 #. Ultimate /settings/0/frames/0/title
 #. Ultimate /settings/1/frames/0/title
+#. Ultimate Wired /settings/0/frames/0/title
+#. Ultimate Wired /settings/1/frames/0/title
 #: ui/steps.slint src/stick_pad.rs
 msgid "Left stick"
 msgstr "⟦~~~~Left stick⟧"
@@ -2407,6 +2413,7 @@ msgstr "⟦~~Pro 3⟧"
 
 #. Pro 3 /modes/0/label
 #. Ultimate /modes/0/label
+#. Ultimate Wired /modes/0/label
 msgid "XInput"
 msgstr "⟦~~~XInput⟧"
 
@@ -2421,6 +2428,7 @@ msgid "Screenshot"
 msgstr "⟦~~~~Screenshot⟧"
 
 #. Pro 3 /modes/2/label
+#. Ultimate Wired /modes/1/label
 msgid "DInput"
 msgstr "⟦~~~DInput⟧"
 
@@ -2458,6 +2466,9 @@ msgstr "⟦~R4⟧"
 #. Ultimate /buttons/0/labels/xinput
 #. Ultimate /buttons/1/labels/switch
 #. Ultimate /buttons/1/printed_label
+#. Ultimate Wired /buttons/0/labels/dinput
+#. Ultimate Wired /buttons/0/labels/xinput
+#. Ultimate Wired /buttons/0/printed_label
 msgid "B"
 msgstr "⟦~B⟧"
 
@@ -2467,6 +2478,9 @@ msgstr "⟦~B⟧"
 #. Ultimate /buttons/0/labels/switch
 #. Ultimate /buttons/0/printed_label
 #. Ultimate /buttons/1/labels/xinput
+#. Ultimate Wired /buttons/1/labels/dinput
+#. Ultimate Wired /buttons/1/labels/xinput
+#. Ultimate Wired /buttons/1/printed_label
 msgid "A"
 msgstr "⟦~A⟧"
 
@@ -2476,6 +2490,9 @@ msgstr "⟦~A⟧"
 #. Ultimate /buttons/2/labels/xinput
 #. Ultimate /buttons/3/labels/switch
 #. Ultimate /buttons/3/printed_label
+#. Ultimate Wired /buttons/2/labels/dinput
+#. Ultimate Wired /buttons/2/labels/xinput
+#. Ultimate Wired /buttons/2/printed_label
 msgid "Y"
 msgstr "⟦~Y⟧"
 
@@ -2485,6 +2502,9 @@ msgstr "⟦~Y⟧"
 #. Ultimate /buttons/2/labels/switch
 #. Ultimate /buttons/2/printed_label
 #. Ultimate /buttons/3/labels/xinput
+#. Ultimate Wired /buttons/3/labels/dinput
+#. Ultimate Wired /buttons/3/labels/xinput
+#. Ultimate Wired /buttons/3/printed_label
 msgid "X"
 msgstr "⟦~X⟧"
 
@@ -2500,6 +2520,9 @@ msgstr "⟦~L⟧"
 
 #. Pro 3 /buttons/4/labels/xinput
 #. Ultimate /buttons/4/labels/xinput
+#. Ultimate Wired /buttons/4/labels/dinput
+#. Ultimate Wired /buttons/4/labels/xinput
+#. Ultimate Wired /buttons/4/printed_label
 msgid "LB"
 msgstr "⟦~LB⟧"
 
@@ -2515,6 +2538,9 @@ msgstr "⟦~R⟧"
 
 #. Pro 3 /buttons/5/labels/xinput
 #. Ultimate /buttons/5/labels/xinput
+#. Ultimate Wired /buttons/5/labels/dinput
+#. Ultimate Wired /buttons/5/labels/xinput
+#. Ultimate Wired /buttons/5/printed_label
 msgid "RB"
 msgstr "⟦~RB⟧"
 
@@ -2530,6 +2556,9 @@ msgstr "⟦~ZL⟧"
 
 #. Pro 3 /buttons/6/labels/xinput
 #. Ultimate /buttons/6/labels/xinput
+#. Ultimate Wired /buttons/6/labels/dinput
+#. Ultimate Wired /buttons/6/labels/xinput
+#. Ultimate Wired /buttons/6/printed_label
 msgid "LT"
 msgstr "⟦~LT⟧"
 
@@ -2545,6 +2574,9 @@ msgstr "⟦~ZR⟧"
 
 #. Pro 3 /buttons/7/labels/xinput
 #. Ultimate /buttons/7/labels/xinput
+#. Ultimate Wired /buttons/7/labels/dinput
+#. Ultimate Wired /buttons/7/labels/xinput
+#. Ultimate Wired /buttons/7/printed_label
 msgid "RT"
 msgstr "⟦~RT⟧"
 
@@ -2556,6 +2588,8 @@ msgstr "⟦~L3⟧"
 #. Pro 3 /buttons/8/labels/xinput
 #. Ultimate /buttons/8/labels/switch
 #. Ultimate /buttons/8/labels/xinput
+#. Ultimate Wired /buttons/8/labels/dinput
+#. Ultimate Wired /buttons/8/labels/xinput
 msgid "LS"
 msgstr "⟦~LS⟧"
 
@@ -2567,6 +2601,8 @@ msgstr "⟦~R3⟧"
 #. Pro 3 /buttons/9/labels/xinput
 #. Ultimate /buttons/9/labels/switch
 #. Ultimate /buttons/9/labels/xinput
+#. Ultimate Wired /buttons/9/labels/dinput
+#. Ultimate Wired /buttons/9/labels/xinput
 msgid "RS"
 msgstr "⟦~RS⟧"
 
@@ -2582,6 +2618,8 @@ msgstr "⟦~−⟧"
 
 #. Pro 3 /buttons/10/labels/xinput
 #. Ultimate /buttons/10/labels/xinput
+#. Ultimate Wired /buttons/10/labels/dinput
+#. Ultimate Wired /buttons/10/labels/xinput
 msgid "View"
 msgstr "⟦~~View⟧"
 
@@ -2610,6 +2648,8 @@ msgstr "⟦~~Plus⟧"
 #. Pro 3 /buttons/12/labels/xinput
 #. Ultimate /modes/0/extra_outputs/0/label
 #. Ultimate /modes/1/extra_outputs/0/label
+#. Ultimate Wired /modes/0/extra_outputs/0/label
+#. Ultimate Wired /modes/1/extra_outputs/0/label
 msgid "Turbo"
 msgstr "⟦~~Turbo⟧"
 
@@ -2617,6 +2657,8 @@ msgstr "⟦~~Turbo⟧"
 #. Pro 3 /buttons/13/labels/switch
 #. Ultimate /buttons/13/labels/switch
 #. Ultimate /buttons/13/labels/xinput
+#. Ultimate Wired /buttons/13/labels/dinput
+#. Ultimate Wired /buttons/13/labels/xinput
 msgid "Home"
 msgstr "⟦~~Home⟧"
 
@@ -2629,6 +2671,8 @@ msgstr "⟦~~Guide⟧"
 #. Pro 3 /buttons/14/labels/xinput
 #. Ultimate /buttons/14/labels/switch
 #. Ultimate /buttons/14/labels/xinput
+#. Ultimate Wired /buttons/14/labels/dinput
+#. Ultimate Wired /buttons/14/labels/xinput
 msgid "↑"
 msgstr "⟦~↑⟧"
 
@@ -2637,6 +2681,8 @@ msgstr "⟦~↑⟧"
 #. Pro 3 /buttons/14/spoken_labels/xinput
 #. Ultimate /buttons/14/spoken_labels/switch
 #. Ultimate /buttons/14/spoken_labels/xinput
+#. Ultimate Wired /buttons/14/spoken_labels/dinput
+#. Ultimate Wired /buttons/14/spoken_labels/xinput
 msgid "D-pad up"
 msgstr "⟦~~~~D-pad up⟧"
 
@@ -2645,6 +2691,8 @@ msgstr "⟦~~~~D-pad up⟧"
 #. Pro 3 /buttons/15/labels/xinput
 #. Ultimate /buttons/15/labels/switch
 #. Ultimate /buttons/15/labels/xinput
+#. Ultimate Wired /buttons/15/labels/dinput
+#. Ultimate Wired /buttons/15/labels/xinput
 msgid "↓"
 msgstr "⟦~↓⟧"
 
@@ -2653,6 +2701,8 @@ msgstr "⟦~↓⟧"
 #. Pro 3 /buttons/15/spoken_labels/xinput
 #. Ultimate /buttons/15/spoken_labels/switch
 #. Ultimate /buttons/15/spoken_labels/xinput
+#. Ultimate Wired /buttons/15/spoken_labels/dinput
+#. Ultimate Wired /buttons/15/spoken_labels/xinput
 msgid "D-pad down"
 msgstr "⟦~~~~D-pad down⟧"
 
@@ -2661,6 +2711,8 @@ msgstr "⟦~~~~D-pad down⟧"
 #. Pro 3 /buttons/16/labels/xinput
 #. Ultimate /buttons/16/labels/switch
 #. Ultimate /buttons/16/labels/xinput
+#. Ultimate Wired /buttons/16/labels/dinput
+#. Ultimate Wired /buttons/16/labels/xinput
 msgid "←"
 msgstr "⟦~←⟧"
 
@@ -2669,6 +2721,8 @@ msgstr "⟦~←⟧"
 #. Pro 3 /buttons/16/spoken_labels/xinput
 #. Ultimate /buttons/16/spoken_labels/switch
 #. Ultimate /buttons/16/spoken_labels/xinput
+#. Ultimate Wired /buttons/16/spoken_labels/dinput
+#. Ultimate Wired /buttons/16/spoken_labels/xinput
 msgid "D-pad left"
 msgstr "⟦~~~~D-pad left⟧"
 
@@ -2677,6 +2731,8 @@ msgstr "⟦~~~~D-pad left⟧"
 #. Pro 3 /buttons/17/labels/xinput
 #. Ultimate /buttons/17/labels/switch
 #. Ultimate /buttons/17/labels/xinput
+#. Ultimate Wired /buttons/17/labels/dinput
+#. Ultimate Wired /buttons/17/labels/xinput
 msgid "→"
 msgstr "⟦~→⟧"
 
@@ -2685,12 +2741,16 @@ msgstr "⟦~→⟧"
 #. Pro 3 /buttons/17/spoken_labels/xinput
 #. Ultimate /buttons/17/spoken_labels/switch
 #. Ultimate /buttons/17/spoken_labels/xinput
+#. Ultimate Wired /buttons/17/spoken_labels/dinput
+#. Ultimate Wired /buttons/17/spoken_labels/xinput
 msgid "D-pad right"
 msgstr "⟦~~~~~D-pad right⟧"
 
 #. Pro 3 /settings/0/label
 #. Ultimate /settings/0/label
 #. Ultimate /settings/1/label
+#. Ultimate Wired /settings/0/label
+#. Ultimate Wired /settings/1/label
 msgid "Sticks"
 msgstr "⟦~~~Sticks⟧"
 
@@ -2722,6 +2782,12 @@ msgstr "⟦~~~~Dead zone⟧"
 #. Ultimate /settings/2/frames/1/sliders/0/unit
 #. Ultimate /settings/3/frames/0/sliders/0/unit
 #. Ultimate /settings/3/frames/1/sliders/0/unit
+#. Ultimate Wired /settings/0/frames/0/sliders/0/unit
+#. Ultimate Wired /settings/0/frames/1/sliders/0/unit
+#. Ultimate Wired /settings/1/frames/0/sliders/0/unit
+#. Ultimate Wired /settings/1/frames/1/sliders/0/unit
+#. Ultimate Wired /settings/2/frames/0/sliders/0/unit
+#. Ultimate Wired /settings/2/frames/1/sliders/0/unit
 msgid "%"
 msgstr "⟦~%⟧"
 
@@ -2731,6 +2797,10 @@ msgstr "⟦~%⟧"
 #. Ultimate /settings/0/frames/1/flags/0/label
 #. Ultimate /settings/1/frames/0/flags/0/label
 #. Ultimate /settings/1/frames/1/flags/0/label
+#. Ultimate Wired /settings/0/frames/0/flags/0/label
+#. Ultimate Wired /settings/0/frames/1/flags/0/label
+#. Ultimate Wired /settings/1/frames/0/flags/0/label
+#. Ultimate Wired /settings/1/frames/1/flags/0/label
 msgid "Invert X"
 msgstr "⟦~~~~Invert X⟧"
 
@@ -2740,6 +2810,10 @@ msgstr "⟦~~~~Invert X⟧"
 #. Ultimate /settings/0/frames/1/flags/1/label
 #. Ultimate /settings/1/frames/0/flags/1/label
 #. Ultimate /settings/1/frames/1/flags/1/label
+#. Ultimate Wired /settings/0/frames/0/flags/1/label
+#. Ultimate Wired /settings/0/frames/1/flags/1/label
+#. Ultimate Wired /settings/1/frames/0/flags/1/label
+#. Ultimate Wired /settings/1/frames/1/flags/1/label
 msgid "Invert Y"
 msgstr "⟦~~~~Invert Y⟧"
 
@@ -2750,18 +2824,25 @@ msgstr "⟦~~~~Invert Y⟧"
 #. Ultimate /settings/1/frames/2/title
 #. Ultimate /settings/2/frames/2/title
 #. Ultimate /settings/3/frames/2/title
+#. Ultimate Wired /settings/0/frames/2/title
+#. Ultimate Wired /settings/1/frames/2/title
+#. Ultimate Wired /settings/2/frames/2/title
 msgid "Swaps"
 msgstr "⟦~~Swaps⟧"
 
 #. Pro 3 /settings/0/frames/2/flags/0/label
 #. Ultimate /settings/0/frames/2/flags/0/label
 #. Ultimate /settings/1/frames/2/flags/0/label
+#. Ultimate Wired /settings/0/frames/2/flags/0/label
+#. Ultimate Wired /settings/1/frames/2/flags/0/label
 msgid "Swap the left and right sticks"
 msgstr "⟦~~~~~~~~~~~~Swap the left and right sticks⟧"
 
 #. Pro 3 /settings/0/frames/2/flags/1/label
 #. Ultimate /settings/0/frames/2/flags/1/label
 #. Ultimate /settings/1/frames/2/flags/1/label
+#. Ultimate Wired /settings/0/frames/2/flags/1/label
+#. Ultimate Wired /settings/1/frames/2/flags/1/label
 msgid "Swap the D-pad and the left stick"
 msgstr "⟦~~~~~~~~~~~~~~Swap the D-pad and the left stick⟧"
 
@@ -2769,11 +2850,13 @@ msgstr "⟦~~~~~~~~~~~~~~Swap the D-pad and the left stick⟧"
 #. Pro 3 /settings/2/label
 #. Ultimate /settings/2/label
 #. Ultimate /settings/3/label
+#. Ultimate Wired /settings/2/label
 msgid "Triggers"
 msgstr "⟦~~~~Triggers⟧"
 
 #. Pro 3 /settings/1/lead
 #. Ultimate /settings/2/lead
+#. Ultimate Wired /settings/2/lead
 msgid ""
 "Below the low end of the range the trigger reads as released. Past the high "
 "end it reads as pulled all the way."
@@ -2786,6 +2869,7 @@ msgstr ""
 #. Pro 3 /settings/2/frames/0/title
 #. Ultimate /settings/2/frames/0/title
 #. Ultimate /settings/3/frames/0/title
+#. Ultimate Wired /settings/2/frames/0/title
 msgid "Left trigger"
 msgstr "⟦~~~~~Left trigger⟧"
 
@@ -2797,6 +2881,12 @@ msgstr "⟦~~~~~Left trigger⟧"
 #. Ultimate /settings/1/frames/1/sliders/0/label
 #. Ultimate /settings/2/frames/0/sliders/0/label
 #. Ultimate /settings/2/frames/1/sliders/0/label
+#. Ultimate Wired /settings/0/frames/0/sliders/0/label
+#. Ultimate Wired /settings/0/frames/1/sliders/0/label
+#. Ultimate Wired /settings/1/frames/0/sliders/0/label
+#. Ultimate Wired /settings/1/frames/1/sliders/0/label
+#. Ultimate Wired /settings/2/frames/0/sliders/0/label
+#. Ultimate Wired /settings/2/frames/1/sliders/0/label
 msgid "Range"
 msgstr "⟦~~Range⟧"
 
@@ -2804,6 +2894,7 @@ msgstr "⟦~~Range⟧"
 #. Pro 3 /settings/2/frames/1/title
 #. Ultimate /settings/2/frames/1/title
 #. Ultimate /settings/3/frames/1/title
+#. Ultimate Wired /settings/2/frames/1/title
 msgid "Right trigger"
 msgstr "⟦~~~~~~Right trigger⟧"
 
@@ -2811,6 +2902,7 @@ msgstr "⟦~~~~~~Right trigger⟧"
 #. Pro 3 /settings/2/frames/2/flags/0/label
 #. Ultimate /settings/2/frames/2/flags/0/label
 #. Ultimate /settings/3/frames/2/flags/0/label
+#. Ultimate Wired /settings/2/frames/2/flags/0/label
 msgid "Swap the left and right triggers"
 msgstr "⟦~~~~~~~~~~~~~Swap the left and right triggers⟧"
 
@@ -2829,11 +2921,13 @@ msgstr "⟦~~~~~Press point⟧"
 
 #. Pro 3 /settings/3/label
 #. Ultimate /settings/4/label
+#. Ultimate Wired /settings/3/label
 msgid "Vibration"
 msgstr "⟦~~~~Vibration⟧"
 
 #. Pro 3 /settings/3/lead
 #. Ultimate /settings/4/lead
+#. Ultimate Wired /settings/3/lead
 msgid "How strongly each motor rumbles. Level 0 turns it off."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~How strongly each motor rumbles. Level 0 turns it "
@@ -2841,26 +2935,31 @@ msgstr ""
 
 #. Pro 3 /settings/3/frames/0/title
 #. Ultimate /settings/4/frames/0/title
+#. Ultimate Wired /settings/3/frames/0/title
 msgid "Motors"
 msgstr "⟦~~~Motors⟧"
 
 #. Pro 3 /settings/3/frames/0/sliders/0/label
 #. Ultimate /settings/4/frames/0/sliders/0/label
+#. Ultimate Wired /settings/3/frames/0/sliders/0/label
 msgid "Left motor"
 msgstr "⟦~~~~Left motor⟧"
 
 #. Pro 3 /settings/3/frames/0/sliders/1/label
 #. Ultimate /settings/4/frames/0/sliders/1/label
+#. Ultimate Wired /settings/3/frames/0/sliders/1/label
 msgid "Right motor"
 msgstr "⟦~~~~~Right motor⟧"
 
 #. Pro 3 /views/0/label
 #. Ultimate /views/0/label
+#. Ultimate Wired /views/0/label
 msgid "Front"
 msgstr "⟦~~Front⟧"
 
 #. Pro 3 /views/1/label
 #. Ultimate /views/1/label
+#. Ultimate Wired /views/1/label
 msgid "Back"
 msgstr "⟦~~Back⟧"
 
@@ -2873,11 +2972,14 @@ msgid "Ultimate"
 msgstr "⟦~~~~Ultimate⟧"
 
 #. Ultimate /family_name
+#. Ultimate Wired /family_name
 msgid "8BitDo Ultimate"
 msgstr "⟦~~~~~~8BitDo Ultimate⟧"
 
 #. Ultimate /modes/0/extra_outputs/0/hint
 #. Ultimate /modes/1/extra_outputs/0/hint
+#. Ultimate Wired /modes/0/extra_outputs/0/hint
+#. Ultimate Wired /modes/1/extra_outputs/0/hint
 msgid "Hold a button and press this one to turn turbo on or off for it."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~~Hold a button and press this one to turn turbo on "
@@ -2885,11 +2987,15 @@ msgstr ""
 
 #. Ultimate /modes/0/extra_outputs/1/label
 #. Ultimate /modes/1/extra_outputs/1/label
+#. Ultimate Wired /modes/0/extra_outputs/1/label
+#. Ultimate Wired /modes/1/extra_outputs/1/label
 msgid "Auto turbo"
 msgstr "⟦~~~~Auto turbo⟧"
 
 #. Ultimate /modes/0/extra_outputs/1/hint
 #. Ultimate /modes/1/extra_outputs/1/hint
+#. Ultimate Wired /modes/0/extra_outputs/1/hint
+#. Ultimate Wired /modes/1/extra_outputs/1/hint
 msgid ""
 "Hold a button and press this one: it fires on its own until you do it again."
 msgstr ""
@@ -2898,10 +3004,14 @@ msgstr ""
 
 #. Ultimate /modes/0/extra_outputs/2/label
 #. Ultimate /modes/1/extra_outputs/2/label
+#. Ultimate Wired /modes/0/extra_outputs/2/label
+#. Ultimate Wired /modes/1/extra_outputs/2/label
 msgid "Swap"
 msgstr "⟦~~Swap⟧"
 
 #. Ultimate /modes/0/extra_outputs/2/hint
+#. Ultimate Wired /modes/0/extra_outputs/2/hint
+#. Ultimate Wired /modes/1/extra_outputs/2/hint
 msgid ""
 "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold "
 "one of them and press it again to undo."
@@ -2912,6 +3022,8 @@ msgstr ""
 
 #. Ultimate /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate /modes/1/extra_outputs/2/leaving_hint
+#. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
+#. Ultimate Wired /modes/1/extra_outputs/2/leaving_hint
 msgid "A swap you made stays until you undo it with a Swap button."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~A swap you made stays until you undo it with a Swap "
@@ -2928,21 +3040,31 @@ msgstr ""
 
 #. Ultimate /buttons/12/labels/switch
 #. Ultimate /buttons/12/labels/xinput
+#. Ultimate Wired /buttons/12/labels/dinput
+#. Ultimate Wired /buttons/12/labels/xinput
 msgid "Star"
 msgstr "⟦~~Star⟧"
 
 #. Ultimate /buttons/18/labels/switch
 #. Ultimate /buttons/18/labels/xinput
+#. Ultimate Wired /modes/1/extra_outputs/3/label
+#. Ultimate Wired /buttons/18/labels/dinput
+#. Ultimate Wired /buttons/18/labels/xinput
 msgid "P1"
 msgstr "⟦~P1⟧"
 
 #. Ultimate /buttons/19/labels/switch
 #. Ultimate /buttons/19/labels/xinput
+#. Ultimate Wired /modes/1/extra_outputs/4/label
+#. Ultimate Wired /buttons/19/labels/dinput
+#. Ultimate Wired /buttons/19/labels/xinput
 msgid "P2"
 msgstr "⟦~P2⟧"
 
 #. Ultimate /settings/0/lead
 #. Ultimate /settings/1/lead
+#. Ultimate Wired /settings/0/lead
+#. Ultimate Wired /settings/1/lead
 msgid ""
 "Below the low end of the range the stick reads as centred. Past the high end "
 "it reads as pushed all the way."
@@ -2952,15 +3074,19 @@ msgstr ""
 "way.⟧"
 
 #. Ultimate /settings/0/frames/3/title
+#. Ultimate Wired /settings/0/frames/3/title
 msgid "D-pad and dead zone"
 msgstr "⟦~~~~~~~~D-pad and dead zone⟧"
 
 #. Ultimate /settings/0/frames/3/flags/0/label
+#. Ultimate Wired /settings/0/frames/3/flags/0/label
 msgid "Disable the dead zone"
 msgstr "⟦~~~~~~~~~Disable the dead zone⟧"
 
 #. Ultimate /settings/0/frames/3/flags/1/label
 #. Ultimate /settings/1/frames/3/flags/0/label
+#. Ultimate Wired /settings/0/frames/3/flags/1/label
+#. Ultimate Wired /settings/1/frames/3/flags/0/label
 msgid "D-pad four-way only"
 msgstr "⟦~~~~~~~~D-pad four-way only⟧"
 
@@ -2969,6 +3095,7 @@ msgid "Swap the right stick and the triggers"
 msgstr "⟦~~~~~~~~~~~~~~~Swap the right stick and the triggers⟧"
 
 #. Ultimate /settings/1/frames/3/title
+#. Ultimate Wired /settings/1/frames/3/title
 msgid "D-pad"
 msgstr "⟦~~D-pad⟧"
 
@@ -2979,3 +3106,8 @@ msgid ""
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~In this mode each trigger is a "
 "button. It counts as pressed once pulled past its start point.⟧"
+
+#. Ultimate Wired /display_name
+#. Ultimate Wired /short_name
+msgid "Ultimate Wired"
+msgstr "⟦~~~~~~Ultimate Wired⟧"

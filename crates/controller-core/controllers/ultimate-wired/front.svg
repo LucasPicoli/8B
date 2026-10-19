@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 356">
+  <path data-button="l1" d="M 48 63.6 C 55.1 42.6 76.3 29.8 110 28 L 168 28 C 173 28 175 31 175 36 L 175 44 L 112 44 C 85.9 44 63.6 50.5 48 63.6 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="r1" d="M 452 63.6 C 444.9 42.6 423.7 29.8 390 28 L 332 28 C 327 28 325 31 325 36 L 325 44 L 388 44 C 414.1 44 436.4 50.5 452 63.6 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 250.0 44 L 112 44 C 62 44 26 68 24 116 C 22 164 26 250 40 306 C 50 342 108 344 128 316 C 146 290 156 250 184 234 C 206 224 228 224 250.0 224 C 272 224 294 224 316 234 C 344 250 354 290 372 316 C 392 344 450 342 460 306 C 474 250 478 164 476 116 C 474 68 438 44 388 44 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="118" cy="112" r="36" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle cx="118" cy="112" r="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+  <circle data-button="l3" cx="118" cy="112" r="22" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <path d="M 172 137 L 198 137 L 198 162 L 223 162 L 223 188 L 198 188 L 198 213 L 172 213 L 172 188 L 147 188 L 147 162 L 172 162 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <rect data-button="d-pad up" x="172" y="137" width="26" height="25" fill="none" stroke="none"/>
+  <rect data-button="d-pad down" x="172" y="188" width="26" height="25" fill="none" stroke="none"/>
+  <rect data-button="d-pad left" x="147" y="162" width="25" height="26" fill="none" stroke="none"/>
+  <rect data-button="d-pad right" x="198" y="162" width="25" height="26" fill="none" stroke="none"/>
+  <circle data-button="top face" cx="385" cy="83" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="left face" cx="353" cy="115" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="right face" cx="417" cy="115" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="bottom face" cx="385" cy="147" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle cx="315" cy="178" r="36" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle cx="315" cy="178" r="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+  <circle data-button="r3" cx="315" cy="178" r="22" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="select/back" cx="216" cy="110" r="9" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="start/menu" cx="284" cy="110" r="9" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="home/guide" cx="250" cy="76" r="12" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <circle data-button="star" cx="250" cy="110" r="9" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
+  <path d="M 250 105 L 251.5 108.6 L 255.4 108.9 L 252.4 111.4 L 253.3 115.1 L 250 113.1 L 246.7 115.1 L 247.6 111.4 L 244.6 108.9 L 248.5 108.6 Z" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <rect x="244" y="70" width="12" height="12" rx="3" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+</svg>
