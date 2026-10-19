@@ -5,8 +5,7 @@ guide is for the owner of an Ultimate 2.4G or an Ultimate Wired. The app refuses
 until someone has checked them on a real pad.
 
 The risk: a wrong write can leave a profile slot unreadable on the pad. The app saves
-the old slot before every write, and the steps below also keep a full dump. Do not
-unplug the pad while a write runs.
+the old slot before every write. Do not unplug the pad while a write runs.
 
 ## Set up
 
@@ -14,18 +13,18 @@ unplug the pad while a write runs.
 2. Start the app with the override set. From a source checkout:
 
    ```sh
-   EIGHTB_UNVALIDATED=1 cargo run -p gui
+   EIGHTB_UNVALIDATED=1 RUST_LOG=info cargo run -p gui
    ```
 
-   With the AppImage, put the same variable in front of its path. The command-line
-   tool, `8bitdo-pro-3`, reads the same variable.
+   With the AppImage, put the same two variables in front of its path. Keep the
+   terminal output: the report needs it.
 3. Plug the pad in by cable. 8B does not use the 2.4G receiver or Bluetooth.
 
 With `EIGHTB_UNVALIDATED=1`, the app treats an unchecked model as supported and saves
 the old slot to `backup-<mode>-slot-<N>-before-write-<YYYYMMDD-HHMMSS>.bin` before
 every write. The app puts it in `$XDG_STATE_HOME/8b/backups`, which is
-`~/.local/state/8b/backups` when the variable is unset. The CLI puts it in the
-current directory.
+`~/.local/state/8b/backups` when the variable is unset. These files are the "before"
+images of your report.
 
 ## Expected values
 
@@ -94,26 +93,16 @@ not in the table, such as a Pro 2 Wired or a receiver, is not listed on purpose.
 
 1. In the app, started with `EIGHTB_UNVALIDATED=1`, pick the pad and press Unlock.
 2. Run `lsusb -d 2dc8:` again and note the new id.
-3. Close the app. The pad stays unlocked until you relock it or replug it, and the
-   command-line tool cannot share the pad with the app.
-4. Run `EIGHTB_UNVALIDATED=1 8bitdo-pro-3 read`.
-5. Report the new id, and whether `read` printed a profile or an error.
+3. Report the new id, the terminal lines `controller opened: ...` and `read ... slots`,
+   and whether the app lists the slots of each mode or shows an error.
 
-Expected: `2dc8:3012` (2.4G) or `2dc8:3011` (Wired), and a profile for each mode.
+Expected: `2dc8:3012` (2.4G) or `2dc8:3011` (Wired), and the slots of both modes.
 If the new id and the string disagree with the table, the id wins. The app opens
 the pad as the model that owns the id. Report the pair.
 
-Then keep your "before" dump:
-
-```sh
-EIGHTB_UNVALIDATED=1 8bitdo-pro-3 dump before
-```
-
-It writes `before/raw-blob-<i>.bin`, one file per mode.
-
 ### 3. Relock
 
-1. Start the app again with the override, and use Relock on the pad.
+1. Use Relock on the pad, or close the app. Closing the app relocks the pad.
 2. Run `lsusb -d 2dc8:`.
 3. Report whether the id went back to `2dc8:3106`.
 
@@ -121,8 +110,8 @@ Expected: it does. If it does not, unplug the pad and plug it in again, then say
 
 ### 4. Face slot order
 
-Start the app with the override and press Unlock first. Checks 4 to 6 all run in
-the app.
+Start the app with the override again, if you closed it, and press Unlock. Checks 4
+to 6 all run in the app.
 
 1. Open a button tester, such as `evtest` or `jstest`, on the pad.
 2. In the app, remap face slot 0 to L1 in the XInput mode and write it.
@@ -136,14 +125,14 @@ Wired pad.
 ### 5. One write round trip with a macro
 
 1. In the app, remap one button in XInput and write the slot.
-2. Close the app, then run `EIGHTB_UNVALIDATED=1 8bitdo-pro-3 dump after`.
-3. Run `8bitdo-pro-3 dev diff before/raw-blob-0.bin after/raw-blob-0.bin`. Report the output.
-4. Start the app again with the override. Add a macro with one step, "A", on a free trigger. Write it.
-5. Read the slot back and confirm the remap and the macro match what you wrote.
-6. Press the trigger. Report which physical button fires.
-7. Repeat the macro with a "B" step.
+2. The app reads the slot back after the write. Check that the remap still shows and
+   the write button is greyed out.
+3. Click Export and save the slot as `after.json`.
+4. Add a macro with one step, "A", on a free trigger. Write it.
+5. Press the trigger. Report which physical button fires.
+6. Repeat the macro with a "B" step.
 
-Expected: the readback matches, and the diff shows one small changed run. The macro
+Expected: the readback matches what you wrote. The macro
 codes are in the tables above. Which physical button a macro step fires is not
 known for these pads. Report it.
 
@@ -173,7 +162,8 @@ Answer these in the same report.
 2. Name the model and the firmware version.
 3. Paste the result of each check, including every value that disagreed with the
    table.
-4. Attach the `before` and `after` dump folders. A dump holds your profile names,
-   so rename any you would not want to share.
+4. Attach the backup files from `~/.local/state/8b/backups`, your `after.json` and
+   the terminal output. The files hold your profile names, so rename any you would
+   not want to share.
 
-A model is marked checked in the commit that adds your dump as a test fixture.
+A model is marked checked in the commit that adds your files as a test fixture.
