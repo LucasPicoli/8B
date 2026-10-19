@@ -16,7 +16,7 @@ use serde_json::Value;
 use slint::{ModelRc, VecModel};
 use tr::tr;
 
-use crate::buttons::{output_label, target};
+use crate::buttons::{button_label, output_label, target};
 use crate::embedded::{file_macros, kept_note, refs_note, replace_note, steps_unread};
 use crate::language::prose;
 use crate::macro_files::strings;
@@ -246,7 +246,7 @@ impl AppState {
                 let n = slot.macro_started_by(&b.id)?;
                 let output = target(imported, &b.id);
                 (output != target(default, &b.id)).then(|| {
-                    let button = output_label(d, key.0, &b.id);
+                    let button = button_label(d, key.0, &b.id);
                     let to = output_label(d, key.0, output);
                     let name = label(&macros, n);
                     let sentence = tr!(
@@ -417,7 +417,7 @@ pub fn import_warning(state: &AppState) -> ImportWarning {
         .iter()
         .filter_map(|l| match l {
             ConversionLoss::OutputDisabled { source, target } => Some(Change {
-                what: output_label(d, from, source).into(),
+                what: button_label(d, from, source).into(),
                 from: output_label(d, from, target).into(),
                 to: output_label(d, to, DISABLED_OUTPUT).into(),
             }),

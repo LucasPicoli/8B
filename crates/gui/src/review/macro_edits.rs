@@ -6,7 +6,7 @@ use controller_core::orchestrator::MacroEdit;
 use slint::SharedString;
 use tr::tr;
 
-use crate::buttons::output_label;
+use crate::buttons::button_label;
 use crate::macros::{named, title};
 use crate::render::and_list;
 use crate::state::{AppState, SlotState};
@@ -144,7 +144,7 @@ impl AppState {
             return tr!("No button");
         }
         let labels: Vec<_> =
-            def.trigger_buttons.iter().map(|b| output_label(self.description(), mode, b)).collect();
+            def.trigger_buttons.iter().map(|b| button_label(self.description(), mode, b)).collect();
         and_list(&labels)
     }
 

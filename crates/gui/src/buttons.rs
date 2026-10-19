@@ -60,6 +60,14 @@ pub fn output_label(description: &ControllerDescription, mode: Mode, id: &str) -
     }
 }
 
+/// The name of the physical button `id` in `mode`, as printed on the pad. Use it where the
+/// text names a button; [`output_label`] names what a button sends.
+pub fn button_label(description: &ControllerDescription, mode: Mode, id: &str) -> String {
+    description
+        .button(id)
+        .map_or_else(|| output_label(description, mode, id), |b| b.printed(mode).to_owned())
+}
+
 /// Like [`output_label`], and a macro output reads as its macro among `macros`, with
 /// its name.
 pub fn output_text(
@@ -205,8 +213,8 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
             let current = current(&slot, &b.id).unwrap_or_default();
             let list = choices(state, mode, &b.id, &current);
             MapRow {
-                label: b.labels.get(&mode).map_or_else(|| b.id.as_str().into(), Into::into),
-                spoken: prose(b.spoken_label(mode)).into(),
+                label: prose(b.printed(mode)).into(),
+                spoken: prose(b.printed_spoken(mode)).into(),
                 output: list
                     .iter()
                     .position(|(id, _)| *id == current)
@@ -669,6 +677,22 @@ mod tests {
         assert_eq!(dots, [true, false, false, false, false]);
         let names: Vec<String> = sections(&s).iter().map(|t| t.name.to_string()).collect();
         assert_eq!(&names[..2], ["Buttons", "Macros"]);
+    }
+
+    #[test]
+    fn the_button_column_shows_the_print_and_the_picker_the_output() {
+        use controller_core::devices::ultimate::{SWITCH, XINPUT};
+        let s = crate::state::tests::ultimate("1.09");
+        let d = s.description();
+        assert_eq!(button_label(d, XINPUT, "right face"), "A");
+        assert_eq!(button_label(d, SWITCH, "right face"), "A");
+        assert_eq!(output_label(d, XINPUT, "right face"), "B", "what the PC receives");
+        let at = row_of(&s, "right face");
+        let row = &rows(&s)[at];
+        assert_eq!(row.label, "A");
+        let picked = usize::try_from(row.output).unwrap();
+        assert_eq!(row.outputs.row_data(picked).unwrap(), "B", "its default output");
+        assert_eq!(rows(&s)[row_of(&s, "l1")].label, "LB", "no print set");
     }
 
     #[test]

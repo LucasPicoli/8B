@@ -251,6 +251,26 @@ mod tests {
     use super::*;
 
     #[test]
+    fn face_buttons_are_printed_as_on_the_switch_layout_in_every_mode() {
+        let d = Ultimate.description().unwrap();
+        let name = |id: &str, mode| d.button(id).unwrap().printed(mode).to_owned();
+        for mode in [Mode::from_static("xinput"), Mode::from_static("switch")] {
+            let printed: Vec<_> = ["right face", "bottom face", "top face", "left face"]
+                .map(|id| name(id, mode))
+                .into();
+            assert_eq!(printed, ["A", "B", "X", "Y"]);
+            assert_eq!(name("l1", mode), d.button("l1").unwrap().labels[&mode], "no print set");
+        }
+        let right = d.button("right face").unwrap();
+        assert_eq!(
+            right.labels[&Mode::from_static("xinput")],
+            "B",
+            "the output keeps its XInput name"
+        );
+        assert_eq!(right.printed_spoken(Mode::from_static("xinput")), "A");
+    }
+
+    #[test]
     fn ultimate_hotspots_sit_on_their_buttons() {
         let views = &Ultimate.description().unwrap().views;
         let hit = |view: usize, x: f64, y: f64| -> Vec<&str> {

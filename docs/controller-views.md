@@ -132,7 +132,21 @@ Copy `pro3_hotspots_sit_on_their_buttons` from
 centre, the d-pad centre (no button), the body beside a bumper (no button), and a
 button seen from behind. Pick the points from the coordinates in your SVG.
 
-## 6. Give a symbol label a spoken label
+## 6. Name a button as it is printed
+
+`labels` names a button in each mode, and the output picker offers the same names as
+outputs. When the print on the pad differs from the output the button sends, such as a
+Switch-printed pad whose right face button sends XInput "B", add `printed_label`:
+
+```json
+"printed_label": "A",
+"labels": { "xinput": "B", "switch": "A" }
+```
+
+The button column, the views and the macro editor show `printed_label` in every mode.
+The output picker keeps `labels`. Leave it out when the print matches `labels`.
+
+## 7. Give a symbol label a spoken label
 
 A button whose `labels` entry is a symbol, such as the Switch "−" and "+" or the
 Pro 3 d-pad arrows, is read badly by a screen reader. Add `spoken_labels` to that

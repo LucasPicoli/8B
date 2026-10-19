@@ -2211,6 +2211,7 @@ msgstr "R4"
 #. Pro 3 /buttons/1/labels/switch
 #. Ultimate /buttons/0/labels/xinput
 #. Ultimate /buttons/1/labels/switch
+#. Ultimate /buttons/1/printed_label
 msgid "B"
 msgstr "B"
 
@@ -2218,6 +2219,7 @@ msgstr "B"
 #. Pro 3 /buttons/1/labels/dinput
 #. Pro 3 /buttons/1/labels/xinput
 #. Ultimate /buttons/0/labels/switch
+#. Ultimate /buttons/0/printed_label
 #. Ultimate /buttons/1/labels/xinput
 msgid "A"
 msgstr "A"
@@ -2227,6 +2229,7 @@ msgstr "A"
 #. Pro 3 /buttons/3/labels/switch
 #. Ultimate /buttons/2/labels/xinput
 #. Ultimate /buttons/3/labels/switch
+#. Ultimate /buttons/3/printed_label
 msgid "Y"
 msgstr "Y"
 
@@ -2234,6 +2237,7 @@ msgstr "Y"
 #. Pro 3 /buttons/3/labels/dinput
 #. Pro 3 /buttons/3/labels/xinput
 #. Ultimate /buttons/2/labels/switch
+#. Ultimate /buttons/2/printed_label
 #. Ultimate /buttons/3/labels/xinput
 msgid "X"
 msgstr "X"

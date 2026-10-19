@@ -15,7 +15,7 @@ use serde_json::Value;
 use slint::{ModelRc, SharedString, VecModel};
 use tr::tr;
 
-use crate::buttons::output_label;
+use crate::buttons::button_label;
 use crate::files::{parse_json, swapped_letters};
 use crate::macros::label;
 use crate::reasons::{failure, problems};
@@ -113,7 +113,7 @@ impl AppState {
         let macros = slot.shown_macros();
         let mut dropped = Vec::new();
         file.trigger_buttons.retain(|b| {
-            let button = output_label(d, mode, b);
+            let button = button_label(d, mode, b);
             dropped.push(match (slot.macro_started_by(b).filter(|&o| o != n), self.mapped_to(b)) {
                 (Some(other), _) => tr!(
                     "{button} is imported unmapped, because {macro} already uses it.",
@@ -206,7 +206,7 @@ pub fn content_losses(
             if was.glide.contains(&control) && !is.glide.contains(&control) {
                 glides.push(tr!(
                     "{button} in step {n}",
-                    button = output_label(d, mode, &b.id),
+                    button = button_label(d, mode, &b.id),
                     n = i + 1
                 ));
             }
@@ -256,7 +256,7 @@ pub fn macro_import_info(state: &AppState) -> MacroImportInfo {
     };
     let slot = state.slot(mode, number);
     let buttons: Vec<String> =
-        ready.def.trigger_buttons.iter().map(|b| output_label(d, mode, b)).collect();
+        ready.def.trigger_buttons.iter().map(|b| button_label(d, mode, b)).collect();
     MacroImportInfo {
         name: ready.def.name.as_str().into(),
         from_mode: d.mode_label(ready.from).into(),

@@ -359,7 +359,7 @@ impl AppState {
                 continue;
             };
             if from != to {
-                let label = b.labels.get(&mode).map_or(b.id.as_str(), String::as_str);
+                let label = b.printed(mode);
                 let (held, shown) = (state.held_macros(), state.shown_macros());
                 out.push(change(
                     label,

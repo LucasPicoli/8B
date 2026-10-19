@@ -260,7 +260,7 @@ string and where it sits, and `just translations` adds new ones to each `gui.po`
 - Write prose in sentence case: page `label` and `lead`, frame `title`, slider and
   flag `label`, value `labels`, `spoken_labels`, view `label`.
 - Write names as the pad or its box prints them: `display_name`, `short_name`, mode
-  `label`, button `labels`, `unit`. Every language keeps them as they are.
+  `label`, button `labels` and `printed_label`, `unit`. Every language keeps them as they are.
 - Keep each sentence whole inside one `lead`. Never split one sentence across fields.
 - Leave out of prose any number the app also shows, such as a range end.
 

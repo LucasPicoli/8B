@@ -337,6 +337,11 @@ pub struct Button {
     /// Sparse: a mode without an entry is read from its label.
     #[serde(default)]
     pub spoken_labels: BTreeMap<Mode, String>,
+    /// The name printed on the physical button, the same in every mode. Set it only
+    /// when the print differs from `labels`: the button column, the views and the macro
+    /// editor then show it, and `labels` keeps naming the output in each mode.
+    #[serde(default)]
+    pub printed_label: Option<String>,
     /// A button mapping may give this button an output other than its own press.
     pub can_be_remapped: bool,
     /// This button's press may be the output of another button. A button can
@@ -367,6 +372,16 @@ pub enum TriggerSide {
 }
 
 impl Button {
+    /// The name of this physical button in `mode`: its printed label, else its label,
+    /// else its id.
+    #[must_use]
+    pub fn printed(&self, mode: Mode) -> &str {
+        self.printed_label
+            .as_deref()
+            .or_else(|| self.labels.get(&mode).map(String::as_str))
+            .unwrap_or(self.id.as_str())
+    }
+
     /// What a screen reader says for this button in `mode`: its spoken label, else its
     /// label, else its id.
     #[must_use]
@@ -375,6 +390,13 @@ impl Button {
             .get(&mode)
             .or_else(|| self.labels.get(&mode))
             .map_or(self.id.as_str(), String::as_str)
+    }
+
+    /// What a screen reader says for this physical button in `mode`: its printed label,
+    /// else its spoken label.
+    #[must_use]
+    pub fn printed_spoken(&self, mode: Mode) -> &str {
+        self.printed_label.as_deref().unwrap_or_else(|| self.spoken_label(mode))
     }
 }
 

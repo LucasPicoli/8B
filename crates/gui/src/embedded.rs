@@ -7,7 +7,7 @@ use controller_core::description::ControllerDescription;
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use tr::tr;
 
-use crate::buttons::{output_label, target};
+use crate::buttons::{button_label, output_label, target};
 use crate::files::export_text;
 use crate::macro_files::content_losses;
 use crate::macros::{named, title};
@@ -123,7 +123,7 @@ pub fn file_macros(
         .buttons
         .iter()
         .filter(|b| b.step_trigger_value.is_some())
-        .map(|b| output_label(d, to, &b.id))
+        .map(|b| button_label(d, to, &b.id))
         .collect();
     let (mut notes, mut out) = (Vec::new(), Vec::new());
     for m in file {
@@ -134,7 +134,7 @@ pub fn file_macros(
             if output == target(default, b) {
                 return true;
             }
-            let button = output_label(d, to, b);
+            let button = button_label(d, to, b);
             notes.push(tr!(
                 "The file maps {button} to {output}, so {button} cannot start {macro}.",
                 button = button,

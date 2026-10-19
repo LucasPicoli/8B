@@ -5,7 +5,7 @@
 use controller_core::model::CanonicalProfile;
 use tr::tr;
 
-use crate::buttons::output_label;
+use crate::buttons::button_label;
 use crate::macros::label;
 use crate::state::{AppState, Notice};
 
@@ -41,7 +41,7 @@ impl AppState {
         let slot = self.slot(mode, number);
         let held = slot.held_macros().into_iter().find(|m| m.macro_slot == Some(n))?;
         held.trigger_buttons.iter().find_map(|b| {
-            let name = output_label(self.description(), mode, b);
+            let name = button_label(self.description(), mode, b);
             let clash = if let Some(other) = slot.macro_started_by(b).filter(|&o| o != n) {
                 let other = label(&slot.shown_macros(), other);
                 tr!("{button} now starts {macro}.", button = name, macro = other)

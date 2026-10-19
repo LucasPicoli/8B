@@ -7,7 +7,7 @@ use controller_core::service::validation::ValidationError;
 use controller_core::{Error, Reason};
 use tr::tr;
 
-use crate::buttons::output_label;
+use crate::buttons::{button_label, output_label};
 use crate::language::prose;
 use crate::render::and_list;
 
@@ -88,7 +88,7 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         ),
         Reason::ButtonNotInMode { button, from, mode } => tr!(
             "The macro uses {button}, which {mode} mode does not have.",
-            button = output_label(d, *from, button),
+            button = button_label(d, *from, button),
             mode = mode
         ),
         Reason::UnknownSource { .. } => {
@@ -99,12 +99,12 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         }
         Reason::TargetNotOnButton { source, target, mode } => tr!(
             "{button} cannot take {output}.",
-            button = output_label(d, *mode, source),
+            button = button_label(d, *mode, source),
             output = output_label(d, *mode, target)
         ),
         Reason::TwoMacrosOneButton { button, mode } => tr!(
             "{button} starts two macros. A button starts at most one macro.",
-            button = output_label(d, *mode, button)
+            button = button_label(d, *mode, button)
         ),
         Reason::OutOfRange { field, mode, lo, hi } => out_of_range(d, *mode, field, *lo, *hi),
         Reason::NotBool { field, mode } => {
@@ -121,7 +121,7 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         Reason::PressAndRelease { step, button, mode } => tr!(
             "Step {n}: {button} appears in both press and release.",
             n = step,
-            button = output_label(d, *mode, button)
+            button = button_label(d, *mode, button)
         ),
         Reason::GlideNoNextStep { step, name } => tr!(
             "Step {n}: {name} cannot glide, because there is no next step.",

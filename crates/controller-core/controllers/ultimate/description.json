@@ -217,6 +217,7 @@
   "buttons": [
     {
       "id": "right face",
+      "printed_label": "A",
       "labels": {
         "xinput": "B",
         "switch": "A"
@@ -228,6 +229,7 @@
     },
     {
       "id": "bottom face",
+      "printed_label": "B",
       "labels": {
         "xinput": "A",
         "switch": "B"
@@ -239,6 +241,7 @@
     },
     {
       "id": "top face",
+      "printed_label": "X",
       "labels": {
         "xinput": "Y",
         "switch": "X"
@@ -250,6 +253,7 @@
     },
     {
       "id": "left face",
+      "printed_label": "Y",
       "labels": {
         "xinput": "X",
         "switch": "Y"

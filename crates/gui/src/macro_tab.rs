@@ -10,7 +10,7 @@ use controller_core::service::validation::ValidationError;
 use slint::{Model as _, ModelRc, SharedString, VecModel};
 use tr::tr;
 
-use crate::buttons::{keep_same, output_label, push_model, target};
+use crate::buttons::{button_label, keep_same, output_label, push_model, target};
 use crate::macros::takes_trigger;
 use crate::reasons::worded;
 use crate::state::{cut_name, AppState, SlotState};
@@ -252,7 +252,7 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
         return Vec::new();
     }
     let description = state.description();
-    let label = |b: &String| output_label(description, mode, b);
+    let label = |b: &String| button_label(description, mode, b);
     (0..description.macro_slot_count)
         .map(|n| {
             let Some(m) = slot.shown_macro(n) else {

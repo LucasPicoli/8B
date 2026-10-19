@@ -60,6 +60,13 @@ impl ControllerDescription {
                 let pointer = format!("/buttons/{b}/labels/{mode}");
                 out.push(Prose { pointer, text: label, is_name: true });
             }
+            if let Some(printed) = &button.printed_label {
+                out.push(Prose {
+                    pointer: format!("/buttons/{b}/printed_label"),
+                    text: printed,
+                    is_name: true,
+                });
+            }
             for (mode, label) in &button.spoken_labels {
                 let pointer = format!("/buttons/{b}/spoken_labels/{mode}");
                 out.push(Prose { pointer, text: label, is_name: false });
@@ -129,11 +136,12 @@ mod tests {
     use crate::devices::{pro3::Pro3, test_pad::TestPad, ultimate::Ultimate};
 
     /// Keys whose string values, at any depth below, a person reads.
-    const TEXT_KEYS: [&str; 10] = [
+    const TEXT_KEYS: [&str; 11] = [
         "display_name",
         "short_name",
         "label",
         "labels",
+        "printed_label",
         "spoken_labels",
         "lead",
         "title",

@@ -339,7 +339,7 @@ pub fn step_rows(
                         top,
                         bottom: next.filter(|_| glides).map_or(top, |n| bar(n, b, kind)),
                         tip: if on {
-                            let label = b.labels.get(&mode).map_or("", String::as_str);
+                            let label = b.printed(mode);
                             held_text(step, next, b, label, kind).into()
                         } else {
                             "".into()
@@ -350,7 +350,7 @@ pub fn step_rows(
             let held_list: Vec<String> = lanes
                 .iter()
                 .filter(|b| holds(step, b))
-                .map(|b| held_text(step, next, b, &prose(b.spoken_label(mode)), kind))
+                .map(|b| held_text(step, next, b, &prose(b.printed_spoken(mode)), kind))
                 .collect();
             StepInfo {
                 number: i32::try_from(i + 1).unwrap_or(i32::MAX),
@@ -365,7 +365,7 @@ pub fn step_rows(
             }
         })
         .collect();
-    let labels = lanes.iter().map(|b| b.labels.get(&mode).cloned().unwrap_or_default()).collect();
+    let labels = lanes.iter().map(|b| b.printed(mode).to_owned()).collect();
     (labels, rows)
 }
 
