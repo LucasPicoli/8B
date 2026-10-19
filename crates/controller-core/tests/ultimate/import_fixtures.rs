@@ -9,7 +9,7 @@ use controller_core::devices::ultimate::macros::decode_macros;
 use controller_core::devices::ultimate::profile::map_profile;
 use controller_core::devices::ultimate::{image_mode, SWITCH, XINPUT};
 use controller_core::model::{
-    CanonicalProfile, MacroDefinition, MacroStep, Mode, RawProfilePayload, Slot,
+    ButtonMapping, CanonicalProfile, MacroDefinition, MacroStep, Mode, RawProfilePayload, Slot,
 };
 
 /// The slot both files go into, 1-based. A slot 1 import would replace the slot a pad
@@ -126,10 +126,8 @@ fn prompt(action: impl Into<String>, expect: impl Into<String>) -> Prompt {
 /// "X (the top button)".
 fn printed(mode: Mode, id: &str) -> String {
     let label = d().button(id).unwrap().printed(mode);
-    match id.strip_suffix(" face") {
-        Some(side) => format!("{label} (the {side} button)"),
-        None => label.to_owned(),
-    }
+    id.strip_suffix(" face")
+        .map_or_else(|| label.to_owned(), |side| format!("{label} (the {side} button)"))
 }
 
 /// What the pad sends for button `id` in `mode`. A tester names it by the button that sends
@@ -151,13 +149,19 @@ fn direction(side: &str, x: u8, y: u8) -> Option<String> {
     Some(format!("{side} stick {word}"))
 }
 
-/// What a macro plays, step by step, such as "A, then left stick up".
-fn plays(mode: Mode, m: &MacroDefinition) -> String {
+/// What a macro plays, step by step, such as "A, then left stick up". A step presses the
+/// button itself, so the slot's `map` applies: on the desk pad an `XInput` step on X, which
+/// the slot maps to the bottom button's output, played the bottom button.
+fn plays(mode: Mode, m: &MacroDefinition, map: &[ButtonMapping]) -> String {
+    let through = |b: &str| -> String {
+        map.iter().find(|m| m.source == b).map_or(b, |m| m.target.as_str()).to_owned()
+    };
     let parts: Vec<String> = m
         .steps
         .iter()
         .filter_map(|s| {
-            let mut now: Vec<String> = s.pressed_buttons.iter().map(|b| sends(mode, b)).collect();
+            let mut now: Vec<String> =
+                s.pressed_buttons.iter().map(|b| sends(mode, &through(b))).collect();
             now.extend(direction("left", s.left_stick_x, s.left_stick_y));
             now.extend(direction("right", s.right_stick_x, s.right_stick_y));
             (!now.is_empty()).then(|| now.join(" and "))
@@ -234,7 +238,10 @@ pub fn prompts(want: &Fixture) -> Vec<Prompt> {
         let trigger = &m.trigger_buttons[0];
         out.push(prompt(
             format!("Press {} once.", printed(mode, trigger)),
-            format!("The tester shows, in order: {}.", plays(mode, m)),
+            format!(
+                "The tester shows, in order: {}.",
+                plays(mode, m, &want.profile.button_mappings)
+            ),
         ));
     }
     out
@@ -336,7 +343,7 @@ fn the_presses_name_each_button_and_macro() {
     let x = say(XINPUT);
     assert_eq!(x[0], "Press X (the top button). -> The tester shows B (the bottom button).");
     assert_eq!(x.len(), 3 + 4 + 1 + 4 + 2, "{x:#?}");
-    assert_eq!(x[x.len() - 2], "Press LS once. -> The tester shows, in order: B (the bottom button), then A (the right button), then X (the top button).");
+    assert_eq!(x[x.len() - 2], "Press LS once. -> The tester shows, in order: B (the bottom button), then A (the right button), then B (the bottom button).");
     assert_eq!(
         x[x.len() - 1],
         "Press RS once. -> The tester shows, in order: left stick up, then left stick right, then right stick down, then right stick left."
