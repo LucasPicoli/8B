@@ -78,8 +78,6 @@ pub const TRIGGER_RAW_MAX: i32 = 255;
 pub const VIBRATION_LEVELS: f32 = 5.0;
 /// The highest vibration level.
 pub const VIBRATION_LEVEL_MAX: i32 = 5;
-/// The lowest end of a Switch trigger range by default, about 30%.
-pub const SWITCH_TRIGGER_START: i32 = 30;
 
 /// Toggle bit: invert the left stick's X axis.
 pub const INVERT_LEFT_X: u32 = 0x1;

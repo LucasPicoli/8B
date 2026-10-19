@@ -55,7 +55,12 @@
           "code": "0x8000000"
         }
       ],
-      "gamepad_mode": 3
+      "gamepad_mode": 3,
+      "default_targets": {
+        "star": "turbo",
+        "p1": "disabled",
+        "p2": "disabled"
+      }
     },
     {
       "id": "switch",
@@ -105,7 +110,13 @@
           "code": "0x400000"
         }
       ],
-      "gamepad_mode": 0
+      "gamepad_mode": 0,
+      "default_targets": {
+        "star": "screenshot",
+        "p1": "disabled",
+        "p2": "disabled"
+      },
+      "default_trigger_start": 30
     }
   ],
   "slot_count": 3,

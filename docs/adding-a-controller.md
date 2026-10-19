@@ -157,10 +157,16 @@ fields are optional and use hex strings such as `"0x2000"`.
 | Field | On | Holds |
 | --- | --- | --- |
 | `gamepad_mode` | a mode | The byte the image records for the mode and selects it by (3 XInput, 0 Switch). Unique per model. |
+| `default_targets` | a mode | What a new profile maps a button to, button id to output id. A button left out sends its own output. The Ultimate maps Star to Turbo in XInput and to Screenshot in Switch, and P1 and P2 to `disabled`. |
+| `default_trigger_start` | a mode | Where a new profile starts both triggers' low end, in percent. Absent means 0. The Ultimate's Switch mode has 30. |
 | `map_index` | a button | Where its entry sits in the button map (0 to 19). Unique per model. |
 | `map_codes` | a button | Its code in a button map entry, one per mode. A mode without a key has no such output, as with Star. The same code can mean another button in another mode: `0x2000` is Xbox A, the bottom face button, in XInput and printed A, the right face button, in Switch. |
 | `macro_code` | a button | Its code in a macro record, the same in every mode. Set it on its own. Do not copy `map_codes`, since a model can use different codes in the two places. |
 | `code` | an extra output | Its code in a button map entry, such as Turbo `0x10000`. |
+
+A model is one folder with these files and one line in the registry,
+`&ultimate::model!("folder")`. Each `Ultimate` value serves the description of its own
+folder, so two models never share codes.
 
 A button the macro editor offers needs `macro_code` and `can_start_macro` or
 `can_be_in_macro_step`. The codec reads those two flags to know which buttons a record

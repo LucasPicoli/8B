@@ -255,10 +255,13 @@ fn wait_for_usb(dir: &Path, usb: UsbId, budget: Duration) -> Result<()> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate() -> &'static dyn crate::device::Model {
+        crate::devices::model_named("Ultimate").unwrap()
+    }
     use std::cell::Cell;
 
     use super::*;
-    use crate::devices::ultimate::Ultimate;
 
     /// One step a fake usbfs device saw.
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -308,7 +311,7 @@ mod tests {
     }
 
     fn ultimate_lock() -> &'static Lock {
-        lock_of(&Ultimate).unwrap()
+        lock_of(ultimate()).unwrap()
     }
 
     /// Runs [`send_unlock`] of the Ultimate on a fake that fails step `fail_at`.
@@ -444,7 +447,7 @@ mod tests {
     fn an_unlock_that_brings_up_an_unlisted_id_sends_nothing_more() {
         let dir = sysfs("6008");
         let locked = LockedController {
-            model: &Ultimate,
+            model: ultimate(),
             port_path: "8-5".to_owned(),
             usb_node: PathBuf::from("/dev/null"),
         };

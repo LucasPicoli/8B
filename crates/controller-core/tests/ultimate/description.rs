@@ -2,13 +2,14 @@
 //! reply.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
+use crate::{d, ultimate};
 use controller_core::description::{firmware_allows, MacroSticks};
-use controller_core::device::{ControllerSpec, ProtocolCodec, UsbId};
+use controller_core::device::UsbId;
 use controller_core::devices::ultimate::profile::map_profile;
 use controller_core::devices::ultimate::tables::{
     BLOB_SIZE, MACRO_SLOTS, MACRO_STEPS, MAP_ENTRIES, SLOT_COUNT,
 };
-use controller_core::devices::ultimate::{Ultimate, MODES, SWITCH, XINPUT};
+use controller_core::devices::ultimate::{MODES, SWITCH, XINPUT};
 use controller_core::devices::{find_model_by_port, models};
 use controller_core::model::{Mode, RawProfilePayload};
 use controller_core::service::validation::validate_profile;
@@ -43,7 +44,7 @@ fn the_description_matches_its_schema() {
 
 #[test]
 fn its_config_port_names_it_and_its_bytes_match_the_codec() {
-    let d = Ultimate.description().unwrap();
+    let d = ultimate().description().unwrap();
     assert_eq!(d.model_ids, Vec::<u16>::new());
     let port = d.config_ports[0];
     assert_eq!(d.config_ports.len(), 1);
@@ -58,13 +59,13 @@ fn its_config_port_names_it_and_its_bytes_match_the_codec() {
     assert_eq!(lock.locked.product, "8BitDo Ultimate Controller");
     assert_eq!((lock.unlock.packets.len(), lock.relock.packets.len()), (15, 4));
 
-    assert_eq!(Ultimate.blob_size(), BLOB_SIZE);
-    assert_eq!(Ultimate.apply_argument(), 0x0015);
-    assert_eq!(Ultimate.slot_select_value(XINPUT).unwrap(), 3);
-    assert_eq!(Ultimate.slot_select_value(SWITCH).unwrap(), 0);
-    assert!(Ultimate.slot_select_value(Mode::from_static("dinput")).is_err());
-    assert!(Ultimate.macro_steps_in_blob());
-    assert!(Ultimate.read_back_writes());
+    assert_eq!(ultimate().blob_size(), BLOB_SIZE);
+    assert_eq!(ultimate().apply_argument(), 0x0015);
+    assert_eq!(ultimate().slot_select_value(XINPUT).unwrap(), 3);
+    assert_eq!(ultimate().slot_select_value(SWITCH).unwrap(), 0);
+    assert!(ultimate().slot_select_value(Mode::from_static("dinput")).is_err());
+    assert!(ultimate().macro_steps_in_blob());
+    assert!(ultimate().read_back_writes());
     let listed: Vec<Mode> = d.modes.iter().map(|m| m.id).collect();
     assert_eq!(listed, MODES);
     assert_eq!((d.slot_count, usize::from(d.macro_slot_count)), (SLOT_COUNT, MACRO_SLOTS));
@@ -72,7 +73,7 @@ fn its_config_port_names_it_and_its_bytes_match_the_codec() {
 
 #[test]
 fn the_firmware_comes_from_the_captured_reply() {
-    let request = Ultimate.firmware_request().unwrap();
+    let request = ultimate().firmware_request().unwrap();
     assert_eq!(request.wire[..5], [0x81, 0x05, 0x00, 0x21, 0x01]);
     assert!(request.wire[5..].iter().all(|&b| b == 0));
     let hex = include_str!("../../../../fixtures/ultimate/firmware-reply.txt").trim();
@@ -81,12 +82,12 @@ fn the_firmware_comes_from_the_captured_reply() {
         .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
         .collect();
     assert!(reply.starts_with(&request.reply_head));
-    assert_eq!(Ultimate.firmware_version(&reply).unwrap(), "1.09");
+    assert_eq!(ultimate().firmware_version(&reply).unwrap(), "1.09");
 }
 
 #[test]
 fn buttons_follow_the_map_and_each_has_a_hotspot() {
-    let d = Ultimate.description().unwrap();
+    let d = ultimate().description().unwrap();
     let ids: Vec<&str> = d.buttons.iter().map(|b| b.id.as_str()).collect();
     assert_eq!(ids.len(), MAP_ENTRIES);
     let placed: Vec<&str> =
@@ -102,7 +103,7 @@ fn buttons_follow_the_map_and_each_has_a_hotspot() {
 
 #[test]
 fn extra_outputs_match_the_codec_and_their_buttons() {
-    let d = Ultimate.description().unwrap();
+    let d = ultimate().description().unwrap();
     let ids = |mode| -> Vec<&str> {
         d.mode(mode).unwrap().extra_outputs.iter().map(|o| o.id.as_str()).collect()
     };
@@ -119,7 +120,7 @@ fn extra_outputs_match_the_codec_and_their_buttons() {
     }
     assert_eq!(code(SWITCH, "screenshot"), Some(0x40_0000));
 
-    let ok = |mode, source, target| Ultimate.validate_remap(mode, source, target).is_ok();
+    let ok = |mode, source, target| ultimate().validate_remap(mode, source, target).is_ok();
     for mode in MODES {
         for source in ["star", "p1", "p2"] {
             assert!(ok(mode, source, "turbo") && ok(mode, source, "auto turbo"), "{source}");
@@ -137,7 +138,7 @@ fn extra_outputs_match_the_codec_and_their_buttons() {
 
 #[test]
 fn macro_flags_and_limits_match_the_codec() {
-    let d = Ultimate.description().unwrap();
+    let d = ultimate().description().unwrap();
     let flagged = |pick: fn(&controller_core::description::Button) -> bool| {
         sorted(d.buttons.iter().filter(|b| pick(b)).map(|b| b.id.as_str()))
     };
@@ -189,17 +190,19 @@ fn macro_flags_and_limits_match_the_codec() {
 #[test]
 fn every_decoded_profile_and_default_passes_validation() {
     let check = |json: &Value, what: &str| {
-        let result = validate_profile(&Ultimate, json).unwrap();
+        let result = validate_profile(ultimate(), json).unwrap();
         assert!(result.valid, "{what}: {:?}", result.errors);
     };
     for mode in MODES {
-        check(&serde_json::to_value(Ultimate.default_profile(mode)).unwrap(), mode.as_str());
+        check(&serde_json::to_value(ultimate().default_profile(mode)).unwrap(), mode.as_str());
     }
     for name in IMAGES {
         let blob = image(name);
-        let mode = controller_core::devices::ultimate::image_mode(&blob).unwrap();
+        let mode = controller_core::devices::ultimate::image_mode(d(), &blob).unwrap();
         for n in 1..=SLOT_COUNT {
-            if !Ultimate.slot_active(&blob, controller_core::model::Slot::new(n).unwrap()).unwrap()
+            if !ultimate()
+                .slot_active(&blob, controller_core::model::Slot::new(n).unwrap())
+                .unwrap()
             {
                 continue;
             }
@@ -209,7 +212,7 @@ fn every_decoded_profile_and_default_passes_validation() {
                 source_profile_index: n - 1,
                 mode_hint: mode,
             };
-            let profile = map_profile(&raw).unwrap().canonical;
+            let profile = map_profile(d(), &raw).unwrap().canonical;
             check(&serde_json::to_value(profile).unwrap(), &format!("{name} slot {n}"));
         }
     }
@@ -217,7 +220,7 @@ fn every_decoded_profile_and_default_passes_validation() {
 
 #[test]
 fn settings_show_per_mode_and_four_way_needs_firmware_1_03() {
-    let d = Ultimate.description().unwrap();
+    let d = ultimate().description().unwrap();
     let has = |mode, field: &str| d.flag(mode, field).is_some() || d.number(mode, field).is_some();
     assert!(has(XINPUT, "/sticks/no_dead_zone") && !has(SWITCH, "/sticks/no_dead_zone"));
     let swap = "/sticks/swap_right_stick_with_triggers";
@@ -233,7 +236,7 @@ fn settings_show_per_mode_and_four_way_needs_firmware_1_03() {
 
 #[test]
 fn per_button_codes_and_mode_bytes_come_from_the_description() {
-    let d = Ultimate.description().unwrap();
+    let d = ultimate().description().unwrap();
     let indexes: Vec<_> = d.buttons.iter().map(|b| b.map_index).collect();
     assert_eq!(indexes, (0..20).map(Some).collect::<Vec<_>>(), "one map index per button");
     let map = |id: &str, mode| d.button(id).unwrap().map_codes.get(&mode).copied();

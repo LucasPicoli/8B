@@ -12,8 +12,6 @@ pub mod profile;
 pub mod settings;
 pub mod tables;
 
-use std::sync::LazyLock;
-
 use crate::description::ControllerDescription;
 use crate::device::{ControllerSpec, ProtocolCodec, RawRequest};
 use crate::error::{Error, Result};
@@ -46,8 +44,8 @@ const APPLY_ARGUMENT: u16 = 0x0015;
 ///
 /// # Errors
 /// Returns [`Error::Validation`] for a mode the Ultimate does not have.
-pub fn mode_byte(mode: Mode) -> Result<u8> {
-    description()?
+pub fn mode_byte(description: &ControllerDescription, mode: Mode) -> Result<u8> {
+    description
         .mode(mode)
         .and_then(|m| m.gamepad_mode)
         .ok_or_else(|| Error::Validation(format!("the Ultimate has no {mode} mode")))
@@ -57,9 +55,9 @@ pub fn mode_byte(mode: Mode) -> Result<u8> {
 ///
 /// # Errors
 /// Returns [`Error::Decode`] if `blob` is too short or records another mode.
-pub fn image_mode(blob: &[u8]) -> Result<Mode> {
+pub fn image_mode(description: &ControllerDescription, blob: &[u8]) -> Result<Mode> {
     let value = read_u16_le(blob, GAMEPAD_MODE_OFFSET)?;
-    description()?
+    description
         .modes
         .iter()
         .find(|m| m.gamepad_mode.is_some_and(|b| u16::from(b) == value))
@@ -103,32 +101,66 @@ fn steps_in_blob() -> Error {
     Error::Validation("the Ultimate keeps macro steps inside the profile image".to_owned())
 }
 
-/// The 8BitDo Ultimate controller backend.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Ultimate;
+/// The description of one Ultimate model, parsed on first use.
+pub type DescriptionFn = fn() -> Result<&'static ControllerDescription>;
 
-/// The Ultimate controller description, parsed on first use.
-static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
-    ControllerDescription::parse(
-        include_str!("../../../controllers/ultimate/description.json"),
-        &[
-            ("front.svg", include_str!("../../../controllers/ultimate/front.svg")),
-            ("back.svg", include_str!("../../../controllers/ultimate/back.svg")),
-        ],
-    )
-});
-
-/// Returns the Ultimate controller description.
+/// The 8BitDo Ultimate controller backend, serving one model.
 ///
-/// # Errors
-/// Returns [`Error::Decode`] if the embedded file is malformed.
-fn description() -> Result<&'static ControllerDescription> {
-    DESCRIPTION.as_ref().map_err(Clone::clone)
+/// It carries the description of the model's folder, and every code, index and default
+/// the codec uses comes from it. Build one with [`model!`](crate::devices::ultimate::model).
+#[derive(Debug, Clone, Copy)]
+pub struct Ultimate {
+    /// The description of the model this value serves.
+    description: DescriptionFn,
 }
+
+impl Ultimate {
+    /// An Ultimate that serves the model `description` returns.
+    #[must_use]
+    pub const fn new(description: DescriptionFn) -> Self {
+        Self { description }
+    }
+}
+
+/// An [`Ultimate`] for the model in `controllers/<folder>/`, which holds `description.json`,
+/// `front.svg` and `back.svg`. A model is one folder and one line in the registry:
+/// `&ultimate::model!("folder")`.
+#[macro_export]
+macro_rules! ultimate_model {
+    ($folder:literal) => {
+        $crate::devices::ultimate::Ultimate::new({
+            fn description() -> $crate::Result<&'static $crate::description::ControllerDescription>
+            {
+                static DESCRIPTION: ::std::sync::LazyLock<
+                    $crate::Result<$crate::description::ControllerDescription>,
+                > = ::std::sync::LazyLock::new(|| {
+                    macro_rules! file {
+                        ($name:literal) => {
+                            include_str!(concat!(
+                                env!("CARGO_MANIFEST_DIR"),
+                                "/controllers/",
+                                $folder,
+                                "/",
+                                $name
+                            ))
+                        };
+                    }
+                    $crate::description::ControllerDescription::parse(
+                        file!("description.json"),
+                        &[("front.svg", file!("front.svg")), ("back.svg", file!("back.svg"))],
+                    )
+                });
+                DESCRIPTION.as_ref().map_err(::std::clone::Clone::clone)
+            }
+            description
+        })
+    };
+}
+pub use crate::ultimate_model as model;
 
 impl ControllerSpec for Ultimate {
     fn description(&self) -> Result<&'static ControllerDescription> {
-        description()
+        (self.description)()
     }
     fn blob_size(&self) -> usize {
         BLOB_SIZE
@@ -154,7 +186,7 @@ impl ControllerSpec for Ultimate {
         true
     }
     fn slot_select_value(&self, mode: Mode) -> Result<u8> {
-        mode_byte(mode)
+        mode_byte((self.description)()?, mode)
     }
 }
 
@@ -166,14 +198,19 @@ impl ProtocolCodec for Ultimate {
     /// Refuses an image whose recorded mode is not the one asked for.
     fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
         let asked = raw.mode_hint;
-        if image_mode(&raw.payload)? != asked {
+        let d = (self.description)()?;
+        if image_mode(d, &raw.payload)? != asked {
             return Err(Error::Decode(format!("the image does not match the {asked} mode")));
         }
-        profile::map_profile(raw)
+        profile::map_profile(d, raw)
     }
 
     fn default_profile(&self, mode: Mode) -> CanonicalProfile {
-        profile::default_profile(mode)
+        // An unreadable description is a build defect; no model reaches the blank profile.
+        (self.description)().map_or_else(
+            |_| profile::blank_profile(mode, Vec::new(), 0),
+            |d| profile::default_profile(d, mode),
+        )
     }
 
     fn macro_steps_in_blob(&self) -> bool {
@@ -185,7 +222,7 @@ impl ProtocolCodec for Ultimate {
         blob: &[u8],
         profile_slot: Slot,
     ) -> Result<Vec<MacroDefinition>> {
-        macros::decode_macros(blob, profile_slot)
+        macros::decode_macros((self.description)()?, blob, profile_slot)
     }
 
     fn decode_macro_steps(&self, _: &[u8], _: usize, _: Mode) -> Result<Vec<MacroStep>> {
@@ -198,7 +235,7 @@ impl ProtocolCodec for Ultimate {
 
     /// The macro's 96-byte record, steps included.
     fn encode_macro_metadata(&self, def: &MacroDefinition, _: MacroSlot) -> Result<Vec<u8>> {
-        macros::encode_record(def).map(|record| record.to_vec())
+        macros::encode_record((self.description)()?, def).map(|record| record.to_vec())
     }
 
     fn compile_profile(
@@ -208,7 +245,7 @@ impl ProtocolCodec for Ultimate {
         base_blob: &[u8],
         macros: &[MacroDefinition],
     ) -> Result<Vec<u8>> {
-        edit::compile_profile(profile, target_slot, base_blob, macros)
+        edit::compile_profile((self.description)()?, profile, target_slot, base_blob, macros)
     }
 
     fn compile_profile_keep_macros(
@@ -217,11 +254,11 @@ impl ProtocolCodec for Ultimate {
         target_slot: Slot,
         base_blob: &[u8],
     ) -> Result<Vec<u8>> {
-        edit::compile_profile_keep_macros(profile, target_slot, base_blob)
+        edit::compile_profile_keep_macros((self.description)()?, profile, target_slot, base_blob)
     }
 
     fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
-        edit::drop_macros(blob, slot, triggers)
+        edit::drop_macros((self.description)()?, blob, slot, triggers)
     }
 
     fn set_macro(
@@ -231,7 +268,7 @@ impl ProtocolCodec for Ultimate {
         macro_slot: MacroSlot,
         def: Option<&MacroDefinition>,
     ) -> Result<Vec<u8>> {
-        edit::set_macro(blob, slot, macro_slot, def)
+        edit::set_macro((self.description)()?, blob, slot, macro_slot, def)
     }
 
     fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
@@ -239,18 +276,22 @@ impl ProtocolCodec for Ultimate {
     }
 
     fn validate_remap(&self, mode: Mode, source: &str, target: &str) -> Result<()> {
-        description()?.validate_remap(mode, source, target)
+        (self.description)()?.validate_remap(mode, source, target)
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate() -> &'static dyn crate::device::Model {
+        crate::devices::model_named("Ultimate").unwrap()
+    }
     use super::*;
 
     #[test]
     fn buttons_are_printed_as_on_the_switch_layout_in_every_mode() {
-        let d = Ultimate.description().unwrap();
+        let d = ultimate().description().unwrap();
         let name = |id: &str, mode| d.button(id).unwrap().printed(mode).to_owned();
         for mode in [Mode::from_static("xinput"), Mode::from_static("switch")] {
             let printed: Vec<_> = ["right face", "bottom face", "top face", "left face"]
@@ -276,7 +317,7 @@ mod tests {
 
     #[test]
     fn ultimate_hotspots_sit_on_their_buttons() {
-        let views = &Ultimate.description().unwrap().views;
+        let views = &ultimate().description().unwrap().views;
         let hit = |view: usize, x: f64, y: f64| -> Vec<&str> {
             let hotspots = views[view].hotspots.iter();
             hotspots.filter(|h| h.contains(x, y)).map(|h| h.button.as_str()).collect()

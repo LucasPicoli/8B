@@ -432,6 +432,10 @@ fn header_hex(frame: &[u8]) -> String {
 #[cfg(test)]
 #[allow(clippy::indexing_slicing, clippy::unwrap_used, clippy::significant_drop_tightening)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate() -> &'static dyn crate::device::Model {
+        crate::devices::model_named("Ultimate").unwrap()
+    }
     use std::os::unix::net::UnixStream;
     use std::sync::Mutex;
 
@@ -439,7 +443,6 @@ mod tests {
     use crate::device::{ConfigPort, ControllerSpec as _};
     use crate::devices::pro3::{Pro3, DINPUT};
     use crate::devices::test_pad::TestPad;
-    use crate::devices::ultimate::Ultimate;
     use crate::protocol::wire_write::build_write_packet;
 
     /// Keeps every record, so a test can read back what the session logged.
@@ -525,7 +528,7 @@ mod tests {
             sysfs_path: String::new(),
             port,
         };
-        let models: [&'static dyn Model; 3] = [&Pro3, &TestPad, &Ultimate];
+        let models: [&'static dyn Model; 3] = [&Pro3, &TestPad, ultimate()];
         let file = File::from(std::os::fd::OwnedFd::from(ours));
         let opened = Session::start(file, &found, &models, Duration::from_secs(2)).and_then(|s| {
             Ok((s.model()?.description()?.short_name.clone(), s.firmware_version.clone()))
@@ -554,7 +557,7 @@ mod tests {
             .step_by(2)
             .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
             .collect();
-        let (opened, heads) = start_scripted(Ultimate.description()?.config_ports[0], reply);
+        let (opened, heads) = start_scripted(ultimate().description()?.config_ports[0], reply);
         assert_eq!(opened?, ("Ultimate".to_owned(), "1.09".to_owned()));
         let pause = [0x81, 0x11, 0x04, 0x07].to_vec();
         assert_eq!(heads, [pause.clone(), [0x81, 0x05, 0x00, 0x21].to_vec(), pause]);

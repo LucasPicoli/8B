@@ -2,6 +2,7 @@
 //! Every compare skips the blob CRC, which the pad does not check.
 #![allow(clippy::unwrap_used, clippy::indexing_slicing)]
 
+use crate::d;
 use controller_core::devices::ultimate::edit::{
     compile_profile, deactivate_profile, drop_macros, erased_image, set_macro,
 };
@@ -54,13 +55,13 @@ fn profile(blob: &[u8], n: u8) -> CanonicalProfile {
         payload: blob.to_vec(),
         source_slot: n,
         source_profile_index: n - 1,
-        mode_hint: image_mode(blob).unwrap(),
+        mode_hint: image_mode(d(), blob).unwrap(),
     };
-    map_profile(&raw).unwrap().canonical
+    map_profile(d(), &raw).unwrap().canonical
 }
 
 fn macros(blob: &[u8], n: u8) -> Vec<MacroDefinition> {
-    decode_macros(blob, slot(n)).unwrap()
+    decode_macros(d(), blob, slot(n)).unwrap()
 }
 
 /// The output of `source` in `p`.
@@ -100,7 +101,7 @@ fn name(blob: &[u8], n: u8) -> &[u8] {
 
 /// Slot `n` of `blob` encoded again from its own decode.
 fn reencode(blob: &[u8], n: u8) -> Vec<u8> {
-    compile_profile(&profile(blob, n), slot(n), blob, &macros(blob, n)).unwrap()
+    compile_profile(d(), &profile(blob, n), slot(n), blob, &macros(blob, n)).unwrap()
 }
 
 fn step(ms: u16, buttons: &[&str]) -> MacroStep {
@@ -130,7 +131,7 @@ fn every_slot_in_use_decodes_and_encodes_back_byte_for_byte() {
 #[test]
 fn the_first_read_holds_one_profile() {
     let blob = image("xinput-read");
-    assert_eq!(image_mode(&blob).unwrap(), XINPUT);
+    assert_eq!(image_mode(d(), &blob).unwrap(), XINPUT);
     let in_use: Vec<bool> = (1..=3).map(|n| slot_in_use(&blob, slot(n)).unwrap()).collect();
     assert_eq!(in_use, [true, false, false]);
     let p = profile(&blob, 1);
@@ -213,7 +214,7 @@ fn hidden_toggle_bits_survive_an_edit() {
     let blob = image("r3");
     let mut p = profile(&blob, 2);
     assert!(p.set_setting("/sticks/invert_left_x", true.into()));
-    let out = compile_profile(&p, slot(2), &blob, &macros(&blob, 2)).unwrap();
+    let out = compile_profile(d(), &p, slot(2), &blob, &macros(&blob, 2)).unwrap();
     let at = TOGGLES_OFFSET + TOGGLES_LEN + FLAG_LEN;
     assert_eq!(u32::from_le_bytes(out[at..at + 4].try_into().unwrap()), 0xCA01);
 }
@@ -228,7 +229,8 @@ fn each_save_is_the_one_before_it_plus_its_edit() {
     let mut prev = image("xinput-read");
     for n in 1..=9 {
         let next = image(&format!("saves/{n:02}"));
-        let out = compile_profile(&profile(&next, 2), slot(2), &prev, &macros(&next, 2)).unwrap();
+        let out =
+            compile_profile(d(), &profile(&next, 2), slot(2), &prev, &macros(&next, 2)).unwrap();
         assert_eq!(profile(&out, 2), profile(&next, 2), "save {n}: the edited slot");
         // A profile holds ranges in percent, and the vendor app stores raw values that
         // no percent rounds to, such as 118 for 46%. Those land one raw unit away.
@@ -256,10 +258,11 @@ fn each_save_is_the_one_before_it_plus_its_edit() {
 #[test]
 fn a_first_switch_edit_is_the_vendor_apps() {
     let erased = image("switch-erased");
-    assert_eq!(erased_image(SWITCH).unwrap(), erased);
+    assert_eq!(erased_image(d(), SWITCH).unwrap(), erased);
     let saved = image("switch-saved");
-    let mut out = compile_profile(&default_profile(SWITCH), slot(1), &erased, &[]).unwrap();
-    out = compile_profile(&profile(&saved, 3), slot(3), &out, &[]).unwrap();
+    let mut out =
+        compile_profile(d(), &default_profile(d(), SWITCH), slot(1), &erased, &[]).unwrap();
+    out = compile_profile(d(), &profile(&saved, 3), slot(3), &out, &[]).unwrap();
     for n in [1, 3] {
         assert_eq!(slot_bytes(&out, n), slot_bytes(&saved, n), "slot {n}");
     }
@@ -270,7 +273,7 @@ fn a_first_switch_edit_is_the_vendor_apps() {
     assert_eq!(target(&p, "right face"), "top face");
     assert_eq!(target(&p, "star"), "screenshot");
     let decoded = profile(&saved, 1);
-    let default = default_profile(SWITCH);
+    let default = default_profile(d(), SWITCH);
     assert_eq!(
         (decoded.settings, decoded.button_mappings),
         (default.settings, default.button_mappings)
@@ -281,7 +284,7 @@ fn a_first_switch_edit_is_the_vendor_apps() {
 fn the_xinput_default_is_the_vendor_apps() {
     // Save 1 filled slot 3 with the defaults under cleared flags.
     let blob = image("saves/09");
-    let out = compile_profile(&default_profile(XINPUT), slot(3), &blob, &[]).unwrap();
+    let out = compile_profile(d(), &default_profile(d(), XINPUT), slot(3), &blob, &[]).unwrap();
     assert!(slot_in_use(&out, slot(3)).unwrap());
     assert_eq!(without_crc(&deactivate_profile(&out, slot(3)).unwrap()), without_crc(&blob));
 }
@@ -289,7 +292,7 @@ fn the_xinput_default_is_the_vendor_apps() {
 #[test]
 fn macro_edits_pack_the_records() {
     let blob = image("saves/09");
-    let out = set_macro(&blob, slot(2), MacroSlot::new(0).unwrap(), None).unwrap();
+    let out = set_macro(d(), &blob, slot(2), MacroSlot::new(0).unwrap(), None).unwrap();
     let left = macros(&out, 2);
     assert_eq!(left.len(), 1);
     assert_eq!(
@@ -300,12 +303,12 @@ fn macro_edits_pack_the_records() {
     assert!(out[record..record + 96].iter().all(|&b| b == 0), "the freed record is zeroed");
 
     let back = macros(&blob, 2)[0].clone();
-    let out = set_macro(&out, slot(2), MacroSlot::new(3).unwrap(), Some(&back)).unwrap();
+    let out = set_macro(d(), &out, slot(2), MacroSlot::new(3).unwrap(), Some(&back)).unwrap();
     let triggers: Vec<Vec<String>> =
         macros(&out, 2).into_iter().map(|d| d.trigger_buttons).collect();
     assert_eq!(triggers, [vec!["p2".to_owned()], vec!["p1".to_owned()]], "packed after the last");
 
-    let dropped = drop_macros(&blob, slot(2), &["p1".to_owned()]).unwrap();
+    let dropped = drop_macros(d(), &blob, slot(2), &["p1".to_owned()]).unwrap();
     let triggers: Vec<Vec<String>> =
         macros(&dropped, 2).into_iter().map(|d| d.trigger_buttons).collect();
     assert_eq!(triggers, [vec![], vec!["p2".to_owned()]]);
@@ -314,5 +317,5 @@ fn macro_edits_pack_the_records() {
 #[test]
 fn a_profile_never_goes_into_the_other_modes_image() {
     let switch = image("switch-saved");
-    assert!(compile_profile(&default_profile(XINPUT), slot(1), &switch, &[]).is_err());
+    assert!(compile_profile(d(), &default_profile(d(), XINPUT), slot(1), &switch, &[]).is_err());
 }

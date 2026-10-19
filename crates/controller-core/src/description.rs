@@ -229,6 +229,13 @@ pub struct ModeDescription {
     /// does not name its mode that way.
     #[serde(default)]
     pub gamepad_mode: Option<u8>,
+    /// What a new profile maps a button to in this mode, by button id. A button left out
+    /// sends its own output.
+    #[serde(default)]
+    pub default_targets: BTreeMap<String, String>,
+    /// Where a new profile starts the low end of both triggers in this mode, in percent.
+    #[serde(default)]
+    pub default_trigger_start: i32,
 }
 
 /// How a mode's triggers read.
@@ -637,6 +644,7 @@ impl ControllerDescription {
         {
             return Err(format!("map_index {i} is used twice"));
         }
+        self.check_defaults()?;
         let mut bytes = BTreeSet::new();
         if let Some(b) =
             self.modes.iter().filter_map(|m| m.gamepad_mode).find(|b| !bytes.insert(*b))
@@ -666,6 +674,25 @@ impl ControllerDescription {
             }
         }
         self.check_views(&ids)
+    }
+
+    /// Each mode's default trigger start is a percent, and each default target is an
+    /// output its button may take.
+    fn check_defaults(&self) -> std::result::Result<(), String> {
+        for mode in &self.modes {
+            if !(0..=100).contains(&mode.default_trigger_start) {
+                return Err("default_trigger_start must be 0 to 100".to_owned());
+            }
+            for (button, target) in &mode.default_targets {
+                if self.validate_remap(mode.id, button, target).is_err() {
+                    return Err(format!(
+                        "default target '{target}' of '{button}' is no output in {} mode",
+                        mode.id
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Macro button flags need macro slots, and macro slots need both flags somewhere.

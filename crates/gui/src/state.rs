@@ -487,6 +487,10 @@ impl AppState {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
 pub mod tests {
+    /// The registered Ultimate.
+    fn ultimate_model() -> &'static dyn controller_core::device::Model {
+        controller_core::devices::model_named("Ultimate").unwrap()
+    }
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};
     use controller_core::model::{
@@ -747,18 +751,18 @@ pub mod tests {
     /// An Ultimate on firmware `firmware`, current mode `XInput`, read with slot 1 of
     /// each mode holding the mode's default profile with no name, slots 2 and 3 empty.
     pub fn ultimate(firmware: &str) -> AppState {
-        use controller_core::devices::ultimate::{self, Ultimate};
+        use controller_core::devices::ultimate;
         let summary = |mode: Mode, number: u8| CanonicalProfileSummary {
             id: if number == 1 { format!("{mode}-{number}") } else { String::new() },
             name: String::new(),
             mode,
             source_slot: number,
             source_profile_index: number - 1,
-            canonical: Ultimate.default_profile(mode),
+            canonical: ultimate_model().default_profile(mode),
         };
         let mut s = new_state();
         s.presence(PORT, Some(ultimate::XINPUT));
-        s.set_model(PORT, &Ultimate);
+        s.set_model(PORT, ultimate_model());
         let profiles =
             ultimate::MODES.iter().flat_map(|&m| (1..=3).map(move |n| summary(m, n))).collect();
         let read = ProfileReadResult {

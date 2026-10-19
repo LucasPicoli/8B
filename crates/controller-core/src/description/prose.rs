@@ -128,12 +128,16 @@ fn number_labels<'a>(out: &mut Vec<Prose<'a>>, at: &str, field: &'a NumberField)
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate() -> &'static dyn crate::device::Model {
+        crate::devices::model_named("Ultimate").unwrap()
+    }
     use std::collections::BTreeSet;
 
     use serde_json::Value;
 
     use crate::device::ControllerSpec as _;
-    use crate::devices::{pro3::Pro3, test_pad::TestPad, ultimate::Ultimate};
+    use crate::devices::{pro3::Pro3, test_pad::TestPad};
 
     /// Keys whose string values, at any depth below, a person reads.
     const TEXT_KEYS: [&str; 11] = [
@@ -180,7 +184,7 @@ mod tests {
                 include_str!("../../controllers/test-pad/description.json"),
             ),
             (
-                Ultimate.description().unwrap(),
+                ultimate().description().unwrap(),
                 include_str!("../../controllers/ultimate/description.json"),
             ),
         ];
