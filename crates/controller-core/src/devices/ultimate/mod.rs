@@ -346,8 +346,8 @@ mod tests {
         assert_eq!(hit(0, 60.0, 120.0), Vec::<&str>::new(), "body beside the left stick");
         assert_eq!(hit(0, 60.0, 70.0), Vec::<&str>::new(), "body below the bumper");
         assert_eq!(hit(1, 117.0, 50.0), ["r2"]);
-        assert_eq!(hit(1, 365.0, 165.0), ["p1"], "under the left hand, on the viewer's right");
-        assert_eq!(hit(1, 135.0, 165.0), ["p2"]);
+        assert_eq!(hit(1, 135.0, 165.0), ["p1"], "under the right hand, on the viewer's left");
+        assert_eq!(hit(1, 365.0, 165.0), ["p2"]);
         assert_eq!(hit(1, 250.0, 100.0), Vec::<&str>::new(), "body between the triggers");
     }
 }
