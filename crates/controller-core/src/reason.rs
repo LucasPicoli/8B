@@ -80,6 +80,13 @@ pub enum Reason {
         /// The file's source id.
         source: String,
     },
+    /// A mapping moves a button the controller does not let a profile remap.
+    SourceNotRemappable {
+        /// The file's source id.
+        source: String,
+        /// The profile's mode.
+        mode: Mode,
+    },
     /// A mapping's target is not an output of the mode.
     UnknownTarget {
         /// The file's target id.
@@ -249,6 +256,7 @@ impl fmt::Display for Reason {
             Self::UnknownSource { source } => {
                 write!(f, "'{source}' is not a button of this controller.")
             }
+            Self::SourceNotRemappable { source, .. } => write!(f, "'{source}' cannot be remapped."),
             Self::UnknownTarget { target, mode } => {
                 write!(f, "'{target}' is not an output in {mode} mode.")
             }

@@ -1211,6 +1211,10 @@ msgstr[0] "A macro {list} do arquivo não foi importada."
 msgstr[1] "As {n} macros do arquivo, {list}, não foram importadas."
 
 #: src/embedded.rs
+msgid "{macro} loses {item}. {reason}"
+msgstr "{macro} perde {item}. {reason}"
+
+#: src/embedded.rs
 msgid "The file maps {button} to {output}, so {button} cannot start {macro}."
 msgstr "O arquivo mapeia {button} para {output}, então {button} não pode ativar {macro}."
 
@@ -1607,6 +1611,10 @@ msgstr "A macro usa {button}, que o modo {mode} não tem."
 #: src/reasons.rs
 msgid "The profile remaps a button this controller does not have."
 msgstr "O perfil remapeia um botão que este controle não tem."
+
+#: src/reasons.rs
+msgid "{button} cannot be remapped."
+msgstr "{button} não pode ser remapeado."
 
 #: src/reasons.rs
 msgid "The profile uses an output that {mode} mode does not have."

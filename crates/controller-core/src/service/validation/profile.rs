@@ -164,6 +164,12 @@ fn semantic_errors(
             errors.push(error(format!("/button_mappings/{i}/source"), reason));
         }
         let target = mapping.target.as_str();
+        if description.button(&mapping.source).is_some_and(|b| !b.can_be_remapped)
+            && mapping.source != target
+        {
+            let reason = Reason::SourceNotRemappable { source: mapping.source.clone(), mode };
+            errors.push(error(format!("/button_mappings/{i}/source"), reason));
+        }
         let extra = mode_entry.extra_outputs.iter().find(|o| o.id == target);
         let known = [DISABLED_OUTPUT, UNRECOGNISED_OUTPUT].contains(&target)
             || description.button(target).is_some()
@@ -234,7 +240,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::device::{ControllerSpec as _, ProtocolCodec as _};
+    use crate::device::{ControllerSpec as _, Model, ProtocolCodec as _};
     use crate::devices::pro3::{Pro3, SWITCH, XINPUT};
     use crate::devices::test_pad::{TestPad, STANDARD};
     use crate::model::MacroDefinition;
@@ -275,6 +281,34 @@ mod tests {
         assert_eq!(errors, [error(format!("/button_mappings/{at}/target"), reason)]);
         let errors = semantic_errors(&Pro3, Pro3.description().unwrap(), &json);
         assert_eq!(errors, [], "no list: every button takes it");
+    }
+
+    /// Pro 3 `home/guide` and, on a copy that locks `l1`, the Ultimate Bluetooth.
+    #[test]
+    fn a_button_that_cannot_be_remapped_is_refused() {
+        let pro3 = Pro3.description().unwrap();
+        let ultimate = crate::devices::model_named("Ultimate").unwrap();
+        let mut locked = ultimate.description().unwrap().clone();
+        locked.buttons.iter_mut().find(|b| b.id == "l1").unwrap().can_be_remapped = false;
+        let cases = [
+            (&Pro3 as &dyn Model, pro3.clone(), XINPUT, "home/guide", "r1"),
+            (ultimate, locked, crate::devices::ultimate::XINPUT, "l1", "r1"),
+        ];
+        for (model, description, mode, source, target) in cases {
+            let mut profile = model.default_profile(mode);
+            let at = profile.button_mappings.iter().position(|m| m.source == source).unwrap();
+            let json = |p: &CanonicalProfile| serde_json::to_value(p).unwrap();
+            assert_eq!(
+                semantic_errors(model, &description, &json(&profile)),
+                [],
+                "{source} to itself"
+            );
+            profile.button_mappings[at].target = target.into();
+            let reason = Reason::SourceNotRemappable { source: source.into(), mode };
+            let errors = semantic_errors(model, &description, &json(&profile));
+            assert_eq!(errors, [error(format!("/button_mappings/{at}/source"), reason)]);
+            assert_eq!(errors[0].reason.to_string(), format!("'{source}' cannot be remapped."));
+        }
     }
 
     /// The Pro 3 schema stops a macro slot above 3, so only this reaches the rule.

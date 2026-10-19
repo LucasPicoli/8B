@@ -94,6 +94,9 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
         Reason::UnknownSource { .. } => {
             tr!("The profile remaps a button this controller does not have.")
         }
+        Reason::SourceNotRemappable { source, mode } => {
+            tr!("{button} cannot be remapped.", button = button_label(d, *mode, source))
+        }
         Reason::UnknownTarget { mode, .. } => {
             tr!("The profile uses an output that {mode} mode does not have.", mode = label(mode))
         }
