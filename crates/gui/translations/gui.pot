@@ -1271,10 +1271,6 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: src/embedded.rs
-msgid "{macro} loses {item}. {reason}"
-msgstr ""
-
-#: src/embedded.rs
 msgid "The file maps {button} to {output}, so {button} cannot start {macro}."
 msgstr ""
 

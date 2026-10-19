@@ -2,7 +2,7 @@
 //! as shown; an import makes the file's macros the slot's, in the slot's mode. Pure:
 //! the dialogs live in `chooser`.
 
-use controller_core::convert_macro::{convert_macro, MacroLoss, TargetBank};
+use controller_core::convert_macro::{convert_macro, TargetBank};
 use controller_core::description::ControllerDescription;
 use controller_core::model::{CanonicalProfile, MacroDefinition, Mode};
 use tr::tr;
@@ -104,20 +104,6 @@ pub fn kept_note(file: &[MacroDefinition]) -> Option<String> {
     }
 }
 
-/// The sentence for one loss `convert_macro` reports on macro `name`. A glide is left out,
-/// as `content_losses` words it in the user's language.
-fn loss_note(name: &str, loss: &MacroLoss) -> Option<String> {
-    if loss.item.contains(" glide in step ") {
-        return None;
-    }
-    Some(tr!(
-        "{macro} loses {item}. {reason}",
-        macro = name,
-        item = loss.item,
-        reason = loss.reason
-    ))
-}
-
 /// The file's macros `file` made for a slot of mode `to` that takes `profile`, in
 /// macro-slot order, and one sentence per loss. A trigger button that `profile` gives
 /// another output than `default` does is left out, as the controller would send the
@@ -159,8 +145,8 @@ pub fn file_macros(
         });
         // The buttons are already checked against the profile, so the bank refuses none.
         let bank = TargetBank { others: &[], profile: default, default };
-        let (def, losses) = convert_macro(d, &kept, to, &bank).map_err(|e| failure(d, &e))?;
-        notes.extend(losses.iter().filter_map(|l| loss_note(&name, l)));
+        // With the default bank, a conversion can only lose glides, which `content_losses` words.
+        let (def, _) = convert_macro(d, &kept, to, &bank).map_err(|e| failure(d, &e))?;
         let (glides, full) = content_losses(d, to, &kept, &def);
         let triggers = and_list(&triggers);
         if full > 0 {
@@ -489,13 +475,6 @@ mod tests {
         );
         let edited = s.slot(SWITCH, 1).edited_macros.unwrap();
         assert_eq!((edited[0].mode, edited[0].steps[0].trigger_left), (SWITCH, 255));
-    }
-
-    #[test]
-    fn a_conversion_loss_that_is_not_a_glide_gets_a_line() {
-        let loss = |item: &str| MacroLoss { item: item.into(), reason: "No.".into() };
-        assert_eq!(loss_note("Dash", &loss("r4")).unwrap(), "Dash loses r4. No.");
-        assert_eq!(loss_note("Dash", &loss("left_trigger glide in step 1")), None);
     }
 
     #[test]

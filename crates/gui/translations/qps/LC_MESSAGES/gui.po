@@ -1393,10 +1393,6 @@ msgstr[1] ""
 "⟦~~~~~~~~~~~~~~~~~~~~The file’s {n} macros, {list}, were not imported.⟧"
 
 #: src/embedded.rs
-msgid "{macro} loses {item}. {reason}"
-msgstr "⟦~~~~~~~~~~~~{macro} loses {item}. {reason}⟧"
-
-#: src/embedded.rs
 msgid "The file maps {button} to {output}, so {button} cannot start {macro}."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~The file maps {button} to {output}, so {button} "

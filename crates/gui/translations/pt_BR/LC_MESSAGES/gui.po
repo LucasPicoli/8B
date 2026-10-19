@@ -1211,10 +1211,6 @@ msgstr[0] "A macro {list} do arquivo não foi importada."
 msgstr[1] "As {n} macros do arquivo, {list}, não foram importadas."
 
 #: src/embedded.rs
-msgid "{macro} loses {item}. {reason}"
-msgstr "{macro} perde {item}. {reason}"
-
-#: src/embedded.rs
 msgid "The file maps {button} to {output}, so {button} cannot start {macro}."
 msgstr "O arquivo mapeia {button} para {output}, então {button} não pode ativar {macro}."
 
@@ -2843,6 +2839,9 @@ msgstr "Ultimate 2.4G"
 #. Ultimate Wired /short_name
 msgid "Ultimate Wired"
 msgstr "Ultimate Wired"
+
+#~ msgid "{macro} loses {item}. {reason}"
+#~ msgstr "{macro} perde {item}. {reason}"
 
 #~ msgid "Up"
 #~ msgstr "Para cima"
