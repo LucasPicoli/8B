@@ -144,7 +144,9 @@ Switch-printed pad whose right face button sends XInput "B", add `printed_label`
 ```
 
 The button column, the views and the macro editor show `printed_label` in every mode.
-The output picker keeps `labels`. Leave it out when the print matches `labels`.
+The output picker keeps `labels`. Leave it out when the print matches `labels`. A
+screen reader reads a symbol print, such as "−", with the spoken label of the mode
+whose label matches it (section 7).
 
 ## 7. Give a symbol label a spoken label
 

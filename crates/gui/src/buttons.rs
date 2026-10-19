@@ -692,7 +692,8 @@ mod tests {
         assert_eq!(row.label, "A");
         let picked = usize::try_from(row.output).unwrap();
         assert_eq!(row.outputs.row_data(picked).unwrap(), "B", "its default output");
-        assert_eq!(rows(&s)[row_of(&s, "l1")].label, "LB", "no print set");
+        assert_eq!(rows(&s)[row_of(&s, "l1")].label, "L", "printed L, outputs LB");
+        assert_eq!(rows(&s)[row_of(&s, "l3")].label, "LS", "no print set");
     }
 
     #[test]

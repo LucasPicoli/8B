@@ -2466,6 +2466,7 @@ msgstr "⟦~L1⟧"
 
 #. Pro 3 /buttons/4/labels/switch
 #. Ultimate /buttons/4/labels/switch
+#. Ultimate /buttons/4/printed_label
 msgid "L"
 msgstr "⟦~L⟧"
 
@@ -2480,6 +2481,7 @@ msgstr "⟦~R1⟧"
 
 #. Pro 3 /buttons/5/labels/switch
 #. Ultimate /buttons/5/labels/switch
+#. Ultimate /buttons/5/printed_label
 msgid "R"
 msgstr "⟦~R⟧"
 
@@ -2494,6 +2496,7 @@ msgstr "⟦~L2⟧"
 
 #. Pro 3 /buttons/6/labels/switch
 #. Ultimate /buttons/6/labels/switch
+#. Ultimate /buttons/6/printed_label
 msgid "ZL"
 msgstr "⟦~ZL⟧"
 
@@ -2508,6 +2511,7 @@ msgstr "⟦~R2⟧"
 
 #. Pro 3 /buttons/7/labels/switch
 #. Ultimate /buttons/7/labels/switch
+#. Ultimate /buttons/7/printed_label
 msgid "ZR"
 msgstr "⟦~ZR⟧"
 
@@ -2544,6 +2548,7 @@ msgstr "⟦~~~Select⟧"
 
 #. Pro 3 /buttons/10/labels/switch
 #. Ultimate /buttons/10/labels/switch
+#. Ultimate /buttons/10/printed_label
 msgid "−"
 msgstr "⟦~−⟧"
 
@@ -2563,6 +2568,7 @@ msgstr "⟦~~Start⟧"
 
 #. Pro 3 /buttons/11/labels/switch
 #. Ultimate /buttons/11/labels/switch
+#. Ultimate /buttons/11/printed_label
 msgid "+"
 msgstr "⟦~+⟧"
 

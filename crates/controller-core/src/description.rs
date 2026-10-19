@@ -393,10 +393,18 @@ impl Button {
     }
 
     /// What a screen reader says for this physical button in `mode`: its printed label,
-    /// else its spoken label.
+    /// read as the spoken label of a mode whose label matches it (a printed "−" reads
+    /// "Minus"), else its spoken label.
     #[must_use]
     pub fn printed_spoken(&self, mode: Mode) -> &str {
-        self.printed_label.as_deref().unwrap_or_else(|| self.spoken_label(mode))
+        let Some(printed) = self.printed_label.as_deref() else {
+            return self.spoken_label(mode);
+        };
+        self.labels
+            .iter()
+            .find(|(_, label)| *label == printed)
+            .and_then(|(m, _)| self.spoken_labels.get(m))
+            .map_or(printed, String::as_str)
     }
 }
 

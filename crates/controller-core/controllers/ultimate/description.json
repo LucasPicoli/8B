@@ -265,6 +265,7 @@
     },
     {
       "id": "l1",
+      "printed_label": "L",
       "labels": {
         "xinput": "LB",
         "switch": "L"
@@ -276,6 +277,7 @@
     },
     {
       "id": "r1",
+      "printed_label": "R",
       "labels": {
         "xinput": "RB",
         "switch": "R"
@@ -287,6 +289,7 @@
     },
     {
       "id": "l2",
+      "printed_label": "ZL",
       "labels": {
         "xinput": "LT",
         "switch": "ZL"
@@ -298,6 +301,7 @@
     },
     {
       "id": "r2",
+      "printed_label": "ZR",
       "labels": {
         "xinput": "RT",
         "switch": "ZR"
@@ -331,6 +335,7 @@
     },
     {
       "id": "select/back",
+      "printed_label": "−",
       "labels": {
         "xinput": "View",
         "switch": "−"
@@ -345,6 +350,7 @@
     },
     {
       "id": "start/menu",
+      "printed_label": "+",
       "labels": {
         "xinput": "Menu",
         "switch": "+"

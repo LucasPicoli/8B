@@ -251,7 +251,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn face_buttons_are_printed_as_on_the_switch_layout_in_every_mode() {
+    fn buttons_are_printed_as_on_the_switch_layout_in_every_mode() {
         let d = Ultimate.description().unwrap();
         let name = |id: &str, mode| d.button(id).unwrap().printed(mode).to_owned();
         for mode in [Mode::from_static("xinput"), Mode::from_static("switch")] {
@@ -259,7 +259,13 @@ mod tests {
                 .map(|id| name(id, mode))
                 .into();
             assert_eq!(printed, ["A", "B", "X", "Y"]);
-            assert_eq!(name("l1", mode), d.button("l1").unwrap().labels[&mode], "no print set");
+            let printed: Vec<_> = ["l1", "r1", "l2", "r2", "select/back", "start/menu"]
+                .map(|id| name(id, mode))
+                .into();
+            assert_eq!(printed, ["L", "R", "ZL", "ZR", "−", "+"]);
+            let minus = d.button("select/back").unwrap();
+            assert_eq!(minus.printed_spoken(mode), "Minus", "a print reads as words");
+            assert_eq!(name("l3", mode), d.button("l3").unwrap().labels[&mode], "no print set");
         }
         let right = d.button("right face").unwrap();
         assert_eq!(
