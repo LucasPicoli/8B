@@ -5,13 +5,21 @@ is plugged in" to the captures and byte maps that [Adding a controller](adding-a
 needs. The commands write the command-line tool as `8b`. Its binary is `8bitdo-pro-3`.
 From a source checkout, run `cargo run -p cli --` in its place.
 
-Two rules hold for the whole guide:
+Four rules hold for the whole guide:
 
 1. Read before you write. Replay only packets that you saw the vendor app send while
    it read, never while it wrote, until you know what each byte does. An unknown
    write or erase packet can change or wipe the pad's flash.
-2. Keep every capture and dump. They become the golden fixtures that prove your port
-   is correct.
+2. Before the first write, read the pad's profile memory and save it. That copy is
+   your way back.
+3. Make the first write a replay of a vendor-app save that you captured, then compare
+   the readback with what the app wrote. A write that your own code built comes only
+   after that replay matches.
+4. Filter a capture to the pad's address before you keep or share it:
+   `tshark -r in.pcapng -Y 'usb.device_address == N' -w out.pcapng`. A raw capture
+   holds the whole bus, keyboard included, so it never leaves your machine. Keep the
+   filtered captures and the dumps. They become the golden fixtures that prove your
+   port is correct.
 
 ## 1. Find the config interface
 
@@ -42,7 +50,36 @@ DInput. Write them down. They become the `config_ports` of your description.
 If `dev list` shows the node but `dev send` says permission denied, install the access
 rule from the README, or run the command with `sudo` once.
 
-## 2. Capture the vendor app
+## 2. A pad with no config port
+
+Some pads show no config port until they get an unlock sequence. The Ultimate is one:
+`dev list` shows no config node, and its vendor app unlocks it, reads and writes, then
+relocks it on close. You do not read the app to learn the sequences. You capture them.
+
+1. Capture the vendor app opening and closing normally (section 3 sets up the capture).
+   Save the open and the close as two files. The close is the relock.
+2. Filter each to the pad and export the rows with `tshark` (section 3). The unlock
+   packets go from the host to an interrupt OUT endpoint of the locked pad. The relock
+   packets go to the config port after the unlock.
+3. Declare both in `description.json` as a `lock`: the locked USB id and product
+   string, the unlock interface, endpoint, packets and times, and the relock packets.
+   The fields and their checks are in
+   [Adding a controller](adding-a-controller.md#a-locked-controller), and the core
+   code that reads them is
+   [`description/lock.rs`](../crates/controller-core/src/description/lock.rs). The
+   Ultimate's own declaration is in
+   [`controllers/ultimate/description.json`](../crates/controller-core/controllers/ultimate/description.json).
+4. Press "Unlock" in the app. It replays your declaration over usbfs. The access rule
+   from the README includes the line that lets you open the pad's usbfs node.
+5. Capture that replay on usbmon and compare it with the Windows capture. The bytes
+   must match, and each time should match within a millisecond or two. usbfs sends
+   what you give it, so the bytes on the wire are the bytes you declared.
+
+Be careful if you send the same packets through a kernel driver instead. A driver can
+reshape a packet. xpad, for one, sends the first packet of a new rumble effect twice.
+Compare against usbmon, not against what you meant to send.
+
+## 3. Capture the vendor app
 
 The vendor app already speaks the protocol, so a capture of it is the fastest way to
 learn it. Run the app in a Windows virtual machine and capture its USB traffic on the
@@ -55,18 +92,61 @@ Linux host with Wireshark.
    `usbmon8` interface.
 3. Give yourself read access to that interface with
    `sudo setfacl -m u:$USER:r /dev/usbmon8`. Without it, only root sees the interface.
+   The ACL covers one bus and one user, and it ends at the next reboot or module
+   reload. Until then it also lets you read the keyboard on that bus.
 4. Start the capture, then plug the pad in. Wireshark needs the descriptors the pad
    sends on connect to label its HID traffic.
-5. Pass the pad through to the virtual machine. In virt-manager, use Add Hardware, then
-   USB Host Device. A pad that changes mode comes back with a new USB id, so pass every
-   id that `dev list` showed in section 1. If one is missing, the VM loses the pad in
-   the middle of a write.
+5. Pass the pad through to the virtual machine by its USB port, not its USB id (see
+   below).
+
+Any Windows 10 or 11 guest works. Download the vendor app inside the guest, and check
+that its name and version list your pad before you capture anything.
+
+### Pass the pad through by port
+
+A USB id does not follow a pad that comes back with a new product id after a mode
+change or an unlock. The port does. Find the pad's bus and port with `lsusb -t`: a pad
+on `Bus 008`, port path `2.1`, is `hostbus=8,hostport=2.1`. Hand that to QEMU:
+
+```text
+-device usb-host,hostbus=8,hostport=2.1
+```
+
+In quickemu, put that option in the VM's `.conf` file as
+`extra_args="-device usb-host,hostbus=8,hostport=2.1"`. In libvirt, add it to the
+domain XML, with the `qemu` namespace declared on `<domain>`:
+
+```xml
+<qemu:commandline>
+  <qemu:arg value='-device'/>
+  <qemu:arg value='usb-host,hostbus=8,hostport=2.1'/>
+</qemu:commandline>
+```
+
+QEMU needs to open the pad's node under `/dev/bus/usb`. If it is denied, add a
+temporary rule, then reload:
+
+```sh
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2dc8", TAG+="uaccess"' |
+    sudo tee /etc/udev/rules.d/99-vm-pad.rules
+sudo udevadm control --reload && sudo udevadm trigger
+```
+
+Remove it when the captures are done:
+`sudo rm /etc/udev/rules.d/99-vm-pad.rules && sudo udevadm control --reload`.
 
 ### Record one action per file
 
 Do one thing in the vendor app, stop the capture and save it. Name the file after the
 action, such as `dinput-read.pcapng` or `dinput-vibration-3-to-5.pcapng`. Three small
 captures are faster to read than one capture that mixes a read with two changes.
+
+Two habits keep a capture usable:
+
+1. Close the vendor app normally when the action is done. Some pads need what the app
+   sends on close (section 2 shows one).
+2. Take a screenshot of what you set before each save. The screenshot tells you the
+   value to look for in the diff.
 
 Make these captures first:
 
@@ -110,7 +190,7 @@ column is the value for `framing` in your description:
 | A request starts with | `framing` | What it is | Seen on |
 | --- | --- | --- | --- |
 | `81 04 <command>` | `plain` | The request follows at byte 2 | Pro 3, Ultimate 2 |
-| `81 <length> 04 <command>` | `length` | A length byte after the `81` moves the request to byte 3 | Pro 2 (`81 3e 04`) |
+| `81 <length> 04 <command>` | `length` | A length byte after the `81` moves the request to byte 3 | Pro 2 (`81 3e 04`), Ultimate (`81 11 04`) |
 | `01 66 aa` | `wrapped` | A Nintendo report prefix, used under a Nintendo USB id | Pro 3 in Switch mode |
 
 All three are in
@@ -137,7 +217,7 @@ An endpoint address of `0x8n` is the pad sending (IN), and `0x0n` is the host se
 (OUT). Keep this text file next to the capture. It is easier to search and to diff
 than the capture itself.
 
-## 3. Find the commands
+## 4. Find the commands
 
 Read the OUT packets of a "connect and read" capture from the top. Look for:
 
@@ -168,7 +248,7 @@ While input streams, the pad can drop a config reply. If one is missing, send th
 packet again. Many pads have a command that pauses input. The Pro 3's is
 `81 04 07 00 00`, and `81 04 07 00 01` resumes it.
 
-## 4. Map the bytes
+## 5. Map the bytes
 
 Change one setting at a time and compare the bytes before and after.
 
@@ -185,14 +265,14 @@ Change one setting at a time and compare the bytes before and after.
 
    Each line before the last is one run of changed bytes: the offset, the length, the
    old bytes and the new bytes. The last line counts the runs. When the files differ in
-   size, a first line says so and compares only the shorter length. One change in the app should move one small run, plus a checksum
-   if the format has one.
+   size, a first line says so and compares only the shorter length. One change in the
+   app should move one small run, plus a checksum if the format has one.
 
 Repeat this for each setting, each button and each mode. Record each result as a
 named constant in your model's `tables.rs`, as the Pro 3 does in
 `crates/controller-core/src/devices/pro3/tables.rs`.
 
-## 5. Hand over to the port
+## 6. Hand over to the port
 
 You now have the facts that a port needs:
 
