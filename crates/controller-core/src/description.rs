@@ -225,6 +225,10 @@ pub struct ModeDescription {
     /// low end plays.
     #[serde(default)]
     pub macro_stick_floor: Option<i32>,
+    /// The byte the pad stores and selects this mode by. `None` for a pad whose blob
+    /// does not name its mode that way.
+    #[serde(default)]
+    pub gamepad_mode: Option<u8>,
 }
 
 /// How a mode's triggers read.
@@ -259,6 +263,10 @@ pub struct ExtraOutput {
     /// another one. Empty for none.
     #[serde(default)]
     pub leaving_hint: String,
+    /// The code a button map entry holds for this output, in hex such as `"0x400000"`.
+    /// `None` for a pad that stores no codes.
+    #[serde(default, deserialize_with = "hex_u32_opt")]
+    pub code: Option<u32>,
 }
 
 impl ExtraOutput {
@@ -359,6 +367,19 @@ pub struct Button {
     /// pressure in an analog mode, not among its pressed buttons. `None` for a button.
     #[serde(default)]
     pub step_trigger_value: Option<TriggerSide>,
+    /// Where this button's entry sits in the pad's button map. `None` for a pad whose
+    /// map is not a list of entries.
+    #[serde(default)]
+    pub map_index: Option<u8>,
+    /// The code a button map entry holds when it sends this button's press, one per
+    /// mode, in hex such as `"0x2000"`. A mode without an entry has no such output. A
+    /// code can mean another button in another mode: in `XInput`, `0x2000` is Xbox A.
+    #[serde(default, deserialize_with = "hex_u32_map")]
+    pub map_codes: BTreeMap<Mode, u32>,
+    /// The code a macro record holds for this button, the same in every mode. It is not
+    /// derived from `map_codes`: a pad may use different codes in the two places.
+    #[serde(default, deserialize_with = "hex_u32_opt")]
+    pub macro_code: Option<u32>,
 }
 
 /// One of the two trigger values of a macro step.
@@ -610,6 +631,18 @@ impl ControllerDescription {
             }
         }
         self.check_macro_buttons()?;
+        let mut indexes = BTreeSet::new();
+        if let Some(i) =
+            self.buttons.iter().filter_map(|b| b.map_index).find(|i| !indexes.insert(*i))
+        {
+            return Err(format!("map_index {i} is used twice"));
+        }
+        let mut bytes = BTreeSet::new();
+        if let Some(b) =
+            self.modes.iter().filter_map(|m| m.gamepad_mode).find(|b| !bytes.insert(*b))
+        {
+            return Err(format!("gamepad_mode {b} is used twice"));
+        }
         for mode in &self.modes {
             let mut outputs = BTreeSet::new();
             for output in &mode.extra_outputs {
@@ -772,6 +805,26 @@ fn bad_hex<E: serde::de::Error>(s: &str) -> E {
 pub(crate) fn hex_u16<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<u16, D::Error> {
     let s = String::deserialize(d)?;
     parse_hex(&s).ok_or_else(|| bad_hex(&s))
+}
+
+/// Parses `"0x2000"` into a `u32`.
+fn parse_hex_u32(s: &str) -> Option<u32> {
+    u32::from_str_radix(s.strip_prefix("0x")?, 16).ok()
+}
+
+fn hex_u32_opt<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<u32>, D::Error> {
+    Option::<String>::deserialize(d)?
+        .map(|s| parse_hex_u32(&s).ok_or_else(|| bad_hex(&s)))
+        .transpose()
+}
+
+fn hex_u32_map<'de, D: Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<BTreeMap<Mode, u32>, D::Error> {
+    BTreeMap::<Mode, String>::deserialize(d)?
+        .into_iter()
+        .map(|(m, s)| Ok((m, parse_hex_u32(&s).ok_or_else(|| bad_hex(&s))?)))
+        .collect()
 }
 
 fn hex_u16_list<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Vec<u16>, D::Error> {

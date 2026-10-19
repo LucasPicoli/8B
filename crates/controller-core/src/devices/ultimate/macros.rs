@@ -12,13 +12,13 @@ use crate::protocol::bytes::{
 };
 
 use super::tables::{
-    Code, IN_USE, LEFT_STICK_BITS, MACROS_LEN, MACROS_OFFSET, MACRO_COUNT_AT, MACRO_PADDING_AT,
-    MACRO_RECORDS_AT, MACRO_RECORD_LEN, MACRO_SLOTS, MACRO_STEPS, MACRO_STEP_BUTTONS,
-    MACRO_TRIGGERS, PRINTED_FACES, RECORD_CODES_AT, RECORD_COUNT_AT, RECORD_PADDING_AT,
-    RECORD_STICKS_AT, RECORD_TIMES_AT, RECORD_TRIGGER_AT, RIGHT_STICK_BITS, SHARED_OUTPUTS,
-    TRIGGER_ONLY, UNUSED_STEP_MS,
+    IN_USE, LEFT_STICK_BITS, MACROS_LEN, MACROS_OFFSET, MACRO_COUNT_AT, MACRO_PADDING_AT,
+    MACRO_RECORDS_AT, MACRO_RECORD_LEN, MACRO_SLOTS, MACRO_STEPS, RECORD_CODES_AT, RECORD_COUNT_AT,
+    RECORD_PADDING_AT, RECORD_STICKS_AT, RECORD_TIMES_AT, RECORD_TRIGGER_AT, RIGHT_STICK_BITS,
+    UNUSED_STEP_MS,
 };
-use super::{check_blob, image_mode, read_flag, slot_in_use, slot_index};
+use super::{check_blob, description, image_mode, read_flag, slot_in_use, slot_index};
+use crate::description::Button;
 
 /// A stick axis at rest, as [`MacroStep::default`] holds it.
 const CENTRE: u8 = 127;
@@ -29,15 +29,24 @@ const LOW: u8 = 0;
 /// An axis pushed all the way down or right.
 const HIGH: u8 = 255;
 
-/// The code of `name` in a macro record, or `None` for a button no record can hold.
-fn macro_code(name: &str) -> Option<u32> {
-    let mut codes = PRINTED_FACES.iter().chain(&SHARED_OUTPUTS).chain(&TRIGGER_ONLY);
-    codes.find(|(n, _)| *n == name).map(|&(_, code)| code)
+/// The buttons `allowed` picks that a record can hold, with their record codes.
+fn coded(allowed: fn(&Button) -> bool) -> Result<Vec<(&'static str, u32)>> {
+    let buttons = &description()?.buttons;
+    Ok(buttons
+        .iter()
+        .filter(|b| allowed(b))
+        .filter_map(|b| Some((b.id.as_str(), b.macro_code?)))
+        .collect())
 }
 
-/// The macro codes of `names`, in that order.
-fn codes_of(names: &[&'static str]) -> Vec<Code> {
-    names.iter().filter_map(|&n| Some((n, macro_code(n)?))).collect()
+/// Whether a button may start a macro.
+const fn starts(b: &Button) -> bool {
+    b.can_start_macro
+}
+
+/// Whether a button may be pressed in a macro step.
+const fn in_step(b: &Button) -> bool {
+    b.can_be_in_macro_step
 }
 
 /// The macros of `slot` in `blob`, in record order, with their steps. A slot or a macro
@@ -66,12 +75,13 @@ pub fn decode_macros(blob: &[u8], slot: Slot) -> Result<Vec<MacroDefinition>> {
 /// Decodes one 96-byte record as the macro in macro slot `m`.
 fn decode_record(record: &[u8], m: u8, mode: Mode) -> Result<MacroDefinition> {
     let trigger = read_u32_le(record, RECORD_TRIGGER_AT)?;
-    let named = codes_of(&MACRO_TRIGGERS).into_iter().find(|&(_, code)| code == trigger);
+    let named = coded(starts)?.into_iter().find(|&(_, code)| code == trigger);
     let (trigger_buttons, unknown_trigger_bits) = match named {
         Some((name, _)) => (vec![name.to_owned()], 0),
         None => (Vec::new(), trigger),
     };
     let count = usize::from(read_u8(record, RECORD_COUNT_AT)?).min(MACRO_STEPS);
+    let step_codes = coded(in_step)?;
     let steps = (0..count)
         .map(|i| {
             let code = u32::from(read_u16_le(record, RECORD_CODES_AT + 2 * i)?);
@@ -80,10 +90,10 @@ fn decode_record(record: &[u8], m: u8, mode: Mode) -> Result<MacroDefinition> {
             let [right_stick_x, right_stick_y] = axes(stick, RIGHT_STICK_BITS);
             Ok(MacroStep {
                 duration_ms: read_u16_le(record, RECORD_TIMES_AT + 2 * i)?,
-                pressed_buttons: codes_of(&MACRO_STEP_BUTTONS)
-                    .into_iter()
-                    .filter(|&(_, bit)| code & bit != 0)
-                    .map(|(name, _)| name.to_owned())
+                pressed_buttons: step_codes
+                    .iter()
+                    .filter(|&&(_, bit)| code & bit != 0)
+                    .map(|&(name, _)| name.to_owned())
                     .collect(),
                 left_stick_x,
                 left_stick_y,
@@ -141,14 +151,14 @@ fn stick_bits([x, y]: [u8; 2], [up, down, left, right]: [u8; 4]) -> Result<u8> {
 /// held at an analog value.
 pub fn encode_record(def: &MacroDefinition) -> Result<[u8; MACRO_RECORD_LEN]> {
     let lookup =
-        |name: &str, allowed: &[&str], what: &str| {
-            allowed.contains(&name).then(|| macro_code(name)).flatten().ok_or_else(|| {
-                Error::Validation(format!("{name} cannot {what} on this controller"))
-            })
+        |name: &str, allowed: fn(&Button) -> bool, what: &str| {
+            coded(allowed)?.into_iter().find(|&(n, _)| n == name).map(|(_, code)| code).ok_or_else(
+                || Error::Validation(format!("{name} cannot {what} on this controller")),
+            )
         };
     let trigger = match def.trigger_buttons.as_slice() {
         [] => 0,
-        [one] => lookup(one, &MACRO_TRIGGERS, "start a macro")?,
+        [one] => lookup(one, starts, "start a macro")?,
         _ => return Err(Error::Validation("a macro here starts from one button".to_owned())),
     };
     if def.steps.len() > MACRO_STEPS {
@@ -167,7 +177,7 @@ pub fn encode_record(def: &MacroDefinition) -> Result<[u8; MACRO_RECORD_LEN]> {
                 }
                 let mut code = 0;
                 for name in &step.pressed_buttons {
-                    code |= lookup(name, &MACRO_STEP_BUTTONS, "be pressed in a macro")?;
+                    code |= lookup(name, in_step, "be pressed in a macro")?;
                 }
                 let left = stick_bits([step.left_stick_x, step.left_stick_y], LEFT_STICK_BITS)?;
                 let right = stick_bits([step.right_stick_x, step.right_stick_y], RIGHT_STICK_BITS)?;

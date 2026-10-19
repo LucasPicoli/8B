@@ -24,10 +24,7 @@ use crate::model::{
 use crate::protocol::bytes::{read_u16_le, read_u32_le};
 use crate::protocol::wire_write::PACKET_LEN;
 
-use tables::{
-    BLOB_SIZE, FLAG_LEN, GAMEPAD_MODE_OFFSET, GAMEPAD_SWITCH, GAMEPAD_XINPUT, IN_USE, SLOT_COUNT,
-    SLOT_FLAG_OFFSET,
-};
+use tables::{BLOB_SIZE, FLAG_LEN, GAMEPAD_MODE_OFFSET, IN_USE, SLOT_COUNT, SLOT_FLAG_OFFSET};
 
 /// The Ultimate's `XInput` mode.
 pub const XINPUT: Mode = Mode::from_static("xinput");
@@ -50,11 +47,10 @@ const APPLY_ARGUMENT: u16 = 0x0015;
 /// # Errors
 /// Returns [`Error::Validation`] for a mode the Ultimate does not have.
 pub fn mode_byte(mode: Mode) -> Result<u8> {
-    match mode {
-        XINPUT => Ok(GAMEPAD_XINPUT),
-        SWITCH => Ok(GAMEPAD_SWITCH),
-        other => Err(Error::Validation(format!("the Ultimate has no {other} mode"))),
-    }
+    description()?
+        .mode(mode)
+        .and_then(|m| m.gamepad_mode)
+        .ok_or_else(|| Error::Validation(format!("the Ultimate has no {mode} mode")))
 }
 
 /// The mode of the image `blob`, from the mode it records.
@@ -63,9 +59,11 @@ pub fn mode_byte(mode: Mode) -> Result<u8> {
 /// Returns [`Error::Decode`] if `blob` is too short or records another mode.
 pub fn image_mode(blob: &[u8]) -> Result<Mode> {
     let value = read_u16_le(blob, GAMEPAD_MODE_OFFSET)?;
-    MODES
-        .into_iter()
-        .find(|&m| mode_byte(m).is_ok_and(|b| u16::from(b) == value))
+    description()?
+        .modes
+        .iter()
+        .find(|m| m.gamepad_mode.is_some_and(|b| u16::from(b) == value))
+        .map(|m| m.id)
         .ok_or_else(|| Error::Decode(format!("the image records an unknown mode {value}")))
 }
 

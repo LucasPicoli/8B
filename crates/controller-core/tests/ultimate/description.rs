@@ -6,8 +6,7 @@ use controller_core::description::{firmware_allows, MacroSticks};
 use controller_core::device::{ControllerSpec, ProtocolCodec, UsbId};
 use controller_core::devices::ultimate::profile::map_profile;
 use controller_core::devices::ultimate::tables::{
-    BLOB_SIZE, EXTRA_OUTPUTS, MACRO_SLOTS, MACRO_STEPS, MACRO_STEP_BUTTONS, MACRO_TRIGGERS,
-    MAP_BUTTONS, SLOT_COUNT, TRIGGER_ONLY,
+    BLOB_SIZE, MACRO_SLOTS, MACRO_STEPS, MAP_ENTRIES, SLOT_COUNT,
 };
 use controller_core::devices::ultimate::{Ultimate, MODES, SWITCH, XINPUT};
 use controller_core::devices::{find_model_by_port, models};
@@ -89,13 +88,13 @@ fn the_firmware_comes_from_the_captured_reply() {
 fn buttons_follow_the_map_and_each_has_a_hotspot() {
     let d = Ultimate.description().unwrap();
     let ids: Vec<&str> = d.buttons.iter().map(|b| b.id.as_str()).collect();
-    assert_eq!(ids, MAP_BUTTONS);
+    assert_eq!(ids.len(), MAP_ENTRIES);
     let placed: Vec<&str> =
         d.views.iter().flat_map(|v| &v.hotspots).map(|h| h.button.as_str()).collect();
-    assert_eq!(sorted(placed), sorted(MAP_BUTTONS));
+    assert_eq!(sorted(placed), sorted(ids.iter().copied()));
     assert!(d.buttons.iter().all(|b| b.can_be_remapped));
     let never_outputs = d.buttons.iter().filter(|b| !b.can_be_output).map(|b| b.id.as_str());
-    assert_eq!(sorted(never_outputs), sorted(TRIGGER_ONLY.iter().map(|&(n, _)| n)));
+    assert_eq!(sorted(never_outputs), ["p1", "p2", "star"]);
     let spoken = |id: &str, mode| d.button(id).unwrap().spoken_label(mode);
     assert_eq!((spoken("select/back", SWITCH), spoken("start/menu", SWITCH)), ("Minus", "Plus"));
     assert_eq!(d.button("right face").unwrap().labels[&XINPUT], "B", "printed A sends Xbox B");
@@ -109,7 +108,16 @@ fn extra_outputs_match_the_codec_and_their_buttons() {
     };
     assert_eq!(ids(XINPUT), ["turbo", "auto turbo", "swap"]);
     assert_eq!(ids(SWITCH), ["turbo", "auto turbo", "swap", "screenshot"]);
-    assert_eq!(sorted(ids(SWITCH)), sorted(EXTRA_OUTPUTS.iter().map(|&(n, _)| n)));
+    let code = |mode, id: &str| {
+        let outputs = &d.mode(mode).unwrap().extra_outputs;
+        outputs.iter().find(|o| o.id == id).and_then(|o| o.code)
+    };
+    for mode in MODES {
+        assert_eq!(code(mode, "turbo"), Some(0x1_0000));
+        assert_eq!(code(mode, "auto turbo"), Some(0x100_0000));
+        assert_eq!(code(mode, "swap"), Some(0x800_0000));
+    }
+    assert_eq!(code(SWITCH, "screenshot"), Some(0x40_0000));
 
     let ok = |mode, source, target| Ultimate.validate_remap(mode, source, target).is_ok();
     for mode in MODES {
@@ -133,8 +141,40 @@ fn macro_flags_and_limits_match_the_codec() {
     let flagged = |pick: fn(&controller_core::description::Button) -> bool| {
         sorted(d.buttons.iter().filter(|b| pick(b)).map(|b| b.id.as_str()))
     };
-    assert_eq!(flagged(|b| b.can_start_macro), sorted(MACRO_TRIGGERS));
-    assert_eq!(flagged(|b| b.can_be_in_macro_step), sorted(MACRO_STEP_BUTTONS));
+    let triggers = [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "home/guide",
+        "star",
+        "p1",
+        "p2",
+    ];
+    let steps = [
+        "right face",
+        "bottom face",
+        "top face",
+        "left face",
+        "l1",
+        "r1",
+        "l2",
+        "r2",
+        "l3",
+        "r3",
+        "d-pad up",
+        "d-pad down",
+        "d-pad left",
+        "d-pad right",
+    ];
+    assert_eq!(flagged(|b| b.can_start_macro), sorted(triggers));
+    assert_eq!(flagged(|b| b.can_be_in_macro_step), sorted(steps));
     assert!(d.buttons.iter().all(|b| b.step_trigger_value.is_none()), "L2 and R2 are buttons");
     let l = d.limits;
     assert_eq!((l.macro_steps.min, l.macro_steps.max), (1, i32::try_from(MACRO_STEPS).unwrap()));
@@ -189,4 +229,23 @@ fn settings_show_per_mode_and_four_way_needs_firmware_1_03() {
         assert!(!firmware_allows(Some(gate), "1.02"));
         assert!(!firmware_allows(Some(gate), ""));
     }
+}
+
+#[test]
+fn per_button_codes_and_mode_bytes_come_from_the_description() {
+    let d = Ultimate.description().unwrap();
+    let indexes: Vec<_> = d.buttons.iter().map(|b| b.map_index).collect();
+    assert_eq!(indexes, (0..20).map(Some).collect::<Vec<_>>(), "one map index per button");
+    let map = |id: &str, mode| d.button(id).unwrap().map_codes.get(&mode).copied();
+    assert_eq!(map("bottom face", XINPUT), Some(0x2000), "Xbox A");
+    assert_eq!(map("right face", SWITCH), Some(0x2000), "printed A");
+    assert_eq!(map("home/guide", XINPUT), Some(0x2_0000));
+    assert_eq!(map("star", XINPUT), None, "Star is never an output");
+    let macro_code = |id: &str| d.button(id).unwrap().macro_code;
+    assert_eq!(macro_code("right face"), Some(0x2000), "printed A in a record");
+    assert_eq!(macro_code("star"), Some(0x1_0000));
+    assert_eq!(macro_code("p2"), Some(0x400_0000));
+    assert_eq!(macro_code("select/back"), None);
+    let byte = |mode| d.mode(mode).unwrap().gamepad_mode;
+    assert_eq!((byte(XINPUT), byte(SWITCH)), (Some(3), Some(0)));
 }

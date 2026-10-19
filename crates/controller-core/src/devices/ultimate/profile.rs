@@ -13,15 +13,14 @@ use crate::protocol::bytes::{put_slice, put_u32_le, read_u32_le, read_u8, take};
 use super::macros::decode_macros;
 use super::settings::{Settings, Sticks, Triggers, Vibration};
 use super::tables::{
-    Code, DISABLED, DPAD_FOUR_WAY, EXTRA_OUTPUTS, FLAG_LEN, INVERT_LEFT_X, INVERT_LEFT_Y,
-    INVERT_RIGHT_X, INVERT_RIGHT_Y, IN_USE, MAP_BUTTONS, MAP_LEN, MAP_OFFSET, NAME_LEN,
-    NAME_OFFSET, NO_DEAD_ZONE, PRINTED_FACES, RANGE_LEN, SHARED_OUTPUTS, STICKS_OFFSET,
+    DPAD_FOUR_WAY, FLAG_LEN, INVERT_LEFT_X, INVERT_LEFT_Y, INVERT_RIGHT_X, INVERT_RIGHT_Y, IN_USE,
+    MAP_LEN, MAP_OFFSET, NAME_LEN, NAME_OFFSET, NO_DEAD_ZONE, RANGE_LEN, STICKS_OFFSET,
     STICK_RAW_MAX, SWAP_DPAD_WITH_LEFT_STICK, SWAP_RIGHT_STICK_WITH_TRIGGERS, SWAP_STICKS,
     SWAP_TRIGGERS, SWITCH_TRIGGER_START, TOGGLES_LEN, TOGGLES_OFFSET, TRIGGERS_OFFSET,
     TRIGGER_RAW_MAX, VIBRATION_LEN, VIBRATION_LEVELS, VIBRATION_LEVEL_MAX, VIBRATION_OFFSET,
-    XINPUT_FACES,
 };
-use super::{check_blob, read_flag, slot_index, SWITCH, XINPUT};
+use super::{check_blob, description, read_flag, slot_index, SWITCH, XINPUT};
+use crate::description::{Button, DISABLED_OUTPUT as DISABLED};
 
 /// The device discriminator every Ultimate profile carries.
 pub const DEVICE: &str = "8bitdo-ultimate";
@@ -40,23 +39,30 @@ const MODELLED_TOGGLES: u32 = INVERT_LEFT_X
     | NO_DEAD_ZONE
     | DPAD_FOUR_WAY;
 
-/// The button map codes of `mode`: each output by name, `disabled` included.
-fn outputs(mode: Mode) -> impl Iterator<Item = Code> {
-    let faces = if mode == SWITCH { PRINTED_FACES } else { XINPUT_FACES };
-    faces.into_iter().chain(SHARED_OUTPUTS).chain(EXTRA_OUTPUTS).chain([(DISABLED, 0)])
+/// The buttons that have an entry in the button map, in map order.
+fn map_buttons() -> Result<impl Iterator<Item = (usize, &'static Button)>> {
+    Ok(description()?.buttons.iter().filter_map(|b| Some((usize::from(b.map_index?), b))))
 }
 
 /// The output `code` sends in `mode`. A code that names nothing reads as `disabled`, as
 /// the vendor app shows it.
-fn output_name(mode: Mode, code: u32) -> &'static str {
-    outputs(mode).find(|&(_, c)| c == code).map_or(DISABLED, |(name, _)| name)
+fn output_name(mode: Mode, code: u32) -> Result<&'static str> {
+    let d = description()?;
+    let button = d.buttons.iter().find(|b| b.map_codes.get(&mode) == Some(&code));
+    let extra = d.mode(mode).and_then(|m| m.extra_outputs.iter().find(|o| o.code == Some(code)));
+    let name = button.map(|b| b.id.as_str()).or_else(|| extra.map(|o| o.id.as_str()));
+    Ok(name.unwrap_or(DISABLED))
 }
 
 /// The code of output `name` in `mode`.
 fn output_code(mode: Mode, name: &str) -> Result<u32> {
-    outputs(mode)
-        .find(|&(n, _)| n == name)
-        .map(|(_, code)| code)
+    let d = description()?;
+    let button = d.button(name).and_then(|b| b.map_codes.get(&mode).copied());
+    let extra = d.mode(mode).and_then(|m| m.extra_outputs.iter().find(|o| o.id == name));
+    (name == DISABLED)
+        .then_some(0)
+        .or(button)
+        .or_else(|| extra.and_then(|o| o.code))
         .ok_or_else(|| Error::Validation(format!("unknown output '{name}' in {mode} mode")))
 }
 
@@ -147,14 +153,12 @@ fn decode(blob: &[u8], slot: Slot, mode: Mode) -> Result<CanonicalProfile> {
     }
     let button_mappings = match section(blob, MAP_OFFSET, MAP_LEN, s)? {
         None => default.button_mappings,
-        Some(map) => MAP_BUTTONS
-            .iter()
-            .enumerate()
-            .map(|(i, &source)| {
+        Some(map) => map_buttons()?
+            .map(|(i, button)| {
                 let code = read_u32_le(map, FLAG_LEN + 4 * i)?;
                 Ok(ButtonMapping {
-                    source: source.to_owned(),
-                    target: output_name(mode, code).to_owned(),
+                    source: button.id.clone(),
+                    target: output_name(mode, code)?.to_owned(),
                 })
             })
             .collect::<Result<_>>()?,
@@ -219,15 +223,16 @@ pub fn map_profile(raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
 #[must_use]
 pub fn default_profile(mode: Mode) -> CanonicalProfile {
     let star = if mode == SWITCH { "screenshot" } else { "turbo" };
-    let button_mappings = MAP_BUTTONS
-        .iter()
-        .map(|&source| {
-            let target = match source {
+    let button_mappings = map_buttons()
+        .into_iter()
+        .flatten()
+        .map(|(_, button)| {
+            let target = match button.id.as_str() {
                 "star" => star,
                 "p1" | "p2" => DISABLED,
                 own => own,
             };
-            ButtonMapping { source: source.to_owned(), target: target.to_owned() }
+            ButtonMapping { source: button.id.clone(), target: target.to_owned() }
         })
         .collect();
     let start = if mode == XINPUT { 0 } else { SWITCH_TRIGGER_START };
@@ -369,8 +374,8 @@ impl Section {
                 put_u32_le(bytes, FLAG_LEN, kept | set)?;
             }
             Self::Map => {
-                for (i, source) in MAP_BUTTONS.iter().enumerate() {
-                    let Some(m) = profile.button_mappings.iter().find(|m| m.source == *source)
+                for (i, button) in map_buttons()? {
+                    let Some(m) = profile.button_mappings.iter().find(|m| m.source == button.id)
                     else {
                         continue;
                     };
@@ -411,9 +416,9 @@ mod tests {
 
     #[test]
     fn face_outputs_differ_by_mode_and_unknown_codes_read_as_disabled() {
-        assert_eq!(output_name(XINPUT, 0x2000), "bottom face");
-        assert_eq!(output_name(SWITCH, 0x2000), "right face");
-        assert_eq!(output_name(XINPUT, 0xFFFF_FFFF), DISABLED);
+        assert_eq!(output_name(XINPUT, 0x2000).unwrap(), "bottom face");
+        assert_eq!(output_name(SWITCH, 0x2000).unwrap(), "right face");
+        assert_eq!(output_name(XINPUT, 0xFFFF_FFFF).unwrap(), DISABLED);
         assert_eq!(output_code(SWITCH, "screenshot").unwrap(), 0x40_0000);
         assert!(output_code(XINPUT, "star").is_err(), "Star is never an output");
     }

@@ -148,6 +148,24 @@ button with `can_be_remapped`. An output appears in the modes whose `extra_outpu
 list it, so a Switch-only output sits in the Switch entry alone. The remap check,
 profile validation and mode conversion all refuse the output on any other button.
 
+### Codes and indexes in the description
+
+A pad whose profile image stores buttons as numeric codes (the Ultimate) declares
+every code in the description, so the codec holds only the image layout. All of these
+fields are optional and use hex strings such as `"0x2000"`.
+
+| Field | On | Holds |
+| --- | --- | --- |
+| `gamepad_mode` | a mode | The byte the image records for the mode and selects it by (3 XInput, 0 Switch). Unique per model. |
+| `map_index` | a button | Where its entry sits in the button map (0 to 19). Unique per model. |
+| `map_codes` | a button | Its code in a button map entry, one per mode. A mode without a key has no such output, as with Star. The same code can mean another button in another mode: `0x2000` is Xbox A, the bottom face button, in XInput and printed A, the right face button, in Switch. |
+| `macro_code` | a button | Its code in a macro record, the same in every mode. Set it on its own. Do not copy `map_codes`, since a model can use different codes in the two places. |
+| `code` | an extra output | Its code in a button map entry, such as Turbo `0x10000`. |
+
+A button the macro editor offers needs `macro_code` and `can_start_macro` or
+`can_be_in_macro_step`. The codec reads those two flags to know which buttons a record
+may hold, so no list of them stays in Rust.
+
 ### Firmware gates
 
 A flag, a slider, a number field or an extra output may carry `min_firmware`, the
