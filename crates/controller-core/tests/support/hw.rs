@@ -67,7 +67,7 @@ pub struct Banks<'a> {
 }
 
 /// Writes `blob` into the bank of `mode`, flipping the pad first if its mode asks.
-fn write_bank(dev: &HidrawDevice, mode: Mode, blob: &[u8]) {
+pub fn write_bank(dev: &HidrawDevice, mode: Mode, blob: &[u8]) {
     let back = dev.begin_write().unwrap();
     let sent = (|| {
         dev.send_slot_select(mode)?;
@@ -79,7 +79,7 @@ fn write_bank(dev: &HidrawDevice, mode: Mode, blob: &[u8]) {
 }
 
 /// Writes each bank of `target` that differs from what the pad holds now.
-fn put(dev: &HidrawDevice, modes: &[Mode], target: &ProfileReadResult) {
+pub fn put(dev: &HidrawDevice, modes: &[Mode], target: &ProfileReadResult) {
     let now = dev.read_all_profiles().unwrap();
     for ((mode, held), want) in modes.iter().zip(&now.raw_blobs).zip(&target.raw_blobs) {
         if !same_bank(held, want) {

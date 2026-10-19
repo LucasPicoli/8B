@@ -10,12 +10,18 @@
 mod description;
 mod golden_codec;
 mod golden_packets;
+mod import_fixtures;
 mod second_model;
 mod wired;
 mod write_orchestrator;
 
 #[cfg(feature = "hardware")]
 mod hardware_lock;
+#[cfg(feature = "hardware")]
+#[path = "../support/hw.rs"]
+mod hw;
+#[cfg(feature = "hardware")]
+mod import_check;
 
 use controller_core::description::ControllerDescription;
 use controller_core::device::Model;

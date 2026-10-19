@@ -82,9 +82,18 @@ missing-strings:
     done
 
 # The hardware tests. `regenerate` is ignored too, but it rewrites the golden fixtures:
-# run it by hand after an encoder change, never here.
+# run it by hand after an encoder change, never here. `import_check` is a guided run
+# with a person, see docs/ultimate-import-check.md.
 hw:
-    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate
+    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate --skip import_check
+
+# One phase of the guided check of an imported profile on an Ultimate: backup, check or
+# restore. Run each once, in that order. See docs/ultimate-import-check.md.
+ultimate-import-check phase:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{phase}}" in backup|check|restore) ;; *) echo 'phase: backup, check or restore' >&2; exit 2 ;; esac
+    cargo test -p controller-core --features hardware --test ultimate -- --ignored --nocapture --exact "import_check::{{phase}}"
 
 # Build the x86_64 AppImage in ubuntu:22.04 (glibc 2.35), so it runs on that glibc and newer.
 appimage:
