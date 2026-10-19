@@ -18,8 +18,17 @@ export global Languages {
     callback picked(int);
 }
 
+// The Relock row: the ☰ shows it while the shown controller is unlocked and can be
+// locked again. Rust sets `available`; the row calls `chosen`.
+export global Relock {
+    in property <bool> available;
+    callback chosen;
+}
+
 component MenuRow inherits Rectangle {
     in property <string> text;
+    // A muted second line under the text.
+    in property <string> hint;
     in property <image> icon;
     // A language: a radio button, filled when `checked`.
     in property <bool> radio;
@@ -31,12 +40,13 @@ component MenuRow inherits Rectangle {
     in property <bool> highlighted;
     out property <bool> hovered: ta.has-hover;
     callback activated;
-    min-height: 30px;
+    min-height: root.hint != "" ? 44px : 30px;
     border-radius: 3px;
     background: root.highlighted || root.expanded || ta.has-hover ? Theme.hover : transparent;
     // A language row sets `radio-button`: the role must be a constant.
     accessible-role: button;
     accessible-label: root.text;
+    accessible-description: root.hint;
     accessible-checkable: root.radio;
     accessible-checked: root.checked;
     accessible-expandable: root.submenu;
@@ -85,11 +95,19 @@ component MenuRow inherits Rectangle {
                 height: 16px;
             }
         }
-        Text {
-            text: root.text;
-            color: Theme.fg;
-            vertical-alignment: center;
+        VerticalLayout {
             horizontal-stretch: 1;
+            alignment: center;
+            Text {
+                text: root.text;
+                color: Theme.fg;
+                vertical-alignment: center;
+            }
+            if root.hint != "": Text {
+                text: root.hint;
+                font-size: Theme.text-caption;
+                color: Theme.fg-muted;
+            }
         }
         if root.submenu: VerticalLayout {
             alignment: center;
@@ -123,6 +141,9 @@ export component AppMenu {
     // The highlighted row, counted as `Languages.current` is.
     property <int> highlight;
     property <int> rows: Languages.choices.length + 1;
+    // The top-level row the keyboard is on: 0 is Relock while it shows, else Language.
+    property <int> top;
+    property <int> language-row: Relock.available ? 1 : 0;
 
     // Opens the submenu on the picked language.
     function open-sub() {
@@ -130,6 +151,10 @@ export component AppMenu {
             root.highlight = Languages.current;
             root.sub-open = true;
         }
+    }
+    function relock() {
+        popup.close();
+        Relock.chosen();
     }
     function pick(i: int) {
         Languages.current = i;
@@ -146,6 +171,8 @@ export component AppMenu {
             flat: true;
             clicked => {
                 root.sub-open = false;
+                // Opens on Language, so Enter twice never relocks.
+                root.top = root.language-row;
                 popup.show();
             }
         }
@@ -160,8 +187,17 @@ export component AppMenu {
             init => { self.focus(); }
             key-pressed(e) => {
                 if (!root.sub-open) {
-                    if (e.text == Key.RightArrow || e.text == Key.DownArrow || e.text == Key.Return || e.text == " ") {
-                        root.open-sub();
+                    if (Relock.available && (e.text == Key.DownArrow || e.text == Key.UpArrow)) {
+                        root.top = 1 - root.top;
+                        return accept;
+                    }
+                    if (root.top == root.language-row) {
+                        if (e.text == Key.RightArrow || e.text == Key.DownArrow || e.text == Key.Return || e.text == " ") {
+                            root.open-sub();
+                            return accept;
+                        }
+                    } else if (e.text == Key.Return || e.text == " ") {
+                        root.relock();
                         return accept;
                     }
                     return reject;
@@ -193,15 +229,29 @@ export component AppMenu {
                     Panel {
                         VerticalLayout {
                             padding: 4px;
+                            if Relock.available: MenuRow {
+                                text: @tr("Relock");
+                                hint: @tr("Return the controller to XInput");
+                                icon: Icons.lock;
+                                highlighted: !root.sub-open && root.top == 0;
+                                activated => { root.relock(); }
+                                changed hovered => {
+                                    if (self.hovered) {
+                                        root.sub-open = false;
+                                        root.top = 0;
+                                    }
+                                }
+                            }
                             MenuRow {
                                 text: @tr("Language");
                                 icon: Icons.languages;
                                 submenu: true;
                                 expanded: root.sub-open;
-                                highlighted: !root.sub-open;
+                                highlighted: !root.sub-open && root.top == root.language-row;
                                 activated => { root.open-sub(); }
                                 changed hovered => {
                                     if (self.hovered) {
+                                        root.top = root.language-row;
                                         root.open-sub();
                                     }
                                 }

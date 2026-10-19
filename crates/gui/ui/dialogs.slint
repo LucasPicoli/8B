@@ -429,9 +429,14 @@ component CloseSlotRow inherits Rectangle {
             color: Theme.fg;
             vertical-alignment: center;
         }
+        if root.slot.name != "": Text {
+            text: " · ";
+            color: Theme.fg-muted;
+            vertical-alignment: center;
+        }
         Text {
             horizontal-stretch: 1;
-            text: root.slot.name != "" ? " · " + root.slot.name : "";
+            text: root.slot.name;
             color: Theme.fg-muted;
             vertical-alignment: center;
             overflow: elide;
@@ -486,6 +491,40 @@ export component CloseDialog inherits DialogShell {
                     slot: s;
                     last: i == g.slots.length - 1;
                 }
+            }
+        }
+    }
+}
+
+// Relock was chosen over unsaved edits of the controller. Discard and relock is red in
+// both forms, like the close question's.
+export component RelockDialog inherits DialogShell {
+    in property <CloseInfo> info;
+    callback write;
+    callback discard;
+    icon: Icons.warning;
+    alarm: true;
+    destructive: info.write == 0;
+    extra-destructive: true;
+    title: @tr("Relock without writing?");
+    subtitle: @tr("{n} slot has edits that are not on the controller yet, so relocking discards them."
+        | "{n} slots have edits that are not on the controller yet, so relocking discards them." % info.total);
+    extra-text: info.write > 0 ? @tr("Discard and relock") : "";
+    accept-text: info.write == 0 ? @tr("Discard and relock")
+        : @tr("Write {n} slot…" | "Write {n} slots…" % info.write);
+    extra => { root.discard(); }
+    accepted => {
+        if (root.info.write > 0) {
+            root.write();
+        } else {
+            root.discard();
+        }
+    }
+    for g in root.info.groups: Frame {
+        VerticalLayout {
+            for s[i] in g.slots: CloseSlotRow {
+                slot: s;
+                last: i == g.slots.length - 1;
             }
         }
     }

@@ -116,6 +116,14 @@ msgid "Menu"
 msgstr "Menu"
 
 #: ui/app_menu.slint
+msgid "Relock"
+msgstr ""
+
+#: ui/app_menu.slint
+msgid "Return the controller to XInput"
+msgstr ""
+
+#: ui/app_menu.slint
 msgid "Language"
 msgstr ""
 
@@ -581,6 +589,24 @@ msgid_plural "Write {n} slots…"
 msgstr[0] ""
 msgstr[1] ""
 
+#: ui/dialogs.slint
+msgid "Relock without writing?"
+msgstr ""
+
+#: ui/dialogs.slint
+msgid ""
+"{n} slot has edits that are not on the controller yet, so relocking discards "
+"them."
+msgid_plural ""
+"{n} slots have edits that are not on the controller yet, so relocking "
+"discards them."
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/dialogs.slint
+msgid "Discard and relock"
+msgstr ""
+
 #: ui/macros.slint
 msgid "Macro {}, empty"
 msgstr ""
@@ -812,6 +838,14 @@ msgstr ""
 
 #: ui/screens.slint src/render.rs
 msgid "Could not read the controller."
+msgstr ""
+
+#: ui/screens.slint
+msgid "Unlock"
+msgstr ""
+
+#: ui/screens.slint src/locked.rs
+msgid "Unlocking…"
 msgstr ""
 
 #: ui/screens.slint
@@ -1204,7 +1238,7 @@ msgstr ""
 msgid "{name} · {mode}"
 msgstr ""
 
-#: src/controllers.rs
+#: src/controllers.rs src/locked.rs
 msgid "{label} ({n})"
 msgstr ""
 
@@ -1383,6 +1417,54 @@ msgstr ""
 #. In the sandbox `/proc` hides the other programs.
 #: src/holders.rs
 msgid "Another program may be using the controller. Close it and try again."
+msgstr ""
+
+#: src/locked.rs
+msgid "8BitDo · Not supported"
+msgstr ""
+
+#: src/locked.rs
+msgid "{name} · Locked"
+msgstr ""
+
+#: src/locked.rs
+msgid "The controller did not relock."
+msgstr ""
+
+#: src/locked.rs
+msgid "Locked"
+msgstr ""
+
+#: src/locked.rs
+msgid "Did not unlock"
+msgstr ""
+
+#: src/locked.rs
+msgid "Not supported yet"
+msgstr ""
+
+#: src/locked.rs
+msgid "Replug it if this keeps happening."
+msgstr ""
+
+#: src/locked.rs
+msgid "This controller is not supported yet"
+msgstr ""
+
+#: src/locked.rs
+msgid "USB ID {pid}. Replug it to get XInput back."
+msgstr ""
+
+#: src/locked.rs
+msgid "{name} is locked"
+msgstr ""
+
+#: src/locked.rs
+msgid "Unlocking takes it away from games until you relock it."
+msgstr ""
+
+#: src/locked.rs
+msgid "The controller did not unlock."
 msgstr ""
 
 #: src/macro_check.rs

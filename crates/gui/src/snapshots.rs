@@ -2741,3 +2741,127 @@ fn the_menu_icon_sits_in_the_middle_of_its_hover_frame() {
         assert!(f.0.abs_diff(i.0) <= 1 && f.1.abs_diff(i.1) <= 1, "frame {frame:?}, ink {ink:?}");
     }
 }
+
+/// Presses and releases Enter in `ui`.
+fn press_enter(ui: &AppWindow) {
+    use slint::platform::{Key, WindowEvent};
+    let text: slint::SharedString = Key::Return.into();
+    ui.window().dispatch_event(WindowEvent::KeyPressed { text: text.clone() });
+    ui.window().dispatch_event(WindowEvent::KeyReleased { text });
+}
+
+/// A window with one locked Ultimate on port `3-1`.
+fn locked_pad() -> AppState {
+    let mut s = new_state();
+    s.locked_seen(vec![crate::worker::Target {
+        port: "3-1".to_owned(),
+        model: &controller_core::devices::ultimate::Ultimate,
+    }]);
+    s
+}
+
+/// The locked panel in each state, and the relock question, at 100 % and 150 %. The shot
+/// names end in `suffix`.
+fn locked_shots(suffix: &str) {
+    use controller_core::transport::lock::Unlocked;
+    use slint::platform::WindowEvent;
+
+    use crate::worker::Failure;
+
+    let (tx, _rx) = std::sync::mpsc::channel();
+    let mut unlocking = locked_pad();
+    unlocking.unlock_requested(&tx, "3-1");
+    let mut failed = locked_pad();
+    failed.unlock_requested(&tx, "3-1");
+    failed.unlock_finished(
+        "3-1",
+        Err(&Failure { error: controller_core::Error::Timeout, holders: vec!["steam".to_owned()] }),
+    );
+    let mut unsupported = locked_pad();
+    unsupported.unlock_finished(
+        "3-1",
+        Ok(&Unlocked::Unsupported(controller_core::device::UsbId {
+            vendor: 0x2dc8,
+            product: 0x1234,
+        })),
+    );
+    let mut relocking = crate::state::tests::ultimate("1.09");
+    relocking.set_output("p1", "auto turbo");
+    relocking.relock_clicked(&tx);
+    let states = [
+        ("locked", locked_pad(), 1),
+        ("unlocking", unlocking, 2),
+        ("not-unlocked", failed, 3),
+        ("not-supported", unsupported, 4),
+        ("relock-question", relocking, 0),
+    ];
+    for (name, state, view) in &states {
+        for (scale, label) in [(1.0_f32, "100"), (1.5, "150")] {
+            let ui = window(state);
+            assert_eq!(ui.get_locked().view, *view, "{name}");
+            ui.window().dispatch_event(WindowEvent::ScaleFactorChanged { scale_factor: scale });
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            ui.window()
+                .set_size(PhysicalSize::new((1280.0 * scale) as u32, (800.0 * scale) as u32));
+            save(&format!("locked-{name}-{label}{suffix}"), &ui);
+        }
+    }
+}
+
+#[test]
+fn locked_panels_and_the_relock_question() {
+    locked_shots("");
+}
+
+#[test]
+fn pt_br_locked_panels_and_the_relock_question() {
+    locked_shots("-pt-br");
+}
+
+#[test]
+fn the_locked_panel_has_no_slots_and_the_relock_question_lists_this_pads_slots() {
+    let s = locked_pad();
+    let ui = window(&s);
+    assert_eq!(slint::Model::row_count(&ui.get_groups()), 0);
+    assert!(ui.get_has_controller());
+    assert!(!ui.get_relocking().shown);
+    let mut s = crate::state::tests::ultimate("1.09");
+    s.set_output("p1", "auto turbo");
+    s.relock_clicked(&std::sync::mpsc::channel().0);
+    let info = window(&s).get_relocking();
+    assert_eq!((info.shown, info.total, info.write), (true, 1, 1));
+}
+
+#[test]
+fn unlock_and_try_again_take_the_focus_and_enter_presses_them() {
+    use crate::worker::Failure;
+
+    let (tx, _rx) = std::sync::mpsc::channel();
+    let presses = Rc::new(std::cell::Cell::new(0));
+    for failed in [false, true] {
+        let mut s = locked_pad();
+        if failed {
+            s.unlock_requested(&tx, "3-1");
+            s.unlock_finished(
+                "3-1",
+                Err(&Failure { error: controller_core::Error::Timeout, holders: vec![] }),
+            );
+        }
+        let ui = window(&s);
+        let n = Rc::clone(&presses);
+        ui.on_unlock_clicked(move || n.set(n.get() + 1));
+        let before = presses.get();
+        press_enter(&ui);
+        assert_eq!(presses.get(), before + 1, "failed: {failed}");
+    }
+}
+
+#[test]
+fn the_relock_row_shows_in_the_menu_only_when_the_pad_can_relock() {
+    let ui = window(&crate::state::tests::ultimate("1.09"));
+    assert!(ui.global::<crate::ui::Relock<'_>>().get_available());
+    let ui = window(&connected(XINPUT));
+    assert!(!ui.global::<crate::ui::Relock<'_>>().get_available());
+    let ui = window(&locked_pad());
+    assert!(!ui.global::<crate::ui::Relock<'_>>().get_available());
+}

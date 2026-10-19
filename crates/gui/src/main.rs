@@ -16,6 +16,7 @@ mod fix;
 mod holders;
 mod keepalive;
 mod language;
+mod locked;
 mod logging;
 mod macro_check;
 mod macro_files;
@@ -71,6 +72,7 @@ use controller_core::devices;
 use controller_core::model::macros::macro_file_name;
 use controller_core::model::Mode;
 use controller_core::service::read::{leftover_macros, macro_summaries};
+use controller_core::transport::lock::Unlocked;
 use controller_core::Error;
 use log::{info, warn};
 use slint::winit_030::winit::window::UserAttentionType;
@@ -86,7 +88,7 @@ use crate::render::{fit_toolbar, render, sentence};
 use crate::state::{AppState, Notice, Rule};
 use crate::step_panel::{action_hit, view_neighbour};
 use crate::step_table::StepEdit;
-use crate::ui::{AppWindow, Diagnostics};
+use crate::ui::{AppWindow, Diagnostics, Relock};
 use crate::worker::{Command, Event, Failure};
 use crate::writes::WriteJob;
 
@@ -155,6 +157,7 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
                 }
             }
         }
+        Event::Locked(_) | Event::Unplugged(_) | Event::Unlock { .. } | Event::Relock { .. } => {}
         Event::Installed(Ok(())) => info!("udev rule installed"),
         Event::Installed(Err(e)) => warn!("udev rule install failed: {e}"),
         Event::Fix { port, looping } => {
@@ -207,11 +210,18 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             state.write_finished(&port, &results, hint.as_deref());
             state.batch_after_write();
             read(commands, state, &port);
+            // The relock the question chained: the read above goes first, then the relock.
+            if let Some(port) = state.take_chained_relock() {
+                state.relock_target_sent(commands, &port);
+            }
         }
         // The sandbox cannot see the fix files, so it goes by the pad reconnecting.
         Event::Fix { port, looping } => {
             let offer = if state.sandboxed { looping } else { !udev::keepalive_installed() };
             state.fix_verdict(&port, offer);
+        }
+        Event::Locked(_) | Event::Unplugged(_) | Event::Unlock { .. } | Event::Relock { .. } => {
+            lock_event(state, event, commands);
         }
         Event::Installed(result) => {
             let ok = result.is_ok();
@@ -222,6 +232,52 @@ fn handle(state: &mut AppState, event: Event, commands: &Sender<Command>) {
             }
         }
     }
+}
+
+/// Applies a worker event about locked controllers.
+fn lock_event(state: &mut AppState, event: Event, commands: &Sender<Command>) {
+    match event {
+        Event::Locked(pads) => state.locked_seen(pads),
+        Event::Unplugged(port) => state.unplugged(&port),
+        Event::Unlock { port, result, mode } => {
+            match &result {
+                Ok(done) => info!("unlock of {port}: {done:?}"),
+                Err(f) => warn!("unlock of {port} failed: {}; held by {:?}", f.error, f.holders),
+            }
+            state.unlock_finished(&port, result.as_ref());
+            match result {
+                Ok(Unlocked::Port(_)) => {
+                    // The config port is up on the same port path: list it now.
+                    state.presence(&port, mode);
+                    if mode.is_some() {
+                        read(commands, state, &port);
+                    }
+                }
+                Err(Failure { error: Error::PermissionDenied(_), .. }) => {
+                    state.read_denied(&port, udev::rule_state());
+                }
+                _ => {}
+            }
+        }
+        Event::Relock { port, result } => match result {
+            Ok(()) => {
+                info!("relocked {port}");
+                state.relocked(&port);
+            }
+            Err(f) => {
+                warn!("relock of {port} failed: {}", f.error);
+                state.relock_failed(&f);
+            }
+        },
+        _ => {}
+    }
+}
+
+/// After the window closes and the close question is answered: returns every unlocked
+/// pad to its locked mode, one after another. A failure is logged; the process ends
+/// anyway.
+fn relock_on_close(state: &AppState) {
+    worker::relock_all(&worker::SystemLocks, &state.relock_targets());
 }
 
 /// A dialog's answer, applied to the state on the event loop.
@@ -392,6 +448,36 @@ fn wire_fix(
     });
 }
 
+/// Wires the locked panel's "Unlock" and the Relock entry with its question.
+fn wire_locks(
+    ui: &AppWindow,
+    change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone + 'static),
+    commands: &Sender<Command>,
+) {
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_unlock_clicked(move || {
+        c(&|s| {
+            if let Some(port) = s.shown_lock().map(|p| p.port.clone()) {
+                s.unlock_requested(&tx, &port);
+            }
+        });
+    });
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.global::<Relock<'_>>().on_chosen(move || c(&|s| s.relock_clicked(&tx)));
+    let c = change.clone();
+    ui.on_relock_cancelled(move || c(&AppState::relock_cancelled));
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_relock_discard(move || c(&|s| s.relock_discarded(&tx)));
+    let (c, tx) = (change.clone(), commands.clone());
+    ui.on_relock_write(move || {
+        c(&|s| {
+            if let Some(port) = s.relock_write() {
+                read(&tx, s, &port);
+            }
+        });
+    });
+}
+
 /// Wires "Try again", the controller picker and the answers to the move and
 /// changed-slot dialogs. `change` applies a change to the state and renders.
 fn wire_controllers(
@@ -408,7 +494,7 @@ fn wire_controllers(
         });
     });
     let c = change.clone();
-    ui.on_controller_picked(move |i| c(&|s| s.pick_controller(usize::try_from(i).unwrap_or(0))));
+    ui.on_controller_picked(move |i| c(&|s| s.pick_entry(usize::try_from(i).unwrap_or(0))));
     let c = change.clone();
     ui.on_move_answered(move |row| {
         c(&|s| {
@@ -767,6 +853,7 @@ fn wire_globals(ui: &AppWindow) {
     render::read_accessible_numbers(ui);
 }
 
+#[allow(clippy::too_many_lines)] // the one place that wires the window
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let sandboxed = udev::sandboxed();
     logging::init(sandboxed);
@@ -801,7 +888,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Box::new(|port: &str| devices::open(Some(port))),
         PathBuf::from(worker::SYSFS_USB),
         devices::config_ports(),
-        udev::install_rule,
+        worker::Hooks::system(),
         backups.clone(),
         sandboxed,
         move |event| {
@@ -810,8 +897,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
     )?;
-    let (install_tx, check_tx, retry_tx, write_tx, close_tx) =
-        (commands.clone(), commands.clone(), commands.clone(), commands.clone(), commands.clone());
+    let (install_tx, check_tx, retry_tx, write_tx, close_tx, lock_tx) = (
+        commands.clone(),
+        commands.clone(),
+        commands.clone(),
+        commands.clone(),
+        commands.clone(),
+        commands.clone(),
+    );
 
     let weak = ui.as_weak();
     let s = Rc::clone(&state);
@@ -822,6 +915,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             handle(&mut state, event, &commands);
         }
         state.settle_close();
+        state.settle_relock();
         render(&state, &ui);
     });
 
@@ -856,12 +950,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ui.on_check_again(move || {
         c(&|s| {
             s.check_started();
+            s.recheck_locks(&check_tx);
             read_present(&check_tx, s);
         });
     });
     wire_controllers(&ui, &change, retry_tx);
     wire_writes(&ui, &change, &write_tx, backups);
     wire_close(&ui, &close_state, &change, close_tx);
+    wire_locks(&ui, &change, &lock_tx);
     let c = change.clone();
     ui.on_rule_skipped(move || c(&|s| s.rule_skipped = true));
     wire_edits(&ui, &change);
@@ -883,5 +979,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     ui.run()?;
+    relock_on_close(&close_state.borrow());
     Ok(())
 }

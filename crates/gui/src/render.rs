@@ -16,6 +16,7 @@ use tr::tr;
 use crate::buttons::{keep_same, push_model, render_buttons, render_views};
 use crate::closing::render_close;
 use crate::files::render_files;
+use crate::locked::render_locked;
 use crate::macro_check::render_blocks;
 use crate::macro_files::render_macro_files;
 use crate::macro_tab::render_macros;
@@ -64,6 +65,9 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
 /// the line fits the sidebar.
 #[must_use]
 pub fn device_status(state: &AppState) -> String {
+    if let Some(status) = state.lock_status() {
+        return status;
+    }
     let failed = state.shown().is_some_and(|c| c.read_error.is_some());
     let Some(mode) = state.current_mode() else { return tr!("Not connected") };
     let mode = state.description().mode_label(mode);
@@ -196,21 +200,23 @@ pub fn render(state: &AppState, ui: &AppWindow) {
         render_views(description, ui);
         state.views_of.set(Some(description));
     }
-    ui.set_has_controller(state.has_controller());
+    ui.set_has_controller(state.shows_pad());
     ui.set_device_name(state.description().short_name.as_str().into());
     let text = |items: Vec<String>| items.into_iter().map(SharedString::from).collect();
-    push_model(&ui.get_controllers(), text(state.controller_labels()), |m| {
+    push_model(&ui.get_controllers(), text(state.picker_labels()), |m| {
         ui.set_controllers(m);
     });
-    ui.set_current_controller(i32::try_from(state.active_index()).unwrap_or(0));
+    ui.set_current_controller(i32::try_from(state.picker_index()).unwrap_or(0));
     push_model(&ui.get_move_from(), text(move_from(state)), |m| ui.set_move_from(m));
     push_model(&ui.get_changed_slots(), text(changed_slots(state)), |m| ui.set_changed_slots(m));
     push_model(&ui.get_changed_keep(), state.changed_choices(), |m| ui.set_changed_keep(m));
     ui.set_device_status(device_status(state).into());
-    ui.set_connected(state.current_mode().is_some());
+    let locked = state.shown_lock();
+    ui.set_connected(locked.is_none() && state.current_mode().is_some());
     // A group keeps its slots model while its slots hold, so only a changed one is redone.
     let current = ui.get_groups();
-    let mut rows = groups(state);
+    // A locked controller has no slots to list.
+    let mut rows = if locked.is_some() { Vec::new() } else { groups(state) };
     for (old, row) in current.iter().zip(&mut rows) {
         keep_same(&old.slots, &mut row.slots);
     }
@@ -239,6 +245,7 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     render_macro_files(state, ui);
     render_writes(state, ui);
     render_close(state, ui);
+    render_locked(state, ui);
     ui.set_worker_stopped(state.worker_stopped);
     ui.set_read_error(state.read_error().unwrap_or_default().into());
     ui.set_read_error_elsewhere(state.failed_elsewhere());
@@ -253,7 +260,10 @@ pub fn render(state: &AppState, ui: &AppWindow) {
         }
         .into(),
     );
-    ui.set_read_failed(state.shown().is_some_and(|c| c.read_error.is_some()));
+    ui.set_read_failed(locked.map_or_else(
+        || state.shown().is_some_and(|c| c.read_error.is_some()),
+        crate::locked::LockedPad::failed,
+    ));
     let retry = state.retry_port();
     ui.set_can_read_again(
         retry.is_some_and(|p| state.controllers.iter().any(|c| c.port == p && !c.reading)),

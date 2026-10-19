@@ -6,17 +6,17 @@ import { ButtonsTab } from "buttons.slint";
 import { MacrosTab } from "macros.slint";
 import { SettingsTab } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
-import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
+import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, RelockDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
-import { NoControllerScreen, PermissionScreen } from "screens.slint";
-import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, Blocked, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
+import { LockedScreen, NoControllerScreen, PermissionScreen } from "screens.slint";
+import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, LockedInfo, Blocked, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, PadStick, PadTrigger } from "types.slint";
 import { Palette } from "std-widgets.slint";
-import { AppMenu, LanguageChoice, Languages } from "app_menu.slint";
+import { AppMenu, LanguageChoice, Languages, Relock } from "app_menu.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages, AccessibleNumber }
+export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, LockedInfo, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages, Relock, AccessibleNumber }
 
 export component AppWindow inherits Window {
-    title: (has-controller ? slot-title + " · " : "") + "8B";
+    title: (has-controller && locked.view == 0 ? slot-title + " · " : "") + "8B";
     // Wayland ignores this and reads the icon from the .desktop file by app ID.
     icon: @image-url("../../../packaging/linux/io.github.LucasPicoli._8B.svg");
     preferred-width: 1280px;
@@ -26,8 +26,11 @@ export component AppWindow inherits Window {
     background: Theme.window;
     default-font-family: Theme.font-family;
 
-    // False until the first read: the whole window is the no-controller screen.
+    // False until the first read: the whole window is the no-controller screen. A locked
+    // controller counts: the sidebar shows, and `locked` fills the rest.
     in property <bool> has-controller;
+    // The locked controller shown in place of the editor (`view` 0 when none).
+    in property <LockedInfo> locked;
     in property <string> device-name;
     // Every listed controller for the header, and the one shown.
     in property <[string]> controllers;
@@ -164,6 +167,8 @@ export component AppWindow inherits Window {
     in property <BatchInfo> batch;
     // The question before closing over unsaved edits.
     in property <CloseInfo> closing;
+    // The question before relocking over unsaved edits.
+    in property <CloseInfo> relocking;
     // The worker thread has ended.
     in property <bool> worker-stopped;
     // The keepalive fix is offered for the shown controller, its dialog is open, the
@@ -274,6 +279,12 @@ export component AppWindow inherits Window {
     callback stopped-closed;
     callback close-write;
     callback close-discard;
+    // The locked panel's "Unlock" and "Try again".
+    callback unlock-clicked;
+    // The relock question: back to the window, write first, or relock anyway.
+    callback relock-cancelled;
+    callback relock-write;
+    callback relock-discard;
     // The row of the button under (x, y) in view `view`'s viewBox units, or -1.
     pure callback hit(int, float, float) -> int;
     // The chip of "Buttons held" under (x, y) in view `view`, when a click there toggles
@@ -357,7 +368,11 @@ export component AppWindow inherits Window {
             checking-all: root.checking-all;
             write-all-clicked => { root.write-all-clicked(); }
         }
-        VerticalLayout {
+        if root.locked.view != 0: LockedScreen {
+            info: root.locked;
+            unlock => { root.unlock-clicked(); }
+        }
+        if root.locked.view == 0: VerticalLayout {
             Rectangle {
                 height: 52px;
                 background: Theme.header;
@@ -766,6 +781,13 @@ export component AppWindow inherits Window {
     if root.worker-stopped: StoppedDialog {
         accepted => { root.stopped-closed(); }
         cancelled => { root.stopped-closed(); }
+    }
+
+    if root.relocking.shown: RelockDialog {
+        info: root.relocking;
+        cancelled => { root.relock-cancelled(); }
+        write => { root.relock-write(); }
+        discard => { root.relock-discard(); }
     }
 
     // Last, so it sits over any dialog that was open.

@@ -285,6 +285,18 @@ export struct CloseInfo {
     groups: [CloseGroup],
 }
 
+// What the panel of a locked controller shows.
+export struct LockedInfo {
+    // 0 when no locked controller is shown, else 1 locked, 2 unlocking, 3 did not
+    // unlock, 4 not supported.
+    view: int,
+    title: string,
+    body: string,
+    // The red bar of view 3: its title, and the rest of its sentence.
+    bar-title: string,
+    bar-body: string,
+}
+
 // One macro slot of the selected slot on the Macros tab: its row in the list, and
 // the header of its macro.
 export struct MacroRow {

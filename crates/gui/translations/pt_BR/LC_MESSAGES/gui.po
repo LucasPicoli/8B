@@ -114,6 +114,14 @@ msgid "Menu"
 msgstr "Menu"
 
 #: ui/app_menu.slint
+msgid "Relock"
+msgstr "Bloquear"
+
+#: ui/app_menu.slint
+msgid "Return the controller to XInput"
+msgstr "Devolver o controle ao XInput"
+
+#: ui/app_menu.slint
 msgid "Language"
 msgstr "Idioma"
 
@@ -544,6 +552,20 @@ msgid_plural "Write {n} slots…"
 msgstr[0] "Gravar {n} slot…"
 msgstr[1] "Gravar {n} slots…"
 
+#: ui/dialogs.slint
+msgid "Relock without writing?"
+msgstr "Bloquear sem gravar?"
+
+#: ui/dialogs.slint
+msgid "{n} slot has edits that are not on the controller yet, so relocking discards them."
+msgid_plural "{n} slots have edits that are not on the controller yet, so relocking discards them."
+msgstr[0] "{n} slot tem alterações que ainda não estão no controle, então bloquear as descarta."
+msgstr[1] "{n} slots têm alterações que ainda não estão no controle, então bloquear as descarta."
+
+#: ui/dialogs.slint
+msgid "Discard and relock"
+msgstr "Descartar e bloquear"
+
 #: ui/macros.slint
 msgid "Macro {}, empty"
 msgstr "Macro {}, vazia"
@@ -776,6 +798,14 @@ msgstr "Conecte-o com um cabo USB, em qualquer modo."
 #: ui/screens.slint src/render.rs
 msgid "Could not read the controller."
 msgstr "Não foi possível ler o controle."
+
+#: ui/screens.slint
+msgid "Unlock"
+msgstr "Desbloquear"
+
+#: ui/screens.slint src/locked.rs
+msgid "Unlocking…"
+msgstr "Desbloqueando…"
 
 #: ui/screens.slint
 msgid "Command that installs the rule"
@@ -1156,7 +1186,7 @@ msgstr "{name} · Desconectado"
 msgid "{name} · {mode}"
 msgstr "{name} · {mode}"
 
-#: src/controllers.rs
+#: src/controllers.rs src/locked.rs
 msgid "{label} ({n})"
 msgstr "{label} ({n})"
 
@@ -1316,6 +1346,54 @@ msgstr "{names} também estão usando o controle. Feche e tente novamente."
 #: src/holders.rs
 msgid "Another program may be using the controller. Close it and try again."
 msgstr "Outro programa pode estar usando o controle. Feche e tente novamente."
+
+#: src/locked.rs
+msgid "8BitDo · Not supported"
+msgstr "8BitDo · Não suportado"
+
+#: src/locked.rs
+msgid "{name} · Locked"
+msgstr "{name} · Bloqueado"
+
+#: src/locked.rs
+msgid "The controller did not relock."
+msgstr "O controle não bloqueou."
+
+#: src/locked.rs
+msgid "Locked"
+msgstr "Bloqueado"
+
+#: src/locked.rs
+msgid "Did not unlock"
+msgstr "Não desbloqueou"
+
+#: src/locked.rs
+msgid "Not supported yet"
+msgstr "Ainda não suportado"
+
+#: src/locked.rs
+msgid "Replug it if this keeps happening."
+msgstr "Reconecte-o se isso continuar."
+
+#: src/locked.rs
+msgid "This controller is not supported yet"
+msgstr "Este controle ainda não é suportado"
+
+#: src/locked.rs
+msgid "USB ID {pid}. Replug it to get XInput back."
+msgstr "ID USB {pid}. Reconecte-o para voltar ao XInput."
+
+#: src/locked.rs
+msgid "{name} is locked"
+msgstr "{name} está bloqueado"
+
+#: src/locked.rs
+msgid "Unlocking takes it away from games until you relock it."
+msgstr "Desbloqueá-lo remove-o dos jogos até você bloqueá-lo novamente."
+
+#: src/locked.rs
+msgid "The controller did not unlock."
+msgstr "O controle não desbloqueou."
 
 #: src/macro_check.rs
 msgid "Macro {n} cannot be written."

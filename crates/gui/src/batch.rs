@@ -119,6 +119,9 @@ impl AppState {
             .as_ref()
             .is_some_and(|b| b.port == port && matches!(b.stage, Stage::Reading));
         if waiting {
+            if !ok {
+                self.relock_after_write = None;
+            }
             self.write.batch = ok.then(|| Batch {
                 port: port.to_owned(),
                 stage: Stage::Review { flipped: BTreeSet::new() },
@@ -149,6 +152,7 @@ impl AppState {
         let waiting = matches!(self.write.batch, Some(Batch { stage: Stage::Review { .. }, .. }));
         if waiting && self.changed_slots().is_empty() && self.edited_slots().is_empty() {
             self.write.batch = None;
+            self.relock_after_write = None;
         }
     }
 
@@ -160,6 +164,7 @@ impl AppState {
             Some(Batch { stage: Stage::Reading | Stage::Review { .. }, .. })
         ) {
             self.write.batch = None;
+            self.relock_after_write = None;
         }
     }
 
@@ -170,6 +175,7 @@ impl AppState {
             Some(Batch { stage: Stage::Review { .. } | Stage::Failed { .. }, .. })
         ) {
             self.write.batch = None;
+            self.relock_after_write = None;
         }
     }
 

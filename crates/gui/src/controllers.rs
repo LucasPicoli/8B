@@ -100,6 +100,10 @@ impl AppState {
     /// first listed.
     #[must_use]
     pub fn active(&self) -> Option<&Controller> {
+        // A locked pad shown in the header takes the window: no controller is active.
+        if self.shown_lock().is_some() {
+            return None;
+        }
         let picked = self.active_port.as_deref();
         self.listed().find(|c| Some(c.port.as_str()) == picked).or_else(|| self.listed().next())
     }

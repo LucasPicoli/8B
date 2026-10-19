@@ -221,6 +221,16 @@ pub struct AppState {
     pub write: WriteState,
     /// The window was asked to close over unsaved edits: the question is open.
     pub closing: bool,
+    /// The locked controllers attached, each with where its unlock stands.
+    pub locked: Vec<crate::locked::LockedPad>,
+    /// The port of the locked pad picked in the header, if one is.
+    pub locked_shown: Option<String>,
+    /// The relock question is open for the shown controller.
+    pub relock_asking: bool,
+    /// The port whose edited slots are written first, then relocked.
+    pub relock_after_write: Option<String>,
+    /// The port whose relock the worker has and has not answered yet.
+    pub relock_sent: Option<String>,
     /// A command could not reach the worker: its thread has ended, so the stopped
     /// message shows. The worker is not restarted.
     pub worker_stopped: bool,
@@ -282,6 +292,11 @@ impl AppState {
             fallback_description: description,
             fallback_defaults: defaults,
             controllers: Vec::new(),
+            locked: Vec::new(),
+            locked_shown: None,
+            relock_asking: false,
+            relock_after_write: None,
+            relock_sent: None,
             active_port: None,
             pending_move: None,
             selected: (0, 0),

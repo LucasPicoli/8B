@@ -1,6 +1,7 @@
 // Whole-window states before the editor: no controller, no permission.
 import { Theme, Button, LineEdit, Spinner } from "look/breeze/widgets.slint";
 import { Icons, Placeholder, Frame, MessageBar, CopyButton } from "parts.slint";
+import { LockedInfo } from "types.slint";
 
 // Waits on its own, with no button: the app finds the controller by itself.
 export component NoControllerScreen inherits Rectangle {
@@ -43,6 +44,52 @@ export component NoControllerScreen inherits Rectangle {
             action: root.connected ? @tr("Try again") : "";
             action-enabled: root.can-read-again;
             acted => { root.read-again(); }
+        }
+    }
+}
+
+// A locked controller: the window beside its sidebar. Unlock, the wait, the failure
+// under a red bar, or a pad no description lists.
+export component LockedScreen inherits Rectangle {
+    in property <LockedInfo> info;
+    // "Unlock", and "Try again" on the red bar.
+    callback unlock;
+    background: Theme.window;
+    Placeholder {
+        icon: root.info.view == 4 ? Icons.unplug : Icons.lock;
+        title: root.info.title;
+        body: root.info.body;
+        if root.info.view == 1: Button {
+            text: @tr("Unlock");
+            primary: true;
+            init => { self.focus(); }
+            clicked => { root.unlock(); }
+        }
+        if root.info.view == 2: HorizontalLayout {
+            spacing: 8px;
+            VerticalLayout {
+                alignment: center;
+                Spinner { }
+            }
+            Text {
+                text: @tr("Unlocking…");
+                color: Theme.fg-muted;
+                vertical-alignment: center;
+            }
+        }
+    }
+    if root.info.view == 3: HorizontalLayout {
+        y: 0;
+        height: self.preferred-height;
+        padding: 16px;
+        MessageBar {
+            error: true;
+            diagnostics: true;
+            title: root.info.bar-title;
+            body: root.info.bar-body;
+            action: @tr("Try again");
+            action-focus: true;
+            acted => { root.unlock(); }
         }
     }
 }

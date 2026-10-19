@@ -92,6 +92,32 @@ impl AppState {
         groups
     }
 
+    /// The rows of controller `c`'s edited slots under `label`, and how many there are.
+    pub fn close_group(&self, label: &str, c: &Controller) -> (CloseGroup, usize) {
+        let slots: Vec<CloseSlot> = self
+            .edited_of(c)
+            .into_iter()
+            .map(|(mode, n)| CloseSlot {
+                title: slot_name(self.description_of(c), mode, n).into(),
+                name: c
+                    .slots
+                    .get(&(mode, n))
+                    .and_then(SlotState::shown)
+                    .map(|p| shown_name(&p.name, n))
+                    .unwrap_or_default()
+                    .into(),
+            })
+            .collect();
+        let n = slots.len();
+        (
+            CloseGroup {
+                label: label.into(),
+                slots: ModelRc::from(Rc::new(VecModel::from(slots))),
+            },
+            n,
+        )
+    }
+
     /// What the question shows now, if it shows.
     #[must_use]
     pub fn close_info(&self) -> CloseInfo {
@@ -103,25 +129,9 @@ impl AppState {
             .close_groups()
             .into_iter()
             .map(|(label, c)| {
-                let slots: Vec<CloseSlot> = self
-                    .edited_of(c)
-                    .into_iter()
-                    .map(|(mode, n)| CloseSlot {
-                        title: slot_name(self.description_of(c), mode, n).into(),
-                        name: c
-                            .slots
-                            .get(&(mode, n))
-                            .and_then(SlotState::shown)
-                            .map(|p| shown_name(&p.name, n))
-                            .unwrap_or_default()
-                            .into(),
-                    })
-                    .collect();
-                total += slots.len();
-                CloseGroup {
-                    label: label.into(),
-                    slots: ModelRc::from(Rc::new(VecModel::from(slots))),
-                }
+                let (group, n) = self.close_group(&label, c);
+                total += n;
+                group
             })
             .collect();
         CloseInfo {
@@ -133,9 +143,10 @@ impl AppState {
     }
 }
 
-/// Pushes the close question.
+/// Pushes the close question and the relock question.
 pub fn render_close(state: &AppState, ui: &AppWindow) {
     ui.set_closing(state.close_info());
+    ui.set_relocking(state.relock_info());
 }
 
 #[cfg(test)]
