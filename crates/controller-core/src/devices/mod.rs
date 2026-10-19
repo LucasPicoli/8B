@@ -20,7 +20,8 @@ use crate::transport::{DeviceIo, HidrawDevice};
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
 
 /// Every supported controller model.
-static MODELS: [&dyn Model; 2] = [&pro3::Pro3, &ultimate::model!("ultimate-bluetooth")];
+static MODELS: [&dyn Model; 3] =
+    [&pro3::Pro3, &ultimate::model!("ultimate-bluetooth"), &ultimate::model!("ultimate-2-4g")];
 
 /// Every supported controller model, in registry order.
 #[must_use]
@@ -292,8 +293,10 @@ mod tests {
         assert!(!unchecked.validated);
         assert!(refused_with(unchecked, false));
         assert!(!refused_with(unchecked, true), "EIGHTB_UNVALIDATED=1 lets it through");
-        for model in models() {
-            assert!(!refused_with(model.description().unwrap(), false));
+        // The models checked on a real pad. A model no one has checked yet stays out of this list.
+        for name in ["Pro 3", "Ultimate"] {
+            let checked = model_named(name).unwrap().description().unwrap();
+            assert!(!refused_with(checked, false), "{name}");
         }
         assert!(!refused_with(TestPad.description().unwrap(), false));
     }

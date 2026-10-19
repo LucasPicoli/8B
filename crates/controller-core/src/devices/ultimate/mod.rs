@@ -54,7 +54,8 @@ pub fn mode_byte(description: &ControllerDescription, mode: Mode) -> Result<u8> 
 /// The mode of the image `blob`, from the mode it records.
 ///
 /// # Errors
-/// Returns [`Error::Decode`] if `blob` is too short or records another mode.
+/// Returns [`Error::Decode`] if `blob` is too short or records another mode. A mode byte 0 on a
+/// model with no mode of byte 0 gets a message that names the modes it does list.
 pub fn image_mode(description: &ControllerDescription, blob: &[u8]) -> Result<Mode> {
     let value = read_u16_le(blob, GAMEPAD_MODE_OFFSET)?;
     description
@@ -62,7 +63,17 @@ pub fn image_mode(description: &ControllerDescription, blob: &[u8]) -> Result<Mo
         .iter()
         .find(|m| m.gamepad_mode.is_some_and(|b| u16::from(b) == value))
         .map(|m| m.id)
-        .ok_or_else(|| Error::Decode(format!("the image records an unknown mode {value}")))
+        .ok_or_else(|| {
+            if value != 0 {
+                return Error::Decode(format!("the image records an unknown mode {value}"));
+            }
+            // Byte 0 is Switch mode, and this model lists no Switch mode.
+            let listed: Vec<&str> = description.modes.iter().map(|m| m.label.as_str()).collect();
+            Error::Decode(format!(
+                "the pad is in a mode 8B does not support: switch it to {}",
+                listed.join(" or ")
+            ))
+        })
 }
 
 /// Refuses a blob that is not a full image.
