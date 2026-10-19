@@ -20,8 +20,12 @@ use crate::transport::{DeviceIo, HidrawDevice};
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
 
 /// Every supported controller model.
-static MODELS: [&dyn Model; 3] =
-    [&pro3::Pro3, &ultimate::model!("ultimate-bluetooth"), &ultimate::model!("ultimate-2-4g")];
+static MODELS: [&dyn Model; 4] = [
+    &pro3::Pro3,
+    &ultimate::model!("ultimate-bluetooth"),
+    &ultimate::model!("ultimate-2-4g"),
+    &ultimate::model!("ultimate-wired"),
+];
 
 /// Every supported controller model, in registry order.
 #[must_use]
@@ -289,14 +293,20 @@ mod tests {
 
     #[test]
     fn a_model_that_is_not_validated_is_refused_unless_the_user_allows_it() {
+        // Models still waiting for a report from a real pad.
+        const UNCHECKED: [&str; 2] = ["Ultimate 2.4G", "Ultimate Wired"];
         let unchecked = test_pad::UnvalidatedPad.description().unwrap();
         assert!(!unchecked.validated);
         assert!(refused_with(unchecked, false));
         assert!(!refused_with(unchecked, true), "EIGHTB_UNVALIDATED=1 lets it through");
-        // The models checked on a real pad. A model no one has checked yet stays out of this list.
-        for name in ["Pro 3", "Ultimate"] {
-            let checked = model_named(name).unwrap().description().unwrap();
-            assert!(!refused_with(checked, false), "{name}");
+        for model in models() {
+            let d = model.description().unwrap();
+            assert_eq!(
+                refused_with(d, false),
+                UNCHECKED.contains(&d.short_name.as_str()),
+                "{}",
+                d.short_name
+            );
         }
         assert!(!refused_with(TestPad.description().unwrap(), false));
     }

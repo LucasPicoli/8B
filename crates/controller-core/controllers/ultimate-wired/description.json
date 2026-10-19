@@ -1,0 +1,880 @@
+{
+  "display_name": "Ultimate Wired",
+  "short_name": "Ultimate Wired",
+  "family_name": "8BitDo Ultimate",
+  "model_ids": [],
+  "config_ports": [
+    {
+      "usb": {
+        "vendor": "0x2dc8",
+        "product": "0x3011"
+      },
+      "mode": "xinput",
+      "interface": 0,
+      "framing": "length",
+      "match_vendor": true
+    }
+  ],
+  "modes": [
+    {
+      "id": "xinput",
+      "label": "XInput",
+      "trigger_kind": "analog",
+      "extra_outputs": [
+        {
+          "id": "turbo",
+          "label": "Turbo",
+          "buttons": [
+            "star",
+            "p1",
+            "p2"
+          ],
+          "hint": "Hold a button and press this one to turn turbo on or off for it.",
+          "code": "0x10000"
+        },
+        {
+          "id": "auto turbo",
+          "label": "Auto turbo",
+          "buttons": [
+            "star",
+            "p1",
+            "p2"
+          ],
+          "hint": "Hold a button and press this one: it fires on its own until you do it again.",
+          "code": "0x1000000"
+        },
+        {
+          "id": "swap",
+          "label": "Swap",
+          "buttons": [
+            "star",
+            "p1",
+            "p2"
+          ],
+          "hint": "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button.",
+          "code": "0x8000000"
+        }
+      ],
+      "gamepad_mode": 3,
+      "default_targets": {
+        "star": "turbo",
+        "p1": "disabled",
+        "p2": "disabled"
+      }
+    },
+    {
+      "id": "dinput",
+      "label": "DInput",
+      "trigger_kind": "analog",
+      "extra_outputs": [
+        {
+          "id": "turbo",
+          "label": "Turbo",
+          "buttons": [
+            "star",
+            "p1",
+            "p2"
+          ],
+          "hint": "Hold a button and press this one to turn turbo on or off for it.",
+          "code": "0x10000"
+        },
+        {
+          "id": "auto turbo",
+          "label": "Auto turbo",
+          "buttons": [
+            "star",
+            "p1",
+            "p2"
+          ],
+          "hint": "Hold a button and press this one: it fires on its own until you do it again.",
+          "code": "0x1000000"
+        },
+        {
+          "id": "swap",
+          "label": "Swap",
+          "buttons": [
+            "star",
+            "p1",
+            "p2"
+          ],
+          "hint": "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button.",
+          "code": "0x8000000"
+        },
+        {
+          "id": "p1 output",
+          "label": "P1",
+          "code": "0x2000000"
+        },
+        {
+          "id": "p2 output",
+          "label": "P2",
+          "code": "0x4000000"
+        }
+      ],
+      "gamepad_mode": 1,
+      "default_targets": {
+        "star": "turbo",
+        "p1": "p1 output",
+        "p2": "p2 output"
+      }
+    }
+  ],
+  "slot_count": 3,
+  "macro_slot_count": 4,
+  "limits": {
+    "profile_name_length": {
+      "min": 0,
+      "max": 16
+    },
+    "macro_steps": {
+      "min": 1,
+      "max": 18
+    },
+    "macro_step_ms": {
+      "min": 10,
+      "max": 60990
+    },
+    "triggers_per_macro": 1
+  },
+  "profile_rename": false,
+  "macro_sticks": "directions8",
+  "lock": {
+    "locked": {
+      "usb": {
+        "vendor": "0x2dc8",
+        "product": "0x3106"
+      },
+      "product": "8BitDo Ultimate Wired Controller"
+    },
+    "unlock": {
+      "interface": 0,
+      "endpoint": "0x02",
+      "timeout_ms": 3000,
+      "packets": [
+        {
+          "at_ms": 0,
+          "data": "0008000100000000"
+        },
+        {
+          "at_ms": 16,
+          "data": "0008000001000000"
+        },
+        {
+          "at_ms": 32,
+          "data": "0008000101000000"
+        },
+        {
+          "at_ms": 48,
+          "data": "0008000501000000"
+        },
+        {
+          "at_ms": 64,
+          "data": "0008000000000000"
+        },
+        {
+          "at_ms": 416,
+          "data": "0008000100000000"
+        },
+        {
+          "at_ms": 432,
+          "data": "0008000001000000"
+        },
+        {
+          "at_ms": 448,
+          "data": "0008000101000000"
+        },
+        {
+          "at_ms": 464,
+          "data": "0008000501000000"
+        },
+        {
+          "at_ms": 480,
+          "data": "0008000000000000"
+        },
+        {
+          "at_ms": 832,
+          "data": "0008000100000000"
+        },
+        {
+          "at_ms": 848,
+          "data": "0008000001000000"
+        },
+        {
+          "at_ms": 864,
+          "data": "0008000101000000"
+        },
+        {
+          "at_ms": 880,
+          "data": "0008000501000000"
+        },
+        {
+          "at_ms": 896,
+          "data": "0008000000000000"
+        }
+      ]
+    },
+    "relock": {
+      "packets": [
+        {
+          "at_ms": 0,
+          "data": "811104070001"
+        },
+        {
+          "at_ms": 8,
+          "data": "8105005102"
+        },
+        {
+          "at_ms": 16,
+          "data": "8105005102"
+        },
+        {
+          "at_ms": 24,
+          "data": "8105005102"
+        }
+      ]
+    }
+  },
+  "buttons": [
+    {
+      "id": "right face",
+      "printed_label": "B",
+      "labels": {
+        "xinput": "B",
+        "dinput": "B"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 0,
+      "map_codes": {
+        "xinput": "0x1000",
+        "dinput": "0x1000"
+      },
+      "macro_code": "0x1000"
+    },
+    {
+      "id": "bottom face",
+      "printed_label": "A",
+      "labels": {
+        "xinput": "A",
+        "dinput": "A"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 1,
+      "map_codes": {
+        "xinput": "0x2000",
+        "dinput": "0x2000"
+      },
+      "macro_code": "0x2000"
+    },
+    {
+      "id": "top face",
+      "printed_label": "Y",
+      "labels": {
+        "xinput": "Y",
+        "dinput": "Y"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 2,
+      "map_codes": {
+        "xinput": "0x20",
+        "dinput": "0x20"
+      },
+      "macro_code": "0x20"
+    },
+    {
+      "id": "left face",
+      "printed_label": "X",
+      "labels": {
+        "xinput": "X",
+        "dinput": "X"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 3,
+      "map_codes": {
+        "xinput": "0x10",
+        "dinput": "0x10"
+      },
+      "macro_code": "0x10"
+    },
+    {
+      "id": "l1",
+      "printed_label": "LB",
+      "labels": {
+        "xinput": "LB",
+        "dinput": "LB"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 4,
+      "map_codes": {
+        "xinput": "0x400",
+        "dinput": "0x400"
+      },
+      "macro_code": "0x400"
+    },
+    {
+      "id": "r1",
+      "printed_label": "RB",
+      "labels": {
+        "xinput": "RB",
+        "dinput": "RB"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 5,
+      "map_codes": {
+        "xinput": "0x800",
+        "dinput": "0x800"
+      },
+      "macro_code": "0x800"
+    },
+    {
+      "id": "l2",
+      "printed_label": "LT",
+      "labels": {
+        "xinput": "LT",
+        "dinput": "LT"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 6,
+      "map_codes": {
+        "xinput": "0x4000",
+        "dinput": "0x4000"
+      },
+      "macro_code": "0x4000"
+    },
+    {
+      "id": "r2",
+      "printed_label": "RT",
+      "labels": {
+        "xinput": "RT",
+        "dinput": "RT"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 7,
+      "map_codes": {
+        "xinput": "0x8000",
+        "dinput": "0x8000"
+      },
+      "macro_code": "0x8000"
+    },
+    {
+      "id": "l3",
+      "labels": {
+        "xinput": "LS",
+        "dinput": "LS"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 8,
+      "map_codes": {
+        "xinput": "0x2",
+        "dinput": "0x2"
+      },
+      "macro_code": "0x2"
+    },
+    {
+      "id": "r3",
+      "labels": {
+        "xinput": "RS",
+        "dinput": "RS"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": true,
+      "map_index": 9,
+      "map_codes": {
+        "xinput": "0x4",
+        "dinput": "0x4"
+      },
+      "macro_code": "0x4"
+    },
+    {
+      "id": "select/back",
+      "labels": {
+        "xinput": "View",
+        "dinput": "View"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": false,
+      "map_index": 10,
+      "map_codes": {
+        "xinput": "0x8",
+        "dinput": "0x8"
+      }
+    },
+    {
+      "id": "start/menu",
+      "labels": {
+        "xinput": "Menu",
+        "dinput": "Menu"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": false,
+      "map_index": 11,
+      "map_codes": {
+        "xinput": "0x1",
+        "dinput": "0x1"
+      }
+    },
+    {
+      "id": "star",
+      "labels": {
+        "xinput": "Star",
+        "dinput": "Star"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false,
+      "map_index": 12,
+      "macro_code": "0x10000"
+    },
+    {
+      "id": "home/guide",
+      "labels": {
+        "xinput": "Home",
+        "dinput": "Home"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false,
+      "map_index": 13,
+      "map_codes": {
+        "xinput": "0x20000",
+        "dinput": "0x20000"
+      },
+      "macro_code": "0x20000"
+    },
+    {
+      "id": "d-pad up",
+      "labels": {
+        "xinput": "↑",
+        "dinput": "↑"
+      },
+      "spoken_labels": {
+        "xinput": "D-pad up",
+        "dinput": "D-pad up"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": true,
+      "map_index": 14,
+      "map_codes": {
+        "xinput": "0x200",
+        "dinput": "0x200"
+      },
+      "macro_code": "0x200"
+    },
+    {
+      "id": "d-pad down",
+      "labels": {
+        "xinput": "↓",
+        "dinput": "↓"
+      },
+      "spoken_labels": {
+        "xinput": "D-pad down",
+        "dinput": "D-pad down"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": true,
+      "map_index": 15,
+      "map_codes": {
+        "xinput": "0x100",
+        "dinput": "0x100"
+      },
+      "macro_code": "0x100"
+    },
+    {
+      "id": "d-pad left",
+      "labels": {
+        "xinput": "←",
+        "dinput": "←"
+      },
+      "spoken_labels": {
+        "xinput": "D-pad left",
+        "dinput": "D-pad left"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": true,
+      "map_index": 16,
+      "map_codes": {
+        "xinput": "0x80",
+        "dinput": "0x80"
+      },
+      "macro_code": "0x80"
+    },
+    {
+      "id": "d-pad right",
+      "labels": {
+        "xinput": "→",
+        "dinput": "→"
+      },
+      "spoken_labels": {
+        "xinput": "D-pad right",
+        "dinput": "D-pad right"
+      },
+      "can_be_remapped": true,
+      "can_be_output": true,
+      "can_start_macro": false,
+      "can_be_in_macro_step": true,
+      "map_index": 17,
+      "map_codes": {
+        "xinput": "0x40",
+        "dinput": "0x40"
+      },
+      "macro_code": "0x40"
+    },
+    {
+      "id": "p1",
+      "labels": {
+        "xinput": "P1",
+        "dinput": "P1"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false,
+      "map_index": 18,
+      "macro_code": "0x2000000"
+    },
+    {
+      "id": "p2",
+      "labels": {
+        "xinput": "P2",
+        "dinput": "P2"
+      },
+      "can_be_remapped": true,
+      "can_be_output": false,
+      "can_start_macro": true,
+      "can_be_in_macro_step": false,
+      "map_index": 19,
+      "macro_code": "0x4000000"
+    }
+  ],
+  "settings": [
+    {
+      "id": "sticks",
+      "label": "Sticks",
+      "modes": [
+        "xinput"
+      ],
+      "lead": "Below the low end of the range the stick reads as centred. Past the high end it reads as pushed all the way.",
+      "frames": [
+        {
+          "title": "Left stick",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/sticks/left_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/sticks/left_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ],
+          "flags": [
+            {
+              "label": "Invert X",
+              "field": "/sticks/invert_left_x"
+            },
+            {
+              "label": "Invert Y",
+              "field": "/sticks/invert_left_y"
+            }
+          ]
+        },
+        {
+          "title": "Right stick",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/sticks/right_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/sticks/right_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ],
+          "flags": [
+            {
+              "label": "Invert X",
+              "field": "/sticks/invert_right_x"
+            },
+            {
+              "label": "Invert Y",
+              "field": "/sticks/invert_right_y"
+            }
+          ]
+        },
+        {
+          "title": "Swaps",
+          "flags": [
+            {
+              "label": "Swap the left and right sticks",
+              "field": "/sticks/swap_sticks"
+            },
+            {
+              "label": "Swap the D-pad and the left stick",
+              "field": "/sticks/swap_dpad_with_left_stick"
+            }
+          ]
+        },
+        {
+          "title": "D-pad and dead zone",
+          "flags": [
+            {
+              "label": "Disable the dead zone",
+              "field": "/sticks/no_dead_zone"
+            },
+            {
+              "label": "D-pad four-way only",
+              "field": "/sticks/dpad_four_way",
+              "min_firmware": "1.02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sticks",
+      "label": "Sticks",
+      "modes": [
+        "dinput"
+      ],
+      "lead": "Below the low end of the range the stick reads as centred. Past the high end it reads as pushed all the way.",
+      "frames": [
+        {
+          "title": "Left stick",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/sticks/left_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/sticks/left_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ],
+          "flags": [
+            {
+              "label": "Invert X",
+              "field": "/sticks/invert_left_x"
+            },
+            {
+              "label": "Invert Y",
+              "field": "/sticks/invert_left_y"
+            }
+          ]
+        },
+        {
+          "title": "Right stick",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/sticks/right_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/sticks/right_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ],
+          "flags": [
+            {
+              "label": "Invert X",
+              "field": "/sticks/invert_right_x"
+            },
+            {
+              "label": "Invert Y",
+              "field": "/sticks/invert_right_y"
+            }
+          ]
+        },
+        {
+          "title": "Swaps",
+          "flags": [
+            {
+              "label": "Swap the left and right sticks",
+              "field": "/sticks/swap_sticks"
+            },
+            {
+              "label": "Swap the D-pad and the left stick",
+              "field": "/sticks/swap_dpad_with_left_stick"
+            }
+          ]
+        },
+        {
+          "title": "D-pad",
+          "flags": [
+            {
+              "label": "D-pad four-way only",
+              "field": "/sticks/dpad_four_way",
+              "min_firmware": "1.02"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "triggers",
+      "label": "Triggers",
+      "modes": [
+        "xinput",
+        "dinput"
+      ],
+      "lead": "Below the low end of the range the trigger reads as released. Past the high end it reads as pulled all the way.",
+      "frames": [
+        {
+          "title": "Left trigger",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/triggers/left_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/triggers/left_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        },
+        {
+          "title": "Right trigger",
+          "sliders": [
+            {
+              "label": "Range",
+              "unit": "%",
+              "low": {
+                "field": "/triggers/right_min_pct",
+                "min": 0,
+                "max": 100
+              },
+              "high": {
+                "field": "/triggers/right_max_pct",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        },
+        {
+          "title": "Swaps",
+          "flags": [
+            {
+              "label": "Swap the left and right triggers",
+              "field": "/triggers/swap_triggers"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "vibration",
+      "label": "Vibration",
+      "lead": "How strongly each motor rumbles. Level 0 turns it off.",
+      "frames": [
+        {
+          "title": "Motors",
+          "sliders": [
+            {
+              "label": "Left motor",
+              "low": {
+                "field": "/vibration/left_level",
+                "min": 0,
+                "max": 5
+              }
+            },
+            {
+              "label": "Right motor",
+              "low": {
+                "field": "/vibration/right_level",
+                "min": 0,
+                "max": 5
+              }
+            }
+          ]
+        }
+      ],
+      "modes": [
+        "xinput"
+      ]
+    }
+  ],
+  "views": [
+    {
+      "id": "front",
+      "label": "Front",
+      "svg": "front.svg"
+    },
+    {
+      "id": "back",
+      "label": "Back",
+      "svg": "back.svg"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ mod description;
 mod golden_codec;
 mod golden_packets;
 mod second_model;
+mod wired;
 mod write_orchestrator;
 
 #[cfg(feature = "hardware")]
