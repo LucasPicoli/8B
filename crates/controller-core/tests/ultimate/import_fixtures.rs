@@ -122,14 +122,20 @@ fn prompt(action: impl Into<String>, expect: impl Into<String>) -> Prompt {
     Prompt { action: action.into(), expect: expect.into() }
 }
 
-/// The name printed on the pad for button `id`.
+/// The name printed on the pad for button `id`, with its place for a face button, such as
+/// "X (the top button)".
 fn printed(mode: Mode, id: &str) -> String {
-    d().button(id).unwrap().printed(mode).to_owned()
+    let label = d().button(id).unwrap().printed(mode);
+    match id.strip_suffix(" face") {
+        Some(side) => format!("{label} (the {side} button)"),
+        None => label.to_owned(),
+    }
 }
 
-/// What the pad sends for button `id` in `mode`, as a tester names it.
+/// What the pad sends for button `id` in `mode`. A tester names it by the button that sends
+/// it on its own, so it reads the same as [`printed`], not as the mode's output name.
 fn sends(mode: Mode, id: &str) -> String {
-    d().button(id).unwrap().labels[&mode].clone()
+    printed(mode, id)
 }
 
 /// A stick position of a step, such as "left stick up". Empty at centre.
@@ -328,9 +334,9 @@ fn the_presses_name_each_button_and_macro() {
         prompts(&fixture(mode)).iter().map(|p| format!("{} -> {}", p.action, p.expect)).collect()
     };
     let x = say(XINPUT);
-    assert_eq!(x[0], "Press X. -> The tester shows A.");
+    assert_eq!(x[0], "Press X (the top button). -> The tester shows B (the bottom button).");
     assert_eq!(x.len(), 3 + 4 + 1 + 4 + 2, "{x:#?}");
-    assert_eq!(x[x.len() - 2], "Press LS once. -> The tester shows, in order: A, then B, then Y.");
+    assert_eq!(x[x.len() - 2], "Press LS once. -> The tester shows, in order: B (the bottom button), then A (the right button), then X (the top button).");
     assert_eq!(
         x[x.len() - 1],
         "Press RS once. -> The tester shows, in order: left stick up, then left stick right, then right stick down, then right stick left."
