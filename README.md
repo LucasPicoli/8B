@@ -86,6 +86,9 @@ Bug reports, fixes and new controllers are welcome. To add a controller, start w
 [Adding a controller](docs/adding-a-controller.md) and
 [Drawing a controller's views](docs/controller-views.md).
 
+If you own an Ultimate 2.4G or an Ultimate Wired, the app refuses it until a pad has been
+checked. [Validating a controller](docs/validating-a-controller.md) lists the six checks.
+
 1. Install `just` and the fontconfig headers (`libfontconfig-dev` on Debian and Ubuntu).
 2. Make your change on a branch.
 3. Run `just lint`. It runs `cargo fmt --check`, clippy with warnings as errors, and the
