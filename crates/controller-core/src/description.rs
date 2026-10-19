@@ -241,6 +241,17 @@ pub struct ModeDescription {
     /// low end plays.
     #[serde(default)]
     pub macro_stick_floor: Option<i32>,
+    /// The byte the pad stores and selects this mode by. `None` for a pad whose blob
+    /// does not name its mode that way.
+    #[serde(default)]
+    pub gamepad_mode: Option<u8>,
+    /// What a new profile maps a button to in this mode, by button id. A button left out
+    /// sends its own output.
+    #[serde(default)]
+    pub default_targets: BTreeMap<String, String>,
+    /// Where a new profile starts the low end of both triggers in this mode, in percent.
+    #[serde(default)]
+    pub default_trigger_start: i32,
 }
 
 /// How a mode's triggers read.
@@ -275,6 +286,10 @@ pub struct ExtraOutput {
     /// another one. Empty for none.
     #[serde(default)]
     pub leaving_hint: String,
+    /// The code a button map entry holds for this output, in hex such as `"0x400000"`.
+    /// `None` for a pad that stores no codes.
+    #[serde(default, deserialize_with = "hex_u32_opt")]
+    pub code: Option<u32>,
 }
 
 impl ExtraOutput {
@@ -375,6 +390,19 @@ pub struct Button {
     /// pressure in an analog mode, not among its pressed buttons. `None` for a button.
     #[serde(default)]
     pub step_trigger_value: Option<TriggerSide>,
+    /// Where this button's entry sits in the pad's button map. `None` for a pad whose
+    /// map is not a list of entries.
+    #[serde(default)]
+    pub map_index: Option<u8>,
+    /// The code a button map entry holds when it sends this button's press, one per
+    /// mode, in hex such as `"0x2000"`. A mode without an entry has no such output. A
+    /// code can mean another button in another mode: in `XInput`, `0x2000` is Xbox A.
+    #[serde(default, deserialize_with = "hex_u32_map")]
+    pub map_codes: BTreeMap<Mode, u32>,
+    /// The code a macro record holds for this button, the same in every mode. It is not
+    /// derived from `map_codes`: a pad may use different codes in the two places.
+    #[serde(default, deserialize_with = "hex_u32_opt")]
+    pub macro_code: Option<u32>,
 }
 
 /// One of the two trigger values of a macro step.
@@ -626,6 +654,19 @@ impl ControllerDescription {
             }
         }
         self.check_macro_buttons()?;
+        let mut indexes = BTreeSet::new();
+        if let Some(i) =
+            self.buttons.iter().filter_map(|b| b.map_index).find(|i| !indexes.insert(*i))
+        {
+            return Err(format!("map_index {i} is used twice"));
+        }
+        self.check_defaults()?;
+        let mut bytes = BTreeSet::new();
+        if let Some(b) =
+            self.modes.iter().filter_map(|m| m.gamepad_mode).find(|b| !bytes.insert(*b))
+        {
+            return Err(format!("gamepad_mode {b} is used twice"));
+        }
         for mode in &self.modes {
             let mut outputs = BTreeSet::new();
             for output in &mode.extra_outputs {
@@ -649,6 +690,25 @@ impl ControllerDescription {
             }
         }
         self.check_views(&ids)
+    }
+
+    /// Each mode's default trigger start is a percent, and each default target is an
+    /// output its button may take.
+    fn check_defaults(&self) -> std::result::Result<(), String> {
+        for mode in &self.modes {
+            if !(0..=100).contains(&mode.default_trigger_start) {
+                return Err("default_trigger_start must be 0 to 100".to_owned());
+            }
+            for (button, target) in &mode.default_targets {
+                if self.validate_remap(mode.id, button, target).is_err() {
+                    return Err(format!(
+                        "default target '{target}' of '{button}' is no output in {} mode",
+                        mode.id
+                    ));
+                }
+            }
+        }
+        Ok(())
     }
 
     /// Macro button flags need macro slots, and macro slots need both flags somewhere.
@@ -788,6 +848,26 @@ fn bad_hex<E: serde::de::Error>(s: &str) -> E {
 pub(crate) fn hex_u16<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<u16, D::Error> {
     let s = String::deserialize(d)?;
     parse_hex(&s).ok_or_else(|| bad_hex(&s))
+}
+
+/// Parses `"0x2000"` into a `u32`.
+fn parse_hex_u32(s: &str) -> Option<u32> {
+    u32::from_str_radix(s.strip_prefix("0x")?, 16).ok()
+}
+
+fn hex_u32_opt<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Option<u32>, D::Error> {
+    Option::<String>::deserialize(d)?
+        .map(|s| parse_hex_u32(&s).ok_or_else(|| bad_hex(&s)))
+        .transpose()
+}
+
+fn hex_u32_map<'de, D: Deserializer<'de>>(
+    d: D,
+) -> std::result::Result<BTreeMap<Mode, u32>, D::Error> {
+    BTreeMap::<Mode, String>::deserialize(d)?
+        .into_iter()
+        .map(|(m, s)| Ok((m, parse_hex_u32(&s).ok_or_else(|| bad_hex(&s))?)))
+        .collect()
 }
 
 fn hex_u16_list<'de, D: Deserializer<'de>>(d: D) -> std::result::Result<Vec<u16>, D::Error> {
@@ -1052,11 +1132,11 @@ mod tests {
     #[test]
     fn the_shipped_models_are_validated_and_the_ultimate_names_its_family() {
         use crate::device::ControllerSpec as _;
-        use crate::devices::{pro3::Pro3, test_pad::TestPad, ultimate::Ultimate};
+        use crate::devices::{model_named, pro3::Pro3, test_pad::TestPad};
         for d in [Pro3.description().unwrap(), TestPad.description().unwrap()] {
             assert!(d.validated, "{}", d.short_name);
         }
-        let ultimate = Ultimate.description().unwrap();
+        let ultimate = model_named("Ultimate").unwrap().description().unwrap();
         assert!(ultimate.validated);
         assert_eq!(ultimate.family_name.as_deref(), Some("8BitDo Ultimate"));
         assert_eq!(ultimate.display_name, "Ultimate Bluetooth");

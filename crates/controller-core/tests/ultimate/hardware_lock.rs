@@ -2,12 +2,11 @@
 //! declared sequences and opens one read session per unlock; writes no profile.
 #![allow(clippy::unwrap_used, clippy::panic)]
 
+use crate::ultimate;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
 use controller_core::detect::{scan_sysfs_all, usb_id, xpad_event};
-use controller_core::device::ControllerSpec;
-use controller_core::devices::ultimate::Ultimate;
 use controller_core::devices::{locked_ports, SYSFS_USB};
 use controller_core::transport::lock::{relock, unlock, Unlocked};
 use controller_core::transport::{DeviceIo, HidrawDevice};
@@ -32,11 +31,11 @@ fn eventually(ready: impl Fn() -> bool) -> bool {
 #[test]
 #[ignore = "needs a locked Ultimate on USB"]
 fn unlock_and_relock_ten_times() {
-    let lock = Ultimate.description().unwrap().lock.as_ref().unwrap();
+    let lock = ultimate().description().unwrap().lock.as_ref().unwrap();
     // A pad left unlocked by an earlier run starts locked again.
-    let ports = &Ultimate.description().unwrap().config_ports;
+    let ports = &ultimate().description().unwrap().config_ports;
     for left in scan_sysfs_all(Path::new(SYSFS_USB), ports) {
-        relock(&Ultimate, left.port_path()).unwrap();
+        relock(ultimate(), left.port_path()).unwrap();
         assert!(eventually(|| locked_ports().iter().any(|l| l.port_path == left.port_path())));
     }
     for round in 1..=ROUNDS {
@@ -53,7 +52,7 @@ fn unlock_and_relock_ten_times() {
         let model = HidrawDevice::at(&port).model().unwrap();
         assert_eq!(model.description().unwrap().short_name, "Ultimate", "round {round}");
 
-        relock(&Ultimate, &port).unwrap();
+        relock(ultimate(), &port).unwrap();
         let dir = Path::new(SYSFS_USB).join(&port);
         assert_eq!(usb_id(&dir), Some(lock.locked.usb), "round {round}");
         assert!(eventually(|| xpad_event(&dir).is_some()), "round {round}: xpad is back");

@@ -291,11 +291,15 @@ fn wait_for_usb(dir: &Path, usb: UsbId, budget: Duration) -> Result<()> {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate() -> &'static dyn crate::device::Model {
+        crate::devices::model_named("Ultimate").unwrap()
+    }
     use std::cell::Cell;
+    use std::sync::LazyLock;
 
     use super::*;
     use crate::devices::test_pad::UnvalidatedPad;
-    use crate::devices::ultimate::Ultimate;
 
     /// One step a fake usbfs device saw.
     #[derive(Debug, Clone, PartialEq, Eq)]
@@ -345,7 +349,7 @@ mod tests {
     }
 
     fn ultimate_lock() -> &'static Lock {
-        lock_of(&Ultimate).unwrap()
+        lock_of(ultimate()).unwrap()
     }
 
     /// Runs [`send_unlock`] of the Ultimate on a fake that fails step `fail_at`.
@@ -481,7 +485,7 @@ mod tests {
     fn an_unlock_that_brings_up_an_unlisted_id_sends_nothing_more() {
         let dir = sysfs("6008");
         let locked = LockedController {
-            model: &Ultimate,
+            model: ultimate(),
             port_path: "8-5".to_owned(),
             usb_node: PathBuf::from("/dev/null"),
         };
@@ -494,8 +498,9 @@ mod tests {
 
     /// The Ultimate and the unvalidated test pad, with `allow_unvalidated` as given.
     fn rules(allow_unvalidated: bool) -> Rules<'static> {
-        static MODELS: [&dyn Model; 2] = [&Ultimate, &UnvalidatedPad];
-        Rules { models: &MODELS, allow_unvalidated }
+        static MODELS: LazyLock<[&'static dyn Model; 2]> =
+            LazyLock::new(|| [ultimate(), &UnvalidatedPad]);
+        Rules { models: &*MODELS, allow_unvalidated }
     }
 
     /// The unvalidated pad, locked on `8-5`, which an unlock turns into id `product`.
@@ -525,7 +530,7 @@ mod tests {
         // The string said Ultimate, the id says the unvalidated pad: the id decides.
         let dir = sysfs("7e58");
         let locked = LockedController {
-            model: &Ultimate,
+            model: ultimate(),
             port_path: "8-5".to_owned(),
             usb_node: PathBuf::from("/dev/null"),
         };

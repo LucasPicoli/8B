@@ -30,7 +30,8 @@
             "p1",
             "p2"
           ],
-          "hint": "Hold a button and press this one to turn turbo on or off for it."
+          "hint": "Hold a button and press this one to turn turbo on or off for it.",
+          "code": "0x10000"
         },
         {
           "id": "auto turbo",
@@ -40,7 +41,8 @@
             "p1",
             "p2"
           ],
-          "hint": "Hold a button and press this one: it fires on its own until you do it again."
+          "hint": "Hold a button and press this one: it fires on its own until you do it again.",
+          "code": "0x1000000"
         },
         {
           "id": "swap",
@@ -51,9 +53,16 @@
             "p2"
           ],
           "hint": "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
-          "leaving_hint": "A swap you made stays until you undo it with a Swap button."
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button.",
+          "code": "0x8000000"
         }
-      ]
+      ],
+      "gamepad_mode": 3,
+      "default_targets": {
+        "star": "turbo",
+        "p1": "disabled",
+        "p2": "disabled"
+      }
     },
     {
       "id": "switch",
@@ -68,7 +77,8 @@
             "p1",
             "p2"
           ],
-          "hint": "Hold a button and press this one to turn turbo on or off for it."
+          "hint": "Hold a button and press this one to turn turbo on or off for it.",
+          "code": "0x10000"
         },
         {
           "id": "auto turbo",
@@ -78,7 +88,8 @@
             "p1",
             "p2"
           ],
-          "hint": "Hold a button and press this one: it fires on its own until you do it again."
+          "hint": "Hold a button and press this one: it fires on its own until you do it again.",
+          "code": "0x1000000"
         },
         {
           "id": "swap",
@@ -89,16 +100,25 @@
             "p2"
           ],
           "hint": "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
-          "leaving_hint": "A swap you made stays until you undo it with a Swap button."
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button.",
+          "code": "0x8000000"
         },
         {
           "id": "screenshot",
           "label": "Screenshot",
           "buttons": [
             "star"
-          ]
+          ],
+          "code": "0x400000"
         }
-      ]
+      ],
+      "gamepad_mode": 0,
+      "default_targets": {
+        "star": "screenshot",
+        "p1": "disabled",
+        "p2": "disabled"
+      },
+      "default_trigger_start": 30
     }
   ],
   "slot_count": 3,
@@ -227,7 +247,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 0,
+      "map_codes": {
+        "xinput": "0x1000",
+        "switch": "0x2000"
+      },
+      "macro_code": "0x2000"
     },
     {
       "id": "bottom face",
@@ -239,7 +265,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 1,
+      "map_codes": {
+        "xinput": "0x2000",
+        "switch": "0x1000"
+      },
+      "macro_code": "0x1000"
     },
     {
       "id": "top face",
@@ -251,7 +283,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 2,
+      "map_codes": {
+        "xinput": "0x20",
+        "switch": "0x10"
+      },
+      "macro_code": "0x10"
     },
     {
       "id": "left face",
@@ -263,7 +301,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 3,
+      "map_codes": {
+        "xinput": "0x10",
+        "switch": "0x20"
+      },
+      "macro_code": "0x20"
     },
     {
       "id": "l1",
@@ -275,7 +319,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 4,
+      "map_codes": {
+        "xinput": "0x400",
+        "switch": "0x400"
+      },
+      "macro_code": "0x400"
     },
     {
       "id": "r1",
@@ -287,7 +337,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 5,
+      "map_codes": {
+        "xinput": "0x800",
+        "switch": "0x800"
+      },
+      "macro_code": "0x800"
     },
     {
       "id": "l2",
@@ -299,7 +355,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 6,
+      "map_codes": {
+        "xinput": "0x4000",
+        "switch": "0x4000"
+      },
+      "macro_code": "0x4000"
     },
     {
       "id": "r2",
@@ -311,7 +373,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 7,
+      "map_codes": {
+        "xinput": "0x8000",
+        "switch": "0x8000"
+      },
+      "macro_code": "0x8000"
     },
     {
       "id": "l3",
@@ -322,7 +390,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 8,
+      "map_codes": {
+        "xinput": "0x2",
+        "switch": "0x2"
+      },
+      "macro_code": "0x2"
     },
     {
       "id": "r3",
@@ -333,7 +407,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 9,
+      "map_codes": {
+        "xinput": "0x4",
+        "switch": "0x4"
+      },
+      "macro_code": "0x4"
     },
     {
       "id": "select/back",
@@ -348,7 +428,12 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": false,
-      "can_be_in_macro_step": false
+      "can_be_in_macro_step": false,
+      "map_index": 10,
+      "map_codes": {
+        "xinput": "0x8",
+        "switch": "0x8"
+      }
     },
     {
       "id": "start/menu",
@@ -363,7 +448,12 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": false,
-      "can_be_in_macro_step": false
+      "can_be_in_macro_step": false,
+      "map_index": 11,
+      "map_codes": {
+        "xinput": "0x1",
+        "switch": "0x1"
+      }
     },
     {
       "id": "star",
@@ -374,7 +464,9 @@
       "can_be_remapped": true,
       "can_be_output": false,
       "can_start_macro": true,
-      "can_be_in_macro_step": false
+      "can_be_in_macro_step": false,
+      "map_index": 12,
+      "macro_code": "0x10000"
     },
     {
       "id": "home/guide",
@@ -385,7 +477,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": true,
-      "can_be_in_macro_step": false
+      "can_be_in_macro_step": false,
+      "map_index": 13,
+      "map_codes": {
+        "xinput": "0x20000",
+        "switch": "0x20000"
+      },
+      "macro_code": "0x20000"
     },
     {
       "id": "d-pad up",
@@ -400,7 +498,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": false,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 14,
+      "map_codes": {
+        "xinput": "0x200",
+        "switch": "0x200"
+      },
+      "macro_code": "0x200"
     },
     {
       "id": "d-pad down",
@@ -415,7 +519,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": false,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 15,
+      "map_codes": {
+        "xinput": "0x100",
+        "switch": "0x100"
+      },
+      "macro_code": "0x100"
     },
     {
       "id": "d-pad left",
@@ -430,7 +540,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": false,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 16,
+      "map_codes": {
+        "xinput": "0x80",
+        "switch": "0x80"
+      },
+      "macro_code": "0x80"
     },
     {
       "id": "d-pad right",
@@ -445,7 +561,13 @@
       "can_be_remapped": true,
       "can_be_output": true,
       "can_start_macro": false,
-      "can_be_in_macro_step": true
+      "can_be_in_macro_step": true,
+      "map_index": 17,
+      "map_codes": {
+        "xinput": "0x40",
+        "switch": "0x40"
+      },
+      "macro_code": "0x40"
     },
     {
       "id": "p1",
@@ -456,7 +578,9 @@
       "can_be_remapped": true,
       "can_be_output": false,
       "can_start_macro": true,
-      "can_be_in_macro_step": false
+      "can_be_in_macro_step": false,
+      "map_index": 18,
+      "macro_code": "0x2000000"
     },
     {
       "id": "p2",
@@ -467,7 +591,9 @@
       "can_be_remapped": true,
       "can_be_output": false,
       "can_start_macro": true,
-      "can_be_in_macro_step": false
+      "can_be_in_macro_step": false,
+      "map_index": 19,
+      "macro_code": "0x4000000"
     }
   ],
   "settings": [

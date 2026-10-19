@@ -5,6 +5,7 @@
 //! flag is not set starts from the default too. The name, the other slots and every
 //! byte outside the slots go back as read.
 
+use crate::description::ControllerDescription;
 use crate::error::{Error, Result};
 use crate::model::{CanonicalProfile, MacroDefinition, MacroSlot, Mode, Slot};
 use crate::protocol::bytes::{put_u16_le, put_u32_le};
@@ -29,6 +30,7 @@ fn section_starts(s: usize) -> impl Iterator<Item = usize> {
 /// Returns `blob` with `slot` holding `profile`'s settings and button map, and `macros`.
 /// `None` keeps what the slot holds, or the mode's default where it holds nothing.
 fn write_slot(
+    d: &ControllerDescription,
     blob: &[u8],
     slot: Slot,
     profile: Option<&CanonicalProfile>,
@@ -36,7 +38,7 @@ fn write_slot(
 ) -> Result<Vec<u8>> {
     check_blob(blob)?;
     let s = slot_index(slot)?;
-    let mode = image_mode(blob)?;
+    let mode = image_mode(d, blob)?;
     if let Some(p) = profile {
         if p.mode != mode {
             return Err(Error::Validation(format!(
@@ -46,7 +48,7 @@ fn write_slot(
         }
     }
     let first = !slot_in_use(blob, slot)?;
-    let default = default_profile(mode);
+    let default = default_profile(d, mode);
     let mut out = blob.to_vec();
     for sec in Section::ALL {
         let (base, len) = sec.place();
@@ -57,8 +59,8 @@ fn write_slot(
             bytes.fill(0);
         }
         match (profile, fresh) {
-            (Some(p), _) => sec.write(bytes, p)?,
-            (None, true) => sec.write(bytes, &default)?,
+            (Some(p), _) => sec.write(d, bytes, p)?,
+            (None, true) => sec.write(d, bytes, &default)?,
             (None, false) => {}
         }
     }
@@ -70,8 +72,8 @@ fn write_slot(
         bytes.fill(0);
     }
     match (macros, fresh) {
-        (Some(defs), _) => write_macros(bytes, defs)?,
-        (None, true) => write_macros(bytes, &[])?,
+        (Some(defs), _) => write_macros(d, bytes, defs)?,
+        (None, true) => write_macros(d, bytes, &[])?,
         (None, false) => {}
     }
     for at in section_starts(s) {
@@ -86,9 +88,9 @@ fn write_slot(
 ///
 /// # Errors
 /// Returns [`Error::Validation`] for a mode the Ultimate does not have.
-pub fn erased_image(mode: Mode) -> Result<Vec<u8>> {
+pub fn erased_image(d: &ControllerDescription, mode: Mode) -> Result<Vec<u8>> {
     let mut image = vec![0xFF; BLOB_SIZE];
-    put_u16_le(&mut image, GAMEPAD_MODE_OFFSET, u16::from(mode_byte(mode)?))?;
+    put_u16_le(&mut image, GAMEPAD_MODE_OFFSET, u16::from(mode_byte(d, mode)?))?;
     put_u16_le(&mut image, SELECTION_OFFSET, NO_SELECTION)?;
     Ok(image)
 }
@@ -100,6 +102,7 @@ pub fn erased_image(mode: Mode) -> Result<Vec<u8>> {
 /// Returns [`Error::Validation`] for a slot past the third, a profile of another mode
 /// than the image, an unknown output, or a macro the pad cannot hold.
 pub fn compile_profile(
+    d: &ControllerDescription,
     profile: &CanonicalProfile,
     target_slot: Slot,
     base_blob: &[u8],
@@ -109,10 +112,10 @@ pub fn compile_profile(
     let base = if base_blob.len() == BLOB_SIZE {
         base_blob
     } else {
-        erased = erased_image(profile.mode)?;
+        erased = erased_image(d, profile.mode)?;
         &erased
     };
-    write_slot(base, target_slot, Some(profile), Some(macros))
+    write_slot(d, base, target_slot, Some(profile), Some(macros))
 }
 
 /// Like [`compile_profile`], but keeps the macros `base_blob` holds for `target_slot`
@@ -121,11 +124,12 @@ pub fn compile_profile(
 /// # Errors
 /// Same as [`compile_profile`], and [`Error::Decode`] if `base_blob` is not a full image.
 pub fn compile_profile_keep_macros(
+    d: &ControllerDescription,
     profile: &CanonicalProfile,
     target_slot: Slot,
     base_blob: &[u8],
 ) -> Result<Vec<u8>> {
-    write_slot(base_blob, target_slot, Some(profile), None)
+    write_slot(d, base_blob, target_slot, Some(profile), None)
 }
 
 /// Returns `blob` with macro slot `macro_slot` of `slot` holding `def`, or empty when
@@ -138,6 +142,7 @@ pub fn compile_profile_keep_macros(
 /// Returns [`Error::Decode`] if `blob` is not a full image, and [`Error::Validation`]
 /// if `def` cannot be encoded.
 pub fn set_macro(
+    d: &ControllerDescription,
     blob: &[u8],
     slot: Slot,
     macro_slot: MacroSlot,
@@ -145,11 +150,11 @@ pub fn set_macro(
 ) -> Result<Vec<u8>> {
     let m = macro_slot.get();
     let mut defs: Vec<MacroDefinition> =
-        decode_macros(blob, slot)?.into_iter().filter(|d| d.macro_slot != Some(m)).collect();
+        decode_macros(d, blob, slot)?.into_iter().filter(|d| d.macro_slot != Some(m)).collect();
     if let Some(def) = def {
         defs.push(MacroDefinition { macro_slot: Some(m), ..def.clone() });
     }
-    write_slot(blob, slot, None, Some(&defs))
+    write_slot(d, blob, slot, None, Some(&defs))
 }
 
 /// Returns `blob` with each button of `triggers` taken off the macros of `slot`. Every
@@ -157,15 +162,20 @@ pub fn set_macro(
 ///
 /// # Errors
 /// Returns [`Error::Decode`] if `blob` is not a full image.
-pub fn drop_macros(blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
-    let defs: Vec<MacroDefinition> = decode_macros(blob, slot)?
+pub fn drop_macros(
+    d: &ControllerDescription,
+    blob: &[u8],
+    slot: Slot,
+    triggers: &[String],
+) -> Result<Vec<u8>> {
+    let defs: Vec<MacroDefinition> = decode_macros(d, blob, slot)?
         .into_iter()
         .map(|mut d| {
             d.trigger_buttons.retain(|b| !triggers.contains(b));
             d
         })
         .collect();
-    write_slot(blob, slot, None, Some(&defs))
+    write_slot(d, blob, slot, None, Some(&defs))
 }
 
 /// Returns `blob` with `slot` empty: its 7 flags cleared, as the vendor app's Delete

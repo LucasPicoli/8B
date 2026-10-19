@@ -511,17 +511,20 @@ pub fn render_locked(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate_model() -> &'static dyn controller_core::device::Model {
+        controller_core::devices::model_named("Ultimate").unwrap()
+    }
     use std::path::PathBuf;
     use std::sync::mpsc;
 
     use controller_core::devices::test_pad::UnvalidatedPad;
-    use controller_core::devices::ultimate::Ultimate;
 
     use super::*;
     use crate::state::tests::{new_state, ultimate, PORT};
 
     fn target(port: &str) -> Target {
-        Target { port: port.to_owned(), model: &Ultimate }
+        Target { port: port.to_owned(), model: ultimate_model() }
     }
 
     /// A locked pad of the model that no one has checked on a real pad.

@@ -126,6 +126,7 @@
   },
   "$defs": {
     "HexId": { "type": "string", "pattern": "^0x[0-9a-f]{4}$" },
+    "HexCode": { "type": "string", "pattern": "^0x[0-9a-f]{1,8}$" },
     "UsbId": {
       "type": "object",
       "additionalProperties": false,
@@ -259,6 +260,23 @@
           "type": "integer",
           "minimum": 0
         },
+        "gamepad_mode": {
+          "description": "Optional. The byte the pad stores in a profile image, and selects the mode by. Unique per model.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "default_targets": {
+          "description": "Optional. What a new profile maps a button to in this mode: button id to output id. A button left out sends its own output. The loader checks each pair as a remap.",
+          "type": "object",
+          "additionalProperties": { "type": "string", "minLength": 1 }
+        },
+        "default_trigger_start": {
+          "description": "Optional. Where a new profile starts the low end of both triggers in this mode, in percent. Absent means 0.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
         "extra_outputs": {
           "description": "Outputs beyond the buttons and 'disabled', which every mode has. An output a mode does not list is not offered in that mode.",
           "type": "array",
@@ -283,6 +301,10 @@
               "leaving_hint": {
                 "description": "Optional. A warning shown when a button the controller holds on this output is set to another one.",
                 "type": "string"
+              },
+              "code": {
+                "description": "Optional. The code a button map entry holds for this output, such as 0x400000.",
+                "$ref": "#/$defs/HexCode"
               }
             }
           }
@@ -430,6 +452,26 @@
         "step_trigger_value": {
           "description": "A macro step holds this button's press in its left or right trigger value, as a pressure in an analog mode, not among its pressed buttons. At most one button per side, and it sets can_be_in_macro_step. Absent for a plain button.",
           "enum": ["left", "right"]
+        },
+        "map_index": {
+          "description": "Optional. Where this button's entry sits in the pad's button map. Unique per model.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 255
+        },
+        "map_codes": {
+          "description": "Optional. The code a button map entry holds when it sends this button's press, one per listed mode. A mode without an entry has no such output. The same code can mean another button in another mode.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "xinput": { "$ref": "#/$defs/HexCode" },
+            "switch": { "$ref": "#/$defs/HexCode" },
+            "dinput": { "$ref": "#/$defs/HexCode" }
+          }
+        },
+        "macro_code": {
+          "description": "Optional. The code a macro record holds for this button, the same in every mode. Set it on its own: it is not taken from map_codes.",
+          "$ref": "#/$defs/HexCode"
         }
       }
     },

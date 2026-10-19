@@ -12,13 +12,13 @@ use crate::protocol::bytes::{
 };
 
 use super::tables::{
-    Code, IN_USE, LEFT_STICK_BITS, MACROS_LEN, MACROS_OFFSET, MACRO_COUNT_AT, MACRO_PADDING_AT,
-    MACRO_RECORDS_AT, MACRO_RECORD_LEN, MACRO_SLOTS, MACRO_STEPS, MACRO_STEP_BUTTONS,
-    MACRO_TRIGGERS, PRINTED_FACES, RECORD_CODES_AT, RECORD_COUNT_AT, RECORD_PADDING_AT,
-    RECORD_STICKS_AT, RECORD_TIMES_AT, RECORD_TRIGGER_AT, RIGHT_STICK_BITS, SHARED_OUTPUTS,
-    TRIGGER_ONLY, UNUSED_STEP_MS,
+    IN_USE, LEFT_STICK_BITS, MACROS_LEN, MACROS_OFFSET, MACRO_COUNT_AT, MACRO_PADDING_AT,
+    MACRO_RECORDS_AT, MACRO_RECORD_LEN, MACRO_SLOTS, MACRO_STEPS, RECORD_CODES_AT, RECORD_COUNT_AT,
+    RECORD_PADDING_AT, RECORD_STICKS_AT, RECORD_TIMES_AT, RECORD_TRIGGER_AT, RIGHT_STICK_BITS,
+    UNUSED_STEP_MS,
 };
 use super::{check_blob, image_mode, read_flag, slot_in_use, slot_index};
+use crate::description::{Button, ControllerDescription};
 
 /// A stick axis at rest, as [`MacroStep::default`] holds it.
 const CENTRE: u8 = 127;
@@ -29,15 +29,20 @@ const LOW: u8 = 0;
 /// An axis pushed all the way down or right.
 const HIGH: u8 = 255;
 
-/// The code of `name` in a macro record, or `None` for a button no record can hold.
-fn macro_code(name: &str) -> Option<u32> {
-    let mut codes = PRINTED_FACES.iter().chain(&SHARED_OUTPUTS).chain(&TRIGGER_ONLY);
-    codes.find(|(n, _)| *n == name).map(|&(_, code)| code)
+/// The buttons `allowed` picks that a record can hold, with their record codes.
+fn coded(d: &ControllerDescription, allowed: fn(&Button) -> bool) -> Vec<(&str, u32)> {
+    let buttons = d.buttons.iter().filter(|b| allowed(b));
+    buttons.filter_map(|b| Some((b.id.as_str(), b.macro_code?))).collect()
 }
 
-/// The macro codes of `names`, in that order.
-fn codes_of(names: &[&'static str]) -> Vec<Code> {
-    names.iter().filter_map(|&n| Some((n, macro_code(n)?))).collect()
+/// Whether a button may start a macro.
+const fn starts(b: &Button) -> bool {
+    b.can_start_macro
+}
+
+/// Whether a button may be pressed in a macro step.
+const fn in_step(b: &Button) -> bool {
+    b.can_be_in_macro_step
 }
 
 /// The macros of `slot` in `blob`, in record order, with their steps. A slot or a macro
@@ -46,9 +51,13 @@ fn codes_of(names: &[&'static str]) -> Vec<Code> {
 /// # Errors
 /// Returns [`Error::Decode`] if `blob` is not a full image or its mode is unknown, and
 /// [`Error::Validation`] for a slot past the third.
-pub fn decode_macros(blob: &[u8], slot: Slot) -> Result<Vec<MacroDefinition>> {
+pub fn decode_macros(
+    d: &ControllerDescription,
+    blob: &[u8],
+    slot: Slot,
+) -> Result<Vec<MacroDefinition>> {
     check_blob(blob)?;
-    let mode = image_mode(blob)?;
+    let mode = image_mode(d, blob)?;
     let at = MACROS_OFFSET + slot_index(slot)? * MACROS_LEN;
     if !slot_in_use(blob, slot)? || read_flag(blob, at)? != IN_USE {
         return Ok(Vec::new());
@@ -58,20 +67,26 @@ pub fn decode_macros(blob: &[u8], slot: Slot) -> Result<Vec<MacroDefinition>> {
         .map(|m| {
             let record =
                 take(blob, at + MACRO_RECORDS_AT + m * MACRO_RECORD_LEN, MACRO_RECORD_LEN)?;
-            decode_record(record, u8::try_from(m).unwrap_or_default(), mode)
+            decode_record(d, record, u8::try_from(m).unwrap_or_default(), mode)
         })
         .collect()
 }
 
 /// Decodes one 96-byte record as the macro in macro slot `m`.
-fn decode_record(record: &[u8], m: u8, mode: Mode) -> Result<MacroDefinition> {
+fn decode_record(
+    d: &ControllerDescription,
+    record: &[u8],
+    m: u8,
+    mode: Mode,
+) -> Result<MacroDefinition> {
     let trigger = read_u32_le(record, RECORD_TRIGGER_AT)?;
-    let named = codes_of(&MACRO_TRIGGERS).into_iter().find(|&(_, code)| code == trigger);
+    let named = coded(d, starts).into_iter().find(|&(_, code)| code == trigger);
     let (trigger_buttons, unknown_trigger_bits) = match named {
         Some((name, _)) => (vec![name.to_owned()], 0),
         None => (Vec::new(), trigger),
     };
     let count = usize::from(read_u8(record, RECORD_COUNT_AT)?).min(MACRO_STEPS);
+    let step_codes = coded(d, in_step);
     let steps = (0..count)
         .map(|i| {
             let code = u32::from(read_u16_le(record, RECORD_CODES_AT + 2 * i)?);
@@ -80,10 +95,10 @@ fn decode_record(record: &[u8], m: u8, mode: Mode) -> Result<MacroDefinition> {
             let [right_stick_x, right_stick_y] = axes(stick, RIGHT_STICK_BITS);
             Ok(MacroStep {
                 duration_ms: read_u16_le(record, RECORD_TIMES_AT + 2 * i)?,
-                pressed_buttons: codes_of(&MACRO_STEP_BUTTONS)
-                    .into_iter()
-                    .filter(|&(_, bit)| code & bit != 0)
-                    .map(|(name, _)| name.to_owned())
+                pressed_buttons: step_codes
+                    .iter()
+                    .filter(|&&(_, bit)| code & bit != 0)
+                    .map(|&(name, _)| name.to_owned())
                     .collect(),
                 left_stick_x,
                 left_stick_y,
@@ -139,16 +154,20 @@ fn stick_bits([x, y]: [u8; 2], [up, down, left, right]: [u8; 4]) -> Result<u8> {
 /// Returns [`Error::Validation`] for more than one trigger button, more than 18 steps,
 /// a button a record cannot hold, a stick between centre and full travel, or a trigger
 /// held at an analog value.
-pub fn encode_record(def: &MacroDefinition) -> Result<[u8; MACRO_RECORD_LEN]> {
-    let lookup =
-        |name: &str, allowed: &[&str], what: &str| {
-            allowed.contains(&name).then(|| macro_code(name)).flatten().ok_or_else(|| {
-                Error::Validation(format!("{name} cannot {what} on this controller"))
-            })
-        };
+pub fn encode_record(
+    d: &ControllerDescription,
+    def: &MacroDefinition,
+) -> Result<[u8; MACRO_RECORD_LEN]> {
+    let lookup = |name: &str, allowed: fn(&Button) -> bool, what: &str| {
+        coded(d, allowed)
+            .into_iter()
+            .find(|&(n, _)| n == name)
+            .map(|(_, code)| code)
+            .ok_or_else(|| Error::Validation(format!("{name} cannot {what} on this controller")))
+    };
     let trigger = match def.trigger_buttons.as_slice() {
         [] => 0,
-        [one] => lookup(one, &MACRO_TRIGGERS, "start a macro")?,
+        [one] => lookup(one, starts, "start a macro")?,
         _ => return Err(Error::Validation("a macro here starts from one button".to_owned())),
     };
     if def.steps.len() > MACRO_STEPS {
@@ -167,7 +186,7 @@ pub fn encode_record(def: &MacroDefinition) -> Result<[u8; MACRO_RECORD_LEN]> {
                 }
                 let mut code = 0;
                 for name in &step.pressed_buttons {
-                    code |= lookup(name, &MACRO_STEP_BUTTONS, "be pressed in a macro")?;
+                    code |= lookup(name, in_step, "be pressed in a macro")?;
                 }
                 let left = stick_bits([step.left_stick_x, step.left_stick_y], LEFT_STICK_BITS)?;
                 let right = stick_bits([step.right_stick_x, step.right_stick_y], RIGHT_STICK_BITS)?;
@@ -191,7 +210,11 @@ pub fn encode_record(def: &MacroDefinition) -> Result<[u8; MACRO_RECORD_LEN]> {
 /// # Errors
 /// Returns [`Error::Validation`] for more than four macros or a macro
 /// [`encode_record`] refuses.
-pub fn write_macros(section: &mut [u8], defs: &[MacroDefinition]) -> Result<()> {
+pub fn write_macros(
+    d: &ControllerDescription,
+    section: &mut [u8],
+    defs: &[MacroDefinition],
+) -> Result<()> {
     if defs.len() > MACRO_SLOTS {
         return Err(Error::Validation(format!(
             "a profile here holds at most {MACRO_SLOTS} macros"
@@ -203,7 +226,7 @@ pub fn write_macros(section: &mut [u8], defs: &[MacroDefinition]) -> Result<()> 
     for m in 0..MACRO_SLOTS {
         let at = MACRO_RECORDS_AT + m * MACRO_RECORD_LEN;
         match sorted.get(m) {
-            Some(def) => put_slice(section, at, &encode_record(def)?)?,
+            Some(def) => put_slice(section, at, &encode_record(d, def)?)?,
             None if m < old => put_slice(section, at, &[0; MACRO_RECORD_LEN])?,
             None => {}
         }
@@ -218,6 +241,11 @@ pub fn write_macros(section: &mut [u8], defs: &[MacroDefinition]) -> Result<()> 
 mod tests {
     use super::*;
     use crate::devices::ultimate::XINPUT;
+
+    /// The registered Ultimate's description.
+    fn d() -> &'static ControllerDescription {
+        crate::devices::model_named("Ultimate").unwrap().description().unwrap()
+    }
 
     fn step(buttons: &[&str], left: [u8; 2], right: [u8; 2]) -> MacroStep {
         MacroStep {
@@ -247,13 +275,13 @@ mod tests {
     #[test]
     fn a_record_names_printed_buttons() {
         let record =
-            encode_record(&def("right face", vec![step(&["top face"], [127; 2], [127; 2])]))
+            encode_record(d(), &def("right face", vec![step(&["top face"], [127; 2], [127; 2])]))
                 .unwrap();
         assert_eq!(read_u32_le(&record, RECORD_TRIGGER_AT).unwrap(), 0x2000, "printed A");
         assert_eq!(read_u16_le(&record, RECORD_CODES_AT).unwrap(), 0x10, "printed X");
         assert_eq!(read_u16_le(&record, RECORD_TIMES_AT + 2).unwrap(), UNUSED_STEP_MS);
         assert_eq!(record[RECORD_COUNT_AT], 1);
-        let star = encode_record(&def("star", Vec::new())).unwrap();
+        let star = encode_record(d(), &def("star", Vec::new())).unwrap();
         assert_eq!(read_u32_le(&star, RECORD_TRIGGER_AT).unwrap(), 0x1_0000);
     }
 
@@ -271,38 +299,38 @@ mod tests {
         ];
         for (at, bits) in directions {
             let steps = vec![step(&[], at, [127; 2]), step(&[], [127; 2], at)];
-            let record = encode_record(&def("p1", steps.clone())).unwrap();
+            let record = encode_record(d(), &def("p1", steps.clone())).unwrap();
             assert_eq!(record[RECORD_STICKS_AT], bits, "left {at:?}");
             assert_eq!(record[RECORD_STICKS_AT + 1], bits << 4, "right {at:?}");
-            assert_eq!(decode_record(&record, 0, XINPUT).unwrap().steps, steps);
+            assert_eq!(decode_record(d(), &record, 0, XINPUT).unwrap().steps, steps);
         }
         // The true middle reads back as the model's centre.
-        let middle = encode_record(&def("p1", vec![step(&[], [128; 2], [128; 2])])).unwrap();
+        let middle = encode_record(d(), &def("p1", vec![step(&[], [128; 2], [128; 2])])).unwrap();
         assert_eq!(middle[RECORD_STICKS_AT], 0);
     }
 
     #[test]
     fn a_record_refuses_what_the_pad_cannot_play() {
         let half = def("p1", vec![step(&[], [64, 127], [127; 2])]);
-        assert!(encode_record(&half).is_err(), "a stick part way");
-        assert!(encode_record(&def("select/back", Vec::new())).is_err(), "no macro on View");
-        assert!(encode_record(&def("p1", vec![step(&["star"], [127; 2], [127; 2])])).is_err());
+        assert!(encode_record(d(), &half).is_err(), "a stick part way");
+        assert!(encode_record(d(), &def("select/back", Vec::new())).is_err(), "no macro on View");
+        assert!(encode_record(d(), &def("p1", vec![step(&["star"], [127; 2], [127; 2])])).is_err());
         let long = def("p1", vec![step(&[], [127; 2], [127; 2]); MACRO_STEPS + 1]);
-        assert!(encode_record(&long).is_err(), "19 steps");
+        assert!(encode_record(d(), &long).is_err(), "19 steps");
         let pulled = MacroStep { trigger_left: 200, ..MacroStep::default() };
-        assert!(encode_record(&def("p1", vec![pulled])).is_err(), "an analog trigger");
+        assert!(encode_record(d(), &def("p1", vec![pulled])).is_err(), "an analog trigger");
         let two = MacroDefinition {
             trigger_buttons: vec!["p1".into(), "p2".into()],
             ..def("p1", vec![])
         };
-        assert!(encode_record(&two).is_err(), "two triggers");
+        assert!(encode_record(d(), &two).is_err(), "two triggers");
     }
 
     #[test]
     fn a_dpad_diagonal_is_two_buttons() {
         let steps = vec![step(&["d-pad up", "d-pad right"], [127; 2], [127; 2])];
-        let record = encode_record(&def("p2", steps.clone())).unwrap();
+        let record = encode_record(d(), &def("p2", steps.clone())).unwrap();
         assert_eq!(read_u16_le(&record, RECORD_CODES_AT).unwrap(), 0x240);
-        assert_eq!(decode_record(&record, 0, XINPUT).unwrap().steps, steps);
+        assert_eq!(decode_record(d(), &record, 0, XINPUT).unwrap().steps, steps);
     }
 }

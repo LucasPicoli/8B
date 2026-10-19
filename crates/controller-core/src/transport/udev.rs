@@ -210,10 +210,13 @@ fn keepalive_command_for(rule: &str) -> String {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate() -> &'static dyn crate::device::Model {
+        crate::devices::model_named("Ultimate").unwrap()
+    }
     use super::*;
     use crate::device::ControllerSpec as _;
     use crate::devices::pro3::Pro3;
-    use crate::devices::ultimate::Ultimate;
 
     /// A single quote would end the shell argument early.
     fn assert_quotable(text: &str) {
@@ -319,7 +322,7 @@ mod tests {
     #[test]
     fn a_lock_adds_one_usb_line_per_vendor() {
         let pro3 = Pro3.description().unwrap();
-        let ultimate = Ultimate.description().unwrap();
+        let ultimate = ultimate().description().unwrap();
         let usb = "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"2dc8\", TAG+=\"uaccess\"\n";
         let rule = access_rule_for([pro3, ultimate]);
         assert_eq!(rule, format!("{}{usb}", access_rule_for([pro3])));

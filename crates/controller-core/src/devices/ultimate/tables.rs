@@ -1,4 +1,4 @@
-//! The Ultimate's blob layout and code tables.
+//! The Ultimate's blob layout. Codes, indexes and mode bytes live in its description.
 //!
 //! One image is 1652 bytes, little-endian throughout, and holds three profile slots.
 //! Each slot keeps its fields in seven sections spread over the image, each section with
@@ -39,10 +39,6 @@ pub const GAMEPAD_MODE_OFFSET: usize = 0x010;
 pub const SELECTION_OFFSET: usize = 0x012;
 /// The selection of an erased image: no profile.
 pub const NO_SELECTION: u16 = 6;
-/// The image-mode value of `XInput`, also its image-select value.
-pub const GAMEPAD_XINPUT: u8 = 3;
-/// The image-mode value of Switch, also its image-select value.
-pub const GAMEPAD_SWITCH: u8 = 0;
 
 /// Where the names start.
 pub const NAME_OFFSET: usize = 0x014;
@@ -82,8 +78,6 @@ pub const TRIGGER_RAW_MAX: i32 = 255;
 pub const VIBRATION_LEVELS: f32 = 5.0;
 /// The highest vibration level.
 pub const VIBRATION_LEVEL_MAX: i32 = 5;
-/// The lowest end of a Switch trigger range by default, about 30%.
-pub const SWITCH_TRIGGER_START: i32 = 30;
 
 /// Toggle bit: invert the left stick's X axis.
 pub const INVERT_LEFT_X: u32 = 0x1;
@@ -137,108 +131,3 @@ pub const UNUSED_STEP_MS: u16 = 51;
 pub const LEFT_STICK_BITS: [u8; 4] = [0x01, 0x02, 0x04, 0x08];
 /// Stick byte bits of the right stick, in the order up, down, left, right.
 pub const RIGHT_STICK_BITS: [u8; 4] = [0x10, 0x20, 0x40, 0x80];
-
-/// The button at each index of the button map, by position id. Index 0 is the button
-/// printed A, the right face button.
-pub const MAP_BUTTONS: [&str; MAP_ENTRIES] = [
-    "right face",
-    "bottom face",
-    "top face",
-    "left face",
-    "l1",
-    "r1",
-    "l2",
-    "r2",
-    "l3",
-    "r3",
-    "select/back",
-    "start/menu",
-    "star",
-    "home/guide",
-    "d-pad up",
-    "d-pad down",
-    "d-pad left",
-    "d-pad right",
-    "p1",
-    "p2",
-];
-
-/// A name and its code.
-pub type Code = (&'static str, u32);
-
-/// The output "None", which sends nothing.
-pub const DISABLED: &str = "disabled";
-
-/// The codes every mode shares, for the buttons other than the face buttons.
-pub const SHARED_OUTPUTS: [Code; 13] = [
-    ("l1", 0x400),
-    ("r1", 0x800),
-    ("l2", 0x4000),
-    ("r2", 0x8000),
-    ("l3", 0x2),
-    ("r3", 0x4),
-    ("select/back", 0x8),
-    ("start/menu", 0x1),
-    ("home/guide", 0x2_0000),
-    ("d-pad up", 0x200),
-    ("d-pad down", 0x100),
-    ("d-pad left", 0x80),
-    ("d-pad right", 0x40),
-];
-
-/// The face button codes in `XInput`, which name the Xbox output: `0x2000` is Xbox A,
-/// the bottom face button.
-pub const XINPUT_FACES: [Code; 4] =
-    [("bottom face", 0x2000), ("right face", 0x1000), ("left face", 0x10), ("top face", 0x20)];
-
-/// The face button codes by printed label: `0x2000` is printed A, the right face button.
-/// The Switch outputs and every macro code use them.
-pub const PRINTED_FACES: [Code; 4] =
-    [("right face", 0x2000), ("bottom face", 0x1000), ("top face", 0x10), ("left face", 0x20)];
-
-/// The outputs that only some buttons take.
-pub const EXTRA_OUTPUTS: [Code; 4] = [
-    ("turbo", 0x1_0000),
-    ("auto turbo", 0x100_0000),
-    ("swap", 0x800_0000),
-    ("screenshot", 0x40_0000),
-];
-
-/// The macro trigger codes of the buttons that are never outputs.
-pub const TRIGGER_ONLY: [Code; 3] = [("star", 0x1_0000), ("p1", 0x200_0000), ("p2", 0x400_0000)];
-
-/// The macro trigger buttons, as the pad allows them.
-pub const MACRO_TRIGGERS: [&str; 14] = [
-    "right face",
-    "bottom face",
-    "top face",
-    "left face",
-    "l1",
-    "r1",
-    "l2",
-    "r2",
-    "l3",
-    "r3",
-    "home/guide",
-    "star",
-    "p1",
-    "p2",
-];
-
-/// The macro step buttons, as the pad allows them: no menu buttons, no Home.
-pub const MACRO_STEP_BUTTONS: [&str; 14] = [
-    "right face",
-    "bottom face",
-    "top face",
-    "left face",
-    "l1",
-    "r1",
-    "l2",
-    "r2",
-    "l3",
-    "r3",
-    "d-pad up",
-    "d-pad down",
-    "d-pad left",
-    "d-pad right",
-];

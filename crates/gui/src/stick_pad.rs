@@ -482,7 +482,9 @@ mod tests {
         assert_eq!(right_stick(&s), [255, 0], "typed values snap too");
         let slot = s.slot(controller_core::devices::ultimate::XINPUT, 1);
         let def = slot.shown_macro(0).unwrap();
-        controller_core::devices::ultimate::macros::encode_record(def).unwrap();
+        let model = controller_core::devices::model_named("Ultimate").unwrap();
+        let d = model.description().unwrap();
+        controller_core::devices::ultimate::macros::encode_record(d, def).unwrap();
     }
 
     #[test]

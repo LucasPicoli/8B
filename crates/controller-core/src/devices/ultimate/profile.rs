@@ -13,15 +13,14 @@ use crate::protocol::bytes::{put_slice, put_u32_le, read_u32_le, read_u8, take};
 use super::macros::decode_macros;
 use super::settings::{Settings, Sticks, Triggers, Vibration};
 use super::tables::{
-    Code, DISABLED, DPAD_FOUR_WAY, EXTRA_OUTPUTS, FLAG_LEN, INVERT_LEFT_X, INVERT_LEFT_Y,
-    INVERT_RIGHT_X, INVERT_RIGHT_Y, IN_USE, MAP_BUTTONS, MAP_LEN, MAP_OFFSET, NAME_LEN,
-    NAME_OFFSET, NO_DEAD_ZONE, PRINTED_FACES, RANGE_LEN, SHARED_OUTPUTS, STICKS_OFFSET,
+    DPAD_FOUR_WAY, FLAG_LEN, INVERT_LEFT_X, INVERT_LEFT_Y, INVERT_RIGHT_X, INVERT_RIGHT_Y, IN_USE,
+    MAP_LEN, MAP_OFFSET, NAME_LEN, NAME_OFFSET, NO_DEAD_ZONE, RANGE_LEN, STICKS_OFFSET,
     STICK_RAW_MAX, SWAP_DPAD_WITH_LEFT_STICK, SWAP_RIGHT_STICK_WITH_TRIGGERS, SWAP_STICKS,
-    SWAP_TRIGGERS, SWITCH_TRIGGER_START, TOGGLES_LEN, TOGGLES_OFFSET, TRIGGERS_OFFSET,
-    TRIGGER_RAW_MAX, VIBRATION_LEN, VIBRATION_LEVELS, VIBRATION_LEVEL_MAX, VIBRATION_OFFSET,
-    XINPUT_FACES,
+    SWAP_TRIGGERS, TOGGLES_LEN, TOGGLES_OFFSET, TRIGGERS_OFFSET, TRIGGER_RAW_MAX, VIBRATION_LEN,
+    VIBRATION_LEVELS, VIBRATION_LEVEL_MAX, VIBRATION_OFFSET,
 };
-use super::{check_blob, read_flag, slot_index, SWITCH, XINPUT};
+use super::{check_blob, read_flag, slot_index};
+use crate::description::{Button, ControllerDescription, DISABLED_OUTPUT as DISABLED};
 
 /// The device discriminator every Ultimate profile carries.
 pub const DEVICE: &str = "8bitdo-ultimate";
@@ -40,23 +39,28 @@ const MODELLED_TOGGLES: u32 = INVERT_LEFT_X
     | NO_DEAD_ZONE
     | DPAD_FOUR_WAY;
 
-/// The button map codes of `mode`: each output by name, `disabled` included.
-fn outputs(mode: Mode) -> impl Iterator<Item = Code> {
-    let faces = if mode == SWITCH { PRINTED_FACES } else { XINPUT_FACES };
-    faces.into_iter().chain(SHARED_OUTPUTS).chain(EXTRA_OUTPUTS).chain([(DISABLED, 0)])
+/// The buttons that have an entry in the button map, in map order.
+fn map_buttons(d: &ControllerDescription) -> impl Iterator<Item = (usize, &Button)> {
+    d.buttons.iter().filter_map(|b| Some((usize::from(b.map_index?), b)))
 }
 
 /// The output `code` sends in `mode`. A code that names nothing reads as `disabled`, as
 /// the vendor app shows it.
-fn output_name(mode: Mode, code: u32) -> &'static str {
-    outputs(mode).find(|&(_, c)| c == code).map_or(DISABLED, |(name, _)| name)
+fn output_name(d: &ControllerDescription, mode: Mode, code: u32) -> &str {
+    let button = d.buttons.iter().find(|b| b.map_codes.get(&mode) == Some(&code));
+    let extra = d.mode(mode).and_then(|m| m.extra_outputs.iter().find(|o| o.code == Some(code)));
+    let name = button.map(|b| b.id.as_str()).or_else(|| extra.map(|o| o.id.as_str()));
+    name.unwrap_or(DISABLED)
 }
 
 /// The code of output `name` in `mode`.
-fn output_code(mode: Mode, name: &str) -> Result<u32> {
-    outputs(mode)
-        .find(|&(n, _)| n == name)
-        .map(|(_, code)| code)
+fn output_code(d: &ControllerDescription, mode: Mode, name: &str) -> Result<u32> {
+    let button = d.button(name).and_then(|b| b.map_codes.get(&mode).copied());
+    let extra = d.mode(mode).and_then(|m| m.extra_outputs.iter().find(|o| o.id == name));
+    (name == DISABLED)
+        .then_some(0)
+        .or(button)
+        .or_else(|| extra.and_then(|o| o.code))
         .ok_or_else(|| Error::Validation(format!("unknown output '{name}' in {mode} mode")))
 }
 
@@ -98,10 +102,15 @@ fn section(blob: &[u8], base: usize, len: usize, s: usize) -> Result<Option<&[u8
 
 /// The profile of slot `slot` in `blob`, an image of `mode`. Each section whose flag is
 /// not in use reads as the mode's default for that section.
-fn decode(blob: &[u8], slot: Slot, mode: Mode) -> Result<CanonicalProfile> {
+fn decode(
+    d: &ControllerDescription,
+    blob: &[u8],
+    slot: Slot,
+    mode: Mode,
+) -> Result<CanonicalProfile> {
     check_blob(blob)?;
     let s = slot_index(slot)?;
-    let default = default_profile(mode);
+    let default = default_profile(d, mode);
     let mut settings = Settings::of(&default)?;
     let bits = match section(blob, TOGGLES_OFFSET, TOGGLES_LEN, s)? {
         Some(t) => read_u32_le(t, FLAG_LEN)?,
@@ -147,19 +156,17 @@ fn decode(blob: &[u8], slot: Slot, mode: Mode) -> Result<CanonicalProfile> {
     }
     let button_mappings = match section(blob, MAP_OFFSET, MAP_LEN, s)? {
         None => default.button_mappings,
-        Some(map) => MAP_BUTTONS
-            .iter()
-            .enumerate()
-            .map(|(i, &source)| {
+        Some(map) => map_buttons(d)
+            .map(|(i, button)| {
                 let code = read_u32_le(map, FLAG_LEN + 4 * i)?;
                 Ok(ButtonMapping {
-                    source: source.to_owned(),
-                    target: output_name(mode, code).to_owned(),
+                    source: button.id.clone(),
+                    target: output_name(d, mode, code).to_owned(),
                 })
             })
             .collect::<Result<_>>()?,
     };
-    let macro_refs = decode_macros(blob, slot)?
+    let macro_refs = decode_macros(d, blob, slot)?
         .into_iter()
         .map(|def| MacroRef {
             path: macro_file_name(mode, slot.get(), &def),
@@ -195,11 +202,14 @@ fn decode_name(field: &[u8]) -> String {
 /// # Errors
 /// Returns [`Error::Decode`] if the payload is not a full image, and
 /// [`Error::Validation`] for a slot past the third.
-pub fn map_profile(raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
+pub fn map_profile(
+    d: &ControllerDescription,
+    raw: &RawProfilePayload,
+) -> Result<CanonicalProfileSummary> {
     let slot = Slot::new(raw.source_slot)?;
     let mode = raw.mode_hint;
     let id = canonical_id(mode, raw.source_slot, raw.source_profile_index);
-    let canonical = CanonicalProfile { id: id.clone(), ..decode(&raw.payload, slot, mode)? };
+    let canonical = CanonicalProfile { id: id.clone(), ..decode(d, &raw.payload, slot, mode)? };
     Ok(CanonicalProfileSummary {
         id,
         name: canonical.name.clone(),
@@ -213,24 +223,30 @@ pub fn map_profile(raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
 /// The profile a new slot of `mode` starts from, with an empty name: the vendor app's
 /// defaults.
 ///
-/// Every button sends its own output, except Star (Turbo in `XInput`, Screenshot in
-/// Switch) and P1 and P2 (nothing). Full stick and trigger ranges, except that a Switch
-/// trigger starts at about 30%; both motors at full strength.
+/// Every button sends its own output unless the mode's `default_targets` names another.
+/// Full stick and trigger ranges, except that a trigger starts at the mode's
+/// `default_trigger_start`; both motors at full strength.
 #[must_use]
-pub fn default_profile(mode: Mode) -> CanonicalProfile {
-    let star = if mode == SWITCH { "screenshot" } else { "turbo" };
-    let button_mappings = MAP_BUTTONS
-        .iter()
-        .map(|&source| {
-            let target = match source {
-                "star" => star,
-                "p1" | "p2" => DISABLED,
-                own => own,
-            };
-            ButtonMapping { source: source.to_owned(), target: target.to_owned() }
+pub fn default_profile(d: &ControllerDescription, mode: Mode) -> CanonicalProfile {
+    let targets = d.mode(mode).map(|m| &m.default_targets);
+    let button_mappings = map_buttons(d)
+        .map(|(_, button)| {
+            let own = button.id.as_str();
+            let target = targets.and_then(|t| t.get(own)).map_or(own, String::as_str);
+            ButtonMapping { source: button.id.clone(), target: target.to_owned() }
         })
         .collect();
-    let start = if mode == XINPUT { 0 } else { SWITCH_TRIGGER_START };
+    let start = d.mode(mode).map_or(0, |m| m.default_trigger_start);
+    blank_profile(mode, button_mappings, start)
+}
+
+/// A profile with no button mappings, for a model whose description did not load.
+#[must_use]
+pub(super) fn blank_profile(
+    mode: Mode,
+    button_mappings: Vec<ButtonMapping>,
+    start: i32,
+) -> CanonicalProfile {
     let settings = Settings {
         sticks: Sticks {
             left_min_pct: 0,
@@ -310,7 +326,12 @@ impl Section {
     /// # Errors
     /// Returns [`Error::Validation`] if the profile's settings do not have the
     /// Ultimate's shape or a button sends an unknown output.
-    pub(super) fn write(self, bytes: &mut [u8], profile: &CanonicalProfile) -> Result<()> {
+    pub(super) fn write(
+        self,
+        d: &ControllerDescription,
+        bytes: &mut [u8],
+        profile: &CanonicalProfile,
+    ) -> Result<()> {
         let s = Settings::of(profile)?;
         let ranges = |bytes: &mut [u8], pcts: [i32; 4], raw_max: i32| -> Result<()> {
             for (i, pct) in pcts.into_iter().enumerate() {
@@ -369,12 +390,12 @@ impl Section {
                 put_u32_le(bytes, FLAG_LEN, kept | set)?;
             }
             Self::Map => {
-                for (i, source) in MAP_BUTTONS.iter().enumerate() {
-                    let Some(m) = profile.button_mappings.iter().find(|m| m.source == *source)
+                for (i, button) in map_buttons(d) {
+                    let Some(m) = profile.button_mappings.iter().find(|m| m.source == button.id)
                     else {
                         continue;
                     };
-                    put_u32_le(bytes, FLAG_LEN + 4 * i, output_code(profile.mode, &m.target)?)?;
+                    put_u32_le(bytes, FLAG_LEN + 4 * i, output_code(d, profile.mode, &m.target)?)?;
                 }
             }
         }
@@ -386,6 +407,12 @@ impl Section {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::devices::ultimate::{SWITCH, XINPUT};
+
+    /// The registered Ultimate's description.
+    fn d() -> &'static ControllerDescription {
+        crate::devices::model_named("Ultimate").unwrap().description().unwrap()
+    }
 
     #[test]
     fn percent_rounds_half_up_and_keeps_a_read_value() {
@@ -411,10 +438,10 @@ mod tests {
 
     #[test]
     fn face_outputs_differ_by_mode_and_unknown_codes_read_as_disabled() {
-        assert_eq!(output_name(XINPUT, 0x2000), "bottom face");
-        assert_eq!(output_name(SWITCH, 0x2000), "right face");
-        assert_eq!(output_name(XINPUT, 0xFFFF_FFFF), DISABLED);
-        assert_eq!(output_code(SWITCH, "screenshot").unwrap(), 0x40_0000);
-        assert!(output_code(XINPUT, "star").is_err(), "Star is never an output");
+        assert_eq!(output_name(d(), XINPUT, 0x2000), "bottom face");
+        assert_eq!(output_name(d(), SWITCH, 0x2000), "right face");
+        assert_eq!(output_name(d(), XINPUT, 0xFFFF_FFFF), DISABLED);
+        assert_eq!(output_code(d(), SWITCH, "screenshot").unwrap(), 0x40_0000);
+        assert!(output_code(d(), XINPUT, "star").is_err(), "Star is never an output");
     }
 }

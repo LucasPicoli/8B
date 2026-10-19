@@ -601,6 +601,10 @@ impl Debounce {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing, clippy::panic)]
 mod tests {
+    /// The registered Ultimate.
+    fn ultimate_model() -> &'static dyn controller_core::device::Model {
+        controller_core::devices::model_named("Ultimate").unwrap()
+    }
     use std::collections::BTreeSet;
     use std::fs;
     use std::sync::{Arc, Mutex};
@@ -609,7 +613,6 @@ mod tests {
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, XINPUT};
     use controller_core::devices::test_pad::UnvalidatedPad;
-    use controller_core::devices::ultimate::Ultimate;
     use controller_core::model::{MacroDefinition, MacroSlot, Slot};
     use controller_core::transport::mock::MockOp;
     use controller_core::transport::MockDevice;
@@ -790,7 +793,7 @@ mod tests {
 
     fn locked_pad(port: &str) -> LockedController {
         LockedController {
-            model: &Ultimate,
+            model: ultimate_model(),
             port_path: port.to_owned(),
             usb_node: PathBuf::from("/dev/bus/usb/001/002"),
         }
@@ -802,7 +805,7 @@ mod tests {
 
     /// A worker over an empty sysfs with `locks`; returns its commands and events.
     fn locking(locks: FakeLocks, sysfs: &Path) -> (Sender<Command>, Receiver<Event>) {
-        let ports = Ultimate.description().unwrap().config_ports.clone();
+        let ports = ultimate_model().description().unwrap().config_ports.clone();
         let (etx, events) = mpsc::channel();
         let tx = spawn(
             given(MockDevice::new()),
@@ -945,7 +948,8 @@ mod tests {
         let locks = scripted(&[], vec![]);
         let log = Arc::clone(&locks.relocks);
         let (tx, events) = locking(locks, sysfs.path());
-        tx.send(Command::Relock(Target { port: "3-1".to_owned(), model: &Ultimate })).unwrap();
+        tx.send(Command::Relock(Target { port: "3-1".to_owned(), model: ultimate_model() }))
+            .unwrap();
         assert!(matches!(next(&events), Event::Relock { result: Ok(()), .. }));
         assert_eq!(*log.lock().unwrap(), ["3-1"]);
     }
@@ -953,8 +957,9 @@ mod tests {
     #[test]
     fn closing_relocks_in_order_and_goes_on_after_a_failure() {
         let locks = FakeLocks { stuck: vec!["1-3".to_owned()], ..FakeLocks::default() };
-        let targets: Vec<_> =
-            ["1-2", "1-3", "1-4"].map(|p| Target { port: p.to_owned(), model: &Ultimate }).into();
+        let targets: Vec<_> = ["1-2", "1-3", "1-4"]
+            .map(|p| Target { port: p.to_owned(), model: ultimate_model() })
+            .into();
         relock_all(&locks, &targets);
         assert_eq!(*locks.relocks.lock().unwrap(), ["1-2", "1-3", "1-4"]);
     }

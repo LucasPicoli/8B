@@ -20,12 +20,18 @@ use crate::transport::{DeviceIo, HidrawDevice};
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
 
 /// Every supported controller model.
-static MODELS: [&dyn Model; 2] = [&pro3::Pro3, &ultimate::Ultimate];
+static MODELS: [&dyn Model; 2] = [&pro3::Pro3, &ultimate::model!("ultimate-bluetooth")];
 
 /// Every supported controller model, in registry order.
 #[must_use]
 pub fn models() -> &'static [&'static dyn Model] {
     &MODELS
+}
+
+/// The registered model whose description has the short name `short_name`.
+#[must_use]
+pub fn model_named(short_name: &str) -> Option<&'static dyn Model> {
+    models().iter().copied().find(|m| m.description().is_ok_and(|d| d.short_name == short_name))
 }
 
 /// The description of every supported controller model.
