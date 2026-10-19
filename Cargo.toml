@@ -49,7 +49,12 @@ module_name_repetitions = "allow"
 multiple_crate_versions = "allow"
 cargo_common_metadata = "allow"
 
+# Line tables keep file and line in backtraces at a fraction of full debug info's size.
+[profile.dev]
+debug = "line-tables-only"
+
 # Dependencies build optimised in a debug build, so the GUI's toolkit draws at full
 # speed while the workspace's own crates stay easy to debug.
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
