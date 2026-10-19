@@ -54,6 +54,8 @@ export component LockedScreen inherits Rectangle {
     in property <LockedInfo> info;
     // "Unlock", and "Try again" on the red bar.
     callback unlock;
+    // "Read the guide" on a model that is not checked yet.
+    callback guide;
     background: Theme.window;
     Placeholder {
         icon: root.info.view == 4 ? Icons.unplug : Icons.lock;
@@ -64,6 +66,12 @@ export component LockedScreen inherits Rectangle {
             primary: true;
             init => { self.focus(); }
             clicked => { root.unlock(); }
+        }
+        if root.info.guide: Button {
+            text: @tr("Read the guide");
+            primary: true;
+            init => { self.focus(); }
+            clicked => { root.guide(); }
         }
         if root.info.view == 2: HorizontalLayout {
             spacing: 8px;

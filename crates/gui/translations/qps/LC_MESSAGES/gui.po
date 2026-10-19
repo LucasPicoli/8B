@@ -924,6 +924,10 @@ msgstr "⟦~~~~~~~~~~~~Could not read the controller.⟧"
 msgid "Unlock"
 msgstr "⟦~~~Unlock⟧"
 
+#: ui/screens.slint
+msgid "Read the guide"
+msgstr "⟦~~~~~~Read the guide⟧"
+
 #: ui/screens.slint src/locked.rs
 msgid "Unlocking…"
 msgstr "⟦~~~~Unlocking…⟧"
@@ -1542,6 +1546,10 @@ msgid "The controller did not relock."
 msgstr "⟦~~~~~~~~~~~~The controller did not relock.⟧"
 
 #: src/locked.rs
+msgid "Not checked yet"
+msgstr "⟦~~~~~~Not checked yet⟧"
+
+#: src/locked.rs
 msgid "Locked"
 msgstr "⟦~~~Locked⟧"
 
@@ -1558,12 +1566,24 @@ msgid "Replug it if this keeps happening."
 msgstr "⟦~~~~~~~~~~~~~~Replug it if this keeps happening.⟧"
 
 #: src/locked.rs
-msgid "This controller is not supported yet"
-msgstr "⟦~~~~~~~~~~~~~~~This controller is not supported yet⟧"
+msgid "This {family} is not checked on a real pad yet"
+msgstr "⟦~~~~~~~~~~~~~~~~~~~This {family} is not checked on a real pad yet⟧"
+
+#: src/locked.rs
+msgid "It reports itself as an {model}. USB ID {pid}."
+msgstr "⟦~~~~~~~~~~~~~~~~~~~It reports itself as an {model}. USB ID {pid}.⟧"
+
+#: src/locked.rs
+msgid "{model} is not checked on a real pad yet"
+msgstr "⟦~~~~~~~~~~~~~~~~{model} is not checked on a real pad yet⟧"
 
 #: src/locked.rs
 msgid "USB ID {pid}. Replug it to get XInput back."
 msgstr "⟦~~~~~~~~~~~~~~~~~~USB ID {pid}. Replug it to get XInput back.⟧"
+
+#: src/locked.rs
+msgid "This controller is not supported yet"
+msgstr "⟦~~~~~~~~~~~~~~~This controller is not supported yet⟧"
 
 #: src/locked.rs
 msgid "{name} is locked"

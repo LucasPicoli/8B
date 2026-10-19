@@ -281,6 +281,8 @@ export component AppWindow inherits Window {
     callback close-discard;
     // The locked panel's "Unlock" and "Try again".
     callback unlock-clicked;
+    // The locked panel's "Read the guide".
+    callback guide-clicked;
     // The relock question: back to the window, write first, or relock anyway.
     callback relock-cancelled;
     callback relock-write;
@@ -371,6 +373,7 @@ export component AppWindow inherits Window {
         if root.locked.view != 0: LockedScreen {
             info: root.locked;
             unlock => { root.unlock-clicked(); }
+            guide => { root.guide-clicked(); }
         }
         if root.locked.view == 0: VerticalLayout {
             Rectangle {

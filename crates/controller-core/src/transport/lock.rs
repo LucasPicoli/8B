@@ -17,7 +17,10 @@ use super::usbfs::{UsbIo, UsbNode};
 use crate::description::{Lock, TimedPacket, Unlock, MAX_PACKET_LEN};
 use crate::detect::{config_hidraw, usb_id};
 use crate::device::{Model, UsbId};
-use crate::devices::{config_ports, LockedController, SYSFS_USB};
+use crate::devices::{
+    find_model_by_port, models, ports_of, refused_with, unvalidated_allowed, LockedController,
+    SYSFS_USB,
+};
 use crate::error::{Error, Result};
 
 /// How often the port path is checked while the controller re-enumerates.
@@ -32,9 +35,18 @@ const SETTLE_AFTER_CLAIM: Duration = Duration::from_millis(500);
 pub enum Unlocked {
     /// A config port: its hidraw node, which this user may read and write.
     Port(PathBuf),
-    /// A USB id no description lists as a config port. Nothing more is sent to it;
-    /// a replug brings the controller back locked.
-    Unsupported(UsbId),
+    /// A USB id the app does not use. Nothing more is sent to it; a replug brings the
+    /// controller back locked. The name is the model's display name when a description
+    /// lists the id but the model is not validated, and `None` when none lists it.
+    Unsupported(UsbId, Option<String>),
+}
+
+/// What an unlock checks the id it brings up against.
+struct Rules<'a> {
+    /// The models whose config ports can show.
+    models: &'a [&'static dyn Model],
+    /// The user let unvalidated models through.
+    allow_unvalidated: bool,
 }
 
 /// The lock declaration of `model`.
@@ -121,25 +133,32 @@ pub fn unlock(locked: &LockedController) -> Result<Unlocked> {
         });
         times(at_ms);
     };
-    unlock_in(Path::new(SYSFS_USB), locked, &mut node, &mut wait)
+    let rules = Rules { models: models(), allow_unvalidated: unvalidated_allowed() };
+    unlock_in(Path::new(SYSFS_USB), &rules, locked, &mut node, &mut wait)
 }
 
 /// [`unlock`] in sysfs at `root`, through `io`, with `wait` keeping the packet times.
 fn unlock_in(
     root: &Path,
+    rules: &Rules<'_>,
     locked: &LockedController,
     io: &mut dyn UsbIo,
     wait: &mut dyn FnMut(u32),
 ) -> Result<Unlocked> {
     let lock = lock_of(locked.model)?;
-    send_unlock(io, &lock.unlock, wait, || wait_for_port(root, locked, lock))
+    send_unlock(io, &lock.unlock, wait, || wait_for_port(root, rules, locked, lock))
 }
 
 /// Waits up to the unlock's `timeout_ms` for what comes up on the port path of `locked`.
 ///
 /// # Errors
 /// As [`unlock`].
-fn wait_for_port(root: &Path, locked: &LockedController, lock: &Lock) -> Result<Unlocked> {
+fn wait_for_port(
+    root: &Path,
+    rules: &Rules<'_>,
+    locked: &LockedController,
+    lock: &Lock,
+) -> Result<Unlocked> {
     let deadline = Instant::now() + Duration::from_millis(u64::from(lock.unlock.timeout_ms));
     let dir = root.join(&locked.port_path);
     let mut last = Error::Timeout;
@@ -148,13 +167,30 @@ fn wait_for_port(root: &Path, locked: &LockedController, lock: &Lock) -> Result<
             None => {}
             Some(usb) if usb == lock.locked.usb => {}
             Some(usb) => {
-                let Some(port) = config_ports().into_iter().find(|p| p.usb == usb) else {
+                let Some(port) = ports_of(rules.models).into_iter().find(|p| p.usb == usb) else {
                     info!(
                         "unlock on {} brought up {:04x}:{:04x}, which no description lists",
                         locked.port_path, usb.vendor, usb.product
                     );
-                    return Ok(Unlocked::Unsupported(usb));
+                    return Ok(Unlocked::Unsupported(usb, None));
                 };
+                // The id names the model, whatever the product string said.
+                if let Some(named) = find_model_by_port(rules.models, usb) {
+                    let (named, string) = (named.description()?, locked.model.description()?);
+                    if !std::ptr::eq(named, string) {
+                        info!(
+                            "{} reported itself as {} but unlocked as {:04x}:{:04x}, the {}",
+                            locked.port_path,
+                            string.display_name,
+                            usb.vendor,
+                            usb.product,
+                            named.display_name
+                        );
+                    }
+                    if refused_with(named, rules.allow_unvalidated) {
+                        return Ok(Unlocked::Unsupported(usb, Some(named.display_name.clone())));
+                    }
+                }
                 if let Some(node) = config_hidraw(&dir, port.interface) {
                     match OpenOptions::new().read(true).write(true).open(&node) {
                         Ok(_) => {
@@ -258,6 +294,7 @@ mod tests {
     use std::cell::Cell;
 
     use super::*;
+    use crate::devices::test_pad::UnvalidatedPad;
     use crate::devices::ultimate::Ultimate;
 
     /// One step a fake usbfs device saw.
@@ -450,9 +487,52 @@ mod tests {
         };
         let now = Cell::new(0);
         let mut fake = Fake { now: &now, steps: Vec::new(), fail_at: None };
-        let got = unlock_in(dir.path(), &locked, &mut fake, &mut |_| {}).unwrap();
-        assert_eq!(got, Unlocked::Unsupported(UsbId { vendor: 0x2DC8, product: 0x6008 }));
+        let got = unlock_in(dir.path(), &rules(false), &locked, &mut fake, &mut |_| {}).unwrap();
+        assert_eq!(got, Unlocked::Unsupported(UsbId { vendor: 0x2DC8, product: 0x6008 }, None));
         assert_eq!(fake.steps.len(), 19, "the unlock only");
+    }
+
+    /// The Ultimate and the unvalidated test pad, with `allow_unvalidated` as given.
+    fn rules(allow_unvalidated: bool) -> Rules<'static> {
+        static MODELS: [&dyn Model; 2] = [&Ultimate, &UnvalidatedPad];
+        Rules { models: &MODELS, allow_unvalidated }
+    }
+
+    /// The unvalidated pad, locked on `8-5`, which an unlock turns into id `product`.
+    fn unlock_to(product: &str, allow_unvalidated: bool) -> Result<Unlocked> {
+        let dir = sysfs(product);
+        let locked = LockedController {
+            model: &UnvalidatedPad,
+            port_path: "8-5".to_owned(),
+            usb_node: PathBuf::from("/dev/null"),
+        };
+        let now = Cell::new(0);
+        let mut fake = Fake { now: &now, steps: Vec::new(), fail_at: None };
+        unlock_in(dir.path(), &rules(allow_unvalidated), &locked, &mut fake, &mut |_| {})
+    }
+
+    #[test]
+    fn an_unlock_that_names_an_unvalidated_model_is_refused_with_its_name() {
+        let usb = UsbId { vendor: 0x2DC8, product: 0x7e58 };
+        let got = unlock_to("7e58", false).unwrap();
+        assert_eq!(got, Unlocked::Unsupported(usb, Some("Unchecked Pad".to_owned())));
+        // With the user's say-so the model is not refused: the wait goes on for its port.
+        assert!(matches!(unlock_to("7e58", true), Err(Error::Timeout)));
+    }
+
+    #[test]
+    fn the_unlocked_id_wins_over_the_product_string() {
+        // The string said Ultimate, the id says the unvalidated pad: the id decides.
+        let dir = sysfs("7e58");
+        let locked = LockedController {
+            model: &Ultimate,
+            port_path: "8-5".to_owned(),
+            usb_node: PathBuf::from("/dev/null"),
+        };
+        let now = Cell::new(0);
+        let mut fake = Fake { now: &now, steps: Vec::new(), fail_at: None };
+        let got = unlock_in(dir.path(), &rules(false), &locked, &mut fake, &mut |_| {}).unwrap();
+        assert!(matches!(got, Unlocked::Unsupported(_, Some(name)) if name == "Unchecked Pad"));
     }
 
     #[test]

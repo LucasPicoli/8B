@@ -462,6 +462,7 @@ fn wire_locks(
             }
         });
     });
+    ui.on_guide_clicked(|| open_external(locked::GUIDE_URL.as_ref()));
     let (c, tx) = (change.clone(), commands.clone());
     ui.global::<Relock<'_>>().on_chosen(move || c(&|s| s.relock_clicked(&tx)));
     let c = change.clone();
@@ -535,11 +536,11 @@ fn send_write(
     }
 }
 
-/// Opens `folder` in the file manager. Not a hardware path, so a failure only goes
-/// to stderr.
-fn open_folder(folder: &std::path::Path) {
-    if let Err(e) = std::process::Command::new("xdg-open").arg(folder).spawn() {
-        warn!("could not open {}: {e}", folder.display());
+/// Opens `target`, a folder or a URL, with the desktop's default program. Not a
+/// hardware path, so a failure only goes to stderr.
+fn open_external(target: &std::ffi::OsStr) {
+    if let Err(e) = std::process::Command::new("xdg-open").arg(target).spawn() {
+        warn!("could not open {}: {e}", target.to_string_lossy());
     }
 }
 
@@ -622,7 +623,7 @@ fn wire_writes(
     });
     let c = change.clone();
     ui.on_failure_closed(move || c(&AppState::dismiss_failure));
-    ui.on_open_backup_folder(move || open_folder(&backups));
+    ui.on_open_backup_folder(move || open_external(backups.as_os_str()));
 }
 
 /// Wires every close request (the title-bar button, Alt+F4) through the close check,

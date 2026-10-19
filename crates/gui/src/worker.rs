@@ -452,7 +452,7 @@ fn lock_command(
             devices.remove(&port);
             let result = unlock(hooks, site, &port);
             let mode = mark_seen(presence, site, &port);
-            if matches!(result, Ok(Unlocked::Unsupported(_))) {
+            if matches!(result, Ok(Unlocked::Unsupported(..))) {
                 unsupported.insert(port.clone());
             }
             emit(Event::Unlock { port, result, mode });
@@ -791,11 +791,11 @@ mod tests {
         let sysfs = tempfile::tempdir().unwrap();
         let other = UsbId { vendor: 0x2dc8, product: 0x1234 };
         let (tx, events) =
-            locking(scripted(&["3-1"], vec![Ok(Unlocked::Unsupported(other))]), sysfs.path());
+            locking(scripted(&["3-1"], vec![Ok(Unlocked::Unsupported(other, None))]), sysfs.path());
         tx.send(Command::Unlock("3-1".to_owned())).unwrap();
         loop {
             match next(&events) {
-                Event::Unlock { result: Ok(Unlocked::Unsupported(usb)), .. } => {
+                Event::Unlock { result: Ok(Unlocked::Unsupported(usb, _)), .. } => {
                     assert_eq!(usb, other);
                     break;
                 }
@@ -811,7 +811,7 @@ mod tests {
         let sysfs = tempfile::tempdir().unwrap();
         let other = UsbId { vendor: 0x2dc8, product: 0x1234 };
         let (tx, events) =
-            locking(scripted(&["3-1"], vec![Ok(Unlocked::Unsupported(other))]), sysfs.path());
+            locking(scripted(&["3-1"], vec![Ok(Unlocked::Unsupported(other, None))]), sysfs.path());
         // The pad sits on its port path with an id no description lists.
         fs::create_dir_all(sysfs.path().join("3-1")).unwrap();
         tx.send(Command::Unlock("3-1".to_owned())).unwrap();

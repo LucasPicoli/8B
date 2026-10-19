@@ -803,6 +803,10 @@ msgstr "Não foi possível ler o controle."
 msgid "Unlock"
 msgstr "Desbloquear"
 
+#: ui/screens.slint
+msgid "Read the guide"
+msgstr "Ler o guia"
+
 #: ui/screens.slint src/locked.rs
 msgid "Unlocking…"
 msgstr "Desbloqueando…"
@@ -1319,6 +1323,10 @@ msgid "The controller did not relock."
 msgstr "O controle não bloqueou."
 
 #: src/locked.rs
+msgid "Not checked yet"
+msgstr "Ainda não testado"
+
+#: src/locked.rs
 msgid "Locked"
 msgstr "Bloqueado"
 
@@ -1335,12 +1343,24 @@ msgid "Replug it if this keeps happening."
 msgstr "Reconecte-o se isso continuar."
 
 #: src/locked.rs
-msgid "This controller is not supported yet"
-msgstr "Este controle ainda não é suportado"
+msgid "This {family} is not checked on a real pad yet"
+msgstr "Este {family} ainda não foi testado em um controle real"
+
+#: src/locked.rs
+msgid "It reports itself as an {model}. USB ID {pid}."
+msgstr "Ele se identifica como {model}. ID USB {pid}."
+
+#: src/locked.rs
+msgid "{model} is not checked on a real pad yet"
+msgstr "{model} ainda não foi testado em um controle real"
 
 #: src/locked.rs
 msgid "USB ID {pid}. Replug it to get XInput back."
 msgstr "ID USB {pid}. Reconecte-o para voltar ao XInput."
+
+#: src/locked.rs
+msgid "This controller is not supported yet"
+msgstr "Este controle ainda não é suportado"
 
 #: src/locked.rs
 msgid "{name} is locked"

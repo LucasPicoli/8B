@@ -15,7 +15,8 @@ use crate::error::{Error, ErrorCategory, Result};
 use crate::model::{CanonicalProfile, Mode, RawProfilePayload, Slot, WriteResult};
 use crate::service::validation::validate_profile;
 use crate::service::{
-    attempt_rollback, bank_of, readback_and_confirm, ConfirmPolicy, FailedWrite, ReadbackResult,
+    attempt_rollback, bank_of, readback_and_confirm, save_backup_before_write, ConfirmPolicy,
+    FailedWrite, ReadbackResult,
 };
 use crate::transport::device_io::DeviceIo;
 
@@ -239,6 +240,17 @@ impl<'a> ProfileWriteOrchestrator<'a> {
         done: &str,
     ) -> WriteResult {
         let fail = |category, message: String| WriteResult::failure(mode, slot, category, message);
+        // Only a model nobody has validated gets here, and only when the user let it
+        // through: its write may do harm that the rollback cannot undo.
+        let unvalidated = self.model.description().is_ok_and(|d| !d.validated);
+        if unvalidated && !backup.is_empty() {
+            if let Err(e) = save_backup_before_write(mode, slot, backup, self.backup_dir) {
+                return fail(
+                    ErrorCategory::WriteFailure,
+                    format!("Could not save a backup first, so nothing was written: {e}"),
+                );
+            }
+        }
         if let Err(e) = self.dev.send_slot_select(mode) {
             return fail(ErrorCategory::ConnectionFailure, format!("Slot select failed: {e}"));
         }

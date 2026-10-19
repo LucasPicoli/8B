@@ -111,6 +111,26 @@ pub fn save_backup(mode: Mode, slot: Slot, blob: &[u8], dir: &Path) -> Result<Pa
     save_new(dir, &format!("backup-{mode}-slot-{}", slot.get()), "bin", blob)
 }
 
+/// Saves the bank as read, before a write to a model no one has validated.
+///
+/// The file is `backup-<mode>-slot-<N>-before-write-<YYYYMMDD-HHMMSS>.bin` (UTC) in `dir`.
+/// Its name differs from [`save_backup`]'s, so a rollback that fails in the same second
+/// keeps both files.
+///
+/// # Errors
+/// As [`save_backup`].
+pub fn save_backup_before_write(
+    mode: Mode,
+    slot: Slot,
+    blob: &[u8],
+    dir: &Path,
+) -> Result<PathBuf> {
+    if blob.is_empty() {
+        return Err(Error::Validation("backup blob is empty".to_owned()));
+    }
+    save_new(dir, &format!("backup-{mode}-slot-{}-before-write", slot.get()), "bin", blob)
+}
+
 /// Saves `macro_json`, a macro file, as
 /// `backup-<mode>-slot-<N>-macro-<M>-<YYYYMMDD-HHMMSS>.json` (UTC) in `dir`. A failed
 /// macro write that cannot put the old steps back keeps them here.

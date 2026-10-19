@@ -64,7 +64,7 @@ pub fn config_ports() -> Vec<ConfigPort> {
 }
 
 /// The config ports of `models`, a USB id that two share once, from the first.
-fn ports_of(models: &[&'static dyn Model]) -> Vec<ConfigPort> {
+pub(crate) fn ports_of(models: &[&'static dyn Model]) -> Vec<ConfigPort> {
     let mut ports: Vec<ConfigPort> = Vec::new();
     let listed = models.iter().filter_map(|m| m.description().ok());
     for port in listed.flat_map(|d| d.config_ports.iter()) {
@@ -75,8 +75,54 @@ fn ports_of(models: &[&'static dyn Model]) -> Vec<ConfigPort> {
     ports
 }
 
+/// The environment variable that lets a model through that no one has checked on a real
+/// pad yet. Set to `1`, the app then saves a backup file before every write.
+pub const UNVALIDATED_ENV: &str = "EIGHTB_UNVALIDATED";
+
+/// Whether the user set [`UNVALIDATED_ENV`] to `1`.
+#[must_use]
+pub fn unvalidated_allowed() -> bool {
+    std::env::var(UNVALIDATED_ENV).is_ok_and(|v| v == "1")
+}
+
+/// Whether the app refuses the model `description` describes: it is not validated, and
+/// `allowed` (see [`unvalidated_allowed`]) is false.
+#[must_use]
+pub const fn refused_with(description: &ControllerDescription, allowed: bool) -> bool {
+    !description.validated && !allowed
+}
+
+/// [`refused_with`] as the user's environment sets it.
+#[must_use]
+pub fn refused(description: &ControllerDescription) -> bool {
+    refused_with(description, unvalidated_allowed())
+}
+
+/// The class, subclass and protocol of the vendor interface a locked pad shows, which
+/// is what the kernel's `xpad` driver binds: `ff/5d/01`. A pad with the same USB id and
+/// string that shows only HID is not unlocked.
+const LOCKED_INTERFACE: [&str; 3] = ["ff", "5d", "01"];
+
+/// Whether the device at sysfs directory `base` has an interface of class
+/// [`LOCKED_INTERFACE`].
+fn has_locked_interface(base: &Path) -> bool {
+    let Ok(dir) = std::fs::read_dir(base) else { return false };
+    let prefix = base.file_name().and_then(|n| n.to_str()).map(|n| format!("{n}:"));
+    dir.flatten().any(|e| {
+        let name = e.file_name();
+        prefix.as_deref().is_some_and(|p| name.to_string_lossy().starts_with(p))
+            && ["bInterfaceClass", "bInterfaceSubClass", "bInterfaceProtocol"]
+                .iter()
+                .zip(LOCKED_INTERFACE)
+                .all(|(file, want)| {
+                    std::fs::read_to_string(e.path().join(file))
+                        .is_ok_and(|v| v.trim().eq_ignore_ascii_case(want))
+                })
+    })
+}
+
 /// A locked controller on the USB bus: one a model's lock declaration names by its USB
-/// id and product string.
+/// id and product string, and whose interface class is `ff/5d/01`.
 #[derive(Debug, Clone)]
 pub struct LockedController {
     /// The model whose lock declaration matched.
@@ -105,6 +151,7 @@ fn locked_in(models: &[&'static dyn Model], root: &Path) -> Vec<LockedController
                 };
                 let usb = crate::detect::usb_id(&base)?;
                 let product = attr("product")?;
+                has_locked_interface(&base).then_some(())?;
                 let model = models.iter().copied().find(|m| {
                     m.description().ok().and_then(|d| d.lock.as_ref()).is_some_and(|lock| {
                         lock.locked.usb == usb && lock.locked.product == product
@@ -186,6 +233,19 @@ mod tests {
         }
     }
 
+    /// Gives the device on `port` an interface with class `class`, as `ff/5d/01`.
+    fn interface(root: &Path, port: &str, class: [&str; 3]) {
+        let at = root.join(port).join(format!("{port}:1.0"));
+        std::fs::create_dir_all(&at).unwrap();
+        for (name, value) in [
+            ("bInterfaceClass", class[0]),
+            ("bInterfaceSubClass", class[1]),
+            ("bInterfaceProtocol", class[2]),
+        ] {
+            std::fs::write(at.join(name), format!("{value}\n")).unwrap();
+        }
+    }
+
     #[test]
     fn a_locked_controller_is_found_by_its_usb_id_and_product_string() {
         let dir = tempfile::tempdir().unwrap();
@@ -193,6 +253,9 @@ mod tests {
         // The Pro 2 wired shares the locked USB id under another product string.
         device(dir.path(), "8-6", "3106", "8BitDo Pro 2 Wired Controller", "7");
         device(dir.path(), "8-1", "6007", "8BitDo Ultimate Controller", "9");
+        for port in ["8-5", "8-6", "8-1"] {
+            interface(dir.path(), port, ["ff", "5d", "01"]);
+        }
         let found = locked_in(models(), dir.path());
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].port_path, "8-5");
@@ -200,6 +263,33 @@ mod tests {
         assert_eq!(found[0].model.description().unwrap().short_name, "Ultimate");
         let no_lock: [&'static dyn Model; 2] = [&Pro3, &TestPad];
         assert!(locked_in(&no_lock, dir.path()).is_empty());
+    }
+
+    #[test]
+    fn a_locked_id_without_the_vendor_interface_is_never_listed() {
+        let dir = tempfile::tempdir().unwrap();
+        // The same USB id and string, as HID only, and with the class of another pad.
+        device(dir.path(), "8-5", "3106", "8BitDo Ultimate Controller", "102");
+        interface(dir.path(), "8-5", ["03", "00", "00"]);
+        device(dir.path(), "8-6", "3106", "8BitDo Ultimate Controller", "103");
+        device(dir.path(), "8-7", "3106", "8BitDo Ultimate Controller", "104");
+        interface(dir.path(), "8-7", ["ff", "5d", "02"]);
+        assert!(locked_in(models(), dir.path()).is_empty());
+        interface(dir.path(), "8-6", ["ff", "5d", "01"]);
+        let found = locked_in(models(), dir.path());
+        assert_eq!(found.iter().map(|f| f.port_path.as_str()).collect::<Vec<_>>(), ["8-6"]);
+    }
+
+    #[test]
+    fn a_model_that_is_not_validated_is_refused_unless_the_user_allows_it() {
+        let unchecked = test_pad::UnvalidatedPad.description().unwrap();
+        assert!(!unchecked.validated);
+        assert!(refused_with(unchecked, false));
+        assert!(!refused_with(unchecked, true), "EIGHTB_UNVALIDATED=1 lets it through");
+        for model in models() {
+            assert!(!refused_with(model.description().unwrap(), false));
+        }
+        assert!(!refused_with(TestPad.description().unwrap(), false));
     }
 
     #[test]

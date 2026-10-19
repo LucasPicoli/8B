@@ -2780,11 +2780,17 @@ fn locked_shots(suffix: &str) {
     let mut unsupported = locked_pad();
     unsupported.unlock_finished(
         "3-1",
-        Ok(&Unlocked::Unsupported(controller_core::device::UsbId {
-            vendor: 0x2dc8,
-            product: 0x1234,
-        })),
+        Ok(&Unlocked::Unsupported(
+            controller_core::device::UsbId { vendor: 0x2dc8, product: 0x1234 },
+            None,
+        )),
     );
+    // A pad whose product string names a model no one has checked: no unlock was sent.
+    let mut not_checked = new_state();
+    not_checked.locked_seen(vec![crate::worker::Target {
+        port: "3-1".to_owned(),
+        model: &controller_core::devices::test_pad::UnvalidatedPad,
+    }]);
     let mut relocking = crate::state::tests::ultimate("1.09");
     relocking.set_output("p1", "auto turbo");
     relocking.relock_clicked(&tx);
@@ -2793,6 +2799,7 @@ fn locked_shots(suffix: &str) {
         ("unlocking", unlocking, 2),
         ("not-unlocked", failed, 3),
         ("not-supported", unsupported, 4),
+        ("not-checked", not_checked, 4),
         ("relock-question", relocking, 0),
     ];
     for (name, state, view) in &states {

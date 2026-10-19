@@ -80,6 +80,14 @@ pub struct ControllerDescription {
     pub views: Vec<View>,
 }
 
+impl ControllerDescription {
+    /// The family name when the model has one, else its display name.
+    #[must_use]
+    pub fn family(&self) -> &str {
+        self.family_name.as_deref().unwrap_or(&self.display_name)
+    }
+}
+
 /// One settings tab, such as Sticks.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(deny_unknown_fields)]

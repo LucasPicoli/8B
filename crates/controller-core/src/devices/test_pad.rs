@@ -212,6 +212,122 @@ impl ProtocolCodec for TestPad {
     }
 }
 
+/// The test pad's description with `validated` left out, a family and a lock: a model
+/// nobody has checked on a real pad. It differs from [`TestPad`] in nothing else the
+/// tests read.
+fn unvalidated_description() -> Result<ControllerDescription> {
+    let mut json: serde_json::Value =
+        serde_json::from_str(include_str!("../../controllers/test-pad/description.json"))
+            .map_err(|e| Error::Validation(e.to_string()))?;
+    let map = json.as_object_mut().ok_or_else(|| Error::Validation("not an object".to_owned()))?;
+    map.remove("validated");
+    for (key, value) in [
+        ("display_name", serde_json::json!("Unchecked Pad")),
+        ("short_name", serde_json::json!("Unchecked")),
+        ("family_name", serde_json::json!("Test family")),
+        (
+            "lock",
+            serde_json::json!({
+                "locked": { "usb": { "vendor": "0x2dc8", "product": "0x7e59" },
+                            "product": "Unchecked Pad Controller" },
+                "unlock": { "interface": 0, "endpoint": "0x02", "timeout_ms": 100,
+                            "packets": [{ "at_ms": 0, "data": "0001" }] },
+                "relock": { "packets": [{ "at_ms": 0, "data": "0002" }] }
+            }),
+        ),
+    ] {
+        map.insert(key.to_owned(), value);
+    }
+    if let Some(product) = json.pointer_mut("/config_ports/0/usb/product") {
+        *product = "0x7e58".into();
+    }
+    ControllerDescription::parse(
+        &json.to_string(),
+        &[("front.svg", include_str!("../../controllers/test-pad/front.svg"))],
+    )
+}
+
+static UNVALIDATED: LazyLock<Result<ControllerDescription>> =
+    LazyLock::new(unvalidated_description);
+
+/// A locked test pad whose model is not validated, for the tests of the refusal. Its
+/// codec is the test pad's.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UnvalidatedPad;
+
+impl ControllerSpec for UnvalidatedPad {
+    fn description(&self) -> Result<&'static ControllerDescription> {
+        UNVALIDATED.as_ref().map_err(Clone::clone)
+    }
+    fn blob_size(&self) -> usize {
+        TestPad.blob_size()
+    }
+    fn apply_argument(&self) -> u16 {
+        TestPad.apply_argument()
+    }
+}
+
+impl ProtocolCodec for UnvalidatedPad {
+    fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
+        TestPad.map_profile(raw)
+    }
+    fn default_profile(&self, mode: Mode) -> CanonicalProfile {
+        TestPad.default_profile(mode)
+    }
+    fn decode_macro_metadata(&self, blob: &[u8], slot: Slot) -> Result<Vec<MacroDefinition>> {
+        TestPad.decode_macro_metadata(blob, slot)
+    }
+    fn decode_macro_steps(
+        &self,
+        stream: &[u8],
+        count: usize,
+        mode: Mode,
+    ) -> Result<Vec<MacroStep>> {
+        TestPad.decode_macro_steps(stream, count, mode)
+    }
+    fn encode_macro_steps(&self, steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
+        TestPad.encode_macro_steps(steps, mode)
+    }
+    fn encode_macro_metadata(&self, def: &MacroDefinition, slot: MacroSlot) -> Result<Vec<u8>> {
+        TestPad.encode_macro_metadata(def, slot)
+    }
+    fn compile_profile(
+        &self,
+        profile: &CanonicalProfile,
+        target_slot: Slot,
+        base_blob: &[u8],
+        macros: &[MacroDefinition],
+    ) -> Result<Vec<u8>> {
+        TestPad.compile_profile(profile, target_slot, base_blob, macros)
+    }
+    fn compile_profile_keep_macros(
+        &self,
+        profile: &CanonicalProfile,
+        target_slot: Slot,
+        base_blob: &[u8],
+    ) -> Result<Vec<u8>> {
+        TestPad.compile_profile_keep_macros(profile, target_slot, base_blob)
+    }
+    fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
+        TestPad.drop_macros(blob, slot, triggers)
+    }
+    fn set_macro(
+        &self,
+        blob: &[u8],
+        slot: Slot,
+        macro_slot: MacroSlot,
+        def: Option<&MacroDefinition>,
+    ) -> Result<Vec<u8>> {
+        TestPad.set_macro(blob, slot, macro_slot, def)
+    }
+    fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
+        TestPad.deactivate_profile(base_blob, slot)
+    }
+    fn validate_remap(&self, mode: Mode, source: &str, target: &str) -> Result<()> {
+        self.description()?.validate_remap(mode, source, target)
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
@@ -389,5 +505,55 @@ mod tests {
         let result = orchestrator.patch_settings(STANDARD, slot(2), &set);
         assert!(!result.success);
         assert!(dev.calls().iter().all(|c| !matches!(c, MockCall::WriteFullProfile { .. })));
+    }
+
+    /// The files in `dir`, by name.
+    fn files(dir: &Path) -> Vec<std::path::PathBuf> {
+        let mut found: Vec<_> =
+            std::fs::read_dir(dir).unwrap().flatten().map(|e| e.path()).collect();
+        found.sort();
+        found
+    }
+
+    #[test]
+    fn a_write_to_an_unvalidated_model_saves_the_bank_as_read_before_it_goes_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let dev = MockDevice::new()
+            .with_model(&UnvalidatedPad)
+            .with_profiles(ProfileReadResult { raw_blobs: vec![bank()], ..Default::default() });
+        let orchestrator = ProfileWriteOrchestrator::new(&dev, &UnvalidatedPad, dir.path());
+        let set = [("/rumble/level", 3.into())];
+        let done = orchestrator.patch_settings(STANDARD, slot(2), &set);
+        assert!(done.success, "{}", done.message);
+        let saved = files(dir.path());
+        assert_eq!(saved.len(), 1, "{saved:?}");
+        let name = saved[0].file_name().unwrap().to_string_lossy().into_owned();
+        assert!(name.starts_with("backup-standard-slot-2-before-write-"), "{name}");
+        assert!(saved[0].extension().is_some_and(|e| e == "bin"), "{name}");
+        assert_eq!(std::fs::read(&saved[0]).unwrap(), bank());
+        assert_ne!(written(&dev), bank(), "the write changed the bank");
+    }
+
+    #[test]
+    fn a_write_that_cannot_save_its_backup_does_not_go_out() {
+        let dev = MockDevice::new()
+            .with_model(&UnvalidatedPad)
+            .with_profiles(ProfileReadResult { raw_blobs: vec![bank()], ..Default::default() });
+        let missing = Path::new("/nonexistent/backups");
+        let orchestrator = ProfileWriteOrchestrator::new(&dev, &UnvalidatedPad, missing);
+        let set = [("/rumble/level", 3.into())];
+        let refused = orchestrator.patch_settings(STANDARD, slot(2), &set);
+        assert!(!refused.success && refused.message.contains("backup"), "{}", refused.message);
+        assert!(dev.calls().iter().all(|c| !matches!(c, MockCall::WriteFullProfile { .. })));
+    }
+
+    #[test]
+    fn a_write_to_a_validated_model_saves_no_backup_unless_it_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let dev = device();
+        let orchestrator = ProfileWriteOrchestrator::new(&dev, &TestPad, dir.path());
+        let set = [("/rumble/level", 3.into())];
+        assert!(orchestrator.patch_settings(STANDARD, slot(2), &set).success);
+        assert_eq!(files(dir.path()), Vec::<std::path::PathBuf>::new());
     }
 }
