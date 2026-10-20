@@ -735,6 +735,14 @@ msgid "A step cannot hold {}"
 msgstr "⟦~~~~~~~~~A step cannot hold {}⟧"
 
 #: ui/macros.slint
+msgid "Stop holding {} in step {} (remapped to {})"
+msgstr "⟦~~~~~~~~~~~~~~~~~~Stop holding {} in step {} (remapped to {})⟧"
+
+#: ui/macros.slint
+msgid "Hold {} in step {} (remapped to {})"
+msgstr "⟦~~~~~~~~~~~~~~Hold {} in step {} (remapped to {})⟧"
+
+#: ui/macros.slint
 msgid "Stop holding {} in step {}"
 msgstr "⟦~~~~~~~~~~~Stop holding {} in step {}⟧"
 
@@ -745,6 +753,14 @@ msgstr "⟦~~~~~~~~Hold {} in step {}⟧"
 #: ui/macros.slint
 msgid "Buttons held, {} view"
 msgstr "⟦~~~~~~~~~Buttons held, {} view⟧"
+
+#: ui/macros.slint
+msgid "{}, held, remapped to {}."
+msgstr "⟦~~~~~~~~~~{}, held, remapped to {}.⟧"
+
+#: ui/macros.slint
+msgid "{}, not held, remapped to {}."
+msgstr "⟦~~~~~~~~~~~~{}, not held, remapped to {}.⟧"
 
 #: ui/macros.slint
 msgid "{}, held"
@@ -1223,6 +1239,10 @@ msgstr "⟦~~~~~~~~~~~~~Undo the last step edit (Ctrl+Z)⟧"
 #: ui/steps.slint
 msgid "Starts at"
 msgstr "⟦~~~~Starts at⟧"
+
+#: ui/steps.slint
+msgid "{} is remapped to {}."
+msgstr "⟦~~~~~~~~~{} is remapped to {}.⟧"
 
 #: ui/steps.slint
 msgid "L stick"
@@ -2247,6 +2267,14 @@ msgstr ""
 #: src/settings.rs
 msgid "Firmware {min} or later adds: {items}."
 msgstr "⟦~~~~~~~~~~~~~~~~Firmware {min} or later adds: {items}.⟧"
+
+#: src/step_map.rs
+msgid "{output} ({button}'s output)"
+msgstr "⟦~~~~~~~~~~~~{output} ({button}'s output)⟧"
+
+#: src/step_map.rs
+msgid "{button} (remapped to {output})"
+msgstr "⟦~~~~~~~~~~~~~{button} (remapped to {output})⟧"
 
 #: src/step_table.rs
 msgid "x {x}, y {y}"

@@ -9,6 +9,7 @@ use crate::buttons::{button_label, hit, push_model};
 use crate::language::prose;
 use crate::macro_steps::prune_glides;
 use crate::state::AppState;
+use crate::step_map::{remapped_to, step_remaps};
 use crate::ui::{AppWindow, ChipInfo, MacroSpot};
 
 /// A trigger value pressed fully.
@@ -90,15 +91,17 @@ impl AppState {
 }
 
 /// "Buttons held" of `step` in `mode`: every button that can be in a step, on when the
-/// step holds it.
+/// step holds it, with the output the slot's button map gives it.
 #[must_use]
 pub fn chips(state: &AppState, mode: Mode, step: &MacroStep) -> Vec<ChipInfo> {
+    let remaps = step_remaps(state, mode);
     step_buttons(state)
         .into_iter()
         .map(|b| ChipInfo {
             label: b.printed(mode).into(),
             spoken: prose(b.printed_spoken(mode)).into(),
             on: holds(step, b),
+            remapped_to: remapped_to(&remaps, &b.id).into(),
         })
         .collect()
 }

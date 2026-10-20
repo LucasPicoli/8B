@@ -32,6 +32,7 @@ mod render;
 mod review;
 mod settings;
 mod state;
+mod step_map;
 mod step_panel;
 mod step_table;
 mod stick_pad;

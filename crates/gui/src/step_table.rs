@@ -17,6 +17,7 @@ use crate::macro_steps::{add_after, delete, duplicate, move_step, split};
 use crate::render::and_list;
 use crate::review::count;
 use crate::state::AppState;
+use crate::step_map::{remapped_to, step_remaps, with_play};
 use crate::ui::{AppWindow, LaneInfo, StepCount, StepInfo, StickInfo};
 
 /// A stick at rest, on each axis.
@@ -300,6 +301,21 @@ fn is_pause(step: &MacroStep) -> bool {
             .all(|&v| v == REST)
 }
 
+/// The buttons of the step table's lanes: each one a step of `steps` holds, in the
+/// description's order.
+fn lane_buttons<'a>(state: &'a AppState, steps: &[MacroStep]) -> Vec<&'a Button> {
+    let buttons = &state.description().buttons;
+    buttons.iter().filter(|b| b.can_be_in_macro_step && steps.iter().any(|s| holds(s, b))).collect()
+}
+
+/// The output the slot's button map gives each lane's button in `mode`, or "", for the
+/// mark and the tip on a remapped lane's head.
+#[must_use]
+pub fn lane_remaps(state: &AppState, mode: Mode, steps: &[MacroStep]) -> Vec<String> {
+    let remaps = step_remaps(state, mode);
+    lane_buttons(state, steps).iter().map(|b| remapped_to(&remaps, &b.id).to_owned()).collect()
+}
+
 /// The step table of `steps` in `mode`: the lane buttons, in the description's order,
 /// and one row per step.
 #[must_use]
@@ -310,11 +326,8 @@ pub fn step_rows(
 ) -> (Vec<String>, Vec<StepInfo>) {
     let description = state.description();
     let kind = description.mode(mode).map_or(TriggerKind::OnOff, |m| m.trigger_kind);
-    let lanes: Vec<&Button> = description
-        .buttons
-        .iter()
-        .filter(|b| b.can_be_in_macro_step && steps.iter().any(|s| holds(s, b)))
-        .collect();
+    let lanes = lane_buttons(state, steps);
+    let remaps = step_remaps(state, mode);
     let mut at: u32 = 0;
     let rows = steps
         .iter()
@@ -339,8 +352,8 @@ pub fn step_rows(
                         top,
                         bottom: next.filter(|_| glides).map_or(top, |n| bar(n, b, kind)),
                         tip: if on {
-                            let label = b.printed(mode);
-                            held_text(step, next, b, label, kind).into()
+                            let label = with_play(&remaps, &b.id, b.printed(mode));
+                            held_text(step, next, b, &label, kind).into()
                         } else {
                             "".into()
                         },
@@ -350,7 +363,10 @@ pub fn step_rows(
             let held_list: Vec<String> = lanes
                 .iter()
                 .filter(|b| holds(step, b))
-                .map(|b| held_text(step, next, b, &prose(b.printed_spoken(mode)), kind))
+                .map(|b| {
+                    let label = with_play(&remaps, &b.id, &prose(b.printed_spoken(mode)));
+                    held_text(step, next, b, &label, kind)
+                })
                 .collect();
             StepInfo {
                 number: i32::try_from(i + 1).unwrap_or(i32::MAX),
@@ -396,6 +412,12 @@ pub fn render_steps(state: &AppState, ui: &AppWindow) {
     ui.set_step_count(steps.as_ref().map(|s| step_count(state, s)).unwrap_or_default());
     let lanes = lanes.into_iter().map(SharedString::from).collect();
     push_model(&ui.get_step_lanes(), lanes, |m| ui.set_step_lanes(m));
+    let remaps = match (&steps, mode) {
+        (Some(steps), Some(mode)) => lane_remaps(state, mode, steps),
+        _ => Vec::new(),
+    };
+    let remaps = remaps.into_iter().map(SharedString::from).collect();
+    push_model(&ui.get_step_lane_remaps(), remaps, |m| ui.set_step_lane_remaps(m));
     // A row keeps its lanes model while the lanes hold, so only a changed row is redone.
     let current = ui.get_step_rows();
     let mut rows = rows;

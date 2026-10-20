@@ -75,6 +75,7 @@ export component AppWindow inherits Window {
     // The step table of the selected macro, and its selected step.
     in property <[StepInfo]> step-rows;
     in property <[string]> step-lanes;
+    in property <[string]> step-lane-remaps;
     in property <StepCount> step-count;
     in property <bool> steps-full;
     in property <bool> steps-ready;
@@ -564,6 +565,7 @@ export component AppWindow inherits Window {
                         narrow: root.compact;
                         step-rows: root.step-rows;
                         step-lanes: root.step-lanes;
+                        step-lane-remaps: root.step-lane-remaps;
                         step-count: root.step-count;
                         steps-full: root.steps-full;
                         steps-ready: root.steps-ready;
