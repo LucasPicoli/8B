@@ -88,12 +88,13 @@ hw:
     cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate --skip import_check
 
 # One phase of the guided check of an imported profile on an Ultimate: backup, check or
-# restore. Run each once, in that order. See docs/ultimate-import-check.md.
-ultimate-import-check phase:
+# restore. Run each once, in that order. `check` takes the modes to press, both by default,
+# as in `just ultimate-import-check check switch`. See docs/ultimate-import-check.md.
+ultimate-import-check phase *modes:
     #!/usr/bin/env bash
     set -euo pipefail
     case "{{phase}}" in backup|check|restore) ;; *) echo 'phase: backup, check or restore' >&2; exit 2 ;; esac
-    cargo test -p controller-core --features hardware --test ultimate -- --ignored --nocapture --exact "import_check::{{phase}}"
+    IMPORT_CHECK_MODES="{{modes}}" cargo test -p controller-core --features hardware --test ultimate -- --ignored --nocapture --exact "import_check::{{phase}}"
 
 # Build the x86_64 AppImage in ubuntu:22.04 (glibc 2.35), so it runs on that glibc and newer.
 appimage:

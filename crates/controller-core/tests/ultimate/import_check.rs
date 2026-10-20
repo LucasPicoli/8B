@@ -83,7 +83,7 @@ fn check() {
     }
     assert!(!failed, "the pad does not hold the files: import them again and write them");
     // The pad sends input only while locked, and the guard in `Session` has relocked it.
-    for mode in [XINPUT, SWITCH] {
+    for mode in modes_to_press() {
         press(mode);
     }
     println!("every press passed");
@@ -107,6 +107,34 @@ fn restore() {
     println!("the pad holds the backup again");
 }
 
+/// The modes `IMPORT_CHECK_MODES` names, such as "switch", or both when it names none.
+fn modes_to_press() -> Vec<controller_core::model::Mode> {
+    let named = std::env::var("IMPORT_CHECK_MODES").unwrap_or_default();
+    let picked: Vec<_> = named
+        .split_whitespace()
+        .map(|m| match m {
+            "xinput" => XINPUT,
+            "switch" => SWITCH,
+            other => panic!("IMPORT_CHECK_MODES: no mode {other}; use xinput or switch"),
+        })
+        .collect();
+    if picked.is_empty() {
+        vec![XINPUT, SWITCH]
+    } else {
+        picked
+    }
+}
+
+/// Where the presses of `mode` go. In Switch mode, this computer's Bluetooth link made the
+/// desk pad drop the slot's profile after a moment; a phone kept it.
+fn tester_host(mode: controller_core::model::Mode) -> &'static str {
+    if mode == SWITCH {
+        "Pair the pad by Bluetooth to an Android phone or a Switch, not this computer: on this\ncomputer's link the pad drops the profile after a moment. Open a gamepad tester there."
+    } else {
+        "Keep the pad on its cable to this computer. Open a gamepad tester here."
+    }
+}
+
 /// Reads one line, without its newline.
 fn line() -> String {
     let mut text = String::new();
@@ -121,7 +149,8 @@ fn press(mode: controller_core::model::Mode) {
     println!("\n== {label} ==");
     println!("Put the pad in {label} mode. Select slot {SLOT}. Use the pad's own way for both:");
     println!("this repo does not say how the pad picks its mode or slot.");
-    println!("Open a gamepad tester on the pad. Press Enter when ready.");
+    println!("{}", tester_host(mode));
+    println!("Press Enter when ready.");
     line();
     let steps = prompts(&fixture(mode));
     for (i, step) in steps.iter().enumerate() {

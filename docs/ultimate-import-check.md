@@ -48,12 +48,19 @@ For each mode:
 just ultimate-import-check check
 ```
 
-1. It unlocks, reads both banks, and compares slot 3 with each file. It prints every
-   difference (mapping, macro trigger, macro step) and stops if there is one. It
-   relocks the pad.
+Add `xinput` or `switch` to press one mode only, as in
+`just ultimate-import-check check switch`.
+
+1. With the pad on its cable, it unlocks, reads both banks, and compares slot 3 with
+   each file. It prints every difference (mapping, macro trigger, macro step) and
+   stops if there is one. It relocks the pad.
 2. For each mode it asks you to select the mode and slot 3 on the pad. The repo does
    not say how the pad picks its mode or slot, so use the pad's own way. The check
    cannot confirm the selection.
+   - XInput: keep the pad on the cable and run the tester on this computer.
+   - Switch: pair the pad by Bluetooth to an Android phone or a Switch and run the
+     tester there. Paired to a Linux computer, the desk pad played the slot's remaps
+     for a moment, then fell back to default.
 3. It then prompts each press: what to press, and what the tester should show. Answer
    with Enter for a pass or `n` for a fail. There is no timeout. The first `n` stops
    the run.
