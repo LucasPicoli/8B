@@ -48,7 +48,7 @@ For each mode:
 just ultimate-import-check check
 ```
 
-Add `xinput` or `switch` to press one mode only, as in
+Add `xinput` or `switch` to compare and press one mode only, as in
 `just ultimate-import-check check switch`.
 
 1. With the pad on its cable, it unlocks, reads both banks, and compares slot 3 with

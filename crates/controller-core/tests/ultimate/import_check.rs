@@ -71,8 +71,9 @@ fn backup() {
 #[ignore = "needs a locked Ultimate on USB; run by `just ultimate-import-check check`"]
 fn check() {
     let banks = Session::new().dev.read_all_profiles().unwrap().raw_blobs;
+    let modes = modes_to_press();
     let mut failed = false;
-    for (mode, blob) in MODES.iter().zip(&banks) {
+    for (mode, blob) in MODES.iter().zip(&banks).filter(|(m, _)| modes.contains(m)) {
         let want = fixture(*mode);
         let found = differences(&want, &read_slot(blob, SLOT));
         println!("{mode} slot {SLOT}: {} differences", found.len());
@@ -83,7 +84,7 @@ fn check() {
     }
     assert!(!failed, "the pad does not hold the files: import them again and write them");
     // The pad sends input only while locked, and the guard in `Session` has relocked it.
-    for mode in modes_to_press() {
+    for mode in modes {
         press(mode);
     }
     println!("every press passed");
@@ -107,7 +108,7 @@ fn restore() {
     println!("the pad holds the backup again");
 }
 
-/// The modes `IMPORT_CHECK_MODES` names, such as "switch", or both when it names none.
+/// The modes to compare and press: the ones `IMPORT_CHECK_MODES` names, such as "switch", or both when it names none.
 fn modes_to_press() -> Vec<controller_core::model::Mode> {
     let named = std::env::var("IMPORT_CHECK_MODES").unwrap_or_default();
     let picked: Vec<_> = named
