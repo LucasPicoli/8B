@@ -211,6 +211,7 @@ component MacroViewArt {
     for s in root.spots: ViewTip {
         visible: root.live && s.view == root.index && s.row == root.hover;
         text: s.chip < 0 ? @tr("A step cannot hold {}", s.label)
+            : root.chips[s.chip].remapped-to != "" ? (root.chips[s.chip].on ? @tr("Stop holding {} in step {} (remapped to {})", s.label, root.step, root.chips[s.chip].remapped-to) : @tr("Hold {} in step {} (remapped to {})", s.label, root.step, root.chips[s.chip].remapped-to))
             : root.chips[s.chip].on ? @tr("Stop holding {} in step {}", s.label, root.step)
             : @tr("Hold {} in step {}", s.label, root.step);
         x0: s.x0 * root.scale * 1px;
@@ -271,7 +272,9 @@ component MacroViewArt {
         focus-on-click: false;
         accessible-role: groupbox;
         accessible-label: @tr("Buttons held, {} view", root.view.label);
-        accessible-description: !root.live || root.focused-chip < 0 ? "" : root.chips[root.focused-chip].on ? @tr("{}, held", root.chips[root.focused-chip].spoken) : @tr("{}, not held", root.chips[root.focused-chip].spoken);
+        accessible-description: !root.live || root.focused-chip < 0 ? ""
+            : root.chips[root.focused-chip].remapped-to != "" ? (root.chips[root.focused-chip].on ? @tr("{}, held, remapped to {}.", root.chips[root.focused-chip].spoken, root.chips[root.focused-chip].remapped-to) : @tr("{}, not held, remapped to {}.", root.chips[root.focused-chip].spoken, root.chips[root.focused-chip].remapped-to))
+            : root.chips[root.focused-chip].on ? @tr("{}, held", root.chips[root.focused-chip].spoken) : @tr("{}, not held", root.chips[root.focused-chip].spoken);
         focus-gained(reason) => {
             root.keyboard-focus = reason == FocusReason.tab-navigation;
             if (root.focused-chip < 0 && root.live) {
@@ -617,6 +620,8 @@ export component MacrosTab {
     // The step table of the selected macro.
     in property <[StepInfo]> step-rows;
     in property <[string]> step-lanes;
+    // The output the slot's button map gives each lane's button, or "".
+    in property <[string]> step-lane-remaps;
     in property <StepCount> step-count;
     in property <bool> steps-full;
     in property <bool> steps-ready;
@@ -797,6 +802,7 @@ export component MacrosTab {
             if root.current.filled: StepTable {
                 rows: root.step-rows;
                 lanes: root.step-lanes;
+                lane-remaps: root.step-lane-remaps;
                 count: root.step-count;
                 full: root.steps-full;
                 over: root.current.steps-invalid;

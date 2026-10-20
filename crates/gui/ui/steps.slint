@@ -294,6 +294,9 @@ component StepRow inherits Rectangle {
 export component StepTable inherits Frame {
     in property <[StepInfo]> rows;
     in property <[string]> lanes;
+    // The output the slot's button map gives each lane's button, or "": a remapped
+    // lane's head gets a mark and a tip.
+    in property <[string]> lane-remaps;
     in property <StepCount> count;
     // Such as "12/408 steps · 1.20 s", or "12 steps, 40/408 on the controller · 1.20 s"
     // when a glide expands.
@@ -466,14 +469,31 @@ export component StepTable inherits Frame {
                 heads := Lanes {
                     count: root.lanes.length;
                     offset: root.shown-x;
-                    for name[i] in root.lanes: SmallHead {
+                    for name[i] in root.lanes: Rectangle {
                         x: i * heads.lane;
                         width: heads.lane;
                         height: parent.height;
-                        text: name;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                        overflow: elide;
+                        accessible-role: none;
+                        accessible-description: root.lane-remaps[i] == "" ? "" : @tr("{} is remapped to {}.", name, root.lane-remaps[i]);
+                        SmallHead {
+                            text: name;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                            overflow: elide;
+                            accessible-description: parent.accessible-description;
+                        }
+                        // The Buttons tab marks a remapped button in the accent too.
+                        if root.lane-remaps[i] != "": Rectangle {
+                            x: round((parent.width - self.width) / 2 / 1phx) * 1phx;
+                            y: parent.height - 6px;
+                            width: 12px;
+                            height: 2px;
+                            border-radius: 1px;
+                            background: Theme.accent;
+                        }
+                        if root.lane-remaps[i] != "": Tooltip {
+                            text: @markdown("\{parent.accessible-description}");
+                        }
                     }
                 }
                 SmallHead {

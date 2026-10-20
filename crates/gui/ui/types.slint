@@ -447,4 +447,7 @@ export struct ChipInfo {
     // What a screen reader says for the label.
     spoken: string,
     on: bool,
+    // The output the slot's button map gives it, such as "A", or "" when the map leaves
+    // it as it is. A step on it sends that output.
+    remapped-to: string,
 }

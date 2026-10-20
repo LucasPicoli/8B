@@ -1516,6 +1516,86 @@ fn a_deleted_macro_offers_undo() {
     save("macros-deleted", &ui);
 }
 
+/// An Ultimate Bluetooth slot that maps X to the bottom button, with a macro step on X:
+/// X's lane head carries the remap mark, and the tip over X on the drawing says it is
+/// remapped to A.
+#[test]
+fn a_step_on_a_remapped_button_says_what_it_is_remapped_to() {
+    use controller_core::devices::ultimate;
+    let mut s = crate::state::tests::ultimate("1.09");
+    s.select(0, 0);
+    let x = s.description().buttons.iter().find(|b| b.printed(ultimate::XINPUT) == "X");
+    let x = x.unwrap().id.clone();
+    s.set_output(&x, "bottom face");
+    s.new_macro(0);
+    s.edit_macro(0, |m| m.steps[0].pressed_buttons = vec![x.clone()]);
+    let ui = window(&s);
+    ui.set_tab(1);
+    render(&s, &ui);
+    if !qps_stops_here() {
+        let lanes: Vec<_> = slint::Model::iter(&ui.get_step_lane_remaps()).collect();
+        assert_eq!(lanes, ["A"]);
+        let row = slint::Model::row_data(&ui.get_step_rows(), 0).unwrap();
+        assert_eq!(row.held, "X (remapped to A)");
+    }
+    let state = Rc::new(s);
+    let st = Rc::clone(&state);
+    ui.on_hit(move |v, x, y| {
+        crate::buttons::hit(st.description(), usize::try_from(v).unwrap(), x, y)
+    });
+    ui.on_macro_hit(move |v, n, i, x, y| {
+        crate::step_panel::action_hit(
+            &state,
+            usize::try_from(v).unwrap(),
+            u8::try_from(n).unwrap(),
+            usize::try_from(i).unwrap(),
+            x,
+            y,
+        )
+    });
+    // The pointer on X, the top face button of the front view at this size.
+    ui.window().dispatch_event(slint::platform::WindowEvent::PointerMoved {
+        position: slint::LogicalPosition::new(520.0, 449.0),
+    });
+    save("macros-step-remap-hover", &ui);
+}
+
+/// Every button a step can press mapped to the next one's output, and one step that
+/// presses them all, on the Pro 3 and the Ultimate Bluetooth, wide and narrow: each lane
+/// head carries the remap mark.
+#[test]
+fn a_step_on_every_remapped_button_marks_each_lane() {
+    for (name, mut s) in
+        [("pro3", connected(XINPUT)), ("ultimate", crate::state::tests::ultimate("1.09"))]
+    {
+        s.select(0, 0);
+        let ids: Vec<String> = s
+            .description()
+            .buttons
+            .iter()
+            .filter(|b| b.can_be_in_macro_step && b.can_be_remapped && b.can_be_output)
+            .map(|b| b.id.clone())
+            .collect();
+        for (i, id) in ids.iter().enumerate() {
+            s.set_output(id, &ids[(i + 1) % ids.len()]);
+        }
+        s.new_macro(0);
+        s.edit_macro(0, |m| m.steps[0].pressed_buttons.clone_from(&ids));
+        for (width, height, suffix) in [(1280, 800, ""), (1024, 768, "-narrow")] {
+            let ui = window(&s);
+            ui.window().set_size(PhysicalSize::new(width, height));
+            fit_toolbar(&ui);
+            ui.set_tab(1);
+            render(&s, &ui);
+            let remaps: Vec<_> = slint::Model::iter(&ui.get_step_lane_remaps()).collect();
+            // A trigger held as a value has no lane of its own here.
+            assert_eq!(remaps.len(), slint::Model::row_count(&ui.get_step_lanes()), "{name}");
+            assert!(remaps.iter().all(|s| !s.is_empty()), "{name}: {remaps:?}");
+            save(&format!("macros-step-remap-full-{name}{suffix}"), &ui);
+        }
+    }
+}
+
 /// The Macros tab of [`macros_tab`] at macro slot `n`, saved as `name`.
 fn macros_at(name: &str, s: &AppState, n: i32) {
     let ui = window(s);

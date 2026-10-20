@@ -657,6 +657,14 @@ msgid "A step cannot hold {}"
 msgstr ""
 
 #: ui/macros.slint
+msgid "Stop holding {} in step {} (remapped to {})"
+msgstr ""
+
+#: ui/macros.slint
+msgid "Hold {} in step {} (remapped to {})"
+msgstr ""
+
+#: ui/macros.slint
 msgid "Stop holding {} in step {}"
 msgstr ""
 
@@ -666,6 +674,14 @@ msgstr ""
 
 #: ui/macros.slint
 msgid "Buttons held, {} view"
+msgstr ""
+
+#: ui/macros.slint
+msgid "{}, held, remapped to {}."
+msgstr ""
+
+#: ui/macros.slint
+msgid "{}, not held, remapped to {}."
 msgstr ""
 
 #: ui/macros.slint
@@ -1122,6 +1138,10 @@ msgstr ""
 #. Ultimate /settings/3/frames/1/sliders/0/label
 #: ui/steps.slint
 msgid "Starts at"
+msgstr ""
+
+#: ui/steps.slint
+msgid "{} is remapped to {}."
 msgstr ""
 
 #: ui/steps.slint
@@ -2013,6 +2033,14 @@ msgstr ""
 
 #: src/settings.rs
 msgid "Firmware {min} or later adds: {items}."
+msgstr ""
+
+#: src/step_map.rs
+msgid "{output} ({button}'s output)"
+msgstr ""
+
+#: src/step_map.rs
+msgid "{button} (remapped to {output})"
 msgstr ""
 
 #: src/step_table.rs

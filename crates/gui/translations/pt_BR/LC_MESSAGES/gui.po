@@ -616,6 +616,14 @@ msgid "A step cannot hold {}"
 msgstr "Um passo não pode pressionar {}"
 
 #: ui/macros.slint
+msgid "Stop holding {} in step {} (remapped to {})"
+msgstr "Soltar {} no passo {} (remapeado para {})"
+
+#: ui/macros.slint
+msgid "Hold {} in step {} (remapped to {})"
+msgstr "Pressionar {} no passo {} (remapeado para {})"
+
+#: ui/macros.slint
 msgid "Stop holding {} in step {}"
 msgstr "Soltar {} no passo {}"
 
@@ -626,6 +634,14 @@ msgstr "Pressionar {} no passo {}"
 #: ui/macros.slint
 msgid "Buttons held, {} view"
 msgstr "Botões pressionados, visão {}"
+
+#: ui/macros.slint
+msgid "{}, held, remapped to {}."
+msgstr "{}, pressionado, remapeado para {}."
+
+#: ui/macros.slint
+msgid "{}, not held, remapped to {}."
+msgstr "{}, solto, remapeado para {}."
 
 #: ui/macros.slint
 msgid "{}, held"
@@ -1071,6 +1087,10 @@ msgstr "Desfazer a última alteração de passo (Ctrl+Z)"
 #: ui/steps.slint
 msgid "Starts at"
 msgstr "Começa em"
+
+#: ui/steps.slint
+msgid "{} is remapped to {}."
+msgstr "{} está remapeado para {}."
 
 #: ui/steps.slint
 msgid "L stick"
@@ -1925,6 +1945,14 @@ msgstr "O 8B não conseguiu ler a versão do firmware, então oculta: {items}."
 #: src/settings.rs
 msgid "Firmware {min} or later adds: {items}."
 msgstr "O firmware {min} ou mais recente adiciona: {items}."
+
+#: src/step_map.rs
+msgid "{output} ({button}'s output)"
+msgstr "{output} (a ação de {button})"
+
+#: src/step_map.rs
+msgid "{button} (remapped to {output})"
+msgstr "{button} (remapeado para {output})"
 
 #: src/step_table.rs
 msgid "x {x}, y {y}"
