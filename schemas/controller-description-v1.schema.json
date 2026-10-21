@@ -299,7 +299,7 @@
                 "type": "string"
               },
               "leaving_hint": {
-                "description": "Optional. A warning shown when a button the controller holds on this output is set to another one.",
+                "description": "Optional. A warning shown when a button the controller holds on this output is set to another one. {} stands for the button's name.",
                 "type": "string"
               },
               "code": {

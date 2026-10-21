@@ -510,6 +510,107 @@ fn pt_br_ultimate_tabs_in_each_mode() {
     ultimate_tabs("-pt-br");
 }
 
+/// The Buttons tab of an Ultimate in `XInput` whose pad holds Swap on P2: with P2 moved to
+/// another output and not written, so the warning shows under the table, and with P2
+/// still on Swap, so it does not. The shot names end in `suffix`.
+fn swap_warning(suffix: &str) {
+    use controller_core::devices::ultimate::XINPUT;
+    for (moved, name) in [(true, "warning"), (false, "no-warning")] {
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.select(0, 0);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.button_mappings.retain(|m| m.source != "p2");
+        pad.button_mappings.push(controller_core::model::ButtonMapping {
+            source: "p2".to_owned(),
+            target: "swap".to_owned(),
+        });
+        if moved {
+            s.set_output("p2", "turbo");
+        }
+        let ui = window(&s);
+        ui.window().set_size(PhysicalSize::new(1280, 1300));
+        save(&format!("ultimate-swap-{name}{suffix}"), &ui);
+    }
+}
+
+#[test]
+fn the_swap_warning_shows_under_the_table() {
+    swap_warning("");
+}
+
+#[test]
+fn pt_br_the_swap_warning_shows_under_the_table() {
+    swap_warning("-pt-br");
+}
+
+/// The (left, right) pixel of each row of the Buttons table, found as the run of
+/// pixels unlike the window's edge that ends at the rightmost one, for the rows 300 to 400 px wide.
+fn table_edges(s: &AppState) -> Vec<(usize, usize, usize)> {
+    let ui = window(s);
+    ui.window().set_size(PhysicalSize::new(1280, 1300));
+    let shot = ui.window().take_snapshot().unwrap();
+    let width = shot.width() as usize;
+    shot.as_slice()
+        .chunks(width)
+        .enumerate()
+        .filter_map(|(y, row)| {
+            // The last pixel of a row is the page, or the bar of a row across the window.
+            let background = *row.last()?;
+            let right = row.iter().rposition(|p| *p != background)?;
+            let left = row[..right].iter().rposition(|p| *p == background).map_or(0, |i| i + 1);
+            (300..=400).contains(&(right - left + 1)).then_some((y, left, right))
+        })
+        .collect()
+}
+
+/// The warning under the Buttons table takes the table's own width: the table, and the
+/// drawing beside it, do not move when it appears.
+#[test]
+fn the_swap_warning_does_not_move_the_table() {
+    let state = |moved| {
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.select(0, 0);
+        let pad = s
+            .active_mut()
+            .unwrap()
+            .slots
+            .get_mut(&(controller_core::devices::ultimate::XINPUT, 1))
+            .unwrap()
+            .pad
+            .as_mut()
+            .unwrap();
+        pad.button_mappings.retain(|m| m.source != "p2");
+        pad.button_mappings.push(controller_core::model::ButtonMapping {
+            source: "p2".to_owned(),
+            target: "swap".to_owned(),
+        });
+        if moved {
+            s.set_output("p2", "turbo");
+        }
+        s
+    };
+    let (without, with) = (table_edges(&state(false)), table_edges(&state(true)));
+    let common: Vec<_> = without.iter().filter(|r| with.iter().any(|w| w.0 == r.0)).collect();
+    assert!(common.len() > 400, "only {} table rows found", common.len());
+    for r in &common {
+        let w = with.iter().find(|w| w.0 == r.0).unwrap();
+        assert_eq!((r.1, r.2), (w.1, w.2), "row {} moved", r.0);
+    }
+    // The bar adds rows of the same width, bar the rounded corners.
+    let (left, right) = (common[common.len() / 2].1, common[common.len() / 2].2);
+    let bar = with.iter().filter(|w| !without.iter().any(|r| r.0 == w.0));
+    assert!(bar.clone().count() > 20, "no bar under the table");
+    assert!(
+        bar.clone().any(|w| (w.1, w.2) == (left, right)),
+        "the bar is not as wide as the table"
+    );
+    assert!(
+        bar.into_iter().all(|w| w.1 >= left && w.2 <= right),
+        "the bar sticks out of the table"
+    );
+}
+
 /// A Switch slot with an edit on every settings tab.
 fn edited_settings() -> AppState {
     let mut s = connected(SWITCH);

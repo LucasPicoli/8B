@@ -2778,8 +2778,8 @@ msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para troc�
 #. Ultimate 2.4G /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/1/extra_outputs/2/leaving_hint
-msgid "A swap you made stays until you undo it with a Swap button."
-msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca."
+msgid "Swaps made with {} last until the controller turns off."
+msgstr "Trocas feitas com o {} duram até o controle ser desligado."
 
 #. Ultimate /modes/1/extra_outputs/2/hint
 msgid "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
@@ -2867,6 +2867,12 @@ msgstr "Ultimate 2.4G"
 #. Ultimate Wired /short_name
 msgid "Ultimate Wired"
 msgstr "Ultimate Wired"
+
+#~ msgid "A swap you made stays until you undo it with a Swap button or turn the controller off."
+#~ msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca ou desligar o controle."
+
+#~ msgid "A swap you made stays until you undo it with a Swap button."
+#~ msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca."
 
 #~ msgid "{macro} loses {item}. {reason}"
 #~ msgstr "{macro} perde {item}. {reason}"

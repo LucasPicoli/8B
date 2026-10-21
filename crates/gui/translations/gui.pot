@@ -2888,7 +2888,7 @@ msgstr ""
 #. Ultimate 2.4G /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/1/extra_outputs/2/leaving_hint
-msgid "A swap you made stays until you undo it with a Swap button."
+msgid "Swaps made with {} last until the controller turns off."
 msgstr ""
 
 #. Ultimate /modes/1/extra_outputs/2/hint

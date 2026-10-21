@@ -1,6 +1,6 @@
 // The Buttons tab: the controller views beside the mapping table.
 import { Theme, ComboBox } from "look/breeze/widgets.slint";
-import { Frame, SmallHead, ViewTip } from "parts.slint";
+import { Frame, MessageBar, SmallHead, ViewTip } from "parts.slint";
 import { MapRow, PadView, Spot } from "types.slint";
 
 // A legend entry: the bar colour a table row shows, and what it means.
@@ -234,6 +234,18 @@ export component ButtonsTab {
                                 }
                             }
                         }
+                    }
+                }
+                // What the pad keeps after a write, shown without a hover.
+                for r in root.rows: VerticalLayout {
+                    // The text wraps inside the table's width: neither its unwrapped width nor
+                    // its longest word may widen the column and shrink the drawing.
+                    preferred-width: 0px;
+                    min-width: 0px;
+                    // A row without a warning adds no gap under the table.
+                    padding-top: r.warning != "" ? 8px : 0px;
+                    if r.warning != "": MessageBar {
+                        title: r.warning;
                     }
                 }
             }
