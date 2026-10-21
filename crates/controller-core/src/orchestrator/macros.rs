@@ -166,9 +166,17 @@ impl ProfileWriteOrchestrator<'_> {
         let step_ms = self.model.description()?.limits.glide_step_ms;
         let mut blob = bank.blob.clone();
         let mut changed = false;
-        for (i, edit) in edits.iter().enumerate() {
+        // A model may pack its macros, so a delete renumbers the ones above it. Puts go
+        // first, lowest macro slot first, then deletes from the highest down: each edit
+        // then finds the macro the read put in its slot.
+        let mut ordered: Vec<&MacroEdit> = edits.iter().collect();
+        ordered.sort_by_key(|e| match e {
+            MacroEdit::Put { macro_slot, .. } => (0, i16::from(macro_slot.get())),
+            MacroEdit::Delete { macro_slot } => (1, -i16::from(macro_slot.get())),
+        });
+        for (i, &edit) in ordered.iter().enumerate() {
             let m = edit.macro_slot();
-            if edits.iter().take(i).any(|e| e.macro_slot() == m) {
+            if ordered.iter().take(i).any(|e| e.macro_slot() == m) {
                 return Err(Error::Validation(format!(
                     "The job edits macro slot {} twice.",
                     m.get()
@@ -303,7 +311,22 @@ impl ProfileWriteOrchestrator<'_> {
             return Ok(());
         }
         let mut others = self.model.decode_macro_metadata(bank, slot)?;
-        others.retain(|m| m.macro_slot != Some(macro_slot.get()));
+        // The put itself: in its macro slot, or, on a model that packs its macros and
+        // moved it, the macro with its trigger. A second macro with that trigger stays.
+        let mut own_trigger = def.trigger_buttons.clone();
+        own_trigger.sort();
+        let same = |m: &MacroDefinition| {
+            let mut t = m.trigger_buttons.clone();
+            t.sort();
+            t == own_trigger
+        };
+        let own = others
+            .iter()
+            .position(|m| m.macro_slot == Some(macro_slot.get()) && same(m))
+            .or_else(|| others.iter().position(same));
+        if let Some(own) = own {
+            others.remove(own);
+        }
         let raw = RawProfilePayload {
             payload: bank.to_vec(),
             source_slot: slot.get(),
