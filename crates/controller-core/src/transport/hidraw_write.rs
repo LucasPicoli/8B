@@ -159,6 +159,7 @@ pub(super) fn send_slot_select(session: &mut Session, mode: Mode) -> Result<()> 
 }
 
 pub(super) fn send_apply(session: &mut Session) -> Result<()> {
+    std::thread::sleep(session.model()?.apply_delay());
     let packet = build_apply(session.model()?.apply_argument());
     command(session, &packet, CMD_APPLY, "apply")
 }

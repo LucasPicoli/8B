@@ -116,6 +116,7 @@ msgstr ""
 #. Ultimate 2.4G /buttons/11/labels/xinput
 #. Ultimate Wired /buttons/11/labels/dinput
 #. Ultimate Wired /buttons/11/labels/xinput
+#. Ultimate 2 /buttons/11/labels/xinput
 msgid "Menu"
 msgstr "Menu"
 
@@ -1094,6 +1095,7 @@ msgstr ""
 #. Ultimate 2.4G /settings/1/frames/1/title
 #. Ultimate Wired /settings/0/frames/1/title
 #. Ultimate Wired /settings/1/frames/1/title
+#. Ultimate 2 /settings/0/frames/1/title
 #: ui/steps.slint src/stick_pad.rs
 msgid "Right stick"
 msgstr ""
@@ -1151,6 +1153,7 @@ msgstr ""
 #. Ultimate 2.4G /settings/1/frames/0/title
 #. Ultimate Wired /settings/0/frames/0/title
 #. Ultimate Wired /settings/1/frames/0/title
+#. Ultimate 2 /settings/0/frames/0/title
 #: ui/steps.slint src/stick_pad.rs
 msgid "Left stick"
 msgstr ""
@@ -2208,6 +2211,7 @@ msgstr "Pro 3"
 #. Ultimate (BT) /modes/0/label
 #. Ultimate 2.4G /modes/0/label
 #. Ultimate Wired /modes/0/label
+#. Ultimate 2 /modes/0/label
 msgid "XInput"
 msgstr "XInput"
 
@@ -2231,6 +2235,7 @@ msgstr "DInput"
 #. Pro 3 /buttons/18/labels/dinput
 #. Pro 3 /buttons/18/labels/switch
 #. Pro 3 /buttons/18/labels/xinput
+#. Ultimate 2 /buttons/18/labels/xinput
 msgid "PR"
 msgstr "PR"
 
@@ -2238,6 +2243,7 @@ msgstr "PR"
 #. Pro 3 /buttons/19/labels/dinput
 #. Pro 3 /buttons/19/labels/switch
 #. Pro 3 /buttons/19/labels/xinput
+#. Ultimate 2 /buttons/19/labels/xinput
 msgid "PL"
 msgstr "PL"
 
@@ -2245,6 +2251,7 @@ msgstr "PL"
 #. Pro 3 /buttons/20/labels/dinput
 #. Pro 3 /buttons/20/labels/switch
 #. Pro 3 /buttons/20/labels/xinput
+#. Ultimate 2 /buttons/20/labels/xinput
 msgid "L4"
 msgstr "L4"
 
@@ -2252,6 +2259,7 @@ msgstr "L4"
 #. Pro 3 /buttons/21/labels/dinput
 #. Pro 3 /buttons/21/labels/switch
 #. Pro 3 /buttons/21/labels/xinput
+#. Ultimate 2 /buttons/21/labels/xinput
 msgid "R4"
 msgstr "R4"
 
@@ -2267,6 +2275,7 @@ msgstr "R4"
 #. Ultimate Wired /buttons/0/labels/dinput
 #. Ultimate Wired /buttons/0/labels/xinput
 #. Ultimate Wired /buttons/0/printed_label
+#. Ultimate 2 /buttons/0/labels/xinput
 msgid "B"
 msgstr "B"
 
@@ -2282,6 +2291,7 @@ msgstr "B"
 #. Ultimate Wired /buttons/1/labels/dinput
 #. Ultimate Wired /buttons/1/labels/xinput
 #. Ultimate Wired /buttons/1/printed_label
+#. Ultimate 2 /buttons/1/labels/xinput
 msgid "A"
 msgstr "A"
 
@@ -2297,6 +2307,7 @@ msgstr "A"
 #. Ultimate Wired /buttons/2/labels/dinput
 #. Ultimate Wired /buttons/2/labels/xinput
 #. Ultimate Wired /buttons/2/printed_label
+#. Ultimate 2 /buttons/2/labels/xinput
 msgid "Y"
 msgstr "Y"
 
@@ -2312,6 +2323,7 @@ msgstr "Y"
 #. Ultimate Wired /buttons/3/labels/dinput
 #. Ultimate Wired /buttons/3/labels/xinput
 #. Ultimate Wired /buttons/3/printed_label
+#. Ultimate 2 /buttons/3/labels/xinput
 msgid "X"
 msgstr "X"
 
@@ -2332,6 +2344,7 @@ msgstr "L"
 #. Ultimate Wired /buttons/4/labels/dinput
 #. Ultimate Wired /buttons/4/labels/xinput
 #. Ultimate Wired /buttons/4/printed_label
+#. Ultimate 2 /buttons/4/labels/xinput
 msgid "LB"
 msgstr "LB"
 
@@ -2352,6 +2365,7 @@ msgstr "R"
 #. Ultimate Wired /buttons/5/labels/dinput
 #. Ultimate Wired /buttons/5/labels/xinput
 #. Ultimate Wired /buttons/5/printed_label
+#. Ultimate 2 /buttons/5/labels/xinput
 msgid "RB"
 msgstr "RB"
 
@@ -2372,6 +2386,7 @@ msgstr "ZL"
 #. Ultimate Wired /buttons/6/labels/dinput
 #. Ultimate Wired /buttons/6/labels/xinput
 #. Ultimate Wired /buttons/6/printed_label
+#. Ultimate 2 /buttons/6/labels/xinput
 msgid "LT"
 msgstr "LT"
 
@@ -2392,6 +2407,7 @@ msgstr "ZR"
 #. Ultimate Wired /buttons/7/labels/dinput
 #. Ultimate Wired /buttons/7/labels/xinput
 #. Ultimate Wired /buttons/7/printed_label
+#. Ultimate 2 /buttons/7/labels/xinput
 msgid "RT"
 msgstr "RT"
 
@@ -2407,6 +2423,7 @@ msgstr "L3"
 #. Ultimate 2.4G /buttons/8/labels/xinput
 #. Ultimate Wired /buttons/8/labels/dinput
 #. Ultimate Wired /buttons/8/labels/xinput
+#. Ultimate 2 /buttons/8/labels/xinput
 msgid "LS"
 msgstr "LS"
 
@@ -2422,6 +2439,7 @@ msgstr "R3"
 #. Ultimate 2.4G /buttons/9/labels/xinput
 #. Ultimate Wired /buttons/9/labels/dinput
 #. Ultimate Wired /buttons/9/labels/xinput
+#. Ultimate 2 /buttons/9/labels/xinput
 msgid "RS"
 msgstr "RS"
 
@@ -2441,6 +2459,7 @@ msgstr "−"
 #. Ultimate 2.4G /buttons/10/labels/xinput
 #. Ultimate Wired /buttons/10/labels/dinput
 #. Ultimate Wired /buttons/10/labels/xinput
+#. Ultimate 2 /buttons/10/labels/xinput
 msgid "View"
 msgstr "View"
 
@@ -2473,6 +2492,7 @@ msgstr ""
 #. Ultimate 2.4G /modes/1/extra_outputs/0/label
 #. Ultimate Wired /modes/0/extra_outputs/0/label
 #. Ultimate Wired /modes/1/extra_outputs/0/label
+#. Ultimate 2 /buttons/12/labels/xinput
 msgid "Turbo"
 msgstr "Turbo"
 
@@ -2488,6 +2508,7 @@ msgid "Home"
 msgstr "Home"
 
 #. Pro 3 /buttons/13/labels/xinput
+#. Ultimate 2 /buttons/13/labels/xinput
 msgid "Guide"
 msgstr "Guide"
 
@@ -2500,6 +2521,7 @@ msgstr "Guide"
 #. Ultimate 2.4G /buttons/14/labels/xinput
 #. Ultimate Wired /buttons/14/labels/dinput
 #. Ultimate Wired /buttons/14/labels/xinput
+#. Ultimate 2 /buttons/14/labels/xinput
 msgid "↑"
 msgstr "↑"
 
@@ -2512,6 +2534,7 @@ msgstr "↑"
 #. Ultimate 2.4G /buttons/14/spoken_labels/xinput
 #. Ultimate Wired /buttons/14/spoken_labels/dinput
 #. Ultimate Wired /buttons/14/spoken_labels/xinput
+#. Ultimate 2 /buttons/14/spoken_labels/xinput
 msgid "D-pad up"
 msgstr ""
 
@@ -2524,6 +2547,7 @@ msgstr ""
 #. Ultimate 2.4G /buttons/15/labels/xinput
 #. Ultimate Wired /buttons/15/labels/dinput
 #. Ultimate Wired /buttons/15/labels/xinput
+#. Ultimate 2 /buttons/15/labels/xinput
 msgid "↓"
 msgstr "↓"
 
@@ -2536,6 +2560,7 @@ msgstr "↓"
 #. Ultimate 2.4G /buttons/15/spoken_labels/xinput
 #. Ultimate Wired /buttons/15/spoken_labels/dinput
 #. Ultimate Wired /buttons/15/spoken_labels/xinput
+#. Ultimate 2 /buttons/15/spoken_labels/xinput
 msgid "D-pad down"
 msgstr ""
 
@@ -2548,6 +2573,7 @@ msgstr ""
 #. Ultimate 2.4G /buttons/16/labels/xinput
 #. Ultimate Wired /buttons/16/labels/dinput
 #. Ultimate Wired /buttons/16/labels/xinput
+#. Ultimate 2 /buttons/16/labels/xinput
 msgid "←"
 msgstr "←"
 
@@ -2560,6 +2586,7 @@ msgstr "←"
 #. Ultimate 2.4G /buttons/16/spoken_labels/xinput
 #. Ultimate Wired /buttons/16/spoken_labels/dinput
 #. Ultimate Wired /buttons/16/spoken_labels/xinput
+#. Ultimate 2 /buttons/16/spoken_labels/xinput
 msgid "D-pad left"
 msgstr ""
 
@@ -2572,6 +2599,7 @@ msgstr ""
 #. Ultimate 2.4G /buttons/17/labels/xinput
 #. Ultimate Wired /buttons/17/labels/dinput
 #. Ultimate Wired /buttons/17/labels/xinput
+#. Ultimate 2 /buttons/17/labels/xinput
 msgid "→"
 msgstr "→"
 
@@ -2584,6 +2612,7 @@ msgstr "→"
 #. Ultimate 2.4G /buttons/17/spoken_labels/xinput
 #. Ultimate Wired /buttons/17/spoken_labels/dinput
 #. Ultimate Wired /buttons/17/spoken_labels/xinput
+#. Ultimate 2 /buttons/17/spoken_labels/xinput
 msgid "D-pad right"
 msgstr ""
 
@@ -2594,10 +2623,12 @@ msgstr ""
 #. Ultimate 2.4G /settings/1/label
 #. Ultimate Wired /settings/0/label
 #. Ultimate Wired /settings/1/label
+#. Ultimate 2 /settings/0/label
 msgid "Sticks"
 msgstr ""
 
 #. Pro 3 /settings/0/lead
+#. Ultimate 2 /settings/0/lead
 msgid ""
 "Inside the low end of the dead zone the stick reads as centred. Past the "
 "high end it reads as pushed all the way."
@@ -2605,6 +2636,8 @@ msgstr ""
 
 #. Pro 3 /settings/0/frames/0/sliders/0/label
 #. Pro 3 /settings/0/frames/1/sliders/0/label
+#. Ultimate 2 /settings/0/frames/0/sliders/0/label
+#. Ultimate 2 /settings/0/frames/1/sliders/0/label
 msgid "Dead zone"
 msgstr ""
 
@@ -2634,6 +2667,10 @@ msgstr ""
 #. Ultimate Wired /settings/1/frames/1/sliders/0/unit
 #. Ultimate Wired /settings/2/frames/0/sliders/0/unit
 #. Ultimate Wired /settings/2/frames/1/sliders/0/unit
+#. Ultimate 2 /settings/0/frames/0/sliders/0/unit
+#. Ultimate 2 /settings/0/frames/1/sliders/0/unit
+#. Ultimate 2 /settings/1/frames/0/sliders/0/unit
+#. Ultimate 2 /settings/1/frames/1/sliders/0/unit
 msgid "%"
 msgstr "%"
 
@@ -2651,6 +2688,8 @@ msgstr "%"
 #. Ultimate Wired /settings/0/frames/1/flags/0/label
 #. Ultimate Wired /settings/1/frames/0/flags/0/label
 #. Ultimate Wired /settings/1/frames/1/flags/0/label
+#. Ultimate 2 /settings/0/frames/0/flags/0/label
+#. Ultimate 2 /settings/0/frames/1/flags/0/label
 msgid "Invert X"
 msgstr ""
 
@@ -2668,6 +2707,8 @@ msgstr ""
 #. Ultimate Wired /settings/0/frames/1/flags/1/label
 #. Ultimate Wired /settings/1/frames/0/flags/1/label
 #. Ultimate Wired /settings/1/frames/1/flags/1/label
+#. Ultimate 2 /settings/0/frames/0/flags/1/label
+#. Ultimate 2 /settings/0/frames/1/flags/1/label
 msgid "Invert Y"
 msgstr ""
 
@@ -2684,6 +2725,8 @@ msgstr ""
 #. Ultimate Wired /settings/0/frames/2/title
 #. Ultimate Wired /settings/1/frames/2/title
 #. Ultimate Wired /settings/2/frames/2/title
+#. Ultimate 2 /settings/0/frames/2/title
+#. Ultimate 2 /settings/1/frames/2/title
 msgid "Swaps"
 msgstr ""
 
@@ -2694,6 +2737,7 @@ msgstr ""
 #. Ultimate 2.4G /settings/1/frames/2/flags/0/label
 #. Ultimate Wired /settings/0/frames/2/flags/0/label
 #. Ultimate Wired /settings/1/frames/2/flags/0/label
+#. Ultimate 2 /settings/0/frames/2/flags/0/label
 msgid "Swap the left and right sticks"
 msgstr ""
 
@@ -2704,6 +2748,7 @@ msgstr ""
 #. Ultimate 2.4G /settings/1/frames/2/flags/1/label
 #. Ultimate Wired /settings/0/frames/2/flags/1/label
 #. Ultimate Wired /settings/1/frames/2/flags/1/label
+#. Ultimate 2 /settings/0/frames/2/flags/1/label
 msgid "Swap the D-pad and the left stick"
 msgstr ""
 
@@ -2713,6 +2758,7 @@ msgstr ""
 #. Ultimate (BT) /settings/3/label
 #. Ultimate 2.4G /settings/2/label
 #. Ultimate Wired /settings/2/label
+#. Ultimate 2 /settings/1/label
 msgid "Triggers"
 msgstr ""
 
@@ -2720,6 +2766,7 @@ msgstr ""
 #. Ultimate (BT) /settings/2/lead
 #. Ultimate 2.4G /settings/2/lead
 #. Ultimate Wired /settings/2/lead
+#. Ultimate 2 /settings/1/lead
 msgid ""
 "Below the range the trigger reads as released. Above it, as pulled all the "
 "way."
@@ -2731,6 +2778,7 @@ msgstr ""
 #. Ultimate (BT) /settings/3/frames/0/title
 #. Ultimate 2.4G /settings/2/frames/0/title
 #. Ultimate Wired /settings/2/frames/0/title
+#. Ultimate 2 /settings/1/frames/0/title
 msgid "Left trigger"
 msgstr ""
 
@@ -2754,6 +2802,8 @@ msgstr ""
 #. Ultimate Wired /settings/1/frames/1/sliders/0/label
 #. Ultimate Wired /settings/2/frames/0/sliders/0/label
 #. Ultimate Wired /settings/2/frames/1/sliders/0/label
+#. Ultimate 2 /settings/1/frames/0/sliders/0/label
+#. Ultimate 2 /settings/1/frames/1/sliders/0/label
 msgid "Range"
 msgstr ""
 
@@ -2763,6 +2813,7 @@ msgstr ""
 #. Ultimate (BT) /settings/3/frames/1/title
 #. Ultimate 2.4G /settings/2/frames/1/title
 #. Ultimate Wired /settings/2/frames/1/title
+#. Ultimate 2 /settings/1/frames/1/title
 msgid "Right trigger"
 msgstr ""
 
@@ -2772,6 +2823,7 @@ msgstr ""
 #. Ultimate (BT) /settings/3/frames/2/flags/0/label
 #. Ultimate 2.4G /settings/2/frames/2/flags/0/label
 #. Ultimate Wired /settings/2/frames/2/flags/0/label
+#. Ultimate 2 /settings/1/frames/2/flags/0/label
 msgid "Swap the left and right triggers"
 msgstr ""
 
@@ -2790,6 +2842,7 @@ msgstr ""
 #. Ultimate (BT) /settings/4/label
 #. Ultimate 2.4G /settings/3/label
 #. Ultimate Wired /settings/3/label
+#. Ultimate 2 /settings/2/label
 msgid "Vibration"
 msgstr ""
 
@@ -2797,6 +2850,7 @@ msgstr ""
 #. Ultimate (BT) /settings/4/lead
 #. Ultimate 2.4G /settings/3/lead
 #. Ultimate Wired /settings/3/lead
+#. Ultimate 2 /settings/2/lead
 msgid "How strongly each motor rumbles. Level 0 turns it off."
 msgstr ""
 
@@ -2804,6 +2858,7 @@ msgstr ""
 #. Ultimate (BT) /settings/4/frames/0/title
 #. Ultimate 2.4G /settings/3/frames/0/title
 #. Ultimate Wired /settings/3/frames/0/title
+#. Ultimate 2 /settings/2/frames/0/title
 msgid "Motors"
 msgstr ""
 
@@ -2811,6 +2866,7 @@ msgstr ""
 #. Ultimate (BT) /settings/4/frames/0/sliders/0/label
 #. Ultimate 2.4G /settings/3/frames/0/sliders/0/label
 #. Ultimate Wired /settings/3/frames/0/sliders/0/label
+#. Ultimate 2 /settings/2/frames/0/sliders/0/label
 msgid "Left motor"
 msgstr ""
 
@@ -2818,6 +2874,7 @@ msgstr ""
 #. Ultimate (BT) /settings/4/frames/0/sliders/1/label
 #. Ultimate 2.4G /settings/3/frames/0/sliders/1/label
 #. Ultimate Wired /settings/3/frames/0/sliders/1/label
+#. Ultimate 2 /settings/2/frames/0/sliders/1/label
 msgid "Right motor"
 msgstr ""
 
@@ -2825,6 +2882,7 @@ msgstr ""
 #. Ultimate (BT) /views/0/label
 #. Ultimate 2.4G /views/0/label
 #. Ultimate Wired /views/0/label
+#. Ultimate 2 /views/0/label
 msgid "Front"
 msgstr ""
 
@@ -2832,6 +2890,7 @@ msgstr ""
 #. Ultimate (BT) /views/1/label
 #. Ultimate 2.4G /views/1/label
 #. Ultimate Wired /views/1/label
+#. Ultimate 2 /views/1/label
 msgid "Back"
 msgstr ""
 
@@ -2996,3 +3055,11 @@ msgstr "Ultimate 2.4G"
 #. Ultimate Wired /short_name
 msgid "Ultimate Wired"
 msgstr "Ultimate Wired"
+
+#. Ultimate 2 /display_name
+msgid "8BitDo Ultimate 2 Wireless"
+msgstr "8BitDo Ultimate 2 Wireless"
+
+#. Ultimate 2 /short_name
+msgid "Ultimate 2"
+msgstr "Ultimate 2"

@@ -8,6 +8,7 @@ pub mod pro3;
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_pad;
 pub mod ultimate;
+pub mod ultimate2;
 
 use std::path::{Path, PathBuf};
 
@@ -20,11 +21,12 @@ use crate::transport::{DeviceIo, HidrawDevice};
 pub const SYSFS_USB: &str = "/sys/bus/usb/devices";
 
 /// Every supported controller model.
-static MODELS: [&dyn Model; 4] = [
+static MODELS: [&dyn Model; 5] = [
     &pro3::Pro3,
     &ultimate::model!("ultimate-bluetooth"),
     &ultimate::model!("ultimate-2-4g"),
     &ultimate::model!("ultimate-wired"),
+    &ultimate2::Ultimate2,
 ];
 
 /// Every supported controller model, in registry order.
@@ -294,7 +296,7 @@ mod tests {
     #[test]
     fn a_model_that_is_not_validated_is_refused_unless_the_user_allows_it() {
         // Models still waiting for a report from a real pad.
-        const UNCHECKED: [&str; 2] = ["Ultimate 2.4G", "Ultimate Wired"];
+        const UNCHECKED: [&str; 3] = ["Ultimate 2.4G", "Ultimate Wired", "Ultimate 2"];
         let unchecked = test_pad::UnvalidatedPad.description().unwrap();
         assert!(!unchecked.validated);
         assert!(refused_with(unchecked, false));

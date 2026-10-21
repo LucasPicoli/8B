@@ -77,6 +77,11 @@ pub trait ControllerSpec {
     fn blob_size(&self) -> usize;
     /// The argument the apply command (`0x06`) carries, such as `0x0123`.
     fn apply_argument(&self) -> u16;
+    /// How long to wait after the last profile chunk before the apply command. The
+    /// default, zero, sends it at once.
+    fn apply_delay(&self) -> std::time::Duration {
+        std::time::Duration::ZERO
+    }
     /// The request that asks for the firmware version, sent as it is. `None`, the
     /// default, reads it from the `START_CONFIG` reply instead.
     fn firmware_request(&self) -> Option<RawRequest> {

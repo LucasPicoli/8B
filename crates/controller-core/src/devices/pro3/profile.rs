@@ -962,7 +962,7 @@ pub fn compile_profile(
 ///
 /// # Errors
 /// Returns [`Error::Decode`] if `buf` is too short to hold the CRC field.
-pub(super) fn seal_crc(buf: &mut [u8]) -> Result<()> {
+pub(crate) fn seal_crc(buf: &mut [u8]) -> Result<()> {
     put_u32_le(buf, DEV_CRC_OFFSET, 0)?;
     let crc = crc16_modbus(buf);
     put_u16_le(buf, DEV_CRC_OFFSET, crc)

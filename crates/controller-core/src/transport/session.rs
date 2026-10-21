@@ -633,10 +633,12 @@ mod tests {
         };
         assert_eq!(identify(&reply_with(0x6009), models(), &found)?.blob_size(), 0x092C);
         assert!(identify(&reply_with(0x600A), models(), &found).is_ok());
-        // Ultimate 2: same USB id 2dc8:310b in XInput, different model id.
+        // Ultimate 2: same USB id 2dc8:310b in XInput, different model id and blob.
+        assert_eq!(identify(&reply_with(0x6012), models(), &found)?.blob_size(), 0x0638);
+        // Ultimate 2 Bluetooth: the same port again, no driver.
         assert!(matches!(
-            identify(&reply_with(0x6012), models(), &found),
-            Err(Error::UnsupportedModel(0x6012))
+            identify(&reply_with(0x600F), models(), &found),
+            Err(Error::UnsupportedModel(0x600F))
         ));
         assert!(matches!(identify(&[0u8; 10], models(), &found), Err(Error::Decode(_))));
         // A listed id on a port its model does not use.

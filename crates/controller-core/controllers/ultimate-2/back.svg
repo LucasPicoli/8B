@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 332">
+  <path data-button="r4" d="M 166 30 L 166 20 A 4 4 0 0 1 170 16 L 188 16 A 4 4 0 0 1 192 20 L 192 30 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="l4" d="M 308 30 L 308 20 A 4 4 0 0 1 312 16 L 330 16 A 4 4 0 0 1 334 20 L 334 30 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 250.0 30 L 112 30 C 62 30 26 54 24 102 C 22 150 26 228 40 284 C 50 320 108 322 128 294 C 146 268 156 232 184 216 C 206 206 228 206 250.0 206 C 272 206 294 206 316 216 C 344 232 354 268 372 294 C 392 322 450 320 460 284 C 474 228 478 150 476 102 C 474 54 438 30 388 30 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="r2" d="M 82 40 C 84 30 96 26 116 26 L 136 26 C 150 26 154 34 152 46 L 148 64 C 146 72 138 76 128 76 L 104 76 C 92 76 84 70 82 60 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="l2" d="M 418 40 C 416 30 404 26 384 26 L 364 26 C 350 26 346 34 348 46 L 352 64 C 354 72 362 76 372 76 L 396 76 C 408 76 416 70 418 60 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="rp" d="M 116 134 C 128 128 150 128 160 134 C 166 138 166 146 164 156 L 158 190 C 156 198 148 202 140 198 L 118 186 C 110 182 106 176 106 166 L 108 146 C 108 140 110 136 116 134 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="lp" d="M 384 134 C 372 128 350 128 340 134 C 334 138 334 146 336 156 L 342 190 C 344 198 352 202 360 198 L 382 186 C 390 182 394 176 394 166 L 392 146 C 392 140 390 136 384 134 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>
