@@ -13,7 +13,7 @@ use controller_core::model::{
     CanonicalProfile, MacroDefinition, MacroSlot, MacroStep, Mode, ProfileReadResult,
     RawProfilePayload, Slot,
 };
-use controller_core::orchestrator::ProfileWriteOrchestrator;
+use controller_core::orchestrator::{MacroEdit, ProfileWriteOrchestrator, WriteJob, WriteOp};
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
 
@@ -162,4 +162,64 @@ fn a_macro_goes_into_the_image_without_a_step_page() {
     assert_eq!(held[0].trigger_buttons, ["p2"]);
     assert_eq!(held[0].steps.len(), 2);
     assert_eq!((held[0].steps[1].left_stick_x, held[0].steps[1].left_stick_y), (255, 0));
+}
+
+/// An upload of the default profile into slot 2 of a pad that holds `saves/09`, with
+/// `macro_edits`. Returns the slot's macros as written.
+fn upload_default_over_saves_09(macro_edits: Vec<MacroEdit>) -> Vec<MacroDefinition> {
+    let raw_blobs = vec![image("saves/09"), image("switch-saved")];
+    let dev = MockDevice::new()
+        .with_model(ultimate())
+        .with_profiles(ProfileReadResult { raw_blobs, ..Default::default() })
+        .keeping_writes();
+    let profile = serde_json::to_value(ultimate().default_profile(XINPUT)).unwrap();
+    let op = WriteOp::Upload { profile: Some(profile), drop_macros: Vec::new(), macro_edits };
+    let dir = tempfile::tempdir().unwrap();
+    let results = ProfileWriteOrchestrator::new(&dev, ultimate(), dir.path())
+        .write_slots(&[WriteJob { mode: XINPUT, slot: slot(2), op }], &ConfirmPolicy::Force);
+    assert!(results.iter().all(|r| r.success), "{results:?}");
+    decode_macros(d(), &writes(&dev).remove(0), slot(2)).unwrap()
+}
+
+fn delete(m: u8) -> MacroEdit {
+    MacroEdit::Delete { macro_slot: MacroSlot::new(m).unwrap() }
+}
+
+#[test]
+fn one_job_deletes_every_macro_of_a_slot_that_packs_them() {
+    let before = decode_macros(d(), &image("saves/09"), slot(2)).unwrap();
+    let triggers: Vec<_> = before.iter().map(|m| m.trigger_buttons.clone()).collect();
+    assert_eq!(triggers, [["p1"], ["p2"]], "saves/09 slot 2 holds two macros");
+
+    assert_eq!(upload_default_over_saves_09((0..4).map(delete).collect()), []);
+}
+
+#[test]
+fn deleting_the_first_macro_keeps_the_second_with_its_trigger() {
+    let left = upload_default_over_saves_09(vec![delete(0)]);
+    let triggers: Vec<_> = left.iter().map(|m| m.trigger_buttons.clone()).collect();
+    assert_eq!(triggers, [["p2"]]);
+}
+
+#[test]
+fn a_job_that_replaces_one_macro_and_deletes_the_rest_keeps_only_the_new_one() {
+    let step = MacroStep {
+        duration_ms: 100,
+        pressed_buttons: vec!["l1".to_owned()],
+        ..MacroStep::default()
+    };
+    let new = MacroDefinition {
+        name: String::new(),
+        mode: XINPUT,
+        trigger_buttons: vec!["r3".to_owned()],
+        unknown_trigger_bits: 0,
+        repeat_count: 1,
+        interval_ms: 0,
+        steps: vec![step],
+        macro_slot: Some(1),
+    };
+    let put = MacroEdit::Put { macro_slot: MacroSlot::new(1).unwrap(), definition: new };
+    let left = upload_default_over_saves_09(vec![put, delete(0), delete(2), delete(3)]);
+    let triggers: Vec<_> = left.iter().map(|m| m.trigger_buttons.clone()).collect();
+    assert_eq!(triggers, [["r3"]]);
 }
