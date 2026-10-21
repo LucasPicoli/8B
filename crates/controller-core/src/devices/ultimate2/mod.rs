@@ -10,7 +10,7 @@ use std::time::Duration;
 
 use crate::description::ControllerDescription;
 use crate::device::{ControllerSpec, ProtocolCodec};
-use crate::devices::pro3::{self, Pro3};
+use crate::devices::pro3::{self, Pro3, XINPUT};
 use crate::error::Result;
 use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
@@ -38,6 +38,9 @@ const FACE_SWAPS: [usize; 2] = [0, 2];
 /// Ultimate 2 only.
 const APPLY_DELAY: Duration = Duration::from_millis(100);
 
+/// Offset of the mode the bank belongs to, a little-endian `u16`.
+const MODE_OFFSET: usize = 0x0010;
+
 /// Offset of the macro count in a slot's macro record: the number of macros with
 /// steps, a byte. The Pro 3 code writes its macro slot count there instead.
 const MACRO_COUNT_OFFSET: usize = 4;
@@ -64,15 +67,26 @@ static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
 
 /// `blob` in the Pro 3 layout. A blob of another size, such as the empty base of a new
 /// write, passes through, and the Pro 3 codec treats it as it would its own.
-fn widen(blob: &[u8]) -> Vec<u8> {
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if `blob` is the bank of a mode other than
+/// `XInput`. The pad serves the bank of the mode it is in, whatever mode the slot
+/// select names, and keeps `2dc8:310b` in both, so only the bank tells.
+fn widen(blob: &[u8]) -> Result<Vec<u8>> {
     if blob.len() != BLOB_SIZE {
-        return blob.to_vec();
+        return Ok(blob.to_vec());
+    }
+    if read_u16_le(blob, MODE_OFFSET)? != u16::from(Pro3.slot_select_value(XINPUT)?) {
+        return Err(crate::Error::Decode(
+            "the pad is in DInput mode, which 8B does not support yet: switch it to XInput"
+                .to_owned(),
+        ));
     }
     let (head, rest) = blob.split_at(SHARED_HEAD_END);
     let tail = rest.get(..TAIL_END - SHARED_HEAD_END).unwrap_or_default();
     let mut wide = [head, &[0; LEGACY_LEN], tail].concat();
     swap_faces(&mut wide);
-    wide
+    Ok(wide)
 }
 
 /// Swaps the [`FACE_SWAPS`] entries of every slot's button map in `blob`. The map
@@ -180,8 +194,13 @@ impl ControllerSpec for Ultimate2 {
 }
 
 impl ProtocolCodec for Ultimate2 {
+    /// Refuses the bank of another mode, so that a read shows no empty slots there.
+    fn slot_active(&self, blob: &[u8], slot: Slot) -> Result<bool> {
+        Pro3.slot_active(&widen(blob)?, slot)
+    }
+
     fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
-        let wide = RawProfilePayload { payload: widen(&raw.payload), ..raw.clone() };
+        let wide = RawProfilePayload { payload: widen(&raw.payload)?, ..raw.clone() };
         let mut summary = Pro3.map_profile(&wide)?;
         summary.canonical = own(summary.canonical);
         Ok(summary)
@@ -196,7 +215,7 @@ impl ProtocolCodec for Ultimate2 {
         blob: &[u8],
         profile_slot: Slot,
     ) -> Result<Vec<MacroDefinition>> {
-        Pro3.decode_macro_metadata(&widen(blob), profile_slot)
+        Pro3.decode_macro_metadata(&widen(blob)?, profile_slot)
     }
 
     fn decode_macro_steps(
@@ -227,7 +246,7 @@ impl ProtocolCodec for Ultimate2 {
         base_blob: &[u8],
         macros: &[MacroDefinition],
     ) -> Result<Vec<u8>> {
-        let wide = Pro3.compile_profile(profile, target_slot, &widen(base_blob), macros)?;
+        let wide = Pro3.compile_profile(profile, target_slot, &widen(base_blob)?, macros)?;
         narrow(&wide, base_blob)
     }
 
@@ -237,12 +256,12 @@ impl ProtocolCodec for Ultimate2 {
         target_slot: Slot,
         base_blob: &[u8],
     ) -> Result<Vec<u8>> {
-        let wide = Pro3.compile_profile_keep_macros(profile, target_slot, &widen(base_blob))?;
+        let wide = Pro3.compile_profile_keep_macros(profile, target_slot, &widen(base_blob)?)?;
         narrow(&wide, base_blob)
     }
 
     fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
-        narrow(&Pro3.drop_macros(&widen(blob), slot, triggers)?, blob)
+        narrow(&Pro3.drop_macros(&widen(blob)?, slot, triggers)?, blob)
     }
 
     fn set_macro(
@@ -252,11 +271,11 @@ impl ProtocolCodec for Ultimate2 {
         macro_slot: MacroSlot,
         def: Option<&MacroDefinition>,
     ) -> Result<Vec<u8>> {
-        narrow(&Pro3.set_macro(&widen(blob), slot, macro_slot, def)?, blob)
+        narrow(&Pro3.set_macro(&widen(blob)?, slot, macro_slot, def)?, blob)
     }
 
     fn deactivate_profile(&self, base_blob: &[u8], slot: Slot) -> Result<Vec<u8>> {
-        narrow(&Pro3.deactivate_profile(&widen(base_blob), slot)?, base_blob)
+        narrow(&Pro3.deactivate_profile(&widen(base_blob)?, slot)?, base_blob)
     }
 
     fn validate_remap(&self, mode: Mode, source: &str, target: &str) -> Result<()> {
@@ -268,7 +287,6 @@ impl ProtocolCodec for Ultimate2 {
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
     use super::*;
-    use crate::devices::pro3::XINPUT;
 
     /// Bank read of a real Ultimate 2 in `XInput`: slot 1 "Crimson" with two macros.
     const XINPUT_BLOB: &[u8] = include_bytes!("../../../../../fixtures/ultimate-2/xinput.blob");
@@ -297,12 +315,12 @@ mod tests {
         assert_eq!(PRO3_TAIL_START, 0x068C);
         assert_eq!(TAIL_END, 0x0494);
         assert_eq!(XINPUT_BLOB.len(), BLOB_SIZE);
-        assert_eq!(widen(XINPUT_BLOB).len(), pro3::tables::EXPECTED_PROFILE_SIZE);
+        assert_eq!(widen(XINPUT_BLOB).unwrap().len(), pro3::tables::EXPECTED_PROFILE_SIZE);
     }
 
     #[test]
     fn narrow_undoes_widen() {
-        let back = narrow(&widen(XINPUT_BLOB), XINPUT_BLOB).unwrap();
+        let back = narrow(&widen(XINPUT_BLOB).unwrap(), XINPUT_BLOB).unwrap();
         assert_eq!(sans_crc(&back), sans_crc(XINPUT_BLOB));
     }
 
@@ -321,6 +339,25 @@ mod tests {
         let found: Vec<_> =
             macros.iter().map(|m| (m.name.as_str(), m.trigger_buttons.clone())).collect();
         assert_eq!(found, [("L1L2", vec!["l4".to_owned()]), ("R1R2", vec!["r4".to_owned()])]);
+    }
+
+    #[test]
+    fn a_dinput_bank_is_refused() {
+        // What the pad served in DInput: erased flash with the DInput mode byte.
+        let mut dinput = vec![0xff; BLOB_SIZE];
+        dinput[MODE_OFFSET..MODE_OFFSET + 2].copy_from_slice(&[1, 0]);
+        let raw = RawProfilePayload {
+            payload: dinput.clone(),
+            source_slot: 1,
+            source_profile_index: 0,
+            mode_hint: XINPUT,
+        };
+        assert!(Ultimate2.map_profile(&raw).is_err());
+        let slot = Slot::new(1).unwrap();
+        assert!(Ultimate2.slot_active(&dinput, slot).is_err());
+        assert!(Ultimate2.compile_profile(&slot1(), slot, &dinput, &[]).is_err());
+        assert!(Ultimate2.compile_profile_keep_macros(&slot1(), slot, &dinput).is_err());
+        assert!(Ultimate2.deactivate_profile(&dinput, slot).is_err());
     }
 
     #[test]
