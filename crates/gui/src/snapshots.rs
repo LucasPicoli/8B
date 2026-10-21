@@ -510,6 +510,40 @@ fn pt_br_ultimate_tabs_in_each_mode() {
     ultimate_tabs("-pt-br");
 }
 
+/// The Buttons tab of an Ultimate in `XInput` whose pad holds Swap on P2: with P2 moved to
+/// another output and not written, so the warning shows under the table, and with P2
+/// still on Swap, so it does not. The shot names end in `suffix`.
+fn swap_warning(suffix: &str) {
+    use controller_core::devices::ultimate::XINPUT;
+    for (moved, name) in [(true, "warning"), (false, "no-warning")] {
+        let mut s = crate::state::tests::ultimate("1.09");
+        s.select(0, 0);
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.button_mappings.retain(|m| m.source != "p2");
+        pad.button_mappings.push(controller_core::model::ButtonMapping {
+            source: "p2".to_owned(),
+            target: "swap".to_owned(),
+        });
+        if moved {
+            s.set_output("p2", "turbo");
+        }
+        let ui = window(&s);
+        ui.window().set_size(PhysicalSize::new(1280, 1300));
+        save(&format!("ultimate-swap-{name}{suffix}"), &ui);
+    }
+}
+
+#[test]
+fn the_swap_warning_shows_under_the_table() {
+    swap_warning("");
+}
+
+#[test]
+fn pt_br_the_swap_warning_shows_under_the_table() {
+    swap_warning("-pt-br");
+}
+
 /// A Switch slot with an edit on every settings tab.
 fn edited_settings() -> AppState {
     let mut s = connected(SWITCH);
