@@ -1408,7 +1408,7 @@ msgstr "{name} está bloqueado"
 
 #: src/locked.rs
 msgid "While unlocked, games cannot see it."
-msgstr "Enquanto desbloqueado, os jogos não o veem."
+msgstr "Enquanto desbloqueado, não é possível usá-lo para jogar."
 
 #: src/locked.rs
 msgid "The controller did not unlock."
