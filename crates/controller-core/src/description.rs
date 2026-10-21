@@ -1136,7 +1136,7 @@ mod tests {
         for d in [Pro3.description().unwrap(), TestPad.description().unwrap()] {
             assert!(d.validated, "{}", d.short_name);
         }
-        let ultimate = model_named("Ultimate").unwrap().description().unwrap();
+        let ultimate = model_named("Ultimate (BT)").unwrap().description().unwrap();
         assert!(ultimate.validated);
         assert_eq!(ultimate.family_name.as_deref(), Some("8BitDo Ultimate"));
         assert_eq!(ultimate.display_name, "Ultimate Bluetooth");

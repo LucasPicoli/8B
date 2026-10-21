@@ -50,7 +50,7 @@ fn unlock_and_relock_ten_times() {
         };
         println!("round {round}: unlocked {port} at {} in {:?}", node.display(), started.elapsed());
         let model = HidrawDevice::at(&port).model().unwrap();
-        assert_eq!(model.description().unwrap().short_name, "Ultimate", "round {round}");
+        assert_eq!(model.description().unwrap().short_name, "Ultimate (BT)", "round {round}");
 
         relock(ultimate(), &port).unwrap();
         let dir = Path::new(SYSFS_USB).join(&port);

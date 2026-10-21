@@ -124,10 +124,10 @@ fn hidden_note(spec: &described::SettingsPage, firmware: &str) -> String {
     if FirmwareVersion::parse(firmware).is_none() {
         let items: Vec<String> = hidden
             .iter()
-            .map(|(item, gate)| tr!("{item} (firmware {min} or later)", item = item, min = gate))
+            .map(|(item, gate)| tr!("{item} (firmware {min}+)", item = item, min = gate))
             .collect();
         return tr!(
-            "8B could not read the firmware version, so it hides: {items}.",
+            "8B cannot read the firmware version and hides: {items}.",
             items = and_list(&items)
         );
     }
@@ -139,7 +139,7 @@ fn hidden_note(spec: &described::SettingsPage, firmware: &str) -> String {
         .map(|gate| {
             let items: Vec<String> =
                 hidden.iter().filter(|(_, g)| *g == gate).map(|(item, _)| item.clone()).collect();
-            tr!("Firmware {min} or later adds: {items}.", min = gate, items = and_list(&items))
+            tr!("Firmware {min}+ adds: {items}.", min = gate, items = and_list(&items))
         })
         .collect::<Vec<_>>()
         .join(" ")
@@ -474,12 +474,11 @@ mod tests {
             s.select(index, 0);
             pages(&s)[tab].note.to_string()
         };
-        assert_eq!(note("1.02", XINPUT, 0), "Firmware 1.03 or later adds: D-pad four-way only.");
-        assert_eq!(note("1.02", SWITCH, 0), "Firmware 1.03 or later adds: D-pad four-way only.");
+        assert_eq!(note("1.02", XINPUT, 0), "Firmware 1.03+ adds: D-pad four-way only.");
+        assert_eq!(note("1.02", SWITCH, 0), "Firmware 1.03+ adds: D-pad four-way only.");
         assert_eq!(
             note("", XINPUT, 0),
-            "8B could not read the firmware version, so it hides: D-pad four-way only \
-             (firmware 1.03 or later)."
+            "8B cannot read the firmware version and hides: D-pad four-way only (firmware 1.03+)."
         );
         assert_eq!(note("1.03", XINPUT, 0), "", "nothing hidden");
         assert_eq!(note("", XINPUT, 1), "", "a tab with no gate");

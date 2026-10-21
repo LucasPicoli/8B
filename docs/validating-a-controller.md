@@ -85,7 +85,7 @@ Do them in order. After each one, write down the result for your report.
 
 Expected: the id and string in the table above. The app, started with the override,
 lists the pad as "8BitDo Ultimate · Locked". Without the override it shows "This
-8BitDo Ultimate is not checked on a real pad yet". If the pad does not appear, run
+8BitDo Ultimate is not tested yet". If the pad does not appear, run
 `lsusb -v -d 2dc8:3106` and attach the output. A pad with the id `3106` and a string
 not in the table, such as a Pro 2 Wired or a receiver, is not listed on purpose.
 

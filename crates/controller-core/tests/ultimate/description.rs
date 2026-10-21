@@ -52,7 +52,7 @@ fn its_config_port_names_it_and_its_bytes_match_the_codec() {
     assert_eq!(port.usb, UsbId { vendor: 0x2DC8, product: 0x6007 });
     assert_eq!((port.mode, port.interface), (XINPUT, 0));
     let named = find_model_by_port(models(), port.usb).unwrap();
-    assert_eq!(named.description().unwrap().short_name, "Ultimate");
+    assert_eq!(named.description().unwrap().short_name, "Ultimate (BT)");
     assert_eq!(models()[0].description().unwrap().short_name, "Pro 3", "the Pro 3 stays first");
 
     let lock = d.lock.as_ref().unwrap();

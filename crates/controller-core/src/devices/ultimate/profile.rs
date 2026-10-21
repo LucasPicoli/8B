@@ -411,7 +411,7 @@ mod tests {
 
     /// The registered Ultimate's description.
     fn d() -> &'static ControllerDescription {
-        crate::devices::model_named("Ultimate").unwrap().description().unwrap()
+        crate::devices::model_named("Ultimate (BT)").unwrap().description().unwrap()
     }
 
     #[test]

@@ -489,7 +489,7 @@ impl AppState {
 pub mod tests {
     /// The registered Ultimate.
     fn ultimate_model() -> &'static dyn controller_core::device::Model {
-        controller_core::devices::model_named("Ultimate").unwrap()
+        controller_core::devices::model_named("Ultimate (BT)").unwrap()
     }
     use controller_core::device::{ControllerSpec as _, ProtocolCodec as _};
     use controller_core::devices::pro3::{Pro3, DINPUT, MODES, SWITCH, XINPUT};

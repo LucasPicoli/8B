@@ -603,7 +603,7 @@ impl Debounce {
 mod tests {
     /// The registered Ultimate.
     fn ultimate_model() -> &'static dyn controller_core::device::Model {
-        controller_core::devices::model_named("Ultimate").unwrap()
+        controller_core::devices::model_named("Ultimate (BT)").unwrap()
     }
     use std::collections::BTreeSet;
     use std::fs;

@@ -89,12 +89,12 @@ msgid "Slot {} is empty"
 msgstr "O slot {} está vazio"
 
 #: ui/app.slint
-msgid "Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write."
-msgstr "Comece pelo perfil padrão ou importe um arquivo, depois altere o que precisar. Nada é enviado ao controle até você gravar."
+msgid "Create a profile or import a file. Nothing reaches the controller until you write."
+msgstr "Crie um perfil ou importe um arquivo. Nada é enviado ao controle até você gravar."
 
 #: ui/app.slint
-msgid "Start from default"
-msgstr "Começar pelo padrão"
+msgid "Create profile"
+msgstr "Criar perfil"
 
 #: ui/app.slint
 msgid "Discard"
@@ -109,7 +109,7 @@ msgid "Checking the controller…"
 msgstr "Verificando o controle…"
 
 #. Pro 3 /buttons/11/labels/xinput
-#. Ultimate /buttons/11/labels/xinput
+#. Ultimate (BT) /buttons/11/labels/xinput
 #. Ultimate 2.4G /buttons/11/labels/dinput
 #. Ultimate 2.4G /buttons/11/labels/xinput
 #. Ultimate Wired /buttons/11/labels/dinput
@@ -561,10 +561,10 @@ msgid "Relock without writing?"
 msgstr "Bloquear sem gravar?"
 
 #: ui/dialogs.slint
-msgid "{n} slot has edits that are not on the controller yet, so relocking discards them."
-msgid_plural "{n} slots have edits that are not on the controller yet, so relocking discards them."
-msgstr[0] "{n} slot tem alterações que ainda não estão no controle, então bloquear as descarta."
-msgstr[1] "{n} slots têm alterações que ainda não estão no controle, então bloquear as descarta."
+msgid "Relocking discards the unwritten edits in {n} slot."
+msgid_plural "Relocking discards the unwritten edits in {n} slots."
+msgstr[0] "Bloquear descarta as alterações não gravadas de {n} slot."
+msgstr[1] "Bloquear descarta as alterações não gravadas de {n} slots."
 
 #: ui/dialogs.slint
 msgid "Discard and relock"
@@ -865,7 +865,7 @@ msgstr "O Linux impede que apps mudem as configurações de um controle até que
 
 #: ui/screens.slint
 msgid "It lets the person signed in at this computer open game controllers. It changes nothing else."
-msgstr "Ela permite que a pessoa conectada neste computador abra controles de jogo. Ela não muda mais nada."
+msgstr "Ela permite que a pessoa conectada neste computador abra controles. Não muda mais nada."
 
 #: ui/screens.slint
 msgid "Run the command below in a terminal on this computer, then choose {}."
@@ -1040,8 +1040,8 @@ msgid "Step"
 msgstr "Passo"
 
 #. Pro 3 /settings/0/frames/1/title
-#. Ultimate /settings/0/frames/1/title
-#. Ultimate /settings/1/frames/1/title
+#. Ultimate (BT) /settings/0/frames/1/title
+#. Ultimate (BT) /settings/1/frames/1/title
 #. Ultimate 2.4G /settings/0/frames/1/title
 #. Ultimate 2.4G /settings/1/frames/1/title
 #. Ultimate Wired /settings/0/frames/1/title
@@ -1082,8 +1082,8 @@ msgstr "Excluir passo (Delete)"
 msgid "Undo the last step edit (Ctrl+Z)"
 msgstr "Desfazer a última alteração de passo (Ctrl+Z)"
 
-#. Ultimate /settings/3/frames/0/sliders/0/label
-#. Ultimate /settings/3/frames/1/sliders/0/label
+#. Ultimate (BT) /settings/3/frames/0/sliders/0/label
+#. Ultimate (BT) /settings/3/frames/1/sliders/0/label
 #: ui/steps.slint
 msgid "Starts at"
 msgstr "Começa em"
@@ -1097,8 +1097,8 @@ msgid "L stick"
 msgstr "An. E"
 
 #. Pro 3 /settings/0/frames/0/title
-#. Ultimate /settings/0/frames/0/title
-#. Ultimate /settings/1/frames/0/title
+#. Ultimate (BT) /settings/0/frames/0/title
+#. Ultimate (BT) /settings/1/frames/0/title
 #. Ultimate 2.4G /settings/0/frames/0/title
 #. Ultimate 2.4G /settings/1/frames/0/title
 #. Ultimate Wired /settings/0/frames/0/title
@@ -1343,7 +1343,7 @@ msgid "Another program may be using the controller. Close it and try again."
 msgstr "Outro programa pode estar usando o controle. Feche e tente novamente."
 
 #: src/locked.rs
-msgid "{name} · Not checked"
+msgid "{name} · Not tested"
 msgstr "{name} · Não testado"
 
 #: src/locked.rs
@@ -1359,7 +1359,7 @@ msgid "The controller did not relock."
 msgstr "O controle não bloqueou."
 
 #: src/locked.rs
-msgid "Not checked yet"
+msgid "Not tested yet"
 msgstr "Ainda não testado"
 
 #: src/locked.rs
@@ -1375,12 +1375,12 @@ msgid "Not supported yet"
 msgstr "Ainda não suportado"
 
 #: src/locked.rs
-msgid "Replug it if this keeps happening."
-msgstr "Reconecte-o se isso continuar."
+msgid "Replug it if this repeats."
+msgstr "Reconecte-o se isso se repetir."
 
 #: src/locked.rs
-msgid "{model} is not checked on a real pad yet"
-msgstr "{model} ainda não foi testado em um controle real"
+msgid "{model} is not tested yet"
+msgstr "{model} ainda não foi testado"
 
 #: src/locked.rs
 msgid "USB ID {pid}."
@@ -1391,12 +1391,12 @@ msgid "USB ID {pid}. Replug it to get XInput back."
 msgstr "ID USB {pid}. Reconecte-o para voltar ao XInput."
 
 #: src/locked.rs
-msgid "This {family} is not checked on a real pad yet"
-msgstr "Este {family} ainda não foi testado em um controle real"
+msgid "This {family} is not tested yet"
+msgstr "Este {family} ainda não foi testado"
 
 #: src/locked.rs
-msgid "It reports itself as an {model}. USB ID {pid}."
-msgstr "Ele se identifica como {model}. ID USB {pid}."
+msgid "It reports as {model}. USB ID {pid}."
+msgstr "Identifica-se como {model}. ID USB {pid}."
 
 #: src/locked.rs
 msgid "This controller is not supported yet"
@@ -1407,8 +1407,8 @@ msgid "{name} is locked"
 msgstr "{name} está bloqueado"
 
 #: src/locked.rs
-msgid "Unlocking takes it away from games until you relock it."
-msgstr "Desbloqueá-lo remove-o dos jogos até você bloqueá-lo novamente."
+msgid "While unlocked, games cannot see it."
+msgstr "Enquanto desbloqueado, os jogos não o veem."
 
 #: src/locked.rs
 msgid "The controller did not unlock."
@@ -1751,8 +1751,8 @@ msgid "Connected over USB · {mode}"
 msgstr "Conectado via USB · {mode}"
 
 #: src/render.rs
-msgid "Connected · {mode} · Firmware {version}"
-msgstr "Conectado · {mode} · Firmware {version}"
+msgid "Connected · {mode} · {version}"
+msgstr "Conectado · {mode} · {version}"
 
 #: src/render.rs
 msgid "{controller} · edits in {n} slot"
@@ -1935,16 +1935,16 @@ msgid "{low} of {max}"
 msgstr "{low} de {max}"
 
 #: src/settings.rs
-msgid "{item} (firmware {min} or later)"
-msgstr "{item} (firmware {min} ou mais recente)"
+msgid "{item} (firmware {min}+)"
+msgstr "{item} (firmware {min}+)"
 
 #: src/settings.rs
-msgid "8B could not read the firmware version, so it hides: {items}."
-msgstr "O 8B não conseguiu ler a versão do firmware, então oculta: {items}."
+msgid "8B cannot read the firmware version and hides: {items}."
+msgstr "O 8B não consegue ler a versão do firmware e oculta: {items}."
 
 #: src/settings.rs
-msgid "Firmware {min} or later adds: {items}."
-msgstr "O firmware {min} ou mais recente adiciona: {items}."
+msgid "Firmware {min}+ adds: {items}."
+msgstr "O firmware {min}+ adiciona: {items}."
 
 #: src/step_map.rs
 msgid "{output} ({button}'s output)"
@@ -2089,19 +2089,19 @@ msgid "Pro 3"
 msgstr "Pro 3"
 
 #. Pro 3 /modes/0/label
-#. Ultimate /modes/0/label
+#. Ultimate (BT) /modes/0/label
 #. Ultimate 2.4G /modes/0/label
 #. Ultimate Wired /modes/0/label
 msgid "XInput"
 msgstr "XInput"
 
 #. Pro 3 /modes/1/label
-#. Ultimate /modes/1/label
+#. Ultimate (BT) /modes/1/label
 msgid "Switch"
 msgstr "Switch"
 
 #. Pro 3 /modes/1/extra_outputs/0/label
-#. Ultimate /modes/1/extra_outputs/3/label
+#. Ultimate (BT) /modes/1/extra_outputs/3/label
 msgid "Screenshot"
 msgstr "Captura de tela"
 
@@ -2142,9 +2142,9 @@ msgstr "R4"
 #. Pro 3 /buttons/0/labels/dinput
 #. Pro 3 /buttons/0/labels/xinput
 #. Pro 3 /buttons/1/labels/switch
-#. Ultimate /buttons/0/labels/xinput
-#. Ultimate /buttons/1/labels/switch
-#. Ultimate /buttons/1/printed_label
+#. Ultimate (BT) /buttons/0/labels/xinput
+#. Ultimate (BT) /buttons/1/labels/switch
+#. Ultimate (BT) /buttons/1/printed_label
 #. Ultimate 2.4G /buttons/1/labels/dinput
 #. Ultimate 2.4G /buttons/1/labels/xinput
 #. Ultimate 2.4G /buttons/1/printed_label
@@ -2157,9 +2157,9 @@ msgstr "B"
 #. Pro 3 /buttons/0/labels/switch
 #. Pro 3 /buttons/1/labels/dinput
 #. Pro 3 /buttons/1/labels/xinput
-#. Ultimate /buttons/0/labels/switch
-#. Ultimate /buttons/0/printed_label
-#. Ultimate /buttons/1/labels/xinput
+#. Ultimate (BT) /buttons/0/labels/switch
+#. Ultimate (BT) /buttons/0/printed_label
+#. Ultimate (BT) /buttons/1/labels/xinput
 #. Ultimate 2.4G /buttons/0/labels/dinput
 #. Ultimate 2.4G /buttons/0/labels/xinput
 #. Ultimate 2.4G /buttons/0/printed_label
@@ -2172,9 +2172,9 @@ msgstr "A"
 #. Pro 3 /buttons/2/labels/dinput
 #. Pro 3 /buttons/2/labels/xinput
 #. Pro 3 /buttons/3/labels/switch
-#. Ultimate /buttons/2/labels/xinput
-#. Ultimate /buttons/3/labels/switch
-#. Ultimate /buttons/3/printed_label
+#. Ultimate (BT) /buttons/2/labels/xinput
+#. Ultimate (BT) /buttons/3/labels/switch
+#. Ultimate (BT) /buttons/3/printed_label
 #. Ultimate 2.4G /buttons/3/labels/dinput
 #. Ultimate 2.4G /buttons/3/labels/xinput
 #. Ultimate 2.4G /buttons/3/printed_label
@@ -2187,9 +2187,9 @@ msgstr "Y"
 #. Pro 3 /buttons/2/labels/switch
 #. Pro 3 /buttons/3/labels/dinput
 #. Pro 3 /buttons/3/labels/xinput
-#. Ultimate /buttons/2/labels/switch
-#. Ultimate /buttons/2/printed_label
-#. Ultimate /buttons/3/labels/xinput
+#. Ultimate (BT) /buttons/2/labels/switch
+#. Ultimate (BT) /buttons/2/printed_label
+#. Ultimate (BT) /buttons/3/labels/xinput
 #. Ultimate 2.4G /buttons/2/labels/dinput
 #. Ultimate 2.4G /buttons/2/labels/xinput
 #. Ultimate 2.4G /buttons/2/printed_label
@@ -2204,13 +2204,13 @@ msgid "L1"
 msgstr "L1"
 
 #. Pro 3 /buttons/4/labels/switch
-#. Ultimate /buttons/4/labels/switch
-#. Ultimate /buttons/4/printed_label
+#. Ultimate (BT) /buttons/4/labels/switch
+#. Ultimate (BT) /buttons/4/printed_label
 msgid "L"
 msgstr "L"
 
 #. Pro 3 /buttons/4/labels/xinput
-#. Ultimate /buttons/4/labels/xinput
+#. Ultimate (BT) /buttons/4/labels/xinput
 #. Ultimate 2.4G /buttons/4/labels/dinput
 #. Ultimate 2.4G /buttons/4/labels/xinput
 #. Ultimate Wired /buttons/4/labels/dinput
@@ -2224,13 +2224,13 @@ msgid "R1"
 msgstr "R1"
 
 #. Pro 3 /buttons/5/labels/switch
-#. Ultimate /buttons/5/labels/switch
-#. Ultimate /buttons/5/printed_label
+#. Ultimate (BT) /buttons/5/labels/switch
+#. Ultimate (BT) /buttons/5/printed_label
 msgid "R"
 msgstr "R"
 
 #. Pro 3 /buttons/5/labels/xinput
-#. Ultimate /buttons/5/labels/xinput
+#. Ultimate (BT) /buttons/5/labels/xinput
 #. Ultimate 2.4G /buttons/5/labels/dinput
 #. Ultimate 2.4G /buttons/5/labels/xinput
 #. Ultimate Wired /buttons/5/labels/dinput
@@ -2244,13 +2244,13 @@ msgid "L2"
 msgstr "L2"
 
 #. Pro 3 /buttons/6/labels/switch
-#. Ultimate /buttons/6/labels/switch
-#. Ultimate /buttons/6/printed_label
+#. Ultimate (BT) /buttons/6/labels/switch
+#. Ultimate (BT) /buttons/6/printed_label
 msgid "ZL"
 msgstr "ZL"
 
 #. Pro 3 /buttons/6/labels/xinput
-#. Ultimate /buttons/6/labels/xinput
+#. Ultimate (BT) /buttons/6/labels/xinput
 #. Ultimate 2.4G /buttons/6/labels/dinput
 #. Ultimate 2.4G /buttons/6/labels/xinput
 #. Ultimate Wired /buttons/6/labels/dinput
@@ -2264,13 +2264,13 @@ msgid "R2"
 msgstr "R2"
 
 #. Pro 3 /buttons/7/labels/switch
-#. Ultimate /buttons/7/labels/switch
-#. Ultimate /buttons/7/printed_label
+#. Ultimate (BT) /buttons/7/labels/switch
+#. Ultimate (BT) /buttons/7/printed_label
 msgid "ZR"
 msgstr "ZR"
 
 #. Pro 3 /buttons/7/labels/xinput
-#. Ultimate /buttons/7/labels/xinput
+#. Ultimate (BT) /buttons/7/labels/xinput
 #. Ultimate 2.4G /buttons/7/labels/dinput
 #. Ultimate 2.4G /buttons/7/labels/xinput
 #. Ultimate Wired /buttons/7/labels/dinput
@@ -2285,8 +2285,8 @@ msgstr "L3"
 
 #. Pro 3 /buttons/8/labels/switch
 #. Pro 3 /buttons/8/labels/xinput
-#. Ultimate /buttons/8/labels/switch
-#. Ultimate /buttons/8/labels/xinput
+#. Ultimate (BT) /buttons/8/labels/switch
+#. Ultimate (BT) /buttons/8/labels/xinput
 #. Ultimate 2.4G /buttons/8/labels/dinput
 #. Ultimate 2.4G /buttons/8/labels/xinput
 #. Ultimate Wired /buttons/8/labels/dinput
@@ -2300,8 +2300,8 @@ msgstr "R3"
 
 #. Pro 3 /buttons/9/labels/switch
 #. Pro 3 /buttons/9/labels/xinput
-#. Ultimate /buttons/9/labels/switch
-#. Ultimate /buttons/9/labels/xinput
+#. Ultimate (BT) /buttons/9/labels/switch
+#. Ultimate (BT) /buttons/9/labels/xinput
 #. Ultimate 2.4G /buttons/9/labels/dinput
 #. Ultimate 2.4G /buttons/9/labels/xinput
 #. Ultimate Wired /buttons/9/labels/dinput
@@ -2314,13 +2314,13 @@ msgid "Select"
 msgstr "Select"
 
 #. Pro 3 /buttons/10/labels/switch
-#. Ultimate /buttons/10/labels/switch
-#. Ultimate /buttons/10/printed_label
+#. Ultimate (BT) /buttons/10/labels/switch
+#. Ultimate (BT) /buttons/10/printed_label
 msgid "−"
 msgstr "−"
 
 #. Pro 3 /buttons/10/labels/xinput
-#. Ultimate /buttons/10/labels/xinput
+#. Ultimate (BT) /buttons/10/labels/xinput
 #. Ultimate 2.4G /buttons/10/labels/dinput
 #. Ultimate 2.4G /buttons/10/labels/xinput
 #. Ultimate Wired /buttons/10/labels/dinput
@@ -2329,7 +2329,7 @@ msgid "View"
 msgstr "View"
 
 #. Pro 3 /buttons/10/spoken_labels/switch
-#. Ultimate /buttons/10/spoken_labels/switch
+#. Ultimate (BT) /buttons/10/spoken_labels/switch
 msgid "Minus"
 msgstr "Menos"
 
@@ -2338,21 +2338,21 @@ msgid "Start"
 msgstr "Start"
 
 #. Pro 3 /buttons/11/labels/switch
-#. Ultimate /buttons/11/labels/switch
-#. Ultimate /buttons/11/printed_label
+#. Ultimate (BT) /buttons/11/labels/switch
+#. Ultimate (BT) /buttons/11/printed_label
 msgid "+"
 msgstr "+"
 
 #. Pro 3 /buttons/11/spoken_labels/switch
-#. Ultimate /buttons/11/spoken_labels/switch
+#. Ultimate (BT) /buttons/11/spoken_labels/switch
 msgid "Plus"
 msgstr "Mais"
 
 #. Pro 3 /buttons/12/labels/dinput
 #. Pro 3 /buttons/12/labels/switch
 #. Pro 3 /buttons/12/labels/xinput
-#. Ultimate /modes/0/extra_outputs/0/label
-#. Ultimate /modes/1/extra_outputs/0/label
+#. Ultimate (BT) /modes/0/extra_outputs/0/label
+#. Ultimate (BT) /modes/1/extra_outputs/0/label
 #. Ultimate 2.4G /modes/0/extra_outputs/0/label
 #. Ultimate 2.4G /modes/1/extra_outputs/0/label
 #. Ultimate Wired /modes/0/extra_outputs/0/label
@@ -2362,8 +2362,8 @@ msgstr "Turbo"
 
 #. Pro 3 /buttons/13/labels/dinput
 #. Pro 3 /buttons/13/labels/switch
-#. Ultimate /buttons/13/labels/switch
-#. Ultimate /buttons/13/labels/xinput
+#. Ultimate (BT) /buttons/13/labels/switch
+#. Ultimate (BT) /buttons/13/labels/xinput
 #. Ultimate 2.4G /buttons/13/labels/dinput
 #. Ultimate 2.4G /buttons/13/labels/xinput
 #. Ultimate Wired /buttons/13/labels/dinput
@@ -2378,8 +2378,8 @@ msgstr "Guide"
 #. Pro 3 /buttons/14/labels/dinput
 #. Pro 3 /buttons/14/labels/switch
 #. Pro 3 /buttons/14/labels/xinput
-#. Ultimate /buttons/14/labels/switch
-#. Ultimate /buttons/14/labels/xinput
+#. Ultimate (BT) /buttons/14/labels/switch
+#. Ultimate (BT) /buttons/14/labels/xinput
 #. Ultimate 2.4G /buttons/14/labels/dinput
 #. Ultimate 2.4G /buttons/14/labels/xinput
 #. Ultimate Wired /buttons/14/labels/dinput
@@ -2390,8 +2390,8 @@ msgstr "↑"
 #. Pro 3 /buttons/14/spoken_labels/dinput
 #. Pro 3 /buttons/14/spoken_labels/switch
 #. Pro 3 /buttons/14/spoken_labels/xinput
-#. Ultimate /buttons/14/spoken_labels/switch
-#. Ultimate /buttons/14/spoken_labels/xinput
+#. Ultimate (BT) /buttons/14/spoken_labels/switch
+#. Ultimate (BT) /buttons/14/spoken_labels/xinput
 #. Ultimate 2.4G /buttons/14/spoken_labels/dinput
 #. Ultimate 2.4G /buttons/14/spoken_labels/xinput
 #. Ultimate Wired /buttons/14/spoken_labels/dinput
@@ -2402,8 +2402,8 @@ msgstr "Direcional para cima"
 #. Pro 3 /buttons/15/labels/dinput
 #. Pro 3 /buttons/15/labels/switch
 #. Pro 3 /buttons/15/labels/xinput
-#. Ultimate /buttons/15/labels/switch
-#. Ultimate /buttons/15/labels/xinput
+#. Ultimate (BT) /buttons/15/labels/switch
+#. Ultimate (BT) /buttons/15/labels/xinput
 #. Ultimate 2.4G /buttons/15/labels/dinput
 #. Ultimate 2.4G /buttons/15/labels/xinput
 #. Ultimate Wired /buttons/15/labels/dinput
@@ -2414,8 +2414,8 @@ msgstr "↓"
 #. Pro 3 /buttons/15/spoken_labels/dinput
 #. Pro 3 /buttons/15/spoken_labels/switch
 #. Pro 3 /buttons/15/spoken_labels/xinput
-#. Ultimate /buttons/15/spoken_labels/switch
-#. Ultimate /buttons/15/spoken_labels/xinput
+#. Ultimate (BT) /buttons/15/spoken_labels/switch
+#. Ultimate (BT) /buttons/15/spoken_labels/xinput
 #. Ultimate 2.4G /buttons/15/spoken_labels/dinput
 #. Ultimate 2.4G /buttons/15/spoken_labels/xinput
 #. Ultimate Wired /buttons/15/spoken_labels/dinput
@@ -2426,8 +2426,8 @@ msgstr "Direcional para baixo"
 #. Pro 3 /buttons/16/labels/dinput
 #. Pro 3 /buttons/16/labels/switch
 #. Pro 3 /buttons/16/labels/xinput
-#. Ultimate /buttons/16/labels/switch
-#. Ultimate /buttons/16/labels/xinput
+#. Ultimate (BT) /buttons/16/labels/switch
+#. Ultimate (BT) /buttons/16/labels/xinput
 #. Ultimate 2.4G /buttons/16/labels/dinput
 #. Ultimate 2.4G /buttons/16/labels/xinput
 #. Ultimate Wired /buttons/16/labels/dinput
@@ -2438,8 +2438,8 @@ msgstr "←"
 #. Pro 3 /buttons/16/spoken_labels/dinput
 #. Pro 3 /buttons/16/spoken_labels/switch
 #. Pro 3 /buttons/16/spoken_labels/xinput
-#. Ultimate /buttons/16/spoken_labels/switch
-#. Ultimate /buttons/16/spoken_labels/xinput
+#. Ultimate (BT) /buttons/16/spoken_labels/switch
+#. Ultimate (BT) /buttons/16/spoken_labels/xinput
 #. Ultimate 2.4G /buttons/16/spoken_labels/dinput
 #. Ultimate 2.4G /buttons/16/spoken_labels/xinput
 #. Ultimate Wired /buttons/16/spoken_labels/dinput
@@ -2450,8 +2450,8 @@ msgstr "Direcional para a esquerda"
 #. Pro 3 /buttons/17/labels/dinput
 #. Pro 3 /buttons/17/labels/switch
 #. Pro 3 /buttons/17/labels/xinput
-#. Ultimate /buttons/17/labels/switch
-#. Ultimate /buttons/17/labels/xinput
+#. Ultimate (BT) /buttons/17/labels/switch
+#. Ultimate (BT) /buttons/17/labels/xinput
 #. Ultimate 2.4G /buttons/17/labels/dinput
 #. Ultimate 2.4G /buttons/17/labels/xinput
 #. Ultimate Wired /buttons/17/labels/dinput
@@ -2462,8 +2462,8 @@ msgstr "→"
 #. Pro 3 /buttons/17/spoken_labels/dinput
 #. Pro 3 /buttons/17/spoken_labels/switch
 #. Pro 3 /buttons/17/spoken_labels/xinput
-#. Ultimate /buttons/17/spoken_labels/switch
-#. Ultimate /buttons/17/spoken_labels/xinput
+#. Ultimate (BT) /buttons/17/spoken_labels/switch
+#. Ultimate (BT) /buttons/17/spoken_labels/xinput
 #. Ultimate 2.4G /buttons/17/spoken_labels/dinput
 #. Ultimate 2.4G /buttons/17/spoken_labels/xinput
 #. Ultimate Wired /buttons/17/spoken_labels/dinput
@@ -2473,8 +2473,8 @@ msgstr "Direcional para a direita"
 
 # A settings page label from the Pro 3 description.
 #. Pro 3 /settings/0/label
-#. Ultimate /settings/0/label
-#. Ultimate /settings/1/label
+#. Ultimate (BT) /settings/0/label
+#. Ultimate (BT) /settings/1/label
 #. Ultimate 2.4G /settings/0/label
 #. Ultimate 2.4G /settings/1/label
 #. Ultimate Wired /settings/0/label
@@ -2497,14 +2497,14 @@ msgstr "Zona morta"
 #. Pro 3 /settings/1/frames/1/sliders/0/unit
 #. Pro 3 /settings/2/frames/0/sliders/0/unit
 #. Pro 3 /settings/2/frames/1/sliders/0/unit
-#. Ultimate /settings/0/frames/0/sliders/0/unit
-#. Ultimate /settings/0/frames/1/sliders/0/unit
-#. Ultimate /settings/1/frames/0/sliders/0/unit
-#. Ultimate /settings/1/frames/1/sliders/0/unit
-#. Ultimate /settings/2/frames/0/sliders/0/unit
-#. Ultimate /settings/2/frames/1/sliders/0/unit
-#. Ultimate /settings/3/frames/0/sliders/0/unit
-#. Ultimate /settings/3/frames/1/sliders/0/unit
+#. Ultimate (BT) /settings/0/frames/0/sliders/0/unit
+#. Ultimate (BT) /settings/0/frames/1/sliders/0/unit
+#. Ultimate (BT) /settings/1/frames/0/sliders/0/unit
+#. Ultimate (BT) /settings/1/frames/1/sliders/0/unit
+#. Ultimate (BT) /settings/2/frames/0/sliders/0/unit
+#. Ultimate (BT) /settings/2/frames/1/sliders/0/unit
+#. Ultimate (BT) /settings/3/frames/0/sliders/0/unit
+#. Ultimate (BT) /settings/3/frames/1/sliders/0/unit
 #. Ultimate 2.4G /settings/0/frames/0/sliders/0/unit
 #. Ultimate 2.4G /settings/0/frames/1/sliders/0/unit
 #. Ultimate 2.4G /settings/1/frames/0/sliders/0/unit
@@ -2522,10 +2522,10 @@ msgstr "%"
 
 #. Pro 3 /settings/0/frames/0/flags/0/label
 #. Pro 3 /settings/0/frames/1/flags/0/label
-#. Ultimate /settings/0/frames/0/flags/0/label
-#. Ultimate /settings/0/frames/1/flags/0/label
-#. Ultimate /settings/1/frames/0/flags/0/label
-#. Ultimate /settings/1/frames/1/flags/0/label
+#. Ultimate (BT) /settings/0/frames/0/flags/0/label
+#. Ultimate (BT) /settings/0/frames/1/flags/0/label
+#. Ultimate (BT) /settings/1/frames/0/flags/0/label
+#. Ultimate (BT) /settings/1/frames/1/flags/0/label
 #. Ultimate 2.4G /settings/0/frames/0/flags/0/label
 #. Ultimate 2.4G /settings/0/frames/1/flags/0/label
 #. Ultimate 2.4G /settings/1/frames/0/flags/0/label
@@ -2539,10 +2539,10 @@ msgstr "Inverter X"
 
 #. Pro 3 /settings/0/frames/0/flags/1/label
 #. Pro 3 /settings/0/frames/1/flags/1/label
-#. Ultimate /settings/0/frames/0/flags/1/label
-#. Ultimate /settings/0/frames/1/flags/1/label
-#. Ultimate /settings/1/frames/0/flags/1/label
-#. Ultimate /settings/1/frames/1/flags/1/label
+#. Ultimate (BT) /settings/0/frames/0/flags/1/label
+#. Ultimate (BT) /settings/0/frames/1/flags/1/label
+#. Ultimate (BT) /settings/1/frames/0/flags/1/label
+#. Ultimate (BT) /settings/1/frames/1/flags/1/label
 #. Ultimate 2.4G /settings/0/frames/0/flags/1/label
 #. Ultimate 2.4G /settings/0/frames/1/flags/1/label
 #. Ultimate 2.4G /settings/1/frames/0/flags/1/label
@@ -2557,10 +2557,10 @@ msgstr "Inverter Y"
 #. Pro 3 /settings/0/frames/2/title
 #. Pro 3 /settings/1/frames/2/title
 #. Pro 3 /settings/2/frames/2/title
-#. Ultimate /settings/0/frames/2/title
-#. Ultimate /settings/1/frames/2/title
-#. Ultimate /settings/2/frames/2/title
-#. Ultimate /settings/3/frames/2/title
+#. Ultimate (BT) /settings/0/frames/2/title
+#. Ultimate (BT) /settings/1/frames/2/title
+#. Ultimate (BT) /settings/2/frames/2/title
+#. Ultimate (BT) /settings/3/frames/2/title
 #. Ultimate 2.4G /settings/0/frames/2/title
 #. Ultimate 2.4G /settings/1/frames/2/title
 #. Ultimate 2.4G /settings/2/frames/2/title
@@ -2571,8 +2571,8 @@ msgid "Swaps"
 msgstr "Trocas"
 
 #. Pro 3 /settings/0/frames/2/flags/0/label
-#. Ultimate /settings/0/frames/2/flags/0/label
-#. Ultimate /settings/1/frames/2/flags/0/label
+#. Ultimate (BT) /settings/0/frames/2/flags/0/label
+#. Ultimate (BT) /settings/1/frames/2/flags/0/label
 #. Ultimate 2.4G /settings/0/frames/2/flags/0/label
 #. Ultimate 2.4G /settings/1/frames/2/flags/0/label
 #. Ultimate Wired /settings/0/frames/2/flags/0/label
@@ -2581,8 +2581,8 @@ msgid "Swap the left and right sticks"
 msgstr "Trocar os analógicos esquerdo e direito"
 
 #. Pro 3 /settings/0/frames/2/flags/1/label
-#. Ultimate /settings/0/frames/2/flags/1/label
-#. Ultimate /settings/1/frames/2/flags/1/label
+#. Ultimate (BT) /settings/0/frames/2/flags/1/label
+#. Ultimate (BT) /settings/1/frames/2/flags/1/label
 #. Ultimate 2.4G /settings/0/frames/2/flags/1/label
 #. Ultimate 2.4G /settings/1/frames/2/flags/1/label
 #. Ultimate Wired /settings/0/frames/2/flags/1/label
@@ -2592,24 +2592,24 @@ msgstr "Trocar o direcional e o analógico esquerdo"
 
 #. Pro 3 /settings/1/label
 #. Pro 3 /settings/2/label
-#. Ultimate /settings/2/label
-#. Ultimate /settings/3/label
+#. Ultimate (BT) /settings/2/label
+#. Ultimate (BT) /settings/3/label
 #. Ultimate 2.4G /settings/2/label
 #. Ultimate Wired /settings/2/label
 msgid "Triggers"
 msgstr "Gatilhos"
 
 #. Pro 3 /settings/1/lead
-#. Ultimate /settings/2/lead
+#. Ultimate (BT) /settings/2/lead
 #. Ultimate 2.4G /settings/2/lead
 #. Ultimate Wired /settings/2/lead
-msgid "Below the low end of the range the trigger reads as released. Past the high end it reads as pulled all the way."
-msgstr "Abaixo do limite inferior da faixa, o gatilho conta como solto. Acima do limite superior, conta como puxado até o fim."
+msgid "Below the range the trigger reads as released. Above it, as pulled all the way."
+msgstr "Abaixo da faixa, o gatilho conta como solto. Acima dela, como puxado até o fim."
 
 #. Pro 3 /settings/1/frames/0/title
 #. Pro 3 /settings/2/frames/0/title
-#. Ultimate /settings/2/frames/0/title
-#. Ultimate /settings/3/frames/0/title
+#. Ultimate (BT) /settings/2/frames/0/title
+#. Ultimate (BT) /settings/3/frames/0/title
 #. Ultimate 2.4G /settings/2/frames/0/title
 #. Ultimate Wired /settings/2/frames/0/title
 msgid "Left trigger"
@@ -2617,12 +2617,12 @@ msgstr "Gatilho esquerdo"
 
 #. Pro 3 /settings/1/frames/0/sliders/0/label
 #. Pro 3 /settings/1/frames/1/sliders/0/label
-#. Ultimate /settings/0/frames/0/sliders/0/label
-#. Ultimate /settings/0/frames/1/sliders/0/label
-#. Ultimate /settings/1/frames/0/sliders/0/label
-#. Ultimate /settings/1/frames/1/sliders/0/label
-#. Ultimate /settings/2/frames/0/sliders/0/label
-#. Ultimate /settings/2/frames/1/sliders/0/label
+#. Ultimate (BT) /settings/0/frames/0/sliders/0/label
+#. Ultimate (BT) /settings/0/frames/1/sliders/0/label
+#. Ultimate (BT) /settings/1/frames/0/sliders/0/label
+#. Ultimate (BT) /settings/1/frames/1/sliders/0/label
+#. Ultimate (BT) /settings/2/frames/0/sliders/0/label
+#. Ultimate (BT) /settings/2/frames/1/sliders/0/label
 #. Ultimate 2.4G /settings/0/frames/0/sliders/0/label
 #. Ultimate 2.4G /settings/0/frames/1/sliders/0/label
 #. Ultimate 2.4G /settings/1/frames/0/sliders/0/label
@@ -2640,8 +2640,8 @@ msgstr "Faixa"
 
 #. Pro 3 /settings/1/frames/1/title
 #. Pro 3 /settings/2/frames/1/title
-#. Ultimate /settings/2/frames/1/title
-#. Ultimate /settings/3/frames/1/title
+#. Ultimate (BT) /settings/2/frames/1/title
+#. Ultimate (BT) /settings/3/frames/1/title
 #. Ultimate 2.4G /settings/2/frames/1/title
 #. Ultimate Wired /settings/2/frames/1/title
 msgid "Right trigger"
@@ -2649,8 +2649,8 @@ msgstr "Gatilho direito"
 
 #. Pro 3 /settings/1/frames/2/flags/0/label
 #. Pro 3 /settings/2/frames/2/flags/0/label
-#. Ultimate /settings/2/frames/2/flags/0/label
-#. Ultimate /settings/3/frames/2/flags/0/label
+#. Ultimate (BT) /settings/2/frames/2/flags/0/label
+#. Ultimate (BT) /settings/3/frames/2/flags/0/label
 #. Ultimate 2.4G /settings/2/frames/2/flags/0/label
 #. Ultimate Wired /settings/2/frames/2/flags/0/label
 msgid "Swap the left and right triggers"
@@ -2666,79 +2666,79 @@ msgid "Press point"
 msgstr "Ponto de acionamento"
 
 #. Pro 3 /settings/3/label
-#. Ultimate /settings/4/label
+#. Ultimate (BT) /settings/4/label
 #. Ultimate 2.4G /settings/3/label
 #. Ultimate Wired /settings/3/label
 msgid "Vibration"
 msgstr "Vibração"
 
 #. Pro 3 /settings/3/lead
-#. Ultimate /settings/4/lead
+#. Ultimate (BT) /settings/4/lead
 #. Ultimate 2.4G /settings/3/lead
 #. Ultimate Wired /settings/3/lead
 msgid "How strongly each motor rumbles. Level 0 turns it off."
 msgstr "A força com que cada motor vibra. O nível 0 o desliga."
 
 #. Pro 3 /settings/3/frames/0/title
-#. Ultimate /settings/4/frames/0/title
+#. Ultimate (BT) /settings/4/frames/0/title
 #. Ultimate 2.4G /settings/3/frames/0/title
 #. Ultimate Wired /settings/3/frames/0/title
 msgid "Motors"
 msgstr "Motores"
 
 #. Pro 3 /settings/3/frames/0/sliders/0/label
-#. Ultimate /settings/4/frames/0/sliders/0/label
+#. Ultimate (BT) /settings/4/frames/0/sliders/0/label
 #. Ultimate 2.4G /settings/3/frames/0/sliders/0/label
 #. Ultimate Wired /settings/3/frames/0/sliders/0/label
 msgid "Left motor"
 msgstr "Motor esquerdo"
 
 #. Pro 3 /settings/3/frames/0/sliders/1/label
-#. Ultimate /settings/4/frames/0/sliders/1/label
+#. Ultimate (BT) /settings/4/frames/0/sliders/1/label
 #. Ultimate 2.4G /settings/3/frames/0/sliders/1/label
 #. Ultimate Wired /settings/3/frames/0/sliders/1/label
 msgid "Right motor"
 msgstr "Motor direito"
 
 #. Pro 3 /views/0/label
-#. Ultimate /views/0/label
+#. Ultimate (BT) /views/0/label
 #. Ultimate 2.4G /views/0/label
 #. Ultimate Wired /views/0/label
 msgid "Front"
 msgstr "Frontal"
 
 #. Pro 3 /views/1/label
-#. Ultimate /views/1/label
+#. Ultimate (BT) /views/1/label
 #. Ultimate 2.4G /views/1/label
 #. Ultimate Wired /views/1/label
 msgid "Back"
 msgstr "Traseira"
 
-#. Ultimate /display_name
+#. Ultimate (BT) /display_name
 msgid "Ultimate Bluetooth"
 msgstr "Ultimate Bluetooth"
 
-#. Ultimate /short_name
-msgid "Ultimate"
-msgstr "Ultimate"
+#. Ultimate (BT) /short_name
+msgid "Ultimate (BT)"
+msgstr "Ultimate (BT)"
 
-#. Ultimate /family_name
+#. Ultimate (BT) /family_name
 #. Ultimate 2.4G /family_name
 #. Ultimate Wired /family_name
 msgid "8BitDo Ultimate"
 msgstr "8BitDo Ultimate"
 
-#. Ultimate /modes/0/extra_outputs/0/hint
-#. Ultimate /modes/1/extra_outputs/0/hint
+#. Ultimate (BT) /modes/0/extra_outputs/0/hint
+#. Ultimate (BT) /modes/1/extra_outputs/0/hint
 #. Ultimate 2.4G /modes/0/extra_outputs/0/hint
 #. Ultimate 2.4G /modes/1/extra_outputs/0/hint
 #. Ultimate Wired /modes/0/extra_outputs/0/hint
 #. Ultimate Wired /modes/1/extra_outputs/0/hint
-msgid "Hold a button and press this one to turn turbo on or off for it."
-msgstr "Segure um botão e pressione este para ligar ou desligar o turbo nele."
+msgid "Hold a button and press this to toggle its turbo."
+msgstr "Segure um botão e pressione este para alternar o turbo dele."
 
-#. Ultimate /modes/0/extra_outputs/1/label
-#. Ultimate /modes/1/extra_outputs/1/label
+#. Ultimate (BT) /modes/0/extra_outputs/1/label
+#. Ultimate (BT) /modes/1/extra_outputs/1/label
 #. Ultimate 2.4G /modes/0/extra_outputs/1/label
 #. Ultimate 2.4G /modes/1/extra_outputs/1/label
 #. Ultimate Wired /modes/0/extra_outputs/1/label
@@ -2746,34 +2746,34 @@ msgstr "Segure um botão e pressione este para ligar ou desligar o turbo nele."
 msgid "Auto turbo"
 msgstr "Turbo automático"
 
-#. Ultimate /modes/0/extra_outputs/1/hint
-#. Ultimate /modes/1/extra_outputs/1/hint
+#. Ultimate (BT) /modes/0/extra_outputs/1/hint
+#. Ultimate (BT) /modes/1/extra_outputs/1/hint
 #. Ultimate 2.4G /modes/0/extra_outputs/1/hint
 #. Ultimate 2.4G /modes/1/extra_outputs/1/hint
 #. Ultimate Wired /modes/0/extra_outputs/1/hint
 #. Ultimate Wired /modes/1/extra_outputs/1/hint
-msgid "Hold a button and press this one: it fires on its own until you do it again."
-msgstr "Segure um botão e pressione este: ele dispara sozinho até você repetir o gesto."
+msgid "Hold a button and press this to make it fire on its own. Repeat to stop."
+msgstr "Segure um botão e pressione este para ele disparar sozinho. Repita para parar."
 
-#. Ultimate /modes/0/extra_outputs/2/label
-#. Ultimate /modes/1/extra_outputs/2/label
+#. Ultimate (BT) /modes/0/extra_outputs/2/label
+#. Ultimate (BT) /modes/1/extra_outputs/2/label
 #. Ultimate 2.4G /modes/0/extra_outputs/2/label
 #. Ultimate 2.4G /modes/1/extra_outputs/2/label
 #. Ultimate Wired /modes/0/extra_outputs/2/label
 #. Ultimate Wired /modes/1/extra_outputs/2/label
 msgid "Swap"
-msgstr "Troca"
+msgstr "Trocar"
 
-#. Ultimate /modes/0/extra_outputs/2/hint
+#. Ultimate (BT) /modes/0/extra_outputs/2/hint
 #. Ultimate 2.4G /modes/0/extra_outputs/2/hint
 #. Ultimate 2.4G /modes/1/extra_outputs/2/hint
 #. Ultimate Wired /modes/0/extra_outputs/2/hint
 #. Ultimate Wired /modes/1/extra_outputs/2/hint
-msgid "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
-msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para trocá-los. Segure um deles e pressione este de novo para desfazer."
+msgid "Hold two of A, B, X, Y, LB, RB, LS, RS and press this to swap them. Hold one and press this again to undo."
+msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para trocá-los. Segure um e pressione este de novo para desfazer."
 
-#. Ultimate /modes/0/extra_outputs/2/leaving_hint
-#. Ultimate /modes/1/extra_outputs/2/leaving_hint
+#. Ultimate (BT) /modes/0/extra_outputs/2/leaving_hint
+#. Ultimate (BT) /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate 2.4G /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate 2.4G /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
@@ -2781,12 +2781,12 @@ msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para troc�
 msgid "Swaps made with {} last until the controller turns off."
 msgstr "Trocas feitas com o {} duram até o controle ser desligado."
 
-#. Ultimate /modes/1/extra_outputs/2/hint
-msgid "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
-msgstr "Segure dois entre A, B, X, Y, L, R, LS, RS e pressione este para trocá-los. Segure um deles e pressione este de novo para desfazer."
+#. Ultimate (BT) /modes/1/extra_outputs/2/hint
+msgid "Hold two of A, B, X, Y, L, R, LS, RS and press this to swap them. Hold one and press this again to undo."
+msgstr "Segure dois entre A, B, X, Y, L, R, LS, RS e pressione este para trocá-los. Segure um e pressione este de novo para desfazer."
 
-#. Ultimate /buttons/12/labels/switch
-#. Ultimate /buttons/12/labels/xinput
+#. Ultimate (BT) /buttons/12/labels/switch
+#. Ultimate (BT) /buttons/12/labels/xinput
 #. Ultimate 2.4G /buttons/12/labels/dinput
 #. Ultimate 2.4G /buttons/12/labels/xinput
 #. Ultimate Wired /buttons/12/labels/dinput
@@ -2794,8 +2794,8 @@ msgstr "Segure dois entre A, B, X, Y, L, R, LS, RS e pressione este para trocá-
 msgid "Star"
 msgstr "Star"
 
-#. Ultimate /buttons/18/labels/switch
-#. Ultimate /buttons/18/labels/xinput
+#. Ultimate (BT) /buttons/18/labels/switch
+#. Ultimate (BT) /buttons/18/labels/xinput
 #. Ultimate 2.4G /buttons/18/labels/dinput
 #. Ultimate 2.4G /buttons/18/labels/xinput
 #. Ultimate Wired /modes/1/extra_outputs/3/label
@@ -2804,8 +2804,8 @@ msgstr "Star"
 msgid "P1"
 msgstr "P1"
 
-#. Ultimate /buttons/19/labels/switch
-#. Ultimate /buttons/19/labels/xinput
+#. Ultimate (BT) /buttons/19/labels/switch
+#. Ultimate (BT) /buttons/19/labels/xinput
 #. Ultimate 2.4G /buttons/19/labels/dinput
 #. Ultimate 2.4G /buttons/19/labels/xinput
 #. Ultimate Wired /modes/1/extra_outputs/4/label
@@ -2814,29 +2814,29 @@ msgstr "P1"
 msgid "P2"
 msgstr "P2"
 
-#. Ultimate /settings/0/lead
-#. Ultimate /settings/1/lead
+#. Ultimate (BT) /settings/0/lead
+#. Ultimate (BT) /settings/1/lead
 #. Ultimate 2.4G /settings/0/lead
 #. Ultimate 2.4G /settings/1/lead
 #. Ultimate Wired /settings/0/lead
 #. Ultimate Wired /settings/1/lead
-msgid "Below the low end of the range the stick reads as centred. Past the high end it reads as pushed all the way."
-msgstr "Abaixo do limite inferior da faixa, o analógico conta como centralizado. Acima do limite superior, conta como empurrado até o fim."
+msgid "Below the range the stick reads as centred. Above it, as pushed all the way."
+msgstr "Abaixo da faixa, o analógico conta como centralizado. Acima dela, como empurrado até o fim."
 
-#. Ultimate /settings/0/frames/3/title
+#. Ultimate (BT) /settings/0/frames/3/title
 #. Ultimate 2.4G /settings/0/frames/3/title
 #. Ultimate Wired /settings/0/frames/3/title
 msgid "D-pad and dead zone"
 msgstr "Direcional e zona morta"
 
-#. Ultimate /settings/0/frames/3/flags/0/label
+#. Ultimate (BT) /settings/0/frames/3/flags/0/label
 #. Ultimate 2.4G /settings/0/frames/3/flags/0/label
 #. Ultimate Wired /settings/0/frames/3/flags/0/label
 msgid "Disable the dead zone"
 msgstr "Desativar a zona morta"
 
-#. Ultimate /settings/0/frames/3/flags/1/label
-#. Ultimate /settings/1/frames/3/flags/0/label
+#. Ultimate (BT) /settings/0/frames/3/flags/1/label
+#. Ultimate (BT) /settings/1/frames/3/flags/0/label
 #. Ultimate 2.4G /settings/0/frames/3/flags/1/label
 #. Ultimate 2.4G /settings/1/frames/3/flags/0/label
 #. Ultimate Wired /settings/0/frames/3/flags/1/label
@@ -2844,19 +2844,19 @@ msgstr "Desativar a zona morta"
 msgid "D-pad four-way only"
 msgstr "Direcional só em quatro direções"
 
-#. Ultimate /settings/1/frames/2/flags/2/label
+#. Ultimate (BT) /settings/1/frames/2/flags/2/label
 msgid "Swap the right stick and the triggers"
 msgstr "Trocar o analógico direito e os gatilhos"
 
-#. Ultimate /settings/1/frames/3/title
+#. Ultimate (BT) /settings/1/frames/3/title
 #. Ultimate 2.4G /settings/1/frames/3/title
 #. Ultimate Wired /settings/1/frames/3/title
 msgid "D-pad"
 msgstr "Direcional"
 
-#. Ultimate /settings/3/lead
-msgid "In this mode each trigger is a button. It counts as pressed once pulled past its start point."
-msgstr "Neste modo, cada gatilho é um botão. Ele conta como pressionado quando puxado além do ponto de início."
+#. Ultimate (BT) /settings/3/lead
+msgid "In this mode each trigger is a button, pressed once pulled past its start point."
+msgstr "Neste modo, cada gatilho é um botão, pressionado ao passar do ponto de início."
 
 #. Ultimate 2.4G /display_name
 #. Ultimate 2.4G /short_name
@@ -2867,6 +2867,74 @@ msgstr "Ultimate 2.4G"
 #. Ultimate Wired /short_name
 msgid "Ultimate Wired"
 msgstr "Ultimate Wired"
+
+#~ msgid "Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write."
+#~ msgstr "Comece pelo perfil padrão ou importe um arquivo, depois altere o que precisar. Nada é enviado ao controle até você gravar."
+
+#~ msgid "Start from default"
+#~ msgstr "Começar pelo padrão"
+
+#~ msgid "{n} slot has edits that are not on the controller yet, so relocking discards them."
+#~ msgid_plural "{n} slots have edits that are not on the controller yet, so relocking discards them."
+#~ msgstr[0] "{n} slot tem alterações que ainda não estão no controle, então bloquear as descarta."
+#~ msgstr[1] "{n} slots têm alterações que ainda não estão no controle, então bloquear as descarta."
+
+#~ msgid "{name} · Not checked"
+#~ msgstr "{name} · Não testado"
+
+#~ msgid "Not checked yet"
+#~ msgstr "Ainda não testado"
+
+#~ msgid "Replug it if this keeps happening."
+#~ msgstr "Reconecte-o se isso continuar."
+
+#~ msgid "{model} is not checked on a real pad yet"
+#~ msgstr "{model} ainda não foi testado em um controle real"
+
+#~ msgid "This {family} is not checked on a real pad yet"
+#~ msgstr "Este {family} ainda não foi testado em um controle real"
+
+#~ msgid "It reports itself as an {model}. USB ID {pid}."
+#~ msgstr "Ele se identifica como {model}. ID USB {pid}."
+
+#~ msgid "Unlocking takes it away from games until you relock it."
+#~ msgstr "Desbloqueá-lo remove-o dos jogos até você bloqueá-lo novamente."
+
+#~ msgid "Connected · {mode} · Firmware {version}"
+#~ msgstr "Conectado · {mode} · Firmware {version}"
+
+#~ msgid "{item} (firmware {min} or later)"
+#~ msgstr "{item} (firmware {min} ou mais recente)"
+
+#~ msgid "8B could not read the firmware version, so it hides: {items}."
+#~ msgstr "O 8B não conseguiu ler a versão do firmware, então oculta: {items}."
+
+#~ msgid "Firmware {min} or later adds: {items}."
+#~ msgstr "O firmware {min} ou mais recente adiciona: {items}."
+
+#~ msgid "Below the low end of the range the trigger reads as released. Past the high end it reads as pulled all the way."
+#~ msgstr "Abaixo do limite inferior da faixa, o gatilho conta como solto. Acima do limite superior, conta como puxado até o fim."
+
+#~ msgid "Ultimate"
+#~ msgstr "Ultimate"
+
+#~ msgid "Hold a button and press this one to turn turbo on or off for it."
+#~ msgstr "Segure um botão e pressione este para ligar ou desligar o turbo nele."
+
+#~ msgid "Hold a button and press this one: it fires on its own until you do it again."
+#~ msgstr "Segure um botão e pressione este: ele dispara sozinho até você repetir o gesto."
+
+#~ msgid "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
+#~ msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para trocá-los. Segure um deles e pressione este de novo para desfazer."
+
+#~ msgid "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
+#~ msgstr "Segure dois entre A, B, X, Y, L, R, LS, RS e pressione este para trocá-los. Segure um deles e pressione este de novo para desfazer."
+
+#~ msgid "Below the low end of the range the stick reads as centred. Past the high end it reads as pushed all the way."
+#~ msgstr "Abaixo do limite inferior da faixa, o analógico conta como centralizado. Acima do limite superior, conta como empurrado até o fim."
+
+#~ msgid "In this mode each trigger is a button. It counts as pressed once pulled past its start point."
+#~ msgstr "Neste modo, cada gatilho é um botão. Ele conta como pressionado quando puxado além do ponto de início."
 
 #~ msgid "A swap you made stays until you undo it with a Swap button or turn the controller off."
 #~ msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca ou desligar o controle."

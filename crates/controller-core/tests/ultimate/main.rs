@@ -28,7 +28,7 @@ use controller_core::device::Model;
 
 /// The registered Ultimate.
 pub(crate) fn ultimate() -> &'static dyn Model {
-    controller_core::devices::model_named("Ultimate").unwrap()
+    controller_core::devices::model_named("Ultimate (BT)").unwrap()
 }
 
 /// Its description.

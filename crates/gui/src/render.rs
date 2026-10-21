@@ -75,7 +75,7 @@ pub fn device_status(state: &AppState) -> String {
         _ if state.reading() => tr!("Reading over USB · {mode}", mode = mode),
         _ if failed => tr!("Could not read · {mode}", mode = mode),
         "" => tr!("Connected over USB · {mode}", mode = mode),
-        version => tr!("Connected · {mode} · Firmware {version}", mode = mode, version = version),
+        version => tr!("Connected · {mode} · {version}", mode = mode, version = version),
     }
 }
 
@@ -428,7 +428,7 @@ mod tests {
     #[test]
     fn the_status_line_shows_a_reported_firmware() {
         let mut s = crate::state::tests::ultimate("1.09");
-        assert_eq!(device_status(&s), "Connected · XInput · Firmware 1.09");
+        assert_eq!(device_status(&s), "Connected · XInput · 1.09");
         s.read_started(PORT);
         assert_eq!(device_status(&s), "Reading over USB · XInput", "a read keeps its text");
         let s = crate::state::tests::ultimate("");

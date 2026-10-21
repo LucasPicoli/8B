@@ -271,7 +271,7 @@ mod tests {
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].port_path, "8-5");
         assert_eq!(found[0].usb_node, Path::new("/dev/bus/usb/008/102"));
-        assert_eq!(found[0].model.description().unwrap().short_name, "Ultimate");
+        assert_eq!(found[0].model.description().unwrap().short_name, "Ultimate (BT)");
         let no_lock: [&'static dyn Model; 2] = [&Pro3, &TestPad];
         assert!(locked_in(&no_lock, dir.path()).is_empty());
     }

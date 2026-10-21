@@ -293,7 +293,7 @@ fn wait_for_usb(dir: &Path, usb: UsbId, budget: Duration) -> Result<()> {
 mod tests {
     /// The registered Ultimate.
     fn ultimate() -> &'static dyn crate::device::Model {
-        crate::devices::model_named("Ultimate").unwrap()
+        crate::devices::model_named("Ultimate (BT)").unwrap()
     }
     use std::cell::Cell;
     use std::sync::LazyLock;

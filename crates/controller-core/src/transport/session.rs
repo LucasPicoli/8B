@@ -455,7 +455,7 @@ fn header_hex(frame: &[u8]) -> String {
 mod tests {
     /// The registered Ultimate.
     fn ultimate() -> &'static dyn crate::device::Model {
-        crate::devices::model_named("Ultimate").unwrap()
+        crate::devices::model_named("Ultimate (BT)").unwrap()
     }
     use std::os::unix::net::UnixStream;
     use std::sync::Mutex;
@@ -593,7 +593,7 @@ mod tests {
             .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
             .collect();
         let (opened, heads) = start_scripted(ultimate().description()?.config_ports[0], reply);
-        assert_eq!(opened?, ("Ultimate".to_owned(), "1.09".to_owned()));
+        assert_eq!(opened?, ("Ultimate (BT)".to_owned(), "1.09".to_owned()));
         let pause = [0x81, 0x11, 0x04, 0x07].to_vec();
         assert_eq!(heads, [pause.clone(), [0x81, 0x05, 0x00, 0x21].to_vec(), pause]);
         Ok(())

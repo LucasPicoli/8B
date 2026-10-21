@@ -287,7 +287,7 @@ mod tests {
     #[test]
     fn a_button_that_cannot_be_remapped_is_refused() {
         let pro3 = Pro3.description().unwrap();
-        let ultimate = crate::devices::model_named("Ultimate").unwrap();
+        let ultimate = crate::devices::model_named("Ultimate (BT)").unwrap();
         let mut locked = ultimate.description().unwrap().clone();
         locked.buttons.iter_mut().find(|b| b.id == "l1").unwrap().can_be_remapped = false;
         let cases = [

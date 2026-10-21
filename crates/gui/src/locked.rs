@@ -213,7 +213,7 @@ impl AppState {
             .map(|p| {
                 match &p.status {
                     LockStatus::Unsupported(_, Some(name)) | LockStatus::OnPort(_, name) => {
-                        return tr!("{name} · Not checked", name = name);
+                        return tr!("{name} · Not tested", name = name);
                     }
                     LockStatus::Unsupported(_, None) => return tr!("8BitDo · Not supported"),
                     _ => {}
@@ -424,8 +424,8 @@ impl AppState {
     pub fn lock_status(&self) -> Option<String> {
         let pad = self.shown_lock()?;
         Some(match pad.status {
-            _ if pad.refused() => tr!("Not checked yet"),
-            LockStatus::Unsupported(_, Some(_)) | LockStatus::OnPort(..) => tr!("Not checked yet"),
+            _ if pad.refused() => tr!("Not tested yet"),
+            LockStatus::Unsupported(_, Some(_)) | LockStatus::OnPort(..) => tr!("Not tested yet"),
             LockStatus::Locked => tr!("Locked"),
             LockStatus::Unlocking => tr!("Unlocking…"),
             LockStatus::Failed { denied: true, .. } => tr!("Locked"),
@@ -451,7 +451,7 @@ impl AppState {
                     if !body.is_empty() {
                         body.push(' ');
                     }
-                    body.push_str(&tr!("Replug it if this keeps happening."));
+                    body.push_str(&tr!("Replug it if this repeats."));
                 }
                 (3, body)
             }
@@ -461,19 +461,19 @@ impl AppState {
         let (title, body) = match (&pad.status, description) {
             // The pad showed its config port: it never locked.
             (LockStatus::OnPort(usb, model), _) => (
-                tr!("{model} is not checked on a real pad yet", model = model),
+                tr!("{model} is not tested yet", model = model),
                 tr!("USB ID {pid}.", pid = usb_id(usb)),
             ),
             // The unlocked id names a model no one has checked.
             (LockStatus::Unsupported(usb, Some(model)), _) => (
-                tr!("{model} is not checked on a real pad yet", model = model),
+                tr!("{model} is not tested yet", model = model),
                 tr!("USB ID {pid}. Replug it to get XInput back.", pid = usb_id(usb)),
             ),
             // The product string names a model no one has checked: nothing was sent.
             (_, Some(d)) if refused => (
-                tr!("This {family} is not checked on a real pad yet", family = name),
+                tr!("This {family} is not tested yet", family = name),
                 tr!(
-                    "It reports itself as an {model}. USB ID {pid}.",
+                    "It reports as {model}. USB ID {pid}.",
                     model = d.display_name,
                     pid = d.lock.as_ref().map_or(String::new(), |l| usb_id(&l.locked.usb))
                 ),
@@ -482,10 +482,9 @@ impl AppState {
                 tr!("This controller is not supported yet"),
                 tr!("USB ID {pid}. Replug it to get XInput back.", pid = usb_id(usb)),
             ),
-            _ => (
-                tr!("{name} is locked", name = name),
-                tr!("Unlocking takes it away from games until you relock it."),
-            ),
+            _ => {
+                (tr!("{name} is locked", name = name), tr!("While unlocked, games cannot see it."))
+            }
         };
         LockedInfo {
             view,
@@ -513,7 +512,7 @@ pub fn render_locked(state: &AppState, ui: &AppWindow) {
 mod tests {
     /// The registered Ultimate.
     fn ultimate_model() -> &'static dyn controller_core::device::Model {
-        controller_core::devices::model_named("Ultimate").unwrap()
+        controller_core::devices::model_named("Ultimate (BT)").unwrap()
     }
     use std::path::PathBuf;
     use std::sync::mpsc;
@@ -640,7 +639,7 @@ mod tests {
     fn the_picker_lists_listed_controllers_before_locked_ones() {
         let mut s = ultimate("1.09");
         s.locked_seen(vec![target("1-2")]);
-        assert_eq!(s.picker_labels(), ["Ultimate · XInput", "8BitDo Ultimate · Locked"]);
+        assert_eq!(s.picker_labels(), ["Ultimate (BT) · XInput", "8BitDo Ultimate · Locked"]);
         assert!(s.shown_lock().is_none(), "the listed controller shows until a lock is picked");
         assert_eq!(s.picker_index(), 0);
         s.pick_entry(1);
@@ -659,7 +658,7 @@ mod tests {
         assert_eq!(info.view, 1);
         assert!(!info.guide);
         assert_eq!(info.title, "8BitDo Ultimate is locked");
-        assert_eq!(info.body, "Unlocking takes it away from games until you relock it.");
+        assert_eq!(info.body, "While unlocked, games cannot see it.");
         assert_eq!(s.lock_status().as_deref(), Some("Locked"));
         s.unlock_requested(&tx, "1-2");
         assert_eq!(s.locked_info().view, 2);
@@ -668,7 +667,7 @@ mod tests {
         let info = s.locked_info();
         assert_eq!(info.view, 3);
         assert_eq!(info.bar_title, "The controller did not unlock.");
-        assert_eq!(info.bar_body, "Replug it if this keeps happening.");
+        assert_eq!(info.bar_body, "Replug it if this repeats.");
         assert_eq!(s.lock_status().as_deref(), Some("Did not unlock"));
         s.unlock_finished("1-2", Err(&Failure { error: Error::Usb("x".into()), holders: vec![] }));
         assert_eq!(s.locked_info().bar_body, "", "no replug hint but for a timeout");
@@ -691,10 +690,10 @@ mod tests {
         assert!(s.shows_pad() && s.listed().next().is_none());
         let info = s.locked_info();
         assert_eq!(info.view, 4);
-        assert_eq!(info.title, "Unchecked Pad is not checked on a real pad yet");
+        assert_eq!(info.title, "Unchecked Pad is not tested yet");
         assert_eq!(info.body, "USB ID 2dc8:7e58.", "it never locked: no replug advice");
         assert!(info.guide);
-        assert_eq!(s.picker_labels(), ["Unchecked Pad · Not checked"]);
+        assert_eq!(s.picker_labels(), ["Unchecked Pad · Not tested"]);
         let (tx, rx) = mpsc::channel();
         assert!(!s.unlock_requested(&tx, "1-2"));
         assert!(rx.try_recv().is_err(), "nothing goes to the pad");
@@ -717,10 +716,10 @@ mod tests {
         s.locked_seen(vec![unchecked("1-2")]);
         let info = s.locked_info();
         assert_eq!(info.view, 4);
-        assert_eq!(info.title, "This Test family is not checked on a real pad yet");
-        assert_eq!(info.body, "It reports itself as an Unchecked Pad. USB ID 2dc8:7e59.");
+        assert_eq!(info.title, "This Test family is not tested yet");
+        assert_eq!(info.body, "It reports as Unchecked Pad. USB ID 2dc8:7e59.");
         assert!(info.guide, "the screen links to the guide");
-        assert_eq!(s.lock_status().as_deref(), Some("Not checked yet"));
+        assert_eq!(s.lock_status().as_deref(), Some("Not tested yet"));
         assert_eq!(s.picker_labels(), ["Test family · Locked"]);
         assert!(!s.unlock_requested(&tx, "1-2"), "no unlock for a refused model");
         assert!(rx.try_recv().is_err());
@@ -735,10 +734,10 @@ mod tests {
         s.unlock_finished("1-2", Ok(&Unlocked::Unsupported(usb, Some("Unchecked Pad".to_owned()))));
         let info = s.locked_info();
         assert_eq!(info.view, 4);
-        assert_eq!(info.title, "Unchecked Pad is not checked on a real pad yet");
+        assert_eq!(info.title, "Unchecked Pad is not tested yet");
         assert_eq!(info.body, "USB ID 2dc8:7e58. Replug it to get XInput back.");
         assert!(info.guide);
-        assert_eq!(s.picker_labels(), ["Unchecked Pad · Not checked"]);
+        assert_eq!(s.picker_labels(), ["Unchecked Pad · Not tested"]);
         s.unlock_finished("1-2", Ok(&Unlocked::Unsupported(usb, None)));
         let info = s.locked_info();
         assert_eq!(info.title, "This controller is not supported yet");

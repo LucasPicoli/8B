@@ -499,7 +499,7 @@
         "xinput",
         "dinput"
       ],
-      "lead": "Below the low end of the range the trigger reads as released. Past the high end it reads as pulled all the way.",
+      "lead": "Below the range the trigger reads as released. Above it, as pulled all the way.",
       "frames": [
         {
           "title": "Left trigger",

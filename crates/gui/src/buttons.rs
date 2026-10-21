@@ -755,7 +755,7 @@ mod tests {
     fn a_row_explains_its_extra_output_and_warns_when_it_leaves_swap() {
         let mut s = crate::state::tests::ultimate("1.09");
         let hint = |s: &AppState, id: &str| rows(s)[row_of(s, id)].hint.to_string();
-        assert!(hint(&s, "star").starts_with("Hold a button and press this one to turn turbo"));
+        assert!(hint(&s, "star").starts_with("Hold a button and press this to toggle its turbo"));
         assert_eq!(hint(&s, "p1"), "", "no hint for Disabled");
         s.set_output("p1", "swap");
         assert!(hint(&s, "p1").starts_with("Hold two of A, B, X, Y, LB, RB, LS, RS"));

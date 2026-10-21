@@ -296,7 +296,7 @@ impl ProtocolCodec for Ultimate {
 mod tests {
     /// The registered Ultimate.
     fn ultimate() -> &'static dyn crate::device::Model {
-        crate::devices::model_named("Ultimate").unwrap()
+        crate::devices::model_named("Ultimate (BT)").unwrap()
     }
     use super::*;
 

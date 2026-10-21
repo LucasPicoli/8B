@@ -341,7 +341,7 @@ mod tests {
 
     #[test]
     fn a_blank_name_on_a_model_without_profile_names_is_uploaded_not_cleared() {
-        let ultimate = devices::model_named("Ultimate").unwrap();
+        let ultimate = devices::model_named("Ultimate (BT)").unwrap();
         let image = |name| std::fs::read(format!("../../fixtures/ultimate/{name}.bin")).unwrap();
         let raw_blobs = vec![image("xinput-read"), image("switch-saved")];
         let dev = MockDevice::new()

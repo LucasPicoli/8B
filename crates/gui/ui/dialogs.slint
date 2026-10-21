@@ -507,8 +507,8 @@ export component RelockDialog inherits DialogShell {
     destructive: info.write == 0;
     extra-destructive: true;
     title: @tr("Relock without writing?");
-    subtitle: @tr("{n} slot has edits that are not on the controller yet, so relocking discards them."
-        | "{n} slots have edits that are not on the controller yet, so relocking discards them." % info.total);
+    subtitle: @tr("Relocking discards the unwritten edits in {n} slot."
+        | "Relocking discards the unwritten edits in {n} slots." % info.total);
     extra-text: info.write > 0 ? @tr("Discard and relock") : "";
     accept-text: info.write == 0 ? @tr("Discard and relock")
         : @tr("Write {n} slot…" | "Write {n} slots…" % info.write);

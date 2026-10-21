@@ -2936,7 +2936,7 @@ fn locked_pad() -> AppState {
     let mut s = new_state();
     s.locked_seen(vec![crate::worker::Target {
         port: "3-1".to_owned(),
-        model: controller_core::devices::model_named("Ultimate").unwrap(),
+        model: controller_core::devices::model_named("Ultimate (BT)").unwrap(),
     }]);
     s
 }

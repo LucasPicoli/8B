@@ -133,7 +133,7 @@ fn number_labels<'a>(out: &mut Vec<Prose<'a>>, at: &str, field: &'a NumberField)
 mod tests {
     /// The registered Ultimate.
     fn ultimate() -> &'static dyn crate::device::Model {
-        crate::devices::model_named("Ultimate").unwrap()
+        crate::devices::model_named("Ultimate (BT)").unwrap()
     }
     use std::collections::BTreeSet;
 

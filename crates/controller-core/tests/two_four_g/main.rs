@@ -51,7 +51,7 @@ fn it_is_named_locked_and_not_yet_validated() {
     let lock = d.lock.as_ref().unwrap();
     assert_eq!(lock.locked.usb, UsbId { vendor: 0x2DC8, product: 0x3106 });
     assert_eq!(lock.locked.product, "8BitDo Ultimate wireless Controller for PC");
-    let bt = model_named("Ultimate").unwrap().description().unwrap().lock.as_ref().unwrap();
+    let bt = model_named("Ultimate (BT)").unwrap().description().unwrap().lock.as_ref().unwrap();
     assert_eq!(lock.unlock, bt.unlock, "the same unlock packets as the Bluetooth pad");
     assert_eq!(lock.relock, bt.relock);
     assert!(!d.validated);
@@ -140,6 +140,6 @@ fn a_pad_in_a_mode_the_description_lacks_is_told_to_switch() {
     assert!(message.contains("a mode 8B does not support"), "{message}");
     assert!(message.contains("XInput or DInput"), "{message}");
     // The Bluetooth pad has a Switch mode, so byte 0 is a mode there.
-    let bt = model_named("Ultimate").unwrap().description().unwrap();
+    let bt = model_named("Ultimate (BT)").unwrap().description().unwrap();
     assert_eq!(image_mode(bt, &raw.payload).unwrap().as_str(), "switch");
 }

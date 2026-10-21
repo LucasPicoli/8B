@@ -422,7 +422,7 @@ mod tests {
     fn a_macro_button_the_file_remaps_is_named_on_the_ultimate() {
         let mut s = crate::state::tests::ultimate("1.09");
         hold_macros(&mut s, (XINPUT, 1), &[]);
-        let model = controller_core::devices::model_named("Ultimate").unwrap();
+        let model = controller_core::devices::model_named("Ultimate (BT)").unwrap();
         let mut p = model.default_profile(XINPUT);
         p.button_mappings.iter_mut().find(|m| m.source == "r3").unwrap().target =
             "bottom face".to_owned();
