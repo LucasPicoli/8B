@@ -270,6 +270,10 @@ msgstr "Ação de {}"
 msgid "The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output."
 msgstr "O controle guarda para este botão uma ação que 8B não reconhece. Ela fica como está até você escolher outra ação."
 
+#: ui/buttons.slint ui/step_panel.slint
+msgid "{}: {}"
+msgstr "{}: {}"
+
 #: ui/dialogs.slint
 msgid "The old profile is saved in this file:"
 msgstr "O perfil antigo está salvo neste arquivo:"
@@ -961,10 +965,6 @@ msgstr "Centralizar"
 #: ui/step_panel.slint
 msgid "Centre {}"
 msgstr "Centralizar {}"
-
-#: ui/step_panel.slint
-msgid "{}: {}"
-msgstr "{}: {}"
 
 #: ui/step_panel.slint
 msgid "{} X, 0 to 255, rest 127"
@@ -2778,8 +2778,8 @@ msgstr "Segure dois entre A, B, X, Y, LB, RB, LS, RS e pressione este para troc�
 #. Ultimate 2.4G /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/1/extra_outputs/2/leaving_hint
-msgid "A swap you made stays until you undo it with a Swap button."
-msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca."
+msgid "A swap you made stays until you undo it with a Swap button or turn the controller off."
+msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca ou desligar o controle."
 
 #. Ultimate /modes/1/extra_outputs/2/hint
 msgid "Hold two of A, B, X, Y, L, R, LS, RS and press this one to swap them. Hold one of them and press it again to undo."
@@ -2867,6 +2867,9 @@ msgstr "Ultimate 2.4G"
 #. Ultimate Wired /short_name
 msgid "Ultimate Wired"
 msgstr "Ultimate Wired"
+
+#~ msgid "A swap you made stays until you undo it with a Swap button."
+#~ msgstr "Uma troca que você fez continua até você desfazê-la com um botão Troca."
 
 #~ msgid "{macro} loses {item}. {reason}"
 #~ msgstr "{macro} perde {item}. {reason}"

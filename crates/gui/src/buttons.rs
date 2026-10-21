@@ -174,20 +174,42 @@ pub fn sections(state: &AppState) -> Vec<Section> {
     .collect()
 }
 
-/// The hint of the picker of `button`: a warning when the controller holds an output
-/// with a leaving hint and the edits set another one, else the hint of its `current`
+/// The extra output the controller holds for `button` when the edits set another one,
+/// and so what the write would leave behind.
+fn leaving<'a>(
+    state: &'a AppState,
+    mode: Mode,
+    button: &str,
+    current: &str,
+) -> Option<&'a ExtraOutput> {
+    let held = state.selected_slot().and_then(|(m, n)| held_current(&state.slot(m, n), button))?;
+    if held == current {
+        return None;
+    }
+    state.description().mode(mode)?.extra_outputs.iter().find(|o| o.id == held)
+}
+
+/// The warning of `button`'s row: what stays on the controller after the write, when
+/// the controller holds an extra output with a leaving hint and the edits set another
+/// one. Empty for none.
+fn warning(state: &AppState, mode: Mode, button: &str, current: &str) -> String {
+    leaving(state, mode, button, current)
+        .filter(|left| !left.leaving_hint.is_empty())
+        .map_or_else(String::new, |left| prose(&left.leaving_hint))
+}
+
+/// The hint of the picker of `button`: its warning, else the hint of its `current`
 /// extra output. Empty for none.
 fn hint(state: &AppState, mode: Mode, button: &str, current: &str) -> String {
-    let extra = |id: &str| {
-        state.description().mode(mode).and_then(|m| m.extra_outputs.iter().find(|o| o.id == id))
-    };
-    let held = state.selected_slot().and_then(|(m, n)| held_current(&state.slot(m, n), button));
-    let leaving = held.as_deref().filter(|&h| h != current).and_then(extra);
-    match (leaving, extra(current)) {
-        (Some(left), _) if !left.leaving_hint.is_empty() => prose(&left.leaving_hint),
-        (_, Some(now)) if !now.hint.is_empty() => prose(&now.hint),
-        _ => String::new(),
+    let warning = warning(state, mode, button, current);
+    if !warning.is_empty() {
+        return warning;
     }
+    state
+        .description()
+        .mode(mode)
+        .and_then(|m| m.extra_outputs.iter().find(|o| o.id == current))
+        .map_or_else(String::new, |now| prose(&now.hint))
 }
 
 /// Whether `button`, a remappable button, outputs something other than it does in
@@ -235,6 +257,7 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                 remapped: b.can_be_remapped && remapped(state, mode, &b.id, &current),
                 unknown: current == UNRECOGNISED_OUTPUT,
                 hint: hint(state, mode, &b.id, &current).into(),
+                warning: warning(state, mode, &b.id, &current).into(),
                 changed: held_current(&slot, &b.id).is_some_and(|held| held != current),
             }
         })
@@ -714,6 +737,9 @@ mod tests {
         }
     }
 
+    const SWAP_STAYS: &str =
+        "A swap you made stays until you undo it with a Swap button or turn the controller off.";
+
     #[test]
     fn a_gated_extra_output_needs_the_firmware() {
         let gated: controller_core::description::ExtraOutput = serde_json::from_value(
@@ -741,6 +767,27 @@ mod tests {
             target: "swap".to_owned(),
         });
         s.set_output("p2", "disabled");
-        assert_eq!(hint(&s, "p2"), "A swap you made stays until you undo it with a Swap button.");
+        assert_eq!(hint(&s, "p2"), SWAP_STAYS);
+    }
+
+    #[test]
+    fn a_button_moved_off_swap_shows_its_warning_without_a_hover() {
+        let mut s = crate::state::tests::ultimate("1.09");
+        let warning = |s: &AppState, id: &str| rows(s)[row_of(s, id)].warning.to_string();
+        let pad =
+            s.active_mut().unwrap().slots.get_mut(&(XINPUT, 1)).unwrap().pad.as_mut().unwrap();
+        pad.button_mappings.retain(|m| m.source != "p2");
+        pad.button_mappings.push(controller_core::model::ButtonMapping {
+            source: "p2".to_owned(),
+            target: "swap".to_owned(),
+        });
+        assert_eq!(warning(&s, "p2"), "", "nothing moved yet");
+        s.set_output("p1", "swap");
+        assert_eq!(warning(&s, "p1"), "", "moving onto Swap warns of nothing");
+        s.set_output("p2", "disabled");
+        assert_eq!(warning(&s, "p2"), SWAP_STAYS);
+        assert_eq!(warning(&s, "star"), "", "other rows stay quiet");
+        s.set_output("p2", "swap");
+        assert_eq!(warning(&s, "p2"), "", "put back, nothing to warn of");
     }
 }

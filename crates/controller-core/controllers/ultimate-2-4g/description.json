@@ -52,7 +52,7 @@
             "p2"
           ],
           "hint": "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
-          "leaving_hint": "A swap you made stays until you undo it with a Swap button.",
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button or turn the controller off.",
           "code": "0x8000000"
         }
       ],
@@ -99,7 +99,7 @@
             "p2"
           ],
           "hint": "Hold two of A, B, X, Y, LB, RB, LS, RS and press this one to swap them. Hold one of them and press it again to undo.",
-          "leaving_hint": "A swap you made stays until you undo it with a Swap button.",
+          "leaving_hint": "A swap you made stays until you undo it with a Swap button or turn the controller off.",
           "code": "0x8000000"
         }
       ],

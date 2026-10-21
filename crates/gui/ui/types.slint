@@ -44,6 +44,9 @@ export struct MapRow {
     // How to use the output on the pad, or a warning about leaving the one the
     // controller holds. Empty for none.
     hint: string,
+    // What the controller keeps after a write that moves this button off an output it
+    // holds, shown under the table. Empty for none.
+    warning: string,
     // Differs from what the controller holds: not written yet.
     changed: bool,
 }
