@@ -245,7 +245,7 @@ export component ButtonsTab {
                     // A row without a warning adds no gap under the table.
                     padding-top: r.warning != "" ? 8px : 0px;
                     if r.warning != "": MessageBar {
-                        title: @tr("{}: {}", r.label, r.warning);
+                        title: r.warning;
                     }
                 }
             }

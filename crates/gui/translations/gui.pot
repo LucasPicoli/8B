@@ -275,10 +275,6 @@ msgid ""
 "stays as it is until you pick another output."
 msgstr ""
 
-#: ui/buttons.slint ui/step_panel.slint
-msgid "{}: {}"
-msgstr ""
-
 #: ui/dialogs.slint
 msgid "The old profile is saved in this file:"
 msgstr ""
@@ -1016,6 +1012,10 @@ msgstr ""
 
 #: ui/step_panel.slint
 msgid "Centre {}"
+msgstr ""
+
+#: ui/step_panel.slint
+msgid "{}: {}"
 msgstr ""
 
 #: ui/step_panel.slint
@@ -2888,9 +2888,7 @@ msgstr ""
 #. Ultimate 2.4G /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/1/extra_outputs/2/leaving_hint
-msgid ""
-"A swap you made stays until you undo it with a Swap button or turn the "
-"controller off."
+msgid "Swaps made with {} last until the controller turns off."
 msgstr ""
 
 #. Ultimate /modes/1/extra_outputs/2/hint

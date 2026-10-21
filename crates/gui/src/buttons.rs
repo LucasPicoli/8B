@@ -189,19 +189,19 @@ fn leaving<'a>(
     state.description().mode(mode)?.extra_outputs.iter().find(|o| o.id == held)
 }
 
-/// The warning of `button`'s row: what stays on the controller after the write, when
-/// the controller holds an extra output with a leaving hint and the edits set another
-/// one. Empty for none.
-fn warning(state: &AppState, mode: Mode, button: &str, current: &str) -> String {
+/// The warning of `button`'s row, `name` its display name: what stays on the controller
+/// after the write, when the controller holds an extra output with a leaving hint and the
+/// edits set another one. The hint writes `{}` where the name goes. Empty for none.
+fn warning(state: &AppState, mode: Mode, button: &str, name: &str, current: &str) -> String {
     leaving(state, mode, button, current)
         .filter(|left| !left.leaving_hint.is_empty())
-        .map_or_else(String::new, |left| prose(&left.leaving_hint))
+        .map_or_else(String::new, |left| prose(&left.leaving_hint).replacen("{}", name, 1))
 }
 
 /// The hint of the picker of `button`: its warning, else the hint of its `current`
 /// extra output. Empty for none.
-fn hint(state: &AppState, mode: Mode, button: &str, current: &str) -> String {
-    let warning = warning(state, mode, button, current);
+fn hint(state: &AppState, mode: Mode, button: &str, name: &str, current: &str) -> String {
+    let warning = warning(state, mode, button, name, current);
     if !warning.is_empty() {
         return warning;
     }
@@ -234,8 +234,8 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
         .map(|b| {
             let current = current(&slot, &b.id).unwrap_or_default();
             let list = choices(state, mode, &b.id, &current);
+            let label = prose(b.printed(mode));
             MapRow {
-                label: prose(b.printed(mode)).into(),
                 spoken: prose(b.printed_spoken(mode)).into(),
                 output: list
                     .iter()
@@ -256,9 +256,10 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                 fixed: !b.can_be_remapped,
                 remapped: b.can_be_remapped && remapped(state, mode, &b.id, &current),
                 unknown: current == UNRECOGNISED_OUTPUT,
-                hint: hint(state, mode, &b.id, &current).into(),
-                warning: warning(state, mode, &b.id, &current).into(),
+                hint: hint(state, mode, &b.id, &label, &current).into(),
+                warning: warning(state, mode, &b.id, &label, &current).into(),
                 changed: held_current(&slot, &b.id).is_some_and(|held| held != current),
+                label: label.into(),
             }
         })
         .collect()
@@ -737,8 +738,7 @@ mod tests {
         }
     }
 
-    const SWAP_STAYS: &str =
-        "A swap you made stays until you undo it with a Swap button or turn the controller off.";
+    const SWAP_STAYS: &str = "Swaps made with P2 last until the controller turns off.";
 
     #[test]
     fn a_gated_extra_output_needs_the_firmware() {

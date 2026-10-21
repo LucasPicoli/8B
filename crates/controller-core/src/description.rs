@@ -283,7 +283,7 @@ pub struct ExtraOutput {
     #[serde(default)]
     pub hint: String,
     /// A warning shown when a button the controller holds on this output is set to
-    /// another one. Empty for none.
+    /// another one. `{}` stands for the button's name. Empty for none.
     #[serde(default)]
     pub leaving_hint: String,
     /// The code a button map entry holds for this output, in hex such as `"0x400000"`.

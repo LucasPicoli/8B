@@ -294,10 +294,6 @@ msgstr ""
 "output 8B does not recognise for this button. It stays as it is until you "
 "pick another output.⟧"
 
-#: ui/buttons.slint ui/step_panel.slint
-msgid "{}: {}"
-msgstr "⟦~~~{}: {}⟧"
-
 #: ui/dialogs.slint
 msgid "The old profile is saved in this file:"
 msgstr "⟦~~~~~~~~~~~~~~~~The old profile is saved in this file:⟧"
@@ -1117,6 +1113,10 @@ msgstr "⟦~~~Centre⟧"
 #: ui/step_panel.slint
 msgid "Centre {}"
 msgstr "⟦~~~~Centre {}⟧"
+
+#: ui/step_panel.slint
+msgid "{}: {}"
+msgstr "⟦~~~{}: {}⟧"
 
 #: ui/step_panel.slint
 msgid "{} X, 0 to 255, rest 127"
@@ -3164,12 +3164,10 @@ msgstr ""
 #. Ultimate 2.4G /modes/1/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/0/extra_outputs/2/leaving_hint
 #. Ultimate Wired /modes/1/extra_outputs/2/leaving_hint
-msgid ""
-"A swap you made stays until you undo it with a Swap button or turn the "
-"controller off."
+msgid "Swaps made with {} last until the controller turns off."
 msgstr ""
-"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~A swap you made stays until you undo it "
-"with a Swap button or turn the controller off.⟧"
+"⟦~~~~~~~~~~~~~~~~~~~~~~Swaps made with {} last until the controller turns "
+"off.⟧"
 
 #. Ultimate /modes/1/extra_outputs/2/hint
 msgid ""
