@@ -10,6 +10,7 @@
   </developer>
   <description>
     <p>8B reads and edits the profiles stored on your 8BitDo controller, over USB. On the Pro 3 it edits button mappings, sticks, triggers and vibration settings in every slot of the XInput, Switch and DInput modes, creates and edits macros, and imports and exports profiles as JSON.</p>
+    <p>On the Ultimate Bluetooth it does the same in the XInput and Switch modes, over the controller's cable.</p>
     <p>8B is an independent project, not made or endorsed by 8BitDo.</p>
   </description>
   <launchable type="desktop-id">io.github.LucasPicoli._8B.desktop</launchable>
@@ -17,15 +18,21 @@
   <url type="bugtracker">https://github.com/LucasPicoli/8B/issues</url>
   <screenshots>
     <screenshot type="default">
-      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.3.1/docs/images/screenshot.png</image>
+      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.4.0/docs/images/screenshot.png</image>
       <caption>Editing a DInput profile: saved remaps in blue, unsaved edits in orange</caption>
     </screenshot>
     <screenshot>
-      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.3.1/docs/images/screenshot-macros.png</image>
+      <image type="source">https://raw.githubusercontent.com/LucasPicoli/8B/v0.4.0/docs/images/screenshot-macros.png</image>
       <caption>Editing a macro: the step table, with a step's stick and trigger values below</caption>
     </screenshot>
   </screenshots>
   <releases>
+    <release version="0.4.0" date="2026-10-21">
+      <description>
+        <p>8B now edits the 8BitDo Ultimate Bluetooth over its cable, in the XInput and Switch modes: buttons, sticks, triggers, vibration and macros.</p>
+        <p>8B recognises the Ultimate 2.4G and the Ultimate Wired, and refuses them until someone checks one on a real controller.</p>
+      </description>
+    </release>
     <release version="0.3.1" date="2026-10-17"/>
     <release version="0.3.0" date="2026-10-17">
       <description>

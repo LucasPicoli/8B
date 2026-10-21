@@ -19,6 +19,7 @@
 Device|Features
 ---|---
 Pro 3|- Edit button mappings, sticks, triggers and vibration settings in every XInput, Switch and DInput slot</br>- Create and edit macros</br>- Import and export profiles as JSON
+Ultimate Bluetooth|- Edit button mappings, sticks, triggers and vibration settings in every XInput and Switch slot, over the cable</br>- Create and edit macros</br>- Import and export profiles as JSON
 
 ## Roadmap
 
