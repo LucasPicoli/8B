@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn a_model_that_is_not_validated_is_refused_unless_the_user_allows_it() {
         // Models still waiting for a report from a real pad.
-        const UNCHECKED: [&str; 3] = ["Ultimate 2.4G", "Ultimate Wired", "Ultimate 2"];
+        const UNCHECKED: [&str; 2] = ["Ultimate 2.4G", "Ultimate Wired"];
         let unchecked = test_pad::UnvalidatedPad.description().unwrap();
         assert!(!unchecked.validated);
         assert!(refused_with(unchecked, false));

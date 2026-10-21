@@ -1,7 +1,7 @@
 {
   "display_name": "8BitDo Ultimate 2 Wireless",
   "short_name": "Ultimate 2",
-  "validated": false,
+  "validated": true,
   "model_ids": [
     "0x6012"
   ],
