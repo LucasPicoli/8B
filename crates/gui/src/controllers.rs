@@ -245,8 +245,13 @@ impl AppState {
         self.rechecked = false;
         if first_listed {
             self.active_port = Some(port.to_owned());
-            if let Some(i) = self.description().modes.iter().position(|m| Some(m.id) == mode) {
-                self.selected = (i, 0);
+        }
+        // The window shows this controller for the first time, such as after its unlock:
+        // its current mode, since the slot picked on another model may not exist here.
+        if newly_known && self.active_port.as_deref() == Some(port) {
+            match self.description().modes.iter().position(|m| Some(m.id) == mode) {
+                Some(i) => self.selected = (i, 0),
+                None => self.keep_selection(),
             }
         }
         if newly_known && others_unplugged_with_edits {
@@ -455,9 +460,93 @@ impl AppState {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
-    use crate::state::tests::{connected, full_read, new_state, test_pad_read, PORT};
-    use controller_core::devices::pro3::{DINPUT, SWITCH, XINPUT};
+    use crate::state::tests::{
+        connected, full_read, new_state, plug_ultimate, test_pad_read, PORT,
+    };
+    use controller_core::devices::pro3::{Pro3, DINPUT, SWITCH, XINPUT};
     use controller_core::devices::test_pad::STANDARD;
+    use controller_core::devices::ultimate;
+
+    /// The USB port path of the Ultimate [`pro3_and_ultimate`] reads.
+    const ULTIMATE: &str = "3-1";
+
+    /// A Pro 3 on [`PORT`] in `XInput`, then an Ultimate (BT) on [`ULTIMATE`].
+    fn pro3_and_ultimate() -> AppState {
+        let mut s = new_state();
+        s.presence(PORT, Some(XINPUT));
+        s.set_model(PORT, &Pro3);
+        s.read_finished(PORT, Ok(full_read()));
+        plug_ultimate(&mut s, ULTIMATE, "1.09");
+        s
+    }
+
+    #[test]
+    fn a_pro_3_and_an_ultimate_each_show_their_own_modes_and_slots() {
+        let mut s = pro3_and_ultimate();
+        assert_eq!(s.controller_labels(), ["Pro 3 · XInput", "Ultimate (BT) · XInput"]);
+        assert_eq!(s.active().unwrap().port, PORT, "the first controller stays shown");
+        s.select(2, 2);
+        s.pick_controller(1);
+        assert_eq!(s.description().short_name, "Ultimate (BT)");
+        assert_eq!(s.selected_slot(), Some((ultimate::XINPUT, 1)), "the Ultimate has no DInput");
+        let slots: Vec<_> =
+            crate::render::groups(&s).iter().map(|g| slint::Model::row_count(&g.slots)).collect();
+        assert_eq!(slots, [3, 3], "XInput and Switch, three slots each");
+        assert_eq!(s.firmware(), "1.09");
+        s.select(1, 2);
+        assert_eq!(s.selected_slot(), Some((ultimate::SWITCH, 3)));
+        s.pick_controller(0);
+        assert_eq!(s.selected_slot(), Some((SWITCH, 3)), "in range on the Pro 3 too");
+        assert_eq!(s.description().modes.len(), 3);
+        assert_eq!(s.firmware(), "", "the Pro 3 read reports none");
+    }
+
+    #[test]
+    fn edits_and_writes_go_to_the_picked_pad_only() {
+        let mut s = pro3_and_ultimate();
+        s.pick_controller(1);
+        s.set_output("p1", "auto turbo");
+        assert_eq!(s.edited_slots(), [(ultimate::XINPUT, 1)]);
+        s.pick_controller(0);
+        assert!(!s.active().unwrap().has_edits(), "the Pro 3 holds none");
+        assert!(!s.can_write() && s.begin_batch().is_none());
+        s.pick_controller(1);
+        assert_eq!(s.begin_review().as_deref(), Some(ULTIMATE));
+        s.review_read(PORT, true);
+        assert_eq!(s.write.review, None, "a read of the Pro 3 opens no review");
+        s.review_read(ULTIMATE, true);
+        let (port, jobs) = s.confirm_review().unwrap();
+        assert_eq!((port.as_str(), jobs.len()), (ULTIMATE, 1));
+        let one = controller_core::model::Slot::new(1).unwrap();
+        let done = controller_core::model::WriteResult::success(ultimate::XINPUT, one, "ok");
+        s.write_finished(ULTIMATE, &[done], None);
+        let p1 = s.slot(ultimate::XINPUT, 1).pad.unwrap().button_mappings;
+        assert!(p1.iter().any(|m| m.source == "p1" && m.target == "auto turbo"));
+        s.pick_controller(0);
+        assert_eq!(s.slot(XINPUT, 1), connected(XINPUT).slot(XINPUT, 1), "the Pro 3 is as read");
+    }
+
+    #[test]
+    fn unplugging_one_model_keeps_the_other_shown() {
+        let mut s = pro3_and_ultimate();
+        s.pick_controller(1);
+        s.select(1, 2);
+        s.presence(PORT, None);
+        assert_eq!(s.controller_labels(), ["Ultimate (BT) · XInput"]);
+        assert_eq!(s.selected_slot(), Some((ultimate::SWITCH, 3)), "the Ultimate stays as it was");
+        s.presence(PORT, Some(DINPUT));
+        s.set_model(PORT, &Pro3);
+        s.read_finished(PORT, Ok(full_read()));
+        assert_eq!(
+            s.active().unwrap().port,
+            ULTIMATE,
+            "a pad coming back does not take the window"
+        );
+        s.presence(ULTIMATE, None);
+        assert_eq!(s.controller_labels(), ["Pro 3 · DInput"]);
+        assert_eq!(s.description().short_name, "Pro 3");
+        assert_eq!(s.selected_slot(), Some((SWITCH, 3)));
+    }
 
     #[test]
     fn each_controller_shows_its_own_model() {

@@ -142,12 +142,13 @@ impl AppState {
     pub fn unlock_finished(&mut self, port: &str, result: Result<&Unlocked, &Failure>) {
         match result {
             Ok(Unlocked::Port(_)) => {
-                self.locked.retain(|p| p.port != port);
-                // The controller shows once its read is back.
-                if self.locked_shown.as_deref() == Some(port) {
+                // The controller shows once its read is back, if its panel showed: a
+                // user who picked another controller meanwhile keeps it.
+                if self.shown_lock().is_some_and(|p| p.port == port) {
                     self.locked_shown = None;
+                    self.active_port = Some(port.to_owned());
                 }
-                self.active_port = Some(port.to_owned());
+                self.locked.retain(|p| p.port != port);
             }
             Ok(Unlocked::Unsupported(usb, model)) => {
                 self.set_lock_status(port, LockStatus::Unsupported(*usb, model.clone()));
@@ -383,10 +384,11 @@ impl AppState {
     }
 
     /// The relock of `port` worked: the pad is locked, its edits went with it, and its
-    /// locked panel shows once the worker lists it.
+    /// locked panel shows, unless another controller was picked meanwhile.
     pub fn relocked(&mut self, port: &str) {
         self.relock_asking = false;
         self.relock_sent = None;
+        let shown = self.active().is_some_and(|c| c.port == port);
         let target = self.relock_targets().into_iter().find(|t| t.port == port);
         if let Some(c) = self.controller_mut(port) {
             for slot in c.slots.values_mut() {
@@ -404,7 +406,9 @@ impl AppState {
                 status: LockStatus::Locked,
             });
         }
-        self.locked_shown = Some(port.to_owned());
+        if shown {
+            self.locked_shown = Some(port.to_owned());
+        }
     }
 
     /// The relock of `port` failed.
@@ -518,9 +522,10 @@ mod tests {
     use std::sync::mpsc;
 
     use controller_core::devices::test_pad::UnvalidatedPad;
+    use controller_core::devices::{pro3, ultimate};
 
     use super::*;
-    use crate::state::tests::{new_state, ultimate, PORT};
+    use crate::state::tests::{connected, new_state, plug_ultimate, ultimate, PORT};
 
     fn target(port: &str) -> Target {
         Target { port: port.to_owned(), model: ultimate_model() }
@@ -849,6 +854,68 @@ mod tests {
         assert_eq!(s.picker_labels(), ["8BitDo Ultimate · Locked"]);
         s.locked_seen(vec![target(PORT)]);
         assert_eq!(s.locked.len(), 1, "the worker's list agrees");
+    }
+
+    #[test]
+    fn an_ultimate_unlocks_and_relocks_beside_a_pro_3_without_touching_it() {
+        let (tx, rx) = mpsc::channel();
+        let mut s = connected(pro3::XINPUT);
+        s.set_name("Kept");
+        s.select(2, 0);
+        s.locked_seen(vec![target("1-2")]);
+        assert_eq!(s.picker_labels(), ["Pro 3 · XInput", "8BitDo Ultimate · Locked"]);
+        assert!(s.relock_targets().is_empty(), "the Pro 3 declares no lock");
+        s.pick_entry(1);
+        assert!(s.unlock_requested(&tx, "1-2"));
+        s.unlock_finished("1-2", Ok(&Unlocked::Port(PathBuf::from("/dev/hidraw3"))));
+        plug_ultimate(&mut s, "1-2", "1.09");
+        assert_eq!(s.picker_labels(), ["Pro 3 · XInput", "Ultimate (BT) · XInput"]);
+        assert_eq!(s.picker_index(), 1, "the unlocked pad shows once read");
+        assert_eq!(s.selected_slot(), Some((ultimate::XINPUT, 1)), "in its current mode");
+        let ports: Vec<_> = s.relock_targets().into_iter().map(|t| t.port).collect();
+        assert_eq!(ports, ["1-2"], "a close relocks the Ultimate only");
+        s.relock_clicked(&tx);
+        s.relocked("1-2");
+        assert_eq!(s.picker_labels(), ["Pro 3 · XInput", "8BitDo Ultimate · Locked"]);
+        assert_eq!(s.picker_index(), 1, "the locked panel shows");
+        let sent: Vec<_> = rx.try_iter().collect();
+        assert!(matches!(
+            sent.as_slice(),
+            [Command::Unlock(a), Command::Relock(b)] if a == "1-2" && b.port == "1-2"
+        ));
+        s.pick_entry(0);
+        assert_eq!(
+            s.slot(pro3::XINPUT, 1).shown().unwrap().name,
+            "Kept",
+            "the Pro 3 keeps its edit"
+        );
+    }
+
+    #[test]
+    fn an_unlock_that_ends_while_the_pro_3_shows_leaves_it_shown() {
+        let (tx, _rx) = mpsc::channel();
+        let mut s = connected(pro3::XINPUT);
+        s.locked_seen(vec![target("1-2")]);
+        s.pick_entry(1);
+        s.unlock_requested(&tx, "1-2");
+        s.pick_entry(0);
+        s.unlock_finished("1-2", Ok(&Unlocked::Port(PathBuf::from("/dev/hidraw3"))));
+        plug_ultimate(&mut s, "1-2", "1.09");
+        assert_eq!(s.picker_labels(), ["Pro 3 · XInput", "Ultimate (BT) · XInput"]);
+        assert_eq!(s.picker_index(), 0);
+    }
+
+    #[test]
+    fn a_relock_that_ends_while_the_pro_3_shows_leaves_it_shown() {
+        let (tx, _rx) = mpsc::channel();
+        let mut s = connected(pro3::XINPUT);
+        plug_ultimate(&mut s, "1-2", "1.09");
+        s.pick_entry(1);
+        s.relock_clicked(&tx);
+        s.pick_entry(0);
+        s.relocked("1-2");
+        assert_eq!(s.picker_labels(), ["Pro 3 · XInput", "8BitDo Ultimate · Locked"]);
+        assert_eq!(s.picker_index(), 0);
     }
 
     #[test]

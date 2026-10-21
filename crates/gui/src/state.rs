@@ -751,6 +751,13 @@ pub mod tests {
     /// An Ultimate on firmware `firmware`, current mode `XInput`, read with slot 1 of
     /// each mode holding the mode's default profile with no name, slots 2 and 3 empty.
     pub fn ultimate(firmware: &str) -> AppState {
+        let mut s = new_state();
+        plug_ultimate(&mut s, PORT, firmware);
+        s
+    }
+
+    /// An Ultimate on `port` and firmware `firmware`, read as [`ultimate`] reads it.
+    pub fn plug_ultimate(s: &mut AppState, port: &str, firmware: &str) {
         use controller_core::devices::ultimate;
         let summary = |mode: Mode, number: u8| CanonicalProfileSummary {
             id: if number == 1 { format!("{mode}-{number}") } else { String::new() },
@@ -760,9 +767,8 @@ pub mod tests {
             source_profile_index: number - 1,
             canonical: ultimate_model().default_profile(mode),
         };
-        let mut s = new_state();
-        s.presence(PORT, Some(ultimate::XINPUT));
-        s.set_model(PORT, ultimate_model());
+        s.presence(port, Some(ultimate::XINPUT));
+        s.set_model(port, ultimate_model());
         let profiles =
             ultimate::MODES.iter().flat_map(|&m| (1..=3).map(move |n| summary(m, n))).collect();
         let read = ProfileReadResult {
@@ -770,8 +776,7 @@ pub mod tests {
             firmware_version: firmware.to_owned(),
             ..Default::default()
         };
-        s.read_finished(PORT, Ok(read));
-        s
+        s.read_finished(port, Ok(read));
     }
 
     /// A read of the test pad: slot 1 named `name`, slot 2 empty.
