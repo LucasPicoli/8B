@@ -134,8 +134,8 @@ fn plan(model: &'static dyn Model, req: &UploadAll<'_>) -> Result<Vec<Planned>, 
     Ok(planned)
 }
 
-/// The job for `profile`, the file in `slot` of `mode`. A profile named "" is an empty
-/// slot of an older export, and clears the slot.
+/// The job for `profile`, the file in `slot` of `mode`. On a model with profile names, a
+/// profile named "" is an empty slot of an older export, and clears the slot.
 fn job(
     model: &dyn Model,
     req: &UploadAll<'_>,
@@ -143,7 +143,10 @@ fn job(
     file: &Path,
     mut profile: Value,
 ) -> Result<Planned, Error> {
-    if profile.get("name").and_then(Value::as_str) == Some("") {
+    // A blank name clears the slot, on a model with profile names. A model without them
+    // exports every profile with a blank name, and that file must upload back.
+    let renames = model.description()?.profile_rename;
+    if renames && profile.get("name").and_then(Value::as_str) == Some("") {
         return Ok(Planned { job: WriteJob { mode, slot, op: WriteOp::Clear }, extra: json!({}) });
     }
     let mut extra = json!({});
@@ -223,7 +226,7 @@ fn profile_files(
 mod tests {
     use controller_core::device::ProtocolCodec as _;
     use controller_core::devices::pro3::{Pro3, DINPUT, XINPUT};
-    use controller_core::model::{CanonicalProfile, MacroDefinition};
+    use controller_core::model::{CanonicalProfile, MacroDefinition, ProfileReadResult};
     use controller_core::transport::mock::{MockCall, MockDevice, MockOp};
 
     use super::*;
@@ -334,6 +337,24 @@ mod tests {
         assert_eq!(code, 0, "{payload}");
         assert_eq!(payload["results"].as_array().map(Vec::len), Some(1), "{payload}");
         assert_eq!(payload["results"][0]["message"], "Slot deactivated.", "{payload}");
+    }
+
+    #[test]
+    fn a_blank_name_on_a_model_without_profile_names_is_uploaded_not_cleared() {
+        let ultimate = devices::model_named("Ultimate").unwrap();
+        let image = |name| std::fs::read(format!("../../fixtures/ultimate/{name}.bin")).unwrap();
+        let raw_blobs = vec![image("xinput-read"), image("switch-saved")];
+        let dev = MockDevice::new()
+            .with_model(ultimate)
+            .with_profiles(ProfileReadResult { raw_blobs, ..Default::default() })
+            .keeping_writes();
+        // Every export of this model has a blank name: it stores none that 8B writes.
+        let blank = CanonicalProfile { name: String::new(), ..ultimate.default_profile(XINPUT) };
+        let dir =
+            folder(&[("profile-xinput-slot-2-index-1.json", serde_json::to_value(blank).unwrap())]);
+        let (payload, code) = run(&dev, dir.path(), (false, false), &ConfirmPolicy::Force);
+        assert_eq!(code, 0, "{payload}");
+        assert_eq!(payload["results"][0]["message"], "Profile uploaded successfully.", "{payload}");
     }
 
     #[test]
