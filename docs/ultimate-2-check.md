@@ -23,7 +23,9 @@ of their modes. Both files hold the same profile:
 | X | a macro: Y |
 | L4 | a macro: A with LT, then B |
 
-The sticks are swapped. Button names are the ones printed on the pad.
+The sticks are swapped. With swap sticks on, the pad plays a macro's trigger on the
+other side, so the L4 macro's LT comes out as RT. The physical triggers stay as they
+are. Button names are the ones printed on the pad.
 
 ## Before you start
 
