@@ -1,7 +1,7 @@
 //! The text of a controller description that a person reads, for the translation
 //! catalogue. Core stays English; the GUI translates each string where it shows it.
 
-use super::{ControllerDescription, NumberField};
+use super::{ControllerDescription, NumberField, SettingsFrame};
 
 /// One string of a description, found where `description.json` holds it.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -80,33 +80,7 @@ impl ControllerDescription {
             out.push(Prose { pointer: format!("{at}/label"), text: &page.label, is_name: false });
             out.push(Prose { pointer: format!("{at}/lead"), text: &page.lead, is_name: false });
             for (f, frame) in page.frames.iter().enumerate() {
-                let at = format!("{at}/frames/{f}");
-                out.push(Prose {
-                    pointer: format!("{at}/title"),
-                    text: &frame.title,
-                    is_name: false,
-                });
-                for (s, slider) in frame.sliders.iter().enumerate() {
-                    let at = format!("{at}/sliders/{s}");
-                    out.push(Prose {
-                        pointer: format!("{at}/label"),
-                        text: &slider.label,
-                        is_name: false,
-                    });
-                    out.push(Prose {
-                        pointer: format!("{at}/unit"),
-                        text: &slider.unit,
-                        is_name: true,
-                    });
-                    number_labels(&mut out, &format!("{at}/low"), &slider.low);
-                    if let Some(high) = &slider.high {
-                        number_labels(&mut out, &format!("{at}/high"), high);
-                    }
-                }
-                for (g, flag) in frame.flags.iter().enumerate() {
-                    let pointer = format!("{at}/flags/{g}/label");
-                    out.push(Prose { pointer, text: &flag.label, is_name: false });
-                }
+                frame_prose(&mut out, &format!("{at}/frames/{f}"), frame);
             }
         }
         for (v, view) in self.views.iter().enumerate() {
@@ -118,6 +92,41 @@ impl ControllerDescription {
         }
         out.retain(|p| !p.text.is_empty());
         out
+    }
+}
+
+/// Pushes the strings of `frame`, found at `at`.
+fn frame_prose<'a>(out: &mut Vec<Prose<'a>>, at: &str, frame: &'a SettingsFrame) {
+    out.push(Prose { pointer: format!("{at}/title"), text: &frame.title, is_name: false });
+    for (s, slider) in frame.sliders.iter().enumerate() {
+        let at = format!("{at}/sliders/{s}");
+        out.push(Prose { pointer: format!("{at}/label"), text: &slider.label, is_name: false });
+        out.push(Prose { pointer: format!("{at}/unit"), text: &slider.unit, is_name: true });
+        number_labels(out, &format!("{at}/low"), &slider.low);
+        if let Some(high) = &slider.high {
+            number_labels(out, &format!("{at}/high"), high);
+        }
+    }
+    for (g, flag) in frame.flags.iter().enumerate() {
+        let pointer = format!("{at}/flags/{g}/label");
+        out.push(Prose { pointer, text: &flag.label, is_name: false });
+    }
+    for (c, choice) in frame.choices.iter().enumerate() {
+        let at = format!("{at}/choices/{c}");
+        out.push(Prose { pointer: format!("{at}/label"), text: &choice.label, is_name: false });
+        // Mixed, as the extra outputs: "Left stick" is prose, "LB" a name.
+        for (o, option) in choice.options.iter().enumerate() {
+            let pointer = format!("{at}/options/{o}/label");
+            out.push(Prose { pointer, text: &option.label, is_name: false });
+        }
+    }
+    for (c, colour) in frame.colours.iter().enumerate() {
+        let pointer = format!("{at}/colours/{c}/label");
+        out.push(Prose { pointer, text: &colour.label, is_name: false });
+    }
+    for (r, ring) in frame.rings.iter().enumerate() {
+        let pointer = format!("{at}/rings/{r}/label");
+        out.push(Prose { pointer, text: &ring.label, is_name: false });
     }
 }
 
@@ -190,6 +199,10 @@ mod tests {
             (
                 ultimate().description().unwrap(),
                 include_str!("../../controllers/ultimate-bluetooth/description.json"),
+            ),
+            (
+                crate::devices::model_named("Ultimate 2").unwrap().description().unwrap(),
+                include_str!("../../controllers/ultimate-2/description.json"),
             ),
         ];
         for (description, raw) in models {

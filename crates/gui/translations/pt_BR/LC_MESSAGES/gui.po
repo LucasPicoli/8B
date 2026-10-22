@@ -1049,6 +1049,7 @@ msgstr "Passo"
 #. Ultimate Wired /settings/0/frames/1/title
 #. Ultimate Wired /settings/1/frames/1/title
 #. Ultimate 2 /settings/0/frames/1/title
+#. Ultimate 2 /settings/3/frames/0/choices/0/options/2/label
 #: ui/steps.slint src/stick_pad.rs
 msgid "Right stick"
 msgstr "Analógico direito"
@@ -1107,6 +1108,7 @@ msgstr "An. E"
 #. Ultimate Wired /settings/0/frames/0/title
 #. Ultimate Wired /settings/1/frames/0/title
 #. Ultimate 2 /settings/0/frames/0/title
+#. Ultimate 2 /settings/3/frames/0/choices/0/options/1/label
 #: ui/steps.slint src/stick_pad.rs
 msgid "Left stick"
 msgstr "Analógico esquerdo"
@@ -1738,6 +1740,18 @@ msgstr "“{label}”"
 msgid "{frame}, “{flag}” cannot be on together with {list}."
 msgstr "{frame}, “{flag}” não pode estar ligado junto com {list}."
 
+#: src/reasons.rs
+msgid "{frame}, {setting} must be a colour."
+msgstr "{frame}, {setting} precisa ser uma cor."
+
+#: src/reasons.rs
+msgid "{frame}, {setting} must be one of its choices."
+msgstr "{frame}, {setting} precisa ser uma das suas opções."
+
+#: src/reasons.rs
+msgid "{ring}, segment {n}"
+msgstr "{ring}, segmento {n}"
+
 #: src/render.rs
 msgid "Not connected"
 msgstr "Não conectado"
@@ -2135,6 +2149,7 @@ msgstr "DInput"
 #. Pro 3 /buttons/18/labels/xinput
 #. Ultimate 2 /buttons/18/labels/dinput
 #. Ultimate 2 /buttons/18/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/15/label
 msgid "PR"
 msgstr "PR"
 
@@ -2144,6 +2159,7 @@ msgstr "PR"
 #. Pro 3 /buttons/19/labels/xinput
 #. Ultimate 2 /buttons/19/labels/dinput
 #. Ultimate 2 /buttons/19/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/16/label
 msgid "PL"
 msgstr "PL"
 
@@ -2179,6 +2195,7 @@ msgstr "R4"
 #. Ultimate Wired /buttons/0/printed_label
 #. Ultimate 2 /buttons/0/labels/dinput
 #. Ultimate 2 /buttons/0/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/2/label
 msgid "B"
 msgstr "B"
 
@@ -2196,6 +2213,7 @@ msgstr "B"
 #. Ultimate Wired /buttons/1/printed_label
 #. Ultimate 2 /buttons/1/labels/dinput
 #. Ultimate 2 /buttons/1/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/1/label
 msgid "A"
 msgstr "A"
 
@@ -2213,6 +2231,7 @@ msgstr "A"
 #. Ultimate Wired /buttons/2/printed_label
 #. Ultimate 2 /buttons/2/labels/dinput
 #. Ultimate 2 /buttons/2/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/4/label
 msgid "Y"
 msgstr "Y"
 
@@ -2230,6 +2249,7 @@ msgstr "Y"
 #. Ultimate Wired /buttons/3/printed_label
 #. Ultimate 2 /buttons/3/labels/dinput
 #. Ultimate 2 /buttons/3/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/3/label
 msgid "X"
 msgstr "X"
 
@@ -2252,6 +2272,7 @@ msgstr "L"
 #. Ultimate Wired /buttons/4/printed_label
 #. Ultimate 2 /buttons/4/labels/dinput
 #. Ultimate 2 /buttons/4/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/9/label
 msgid "LB"
 msgstr "LB"
 
@@ -2274,6 +2295,7 @@ msgstr "R"
 #. Ultimate Wired /buttons/5/printed_label
 #. Ultimate 2 /buttons/5/labels/dinput
 #. Ultimate 2 /buttons/5/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/10/label
 msgid "RB"
 msgstr "RB"
 
@@ -2296,6 +2318,7 @@ msgstr "ZL"
 #. Ultimate Wired /buttons/6/printed_label
 #. Ultimate 2 /buttons/6/labels/dinput
 #. Ultimate 2 /buttons/6/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/11/label
 msgid "LT"
 msgstr "LT"
 
@@ -2318,6 +2341,7 @@ msgstr "ZR"
 #. Ultimate Wired /buttons/7/printed_label
 #. Ultimate 2 /buttons/7/labels/dinput
 #. Ultimate 2 /buttons/7/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/12/label
 msgid "RT"
 msgstr "RT"
 
@@ -2335,6 +2359,7 @@ msgstr "L3"
 #. Ultimate Wired /buttons/8/labels/xinput
 #. Ultimate 2 /buttons/8/labels/dinput
 #. Ultimate 2 /buttons/8/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/13/label
 msgid "LS"
 msgstr "LS"
 
@@ -2352,6 +2377,7 @@ msgstr "R3"
 #. Ultimate Wired /buttons/9/labels/xinput
 #. Ultimate 2 /buttons/9/labels/dinput
 #. Ultimate 2 /buttons/9/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/14/label
 msgid "RS"
 msgstr "RS"
 
@@ -2452,6 +2478,7 @@ msgstr "↑"
 #. Ultimate Wired /buttons/14/spoken_labels/xinput
 #. Ultimate 2 /buttons/14/spoken_labels/dinput
 #. Ultimate 2 /buttons/14/spoken_labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/5/label
 msgid "D-pad up"
 msgstr "Direcional para cima"
 
@@ -2480,6 +2507,7 @@ msgstr "↓"
 #. Ultimate Wired /buttons/15/spoken_labels/xinput
 #. Ultimate 2 /buttons/15/spoken_labels/dinput
 #. Ultimate 2 /buttons/15/spoken_labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/6/label
 msgid "D-pad down"
 msgstr "Direcional para baixo"
 
@@ -2508,6 +2536,7 @@ msgstr "←"
 #. Ultimate Wired /buttons/16/spoken_labels/xinput
 #. Ultimate 2 /buttons/16/spoken_labels/dinput
 #. Ultimate 2 /buttons/16/spoken_labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/7/label
 msgid "D-pad left"
 msgstr "Direcional para a esquerda"
 
@@ -2536,6 +2565,7 @@ msgstr "→"
 #. Ultimate Wired /buttons/17/spoken_labels/xinput
 #. Ultimate 2 /buttons/17/spoken_labels/dinput
 #. Ultimate 2 /buttons/17/spoken_labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/8/label
 msgid "D-pad right"
 msgstr "Direcional para a direita"
 
@@ -2560,6 +2590,7 @@ msgstr "Abaixo do limite inferior da zona morta, o analógico conta como central
 #. Pro 3 /settings/0/frames/1/sliders/0/label
 #. Ultimate 2 /settings/0/frames/0/sliders/0/label
 #. Ultimate 2 /settings/0/frames/1/sliders/0/label
+#. Ultimate 2 /settings/3/frames/0/sliders/1/label
 msgid "Dead zone"
 msgstr "Zona morta"
 
@@ -2593,6 +2624,7 @@ msgstr "Zona morta"
 #. Ultimate 2 /settings/0/frames/1/sliders/0/unit
 #. Ultimate 2 /settings/1/frames/0/sliders/0/unit
 #. Ultimate 2 /settings/1/frames/1/sliders/0/unit
+#. Ultimate 2 /settings/3/frames/0/sliders/1/unit
 msgid "%"
 msgstr "%"
 
@@ -2973,6 +3005,92 @@ msgstr "8BitDo Ultimate 2 Wireless"
 #. Ultimate 2 /short_name
 msgid "Ultimate 2"
 msgstr "Ultimate 2"
+
+#. Ultimate 2 /settings/3/label
+msgid "Motion"
+msgstr "Movimento"
+
+#. Ultimate 2 /settings/3/lead
+msgid "Tilt the controller to move a stick, while a button turns the motion sensor on."
+msgstr "Incline o controle para mover um analógico, enquanto um botão liga o sensor de movimento."
+
+#. Ultimate 2 /settings/3/frames/0/title
+msgid "Motion sensor"
+msgstr "Sensor de movimento"
+
+#. Ultimate 2 /settings/3/frames/0/sliders/0/label
+msgid "Sensitivity"
+msgstr "Sensibilidade"
+
+#. Ultimate 2 /settings/3/frames/0/choices/0/label
+msgid "Moves"
+msgstr "Move"
+
+#. Ultimate 2 /settings/3/frames/0/choices/0/options/0/label
+msgid "Nothing"
+msgstr "Nada"
+
+#. Ultimate 2 /settings/3/frames/0/choices/1/label
+msgid "Turned on by"
+msgstr "Ligado por"
+
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/0/label
+msgid "None"
+msgstr "Nenhum"
+
+#. Ultimate 2 /settings/3/frames/0/choices/2/label
+msgid "The button"
+msgstr "O botão"
+
+#. Ultimate 2 /settings/3/frames/0/choices/2/options/0/label
+msgid "Is held"
+msgstr "Fica pressionado"
+
+#. Ultimate 2 /settings/3/frames/0/choices/2/options/1/label
+msgid "Is pressed once, and again to turn off"
+msgstr "É pressionado uma vez, e de novo para desligar"
+
+#. Ultimate 2 /settings/4/label
+msgid "Lights"
+msgstr "Luzes"
+
+#. Ultimate 2 /settings/4/lead
+msgid "The colours of each light effect in this slot."
+msgstr "As cores de cada efeito de luz neste slot."
+
+#. Ultimate 2 /settings/4/frames/0/title
+msgid "Light-tracing"
+msgstr "Rastro de luz"
+
+#. Ultimate 2 /settings/4/frames/0/colours/0/label
+#. Ultimate 2 /settings/4/frames/1/colours/0/label
+msgid "Colour"
+msgstr "Cor"
+
+#. Ultimate 2 /settings/4/frames/0/colours/1/label
+#. Ultimate 2 /settings/4/frames/1/colours/1/label
+msgid "Background"
+msgstr "Fundo"
+
+#. Ultimate 2 /settings/4/frames/1/title
+msgid "Fire Ring"
+msgstr "Anel de fogo"
+
+#. Ultimate 2 /settings/4/frames/1/sliders/0/label
+msgid "Speed"
+msgstr "Velocidade"
+
+#. Ultimate 2 /settings/4/frames/2/title
+msgid "Custom"
+msgstr "Personalizado"
+
+#. Ultimate 2 /settings/4/frames/2/rings/0/label
+msgid "Left ring"
+msgstr "Anel esquerdo"
+
+#. Ultimate 2 /settings/4/frames/2/rings/1/label
+msgid "Right ring"
+msgstr "Anel direito"
 
 #~ msgid "Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write."
 #~ msgstr "Comece pelo perfil padrão ou importe um arquivo, depois altere o que precisar. Nada é enviado ao controle até você gravar."

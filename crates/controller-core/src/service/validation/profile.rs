@@ -6,7 +6,9 @@ use std::collections::BTreeSet;
 use serde_json::Value;
 
 use super::{validate_macro, ProfileValidationResult, ValidationError, ValidationSummary};
-use crate::description::{ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT};
+use crate::description::{
+    is_colour_value, ControllerDescription, DISABLED_OUTPUT, UNRECOGNISED_OUTPUT,
+};
 use crate::device::Model;
 use crate::error::{Error, Result};
 use crate::model::{CanonicalProfile, CanonicalProfileSummary};
@@ -137,6 +139,16 @@ fn semantic_errors(
                 if !value.and_then(Value::as_i64).is_some_and(|v| (lo..=hi).contains(&v)) {
                     let reason = Reason::OutOfRange { field: field.to_owned(), mode, lo, hi };
                     errors.push(error(field, reason));
+                }
+            } else if let Some(choice) = description.choice(mode, field) {
+                if value.and_then(Value::as_str).is_none_or(|id| choice.option(id).is_none()) {
+                    let reason =
+                        Reason::NotAChoice { field: field.to_owned(), mode, ids: choice.ids() };
+                    errors.push(error(field, reason));
+                }
+            } else if description.is_colour(mode, field) {
+                if !is_colour_value(value) {
+                    errors.push(error(field, Reason::NotColour { field: field.to_owned(), mode }));
                 }
             } else if !value.is_some_and(Value::is_boolean) {
                 errors.push(error(field, Reason::NotBool { field: field.to_owned(), mode }));
@@ -309,6 +321,30 @@ mod tests {
             assert_eq!(errors, [error(format!("/button_mappings/{at}/source"), reason)]);
             assert_eq!(errors[0].reason.to_string(), format!("'{source}' cannot be remapped."));
         }
+    }
+
+    #[test]
+    fn a_colour_or_a_choice_it_cannot_take_is_refused() {
+        let model = crate::devices::model_named("Ultimate 2").unwrap();
+        let description = model.description().unwrap();
+        let mut json = serde_json::to_value(model.default_profile(XINPUT)).unwrap();
+        assert_eq!(semantic_errors(model, description, &json), []);
+        json["lights"]["custom"][3] = "orange".into();
+        json["motion"]["map_to"] = "both_sticks".into();
+        let ids = vec!["off".into(), "left_stick".into(), "right_stick".into()];
+        assert_eq!(
+            semantic_errors(model, description, &json),
+            [
+                error(
+                    "/motion/map_to",
+                    Reason::NotAChoice { field: "/motion/map_to".into(), mode: XINPUT, ids }
+                ),
+                error(
+                    "/lights/custom/3",
+                    Reason::NotColour { field: "/lights/custom/3".into(), mode: XINPUT }
+                ),
+            ]
+        );
     }
 
     /// The Pro 3 schema stops a macro slot above 3, so only this reaches the rule.

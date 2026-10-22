@@ -210,5 +210,45 @@
   "vibration": {
     "left_level": 5,
     "right_level": 5
+  },
+  "motion": {
+    "map_to": "off",
+    "button": "none",
+    "method": "hold",
+    "sensitivity": 10,
+    "dead_zone": 40
+  },
+  "lights": {
+    "tracing": "#260032",
+    "tracing_background": "#084e50",
+    "fire": "#cc6200",
+    "fire_background": "#cc0000",
+    "fire_speed": 7,
+    "custom": [
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200",
+      "#7e3200"
+    ]
   }
 }

@@ -15,10 +15,12 @@ use crate::error::{Error, Result};
 use crate::model::{Mode, PROFILE_FIELDS};
 use crate::view::View;
 
+mod fields;
 mod firmware;
 mod lock;
 mod prose;
 
+pub use fields::{is_colour_value, Choice, ChoiceOption, Colour, Ring};
 pub use firmware::{firmware_allows, FirmwareVersion};
 pub use lock::{Lock, LockedPort, Relock, TimedPacket, Unlock, MAX_PACKET_LEN};
 pub use prose::Prose;
@@ -107,12 +109,22 @@ pub struct SettingsPage {
 }
 
 impl SettingsPage {
-    /// The JSON pointer of every value on this tab: the slider ends, then the flags.
+    /// The JSON pointer of every value on this tab: the slider ends, the flags, the
+    /// choices, the colours, then the ring segments.
     pub fn fields(&self) -> impl Iterator<Item = &str> {
-        let sliders = self.frames.iter().flat_map(|f| &f.sliders);
+        let frames = || self.frames.iter();
+        let sliders = frames().flat_map(|f| &f.sliders);
         let numbers = sliders.flat_map(|s| std::iter::once(&s.low).chain(&s.high));
-        let flags = self.frames.iter().flat_map(|f| &f.flags).map(|f| f.field.as_str());
-        numbers.map(|n| n.field.as_str()).chain(flags)
+        let flags = frames().flat_map(|f| &f.flags).map(|f| f.field.as_str());
+        let choices = frames().flat_map(|f| &f.choices).map(|c| c.field.as_str());
+        let colours = frames().flat_map(|f| &f.colours).map(|c| c.field.as_str());
+        let segments = frames().flat_map(|f| &f.rings).flat_map(|r| &r.fields);
+        numbers
+            .map(|n| n.field.as_str())
+            .chain(flags)
+            .chain(choices)
+            .chain(colours)
+            .chain(segments.map(String::as_str))
     }
 }
 
@@ -128,6 +140,15 @@ pub struct SettingsFrame {
     /// Check boxes, in display order.
     #[serde(default)]
     pub flags: Vec<Flag>,
+    /// Drop-down lists, in display order. They show before the sliders.
+    #[serde(default)]
+    pub choices: Vec<Choice>,
+    /// Colours, in display order. They show after the choices.
+    #[serde(default)]
+    pub colours: Vec<Colour>,
+    /// Rings of coloured segments, in display order. They show after the sliders.
+    #[serde(default)]
+    pub rings: Vec<Ring>,
 }
 
 /// A slider: one number, or the two ends of a range.
@@ -505,6 +526,21 @@ impl ControllerDescription {
         self.flags(mode).find(|f| f.field == field)
     }
 
+    /// The choice at JSON pointer `field` in `mode`, if one of its tabs has it.
+    #[must_use]
+    pub fn choice(&self, mode: Mode, field: &str) -> Option<&Choice> {
+        self.pages(mode).flat_map(|p| &p.frames).flat_map(|f| &f.choices).find(|c| c.field == field)
+    }
+
+    /// Whether the value at JSON pointer `field` in `mode` is a colour: one of a tab's
+    /// colours or ring segments.
+    #[must_use]
+    pub fn is_colour(&self, mode: Mode, field: &str) -> bool {
+        let frames = || self.pages(mode).flat_map(|p| &p.frames);
+        frames().flat_map(|f| &f.colours).any(|c| c.field == field)
+            || frames().flat_map(|f| &f.rings).flat_map(|r| &r.fields).any(|f| f == field)
+    }
+
     /// Every flag `mode` shows.
     pub fn flags(&self, mode: Mode) -> impl Iterator<Item = &Flag> {
         self.pages(mode).flat_map(|p| &p.frames).flat_map(|f| &f.flags)
@@ -769,13 +805,31 @@ impl ControllerDescription {
                     ));
                 }
             }
-            for flag in self.flags(mode) {
-                if !is_settings_pointer(&flag.field) || !fields.insert(flag.field.as_str()) {
+            let frames = || self.pages(mode).flat_map(|p| &p.frames);
+            let others = frames()
+                .flat_map(|f| &f.flags)
+                .map(|f| f.field.as_str())
+                .chain(frames().flat_map(|f| &f.choices).map(|c| c.field.as_str()))
+                .chain(frames().flat_map(|f| &f.colours).map(|c| c.field.as_str()))
+                .chain(frames().flat_map(|f| &f.rings).flat_map(|r| &r.fields).map(String::as_str));
+            for field in others {
+                if !is_settings_pointer(field) || !fields.insert(field) {
                     return Err(format!(
-                        "setting '{}' in {mode} mode is not a new JSON pointer",
-                        flag.field
+                        "setting '{field}' in {mode} mode is not a new JSON pointer"
                     ));
                 }
+            }
+            for choice in frames().flat_map(|f| &f.choices) {
+                let mut ids = BTreeSet::new();
+                if choice.options.is_empty() || !choice.options.iter().all(|o| ids.insert(&o.id)) {
+                    return Err(format!(
+                        "choice '{}' needs at least one option and no id twice",
+                        choice.field
+                    ));
+                }
+            }
+            if let Some(ring) = frames().flat_map(|f| &f.rings).find(|r| r.fields.is_empty()) {
+                return Err(format!("ring '{}' has no segments", ring.label));
             }
             for flag in self.flags(mode) {
                 if let Some(e) = flag.excludes.iter().find(|e| self.flag(mode, e).is_none()) {

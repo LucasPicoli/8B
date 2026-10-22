@@ -1,4 +1,5 @@
 //! Canonical data model (serde) and shared id/newtypes.
+pub mod colour;
 pub mod glide;
 pub mod ids;
 pub mod macros;

@@ -6,7 +6,7 @@
 use serde_json::Value;
 
 use super::write::{failure_from, text, Plan, ProfileWriteOrchestrator};
-use crate::description::ControllerDescription;
+use crate::description::{is_colour_value, ControllerDescription};
 use crate::error::{Error, Result};
 use crate::model::{ButtonMapping, CanonicalProfile, Mode, RawProfilePayload, Slot, WriteResult};
 use crate::service::{ConfirmPolicy, ReadbackResult};
@@ -18,7 +18,7 @@ fn name(field: &str) -> &str {
 }
 
 /// Checks each change against the settings `description` declares for `mode`: a number
-/// in its range, or a flag. No device access.
+/// in its range, a flag, one of a choice's ids, or a colour. No device access.
 fn check_changes(
     description: &ControllerDescription,
     mode: Mode,
@@ -38,6 +38,17 @@ fn check_changes(
         } else if description.flag(mode, field).is_some() {
             if !value.is_boolean() {
                 return Err(Error::Validation(format!("{n} must be true or false.")));
+            }
+        } else if let Some(choice) = description.choice(mode, field) {
+            if value.as_str().is_none_or(|id| choice.option(id).is_none()) {
+                let ids = choice.ids().join(", ");
+                return Err(Error::Validation(format!("{n} must be one of {ids}.")));
+            }
+        } else if description.is_colour(mode, field) {
+            if !is_colour_value(Some(value)) {
+                return Err(Error::Validation(format!(
+                    "{n} must be a colour, # and six hex digits."
+                )));
             }
         } else {
             return Err(Error::Validation(format!("{n} does not apply in {mode} mode.")));

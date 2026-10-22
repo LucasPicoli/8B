@@ -128,6 +128,22 @@ pub enum Reason {
         /// The profile's mode.
         mode: Mode,
     },
+    /// A colour setting is missing or not `#` and six hex digits.
+    NotColour {
+        /// The setting's JSON pointer.
+        field: String,
+        /// The profile's mode.
+        mode: Mode,
+    },
+    /// A choice setting is missing or names none of its options.
+    NotAChoice {
+        /// The setting's JSON pointer.
+        field: String,
+        /// The profile's mode.
+        mode: Mode,
+        /// The ids it may take, in display order.
+        ids: Vec<String>,
+    },
     /// A flag is on together with flags it excludes.
     Excludes {
         /// The flag's JSON pointer.
@@ -270,6 +286,12 @@ impl fmt::Display for Reason {
                 write!(f, "{} must be {lo} to {hi}.", name(field))
             }
             Self::NotBool { field, .. } => write!(f, "{} must be true or false.", name(field)),
+            Self::NotColour { field, .. } => {
+                write!(f, "{} must be a colour, # and six hex digits.", name(field))
+            }
+            Self::NotAChoice { field, ids, .. } => {
+                write!(f, "{} must be one of {}.", name(field), ids.join(", "))
+            }
             Self::Excludes { flag, clashes, .. } => {
                 let names: Vec<&str> = clashes.iter().map(|c| name(c)).collect();
                 let joined = match names.split_last() {

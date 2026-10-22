@@ -115,6 +115,7 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
             tr!("{frame}, “{flag}” must be on or off.", frame = frame, flag = flag)
         }
         Reason::Excludes { flag, clashes, mode } => excludes(d, *mode, flag, clashes),
+        Reason::NotColour { .. } | Reason::NotAChoice { .. } => not_set(d, reason),
         Reason::NameEmpty { max } => tr!("Give the macro a name of at most {n} character."
             | "Give the macro a name of at most {n} characters." % *max),
         Reason::NameTooLong { .. }
@@ -232,6 +233,37 @@ fn slider(d: &ControllerDescription, mode: Mode, field: &str) -> Option<(String,
             };
             Some((prose(&frame.title), prose(&s.label), end))
         })
+    })
+}
+
+/// The sentence for a colour or a choice setting whose value it cannot take.
+fn not_set(d: &ControllerDescription, reason: &Reason) -> String {
+    let (Reason::NotColour { field, mode } | Reason::NotAChoice { field, mode, .. }) = reason
+    else {
+        return not_valid();
+    };
+    let Some((frame, label)) = labelled(d, *mode, field) else { return not_valid() };
+    if matches!(reason, Reason::NotColour { .. }) {
+        tr!("{frame}, {setting} must be a colour.", frame = frame, setting = label)
+    } else {
+        tr!("{frame}, {setting} must be one of its choices.", frame = frame, setting = label)
+    }
+}
+
+/// The frame title and label of choice, colour or ring segment `field` in `mode`. A
+/// segment is named by its ring and its number.
+fn labelled(d: &ControllerDescription, mode: Mode, field: &str) -> Option<(String, String)> {
+    d.pages(mode).flat_map(|p| &p.frames).find_map(|frame| {
+        let choice = frame.choices.iter().find(|c| c.field == field).map(|c| prose(&c.label));
+        let colour = || frame.colours.iter().find(|c| c.field == field).map(|c| prose(&c.label));
+        let segment = || {
+            frame.rings.iter().find_map(|r| {
+                let n = r.fields.iter().position(|f| f == field)?;
+                Some(tr!("{ring}, segment {n}", ring = prose(&r.label), n = n + 1))
+            })
+        };
+        let label = choice.or_else(colour).or_else(segment)?;
+        Some((prose(&frame.title), label))
     })
 }
 

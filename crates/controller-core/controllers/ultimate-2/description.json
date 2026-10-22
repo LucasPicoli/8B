@@ -497,6 +497,225 @@
           ]
         }
       ]
+    },
+    {
+      "id": "motion",
+      "label": "Motion",
+      "lead": "Tilt the controller to move a stick, while a button turns the motion sensor on.",
+      "frames": [
+        {
+          "title": "Motion sensor",
+          "choices": [
+            {
+              "label": "Moves",
+              "field": "/motion/map_to",
+              "options": [
+                {
+                  "id": "off",
+                  "label": "Nothing"
+                },
+                {
+                  "id": "left_stick",
+                  "label": "Left stick"
+                },
+                {
+                  "id": "right_stick",
+                  "label": "Right stick"
+                }
+              ]
+            },
+            {
+              "label": "Turned on by",
+              "field": "/motion/button",
+              "options": [
+                {
+                  "id": "none",
+                  "label": "None"
+                },
+                {
+                  "id": "bottom face",
+                  "label": "A"
+                },
+                {
+                  "id": "right face",
+                  "label": "B"
+                },
+                {
+                  "id": "left face",
+                  "label": "X"
+                },
+                {
+                  "id": "top face",
+                  "label": "Y"
+                },
+                {
+                  "id": "d-pad up",
+                  "label": "D-pad up"
+                },
+                {
+                  "id": "d-pad down",
+                  "label": "D-pad down"
+                },
+                {
+                  "id": "d-pad left",
+                  "label": "D-pad left"
+                },
+                {
+                  "id": "d-pad right",
+                  "label": "D-pad right"
+                },
+                {
+                  "id": "l1",
+                  "label": "LB"
+                },
+                {
+                  "id": "r1",
+                  "label": "RB"
+                },
+                {
+                  "id": "l2",
+                  "label": "LT"
+                },
+                {
+                  "id": "r2",
+                  "label": "RT"
+                },
+                {
+                  "id": "l3",
+                  "label": "LS"
+                },
+                {
+                  "id": "r3",
+                  "label": "RS"
+                },
+                {
+                  "id": "rp",
+                  "label": "PR"
+                },
+                {
+                  "id": "lp",
+                  "label": "PL"
+                }
+              ]
+            },
+            {
+              "label": "The button",
+              "field": "/motion/method",
+              "options": [
+                {
+                  "id": "hold",
+                  "label": "Is held"
+                },
+                {
+                  "id": "toggle",
+                  "label": "Is pressed once, and again to turn off"
+                }
+              ]
+            }
+          ],
+          "sliders": [
+            {
+              "label": "Sensitivity",
+              "low": {
+                "field": "/motion/sensitivity",
+                "min": 1,
+                "max": 10
+              }
+            },
+            {
+              "label": "Dead zone",
+              "unit": "%",
+              "low": {
+                "field": "/motion/dead_zone",
+                "min": 0,
+                "max": 100
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lights",
+      "label": "Lights",
+      "lead": "The colours of each light effect in this slot.",
+      "frames": [
+        {
+          "title": "Light-tracing",
+          "colours": [
+            {
+              "label": "Colour",
+              "field": "/lights/tracing"
+            },
+            {
+              "label": "Background",
+              "field": "/lights/tracing_background"
+            }
+          ]
+        },
+        {
+          "title": "Fire Ring",
+          "colours": [
+            {
+              "label": "Colour",
+              "field": "/lights/fire"
+            },
+            {
+              "label": "Background",
+              "field": "/lights/fire_background"
+            }
+          ],
+          "sliders": [
+            {
+              "label": "Speed",
+              "low": {
+                "field": "/lights/fire_speed",
+                "min": 1,
+                "max": 15
+              }
+            }
+          ]
+        },
+        {
+          "title": "Custom",
+          "rings": [
+            {
+              "label": "Left ring",
+              "fields": [
+                "/lights/custom/0",
+                "/lights/custom/1",
+                "/lights/custom/2",
+                "/lights/custom/3",
+                "/lights/custom/4",
+                "/lights/custom/5",
+                "/lights/custom/6",
+                "/lights/custom/7",
+                "/lights/custom/8",
+                "/lights/custom/9",
+                "/lights/custom/10",
+                "/lights/custom/11"
+              ]
+            },
+            {
+              "label": "Right ring",
+              "fields": [
+                "/lights/custom/12",
+                "/lights/custom/13",
+                "/lights/custom/14",
+                "/lights/custom/15",
+                "/lights/custom/16",
+                "/lights/custom/17",
+                "/lights/custom/18",
+                "/lights/custom/19",
+                "/lights/custom/20",
+                "/lights/custom/21",
+                "/lights/custom/22",
+                "/lights/custom/23"
+              ]
+            }
+          ]
+        }
+      ]
     }
   ],
   "views": [

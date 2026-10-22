@@ -333,7 +333,10 @@
             "required": ["title"],
             "properties": {
               "title": { "type": "string" },
+              "choices": { "type": "array", "items": { "$ref": "#/$defs/Choice" } },
+              "colours": { "type": "array", "items": { "$ref": "#/$defs/Colour" } },
               "sliders": { "type": "array", "items": { "$ref": "#/$defs/Slider" } },
+              "rings": { "type": "array", "items": { "$ref": "#/$defs/Ring" } },
               "flags": { "type": "array", "items": { "$ref": "#/$defs/Flag" } }
             }
           }
@@ -372,6 +375,49 @@
           "items": { "type": "string", "minLength": 1 }
         },
         "min_firmware": { "$ref": "#/$defs/FirmwareVersion" }
+      }
+    },
+    "Choice": {
+      "description": "One of a few named values, shown as a drop-down list. The profile holds the id of the picked option.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "field", "options"],
+      "properties": {
+        "label": { "type": "string" },
+        "field": { "type": "string", "pattern": "^/" },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "Colour": {
+      "description": "One colour. The profile holds it as # and six hex digits, red, green and blue, such as #7e3200.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "field"],
+      "properties": {
+        "label": { "type": "string" },
+        "field": { "type": "string", "pattern": "^/" }
+      }
+    },
+    "Ring": {
+      "description": "A ring of lit segments, one colour each, drawn as a circle. fields lists the colour of each segment, clockwise from the top.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "fields"],
+      "properties": {
+        "label": { "type": "string" },
+        "fields": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^/" } }
       }
     },
     "Flag": {

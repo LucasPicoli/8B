@@ -23,6 +23,9 @@ use crate::protocol::bytes::{
 };
 use crate::protocol::wire_write::PACKET_LEN;
 
+mod lights;
+mod motion;
+
 /// Ultimate 2 image size in bytes (`0x0638`).
 pub const BLOB_SIZE: usize = 0x0638;
 /// End of the head both layouts share: flags, names, settings and the button map.
@@ -316,6 +319,23 @@ fn count_macros(blob: &mut [u8]) -> Result<()> {
     Ok(())
 }
 
+/// `image` with the motion and light settings of `profile` in `slot`, CRC resealed. A
+/// group the profile lacks leaves its bytes as they are.
+///
+/// # Errors
+/// Returns [`crate::Error::Validation`] if a value of a group is missing or out of
+/// range, or [`crate::Error::Decode`] if `image` is not a full image.
+fn with_settings(mut image: Vec<u8>, profile: &CanonicalProfile, slot: Slot) -> Result<Vec<u8>> {
+    if let Some(group) = profile.settings.get(motion::GROUP) {
+        motion::write(&mut image, slot, group)?;
+    }
+    if let Some(group) = profile.settings.get(lights::GROUP) {
+        lights::write(&mut image, slot, group)?;
+    }
+    pro3::profile::seal_crc(&mut image)?;
+    Ok(image)
+}
+
 /// `profile` with this model's `device` and `kind`.
 fn own(mut profile: CanonicalProfile) -> CanonicalProfile {
     DEVICE.clone_into(&mut profile.device);
@@ -383,12 +403,18 @@ impl ProtocolCodec for Ultimate2 {
         let mut summary = Pro3.map_profile(&wide)?;
         summary.canonical = own(summary.canonical);
         paddles_as_themselves(&mut summary.canonical);
+        let slot = Slot::new(raw.source_slot)?;
+        let settings = &mut summary.canonical.settings;
+        settings.insert(motion::GROUP.to_owned(), motion::read(&raw.payload, slot)?);
+        settings.insert(lights::GROUP.to_owned(), lights::read(&raw.payload, slot)?);
         Ok(summary)
     }
 
     fn default_profile(&self, mode: Mode) -> CanonicalProfile {
         let mut profile = own(Pro3.default_profile(mode));
         paddles_as_themselves(&mut profile);
+        profile.settings.insert(motion::GROUP.to_owned(), motion::default());
+        profile.settings.insert(lights::GROUP.to_owned(), lights::default());
         profile
     }
 
@@ -449,7 +475,7 @@ impl ProtocolCodec for Ultimate2 {
         let base = clear_unused(base_blob, target_slot)?;
         let pro3 = paddles_for_pro3(profile);
         let wide = Pro3.compile_profile(&pro3, target_slot, &widen(&base)?, macros)?;
-        narrow(&wide, base_blob)
+        with_settings(narrow(&wide, &base)?, profile, target_slot)
     }
 
     fn compile_profile_keep_macros(
@@ -462,7 +488,7 @@ impl ProtocolCodec for Ultimate2 {
         let base = clear_unused(base_blob, target_slot)?;
         let pro3 = paddles_for_pro3(profile);
         let wide = Pro3.compile_profile_keep_macros(&pro3, target_slot, &widen(&base)?)?;
-        narrow(&wide, base_blob)
+        with_settings(narrow(&wide, &base)?, profile, target_slot)
     }
 
     fn drop_macros(&self, blob: &[u8], slot: Slot, triggers: &[String]) -> Result<Vec<u8>> {
