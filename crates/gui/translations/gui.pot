@@ -975,23 +975,59 @@ msgid "Run this in a terminal:"
 msgstr ""
 
 #: ui/settings.slint
+msgid "{}, saturation and brightness"
+msgstr ""
+
+#: ui/settings.slint
+msgid "saturation {}%, brightness {}%"
+msgstr ""
+
+#: ui/settings.slint
+msgid "{}, hue"
+msgstr ""
+
+#: ui/settings.slint
+msgid "{}, hex code"
+msgstr ""
+
+#. Pro 3 /buttons/5/labels/switch
+#. Ultimate (BT) /buttons/5/labels/switch
+#. Ultimate (BT) /buttons/5/printed_label
+msgid "R"
+msgstr "R"
+
+#: ui/settings.slint
+msgid "G"
+msgstr ""
+
+#. Pro 3 /buttons/0/labels/dinput
+#. Pro 3 /buttons/0/labels/xinput
+#. Pro 3 /buttons/1/labels/switch
+#. Ultimate (BT) /buttons/0/labels/xinput
+#. Ultimate (BT) /buttons/1/labels/switch
+#. Ultimate (BT) /buttons/1/printed_label
+#. Ultimate 2.4G /buttons/1/labels/dinput
+#. Ultimate 2.4G /buttons/1/labels/xinput
+#. Ultimate 2.4G /buttons/1/printed_label
+#. Ultimate Wired /buttons/0/labels/dinput
+#. Ultimate Wired /buttons/0/labels/xinput
+#. Ultimate Wired /buttons/0/printed_label
+#. Ultimate 2 /buttons/0/labels/dinput
+#. Ultimate 2 /buttons/0/labels/xinput
+#. Ultimate 2 /settings/3/frames/0/choices/1/options/2/label
+msgid "B"
+msgstr "B"
+
+#: ui/settings.slint
+msgid "{}, pick a colour"
+msgstr ""
+
+#: ui/settings.slint
 msgid "was {}"
 msgstr ""
 
 #: ui/settings.slint
 msgid "{}, {}, hex code"
-msgstr ""
-
-#: ui/settings.slint
-msgid "Red"
-msgstr ""
-
-#: ui/settings.slint
-msgid "Green"
-msgstr ""
-
-#: ui/settings.slint
-msgid "Blue"
 msgstr ""
 
 #: ui/settings.slint
@@ -2344,24 +2380,6 @@ msgstr "L4"
 msgid "R4"
 msgstr "R4"
 
-#. Pro 3 /buttons/0/labels/dinput
-#. Pro 3 /buttons/0/labels/xinput
-#. Pro 3 /buttons/1/labels/switch
-#. Ultimate (BT) /buttons/0/labels/xinput
-#. Ultimate (BT) /buttons/1/labels/switch
-#. Ultimate (BT) /buttons/1/printed_label
-#. Ultimate 2.4G /buttons/1/labels/dinput
-#. Ultimate 2.4G /buttons/1/labels/xinput
-#. Ultimate 2.4G /buttons/1/printed_label
-#. Ultimate Wired /buttons/0/labels/dinput
-#. Ultimate Wired /buttons/0/labels/xinput
-#. Ultimate Wired /buttons/0/printed_label
-#. Ultimate 2 /buttons/0/labels/dinput
-#. Ultimate 2 /buttons/0/labels/xinput
-#. Ultimate 2 /settings/3/frames/0/choices/1/options/2/label
-msgid "B"
-msgstr "B"
-
 #. Pro 3 /buttons/0/labels/switch
 #. Pro 3 /buttons/1/labels/dinput
 #. Pro 3 /buttons/1/labels/xinput
@@ -2442,12 +2460,6 @@ msgstr "LB"
 #. Pro 3 /buttons/5/labels/dinput
 msgid "R1"
 msgstr "R1"
-
-#. Pro 3 /buttons/5/labels/switch
-#. Ultimate (BT) /buttons/5/labels/switch
-#. Ultimate (BT) /buttons/5/printed_label
-msgid "R"
-msgstr "R"
 
 #. Pro 3 /buttons/5/labels/xinput
 #. Ultimate (BT) /buttons/5/labels/xinput

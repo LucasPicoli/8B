@@ -529,7 +529,52 @@ fn ultimate_2_motion_and_lights() {
             render(&s, &ui);
             save(&format!("ultimate-2-{name}-{shade}"), &ui);
         }
+        // Fire Ring's colour swatch opens its picker.
+        click(&ui, 876.0, 187.0);
+        save(&format!("ultimate-2-picker-{shade}"), &ui);
     }
+}
+
+/// A click on a ring selects the segment under it, and a click in the picker's square
+/// sets the colour: the clicks reach Rust through the markup at 1280×1000.
+#[test]
+fn ring_and_picker_clicks_reach_the_profile() {
+    if qps_stops_here() {
+        return;
+    }
+    let state = Rc::new(std::cell::RefCell::new(crate::state::tests::ultimate_2()));
+    state.borrow_mut().select(0, 0);
+    let ui = window(&state.borrow());
+    ui.window().set_size(PhysicalSize::new(1280, 1000));
+    ui.set_tab(6);
+    render(&state.borrow(), &ui);
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_ring_pointed(move |first, x, y, add, range| {
+        s.borrow_mut().click_ring(&first, x, y, add, range);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_colour_picked(move |field, colour| {
+        s.borrow_mut().set_colour_rgb(&field, colour);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let fire = || {
+        let s = state.borrow();
+        let slot = s.slot(XINPUT, 1);
+        slot.shown().unwrap().setting("/lights/fire").unwrap().as_str().unwrap().to_owned()
+    };
+    // The top of the left ring: segment 7, the one the pad has at 12 o'clock.
+    click(&ui, 370.0, 375.0);
+    let picked: Vec<String> = state.borrow().segments.selected.iter().cloned().collect();
+    assert_eq!(picked, ["/lights/custom/6"]);
+    // Fire Ring's swatch, then the top right of its picker's square: full saturation and
+    // brightness at the colour's own hue, orange.
+    assert_eq!(fire(), "#cc6200");
+    click(&ui, 876.0, 187.0);
+    click(&ui, 886.0, 219.0);
+    let now = fire();
+    let byte = |at: usize| u8::from_str_radix(&now[at..at + 2], 16).unwrap();
+    assert!(byte(1) > 0xf0 && (0x60..0x90).contains(&byte(3)) && byte(5) < 0x10, "{now}");
 }
 
 #[test]

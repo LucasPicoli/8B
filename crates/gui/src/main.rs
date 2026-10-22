@@ -710,15 +710,11 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     let c = change.clone();
     ui.on_colour_typed(move |field, text| c(&|s| s.set_colour(&field, &text)));
     let c = change.clone();
-    ui.on_colour_channel(move |field, k, v| {
-        c(&|s| s.set_colour_channel(&field, usize::try_from(k).unwrap_or(usize::MAX), v));
-    });
+    ui.on_colour_picked(move |field, colour| c(&|s| s.set_colour_rgb(&field, colour)));
     let c = change.clone();
     ui.on_selection_typed(move |text| c(&|s| s.set_selection_colour(&text)));
     let c = change.clone();
-    ui.on_selection_channel(move |k, v| {
-        c(&|s| s.set_selection_channel(usize::try_from(k).unwrap_or(usize::MAX), v));
-    });
+    ui.on_selection_picked(move |colour| c(&|s| s.set_selection_rgb(colour)));
     let c = change.clone();
     ui.on_ring_pointed(move |first, x, y, add, range| {
         c(&|s| s.click_ring(&first, x, y, add, range));

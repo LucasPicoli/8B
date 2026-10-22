@@ -121,18 +121,9 @@ const fn channels(code: u32) -> [u8; 3] {
     [r, g, b]
 }
 
-/// `code` with `channel` (0 red, 1 green, 2 blue) set to `value`, rounded and kept in
-/// 0 to 255. Any other channel leaves it as it is.
-fn with_channel(code: u32, channel: usize, value: f32) -> u32 {
-    let mut rgb = channels(code);
-    if let Some(c) = rgb.get_mut(channel) {
-        // In 0 to 255 after the clamp.
-        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-        let v = value.round().clamp(0.0, 255.0) as u8;
-        *c = v;
-    }
-    let [r, g, b] = rgb;
-    u32::from_be_bytes([0, r, g, b])
+/// `colour` as a code, `0x00RRGGBB`.
+fn code_of(colour: Color) -> u32 {
+    u32::from_be_bytes([0, colour.red(), colour.green(), colour.blue()])
 }
 
 /// `code` as the user reads it, such as `#7E3200`.
@@ -159,9 +150,9 @@ fn colour_row(label: String, field: &str, code: Option<u32>, first: u32, was: St
         label: label.into(),
         field: field.into(),
         hex: code.map(hex).unwrap_or_default().into(),
-        red: f32::from(r),
-        green: f32::from(g),
-        blue: f32::from(b),
+        red: r.into(),
+        green: g.into(),
+        blue: b.into(),
         swatch: Color::from_rgb_u8(r, g, b),
         was: was.into(),
     }
@@ -230,7 +221,7 @@ pub fn rings(
 }
 
 /// The editor of `frame`'s selected segments, or none when it has no rings. Its hex is
-/// empty when they hold different colours, and its sliders show the first of them.
+/// empty when they hold different colours, and its swatch shows the first of them.
 pub fn editors(
     frame: &described::SettingsFrame,
     shown: &Value,
@@ -262,32 +253,27 @@ impl AppState {
     /// nothing.
     pub fn set_colour(&mut self, pointer: &str, text: &str) {
         if let Some(code) = typed(text) {
-            self.set_colours(&[pointer.to_owned()], |_| code);
+            self.set_colours(&[pointer.to_owned()], code);
         }
     }
 
-    /// Sets one channel (0 red, 1 green, 2 blue) of the colour at `pointer`.
-    pub fn set_colour_channel(&mut self, pointer: &str, channel: usize, value: f32) {
-        self.set_colours(&[pointer.to_owned()], |old| with_channel(old, channel, value));
+    /// Sets the colour at `pointer` to the one a picker picked.
+    pub fn set_colour_rgb(&mut self, pointer: &str, colour: Color) {
+        self.set_colours(&[pointer.to_owned()], code_of(colour));
     }
 
     /// Sets every selected segment to `text`, as [`Self::set_colour`] does.
     pub fn set_selection_colour(&mut self, text: &str) {
         if let Some(code) = typed(text) {
             let selected = self.selected_segments();
-            self.set_colours(&selected, |_| code);
+            self.set_colours(&selected, code);
         }
     }
 
-    /// Sets every selected segment to the first one's colour with `channel` changed.
-    pub fn set_selection_channel(&mut self, channel: usize, value: f32) {
+    /// Sets every selected segment to the colour a picker picked.
+    pub fn set_selection_rgb(&mut self, colour: Color) {
         let selected = self.selected_segments();
-        let shown = self.shown_json();
-        let first = selected.iter().find_map(|f| shown.as_ref().and_then(|j| code(j, f)));
-        if let Some(first) = first {
-            let new = with_channel(first, channel, value);
-            self.set_colours(&selected, |_| new);
-        }
+        self.set_colours(&selected, code_of(colour));
     }
 
     /// The selected segments the selected slot shows, in ring order.
@@ -301,14 +287,8 @@ impl AppState {
             .collect()
     }
 
-    /// The selected slot's profile on screen, as JSON.
-    fn shown_json(&self) -> Option<Value> {
-        let (mode, number) = self.selected_slot()?;
-        serde_json::to_value(self.slot(mode, number).shown()?).ok()
-    }
-
-    /// Sets each colour of `pointers` the slot's tabs show to `new` of its old code.
-    fn set_colours(&mut self, pointers: &[String], new: impl Fn(u32) -> u32) {
+    /// Sets each colour of `pointers` the slot's tabs show to `code`.
+    fn set_colours(&mut self, pointers: &[String], code: u32) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let description = self.description();
         let pointers: Vec<&String> =
@@ -318,11 +298,7 @@ impl AppState {
         }
         self.edit(|p| {
             for pointer in pointers {
-                if let Some(old) =
-                    p.setting(pointer).and_then(Value::as_str).and_then(colour::parse)
-                {
-                    patch(p, pointer, colour::format(new(old)).into());
-                }
+                patch(p, pointer, colour::format(code).into());
             }
         });
     }
@@ -446,14 +422,15 @@ mod tests {
         s.click_segment("/lights/custom/7", false, false);
         s.set_selection_colour("00ff80");
         s.click_segment("/lights/custom/8", true, false);
-        s.set_selection_channel(0, 255.0);
+        s.set_selection_rgb(Color::from_rgb_u8(0xff, 0xff, 0x80));
         assert_eq!(
             [shown(&s, "/lights/custom/7"), shown(&s, "/lights/custom/8")],
             ["#ffff80", "#ffff80"]
         );
         s.set_colour("/lights/fire", "#12AB34");
         s.set_colour("/lights/fire", "nope");
-        s.set_colour_channel("/lights/fire", 2, 0.0);
+        assert_eq!(shown(&s, "/lights/fire"), "#12ab34");
+        s.set_colour_rgb("/lights/fire", Color::from_rgb_u8(0x12, 0xab, 0));
         assert_eq!(shown(&s, "/lights/fire"), "#12ab00");
         s.set_colour("/motion/map_to", "#000000");
         assert_eq!(shown(&s, "/motion/map_to"), "off", "no colour there");
@@ -481,9 +458,7 @@ mod tests {
     }
 
     #[test]
-    fn a_channel_changes_one_byte_and_stays_in_range() {
-        assert_eq!(with_channel(0x007E_3200, 1, 300.0), 0x007E_FF00);
-        assert_eq!(with_channel(0x007E_3200, 0, -4.0), 0x0000_3200);
+    fn a_colour_shows_in_upper_case_and_takes_typed_hex() {
         assert_eq!(hex(0x007E_3200), "#7E3200");
         assert_eq!(
             [typed("7e3200"), typed(" #7E3200 "), typed("#7E32")],

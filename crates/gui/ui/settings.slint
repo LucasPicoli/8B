@@ -2,7 +2,7 @@
 // drop-down lists, colours and rings of coloured segments. Rust sends the frames, so the
 // markup names no profile field.
 import { Theme, Slider, CheckBox, ComboBox, LineEdit, Button } from "look/breeze/widgets.slint";
-import { Frame, Dot, Icons, SmallHead, RangeSlider } from "parts.slint";
+import { Frame, Dot, Icons, SmallHead, RangeSlider, NumberEdit } from "parts.slint";
 import { SettingsPage, SettingFrame, RingRow } from "types.slint";
 
 // Rust answers whether a typed colour is one a hex field takes, such as "#7E3200".
@@ -10,94 +10,165 @@ export global ColourCheck {
     pure callback valid(string) -> bool;
 }
 
-// One channel of a colour: its name, a slider from 0 to 255 and the value.
-component ChannelRow inherits HorizontalLayout {
-    in property <string> name;
-    in-out property <float> value;
-    in property <bool> enabled: true;
-    // Says what the channel belongs to, such as "Fire Ring, Colour".
-    in property <string> context;
-    callback moved(float);
-    spacing: 8px;
-    Text {
-        width: 48px;
-        text: root.name;
-        color: Theme.fg-muted;
-        vertical-alignment: center;
-    }
-    Slider {
-        horizontal-stretch: 1;
-        value <=> root.value;
-        minimum: 0;
-        maximum: 255;
-        enabled: root.enabled;
-        accessible-name: @tr("{}, {}", root.context, root.name);
-        changed(v) => { root.moved(v); }
-    }
-    Text {
-        width: 28px;
-        text: round(root.value);
-        color: Theme.fg-muted;
-        horizontal-alignment: right;
-        vertical-alignment: center;
-    }
-}
-
-// A colour: its name, the swatch, its hex code, then a slider per channel. The hex
-// field hands Rust each colour as it is typed, and shows the stored one again when it
-// loses focus.
-component ColourEditor {
-    in property <string> label;
+// The colour picker in a swatch button's popup: a saturation and brightness square, a
+// hue strip, the colour before and now, its hex code and its red, green and blue numbers.
+// Each move hands the parent the colour; the hue is kept here, so a grey keeps it.
+component ColourPicker {
+    in property <color> colour;
+    in property <color> before;
     in property <string> hex;
-    in property <color> swatch;
-    in property <string> was;
-    in-out property <float> red;
-    in-out property <float> green;
-    in-out property <float> blue;
-    in property <bool> enabled: true;
-    // Shown in the empty hex field, such as "Mixed".
-    in property <string> placeholder;
-    // Says what the colour belongs to, such as "Fire Ring".
+    in property <int> red;
+    in property <int> green;
+    in property <int> blue;
+    // Says what the colour belongs to, such as "Fire Ring, Colour".
     in property <string> context;
+    in-out property <float> hue;
+    in-out property <float> sat;
+    in-out property <float> val;
+    callback picked(color);
     callback typed(string);
-    callback channel(int, float);
     property <bool> bad: hex-field.has-focus && hex-field.text != "" && !ColourCheck.valid(hex-field.text);
+    width: 300px;
+
+    function pick() {
+        root.picked(hsv(root.hue, root.sat, root.val));
+    }
 
     VerticalLayout {
-        spacing: 4px;
-        HorizontalLayout {
-            spacing: 8px;
-            Text {
-                horizontal-stretch: 1;
-                text: root.label;
-                color: root.enabled ? Theme.fg : Theme.fg-muted;
-                vertical-alignment: center;
-            }
-            if root.was != "": Text {
-                text: @tr("was {}", root.was);
-                color: Theme.fg-muted;
-                vertical-alignment: center;
+        padding: 12px;
+        spacing: 12px;
+        square := Rectangle {
+            height: 164px;
+            border-radius: 3px;
+            clip: true;
+            background: hsv(root.hue, 1, 1);
+            accessible-role: slider;
+            accessible-label: @tr("{}, saturation and brightness", root.context);
+            accessible-value: @tr("saturation {}%, brightness {}%", round(root.sat * 100), round(root.val * 100));
+            Rectangle {
+                background: @linear-gradient(90deg, #ffffff 0%, #ffffff00 100%);
             }
             Rectangle {
-                width: 24px;
-                height: 24px;
+                background: @linear-gradient(0deg, #000000 0%, #00000000 100%);
+            }
+            Rectangle {
+                x: root.sat * parent.width - self.width / 2;
+                y: (1 - root.val) * parent.height - self.height / 2;
+                width: 14px;
+                height: 14px;
+                border-radius: 7px;
+                border-width: 2px;
+                border-color: #ffffff;
+                drop-shadow-blur: 2px;
+                drop-shadow-color: Theme.shadow;
+            }
+            sq-focus := FocusScope {
+                key-pressed(e) => {
+                    if (e.text == Key.LeftArrow || e.text == Key.RightArrow) {
+                        root.sat = clamp(root.sat + (e.text == Key.RightArrow ? 0.02 : -0.02), 0, 1);
+                        root.pick();
+                        return accept;
+                    }
+                    if (e.text == Key.UpArrow || e.text == Key.DownArrow) {
+                        root.val = clamp(root.val + (e.text == Key.UpArrow ? 0.02 : -0.02), 0, 1);
+                        root.pick();
+                        return accept;
+                    }
+                    reject
+                }
+            }
+            sq-touch := TouchArea {
+                function at() {
+                    root.sat = clamp(self.mouse-x / self.width, 0, 1);
+                    root.val = 1 - clamp(self.mouse-y / self.height, 0, 1);
+                    root.pick();
+                }
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                        sq-focus.focus();
+                        self.at();
+                    }
+                }
+                moved => { if (self.pressed) { self.at(); } }
+            }
+            if sq-focus.has-focus: Rectangle {
+                border-radius: 3px;
+                border-width: 2px;
+                border-color: Theme.accent;
+            }
+        }
+        strip := Rectangle {
+            height: 14px;
+            border-radius: 7px;
+            background: @linear-gradient(90deg, #ff0000 0%, #ffff00 16.67%, #00ff00 33.33%, #00ffff 50%, #0000ff 66.67%, #ff00ff 83.33%, #ff0000 100%);
+            accessible-role: slider;
+            accessible-label: @tr("{}, hue", root.context);
+            accessible-value: round(root.hue);
+            accessible-value-minimum: 0;
+            accessible-value-maximum: 360;
+            Rectangle {
+                x: root.hue / 360 * parent.width - self.width / 2;
                 y: (parent.height - self.height) / 2;
+                width: 18px;
+                height: 18px;
+                border-radius: 9px;
+                background: Theme.button;
+                border-width: 1px;
+                border-color: hue-focus.has-focus ? Theme.accent : Theme.line;
+                drop-shadow-blur: 2px;
+                drop-shadow-offset-y: 1px;
+                drop-shadow-color: Theme.shadow;
+            }
+            hue-focus := FocusScope {
+                key-pressed(e) => {
+                    if (e.text == Key.LeftArrow || e.text == Key.RightArrow) {
+                        root.hue = clamp(root.hue + (e.text == Key.RightArrow ? 2 : -2), 0, 360);
+                        root.pick();
+                        return accept;
+                    }
+                    reject
+                }
+            }
+            hue-touch := TouchArea {
+                function at() {
+                    root.hue = clamp(self.mouse-x / self.width, 0, 1) * 360;
+                    root.pick();
+                }
+                pointer-event(e) => {
+                    if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                        hue-focus.focus();
+                        self.at();
+                    }
+                }
+                moved => { if (self.pressed) { self.at(); } }
+            }
+        }
+        HorizontalLayout {
+            spacing: 8px;
+            Rectangle {
+                width: 56px;
                 border-radius: Theme.radius;
                 border-width: 1px;
                 border-color: Theme.line;
-                background: root.swatch;
-                opacity: root.enabled ? 1 : 0.45;
+                clip: true;
                 accessible-role: none;
+                HorizontalLayout {
+                    padding: 1px;
+                    Rectangle {
+                        background: root.before;
+                    }
+                    Rectangle {
+                        background: root.colour;
+                    }
+                }
             }
             Rectangle {
                 width: 92px;
                 hex-field := LineEdit {
                     width: 100%;
                     mono: true;
-                    enabled: root.enabled;
                     text: root.hex;
-                    placeholder-text: root.placeholder;
-                    accessible-name: @tr("{}, {}, hex code", root.context, root.label);
+                    accessible-name: @tr("{}, hex code", root.context);
                     edited(t) => {
                         if (ColourCheck.valid(t)) {
                             root.typed(t);
@@ -112,26 +183,226 @@ component ColourEditor {
                 }
             }
         }
-        ChannelRow {
-            name: @tr("Red");
-            value <=> root.red;
-            enabled: root.enabled;
-            context: root.context + ", " + root.label;
-            moved(v) => { root.channel(0, v); }
+        HorizontalLayout {
+            spacing: 6px;
+            for c[i] in [@tr("R"), @tr("G"), @tr("B")]: HorizontalLayout {
+                spacing: 4px;
+                Text {
+                    text: c;
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                }
+                NumberEdit {
+                    value: i == 0 ? root.red : i == 1 ? root.green : root.blue;
+                    minimum: 0;
+                    maximum: 255;
+                    accessible-name: @tr("{}, {}", root.context, c);
+                    committed(v) => {
+                        root.picked(rgb(i == 0 ? v : root.red, i == 1 ? v : root.green, i == 2 ? v : root.blue));
+                    }
+                }
+            }
         }
-        ChannelRow {
-            name: @tr("Green");
-            value <=> root.green;
-            enabled: root.enabled;
-            context: root.context + ", " + root.label;
-            moved(v) => { root.channel(1, v); }
+    }
+    changed hex => { if (!hex-field.has-focus) { hex-field.text = self.hex; } }
+}
+
+// A colour's swatch, with a chevron: a click, Space or Enter opens the picker under it.
+component ColourButton {
+    in property <color> swatch;
+    // The selected ring segments hold different colours: the chip is split.
+    in property <bool> mixed;
+    in property <string> hex;
+    in property <int> red;
+    in property <int> green;
+    in property <int> blue;
+    in property <bool> enabled: true;
+    // Says what the colour belongs to, such as "Fire Ring, Colour".
+    in property <string> context;
+    callback picked(color);
+    callback typed(string);
+    property <float> hue;
+    property <float> sat;
+    property <float> val;
+    property <color> before;
+    width: 52px;
+    height: Theme.control-height;
+    accessible-role: button;
+    accessible-label: @tr("{}, pick a colour", root.context);
+    accessible-enabled: root.enabled;
+    accessible-action-default => { root.open(); }
+    forward-focus: fs;
+
+    // Takes the hue, saturation and brightness from the swatch, then shows the picker.
+    public function open() {
+        if (!root.enabled) {
+            return;
         }
-        ChannelRow {
-            name: @tr("Blue");
-            value <=> root.blue;
+        let c = root.swatch.to-hsv();
+        // A grey or black has no hue of its own: keep the last one.
+        if (c.saturation > 0 && c.value > 0) {
+            root.hue = c.hue;
+        }
+        root.sat = c.saturation;
+        root.val = c.value;
+        root.before = root.swatch;
+        popup.show();
+    }
+
+    Rectangle {
+        border-radius: Theme.radius;
+        border-width: 1px;
+        background: ta.has-hover ? Theme.hover : Theme.button;
+        border-color: ta.has-hover || fs.has-focus ? Theme.accent : Theme.line;
+        opacity: root.enabled ? 1 : 0.45;
+        // A mix shows the first colour beside an empty half.
+        Rectangle {
+            x: 6px;
+            width: 22px;
+            height: 18px;
+            border-radius: 3px;
+            border-width: 1px;
+            border-color: #00000033;
+            clip: true;
+            background: root.mixed ? Theme.window : root.swatch;
+            if root.mixed: Rectangle {
+                x: 0;
+                width: parent.width / 2;
+                background: root.swatch;
+            }
+        }
+        Image {
+            x: parent.width - 20px;
+            width: 14px;
+            height: 14px;
+            source: @image-url("icons/chevron.svg");
+            colorize: Theme.fg-muted;
+            accessible-role: none;
+        }
+    }
+    fs := FocusScope {
+        enabled: root.enabled;
+        key-pressed(e) => {
+            if (e.text == " " || e.text == Key.Return) {
+                root.open();
+                return accept;
+            }
+            reject
+        }
+    }
+    ta := TouchArea {
+        enabled: root.enabled;
+        clicked => {
+            fs.focus();
+            root.open();
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: root.width + 4px;
+        height: root.height + 4px;
+        border-radius: Theme.radius + 2px;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+    popup := PopupWindow {
+        x: root.width - self.width;
+        y: root.height + 2px;
+        width: picker.preferred-width;
+        height: picker.preferred-height;
+        close-policy: close-on-click-outside;
+        Rectangle {
+            background: Theme.view;
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.line;
+            drop-shadow-blur: 12px;
+            drop-shadow-offset-y: 4px;
+            drop-shadow-color: Theme.shadow;
+        }
+        picker := ColourPicker {
+            colour: root.swatch;
+            before: root.before;
+            hex: root.hex;
+            red: root.red;
+            green: root.green;
+            blue: root.blue;
+            context: root.context;
+            hue <=> root.hue;
+            sat <=> root.sat;
+            val <=> root.val;
+            picked(c) => { root.picked(c); }
+            typed(t) => { root.typed(t); }
+        }
+    }
+}
+
+// A colour on one line: its name, what the controller holds when it differs, the swatch
+// button and the hex code. The hex field hands Rust each colour as it is typed, and
+// shows the stored one again when it loses focus.
+component ColourEditor inherits HorizontalLayout {
+    in property <string> label;
+    in property <string> hex;
+    in property <color> swatch;
+    in property <string> was;
+    in property <int> red;
+    in property <int> green;
+    in property <int> blue;
+    in property <bool> enabled: true;
+    in property <bool> mixed;
+    // Shown in the empty hex field, such as "Mixed".
+    in property <string> placeholder;
+    // Says what the colour belongs to, such as "Fire Ring".
+    in property <string> context;
+    callback typed(string);
+    callback picked(color);
+    property <bool> bad: hex-field.has-focus && hex-field.text != "" && !ColourCheck.valid(hex-field.text);
+    spacing: 8px;
+
+    Text {
+        horizontal-stretch: 1;
+        text: root.label;
+        color: root.enabled ? Theme.fg : Theme.fg-muted;
+        vertical-alignment: center;
+    }
+    if root.was != "": Text {
+        text: @tr("was {}", root.was);
+        color: Theme.fg-muted;
+        vertical-alignment: center;
+    }
+    ColourButton {
+        swatch: root.swatch;
+        mixed: root.mixed;
+        hex: root.hex;
+        red: root.red;
+        green: root.green;
+        blue: root.blue;
+        enabled: root.enabled;
+        context: root.context + ", " + root.label;
+        picked(c) => { root.picked(c); }
+        typed(t) => { root.typed(t); }
+    }
+    Rectangle {
+        width: 92px;
+        hex-field := LineEdit {
+            width: 100%;
+            mono: true;
             enabled: root.enabled;
-            context: root.context + ", " + root.label;
-            moved(v) => { root.channel(2, v); }
+            text: root.hex;
+            placeholder-text: root.placeholder;
+            accessible-name: @tr("{}, {}, hex code", root.context, root.label);
+            edited(t) => {
+                if (ColourCheck.valid(t)) {
+                    root.typed(t);
+                }
+            }
+            changed has-focus => { if (!self.has-focus) { self.text = root.hex; } }
+        }
+        if root.bad: Rectangle {
+            border-radius: Theme.radius;
+            border-width: 1px;
+            border-color: Theme.negative;
         }
     }
     changed hex => { if (!hex-field.has-focus) { hex-field.text = self.hex; } }
@@ -201,14 +472,6 @@ component RingView {
             }
         }
     }
-    TouchArea {
-        pointer-event(e) => {
-            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
-                fs.focus();
-                root.pointed(self.mouse-x / self.width * 100, self.mouse-y / self.height * 100, e.modifiers.control, e.modifiers.shift);
-            }
-        }
-    }
     fs := FocusScope {
         key-pressed(e) => {
             if (root.count == 0) {
@@ -233,6 +496,14 @@ component RingView {
             reject
         }
     }
+    TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                fs.focus();
+                root.pointed(self.mouse-x / self.width * 100, self.mouse-y / self.height * 100, e.modifiers.control, e.modifiers.shift);
+            }
+        }
+    }
     if fs.has-focus: Rectangle {
         x: -2px;
         y: -2px;
@@ -251,9 +522,9 @@ component FrameBody inherits Frame {
     callback flag-changed(string, bool);
     callback choice-changed(string, int);
     callback colour-typed(string, string);
-    callback colour-channel(string, int, float);
+    callback colour-picked(string, color);
     callback selection-typed(string);
-    callback selection-channel(int, float);
+    callback selection-picked(color);
     callback ring-pointed(string, float, float, bool, bool);
     callback segment-keyed(string, bool, bool);
     callback select-all(string);
@@ -292,12 +563,12 @@ component FrameBody inherits Frame {
             hex: c.hex;
             swatch: c.swatch;
             was: c.was;
-            red <=> c.red;
-            green <=> c.green;
-            blue <=> c.blue;
+            red: c.red;
+            green: c.green;
+            blue: c.blue;
             context: root.f.title;
             typed(t) => { root.colour-typed(c.field, t); }
-            channel(k, v) => { root.colour-channel(c.field, k, v); }
+            picked(colour) => { root.colour-picked(c.field, colour); }
         }
         for st in root.f.settings: VerticalLayout {
             spacing: 4px;
@@ -356,14 +627,15 @@ component FrameBody inherits Frame {
                     label: e.count == 0 ? @tr("Select segments to colour them") : @tr("{n} segment selected" | "{n} segments selected" % e.count);
                     hex: e.colour.hex;
                     swatch: e.colour.swatch;
-                    red <=> e.colour.red;
-                    green <=> e.colour.green;
-                    blue <=> e.colour.blue;
+                    red: e.colour.red;
+                    green: e.colour.green;
+                    blue: e.colour.blue;
                     enabled: e.count > 0;
+                    mixed: e.count > 1 && e.colour.hex == "";
                     placeholder: e.count > 1 ? @tr("Mixed") : "";
                     context: root.f.title;
                     typed(t) => { root.selection-typed(t); }
-                    channel(k, v) => { root.selection-channel(k, v); }
+                    picked(colour) => { root.selection-picked(colour); }
                 }
                 HorizontalLayout {
                     spacing: 8px;
@@ -403,12 +675,12 @@ export component SettingsTab {
     callback flag-changed(string, bool);
     // A drop-down list picked the option at this index.
     callback choice-changed(string, int);
-    // A colour's hex field holds a colour, or one channel (0 red, 1 green, 2 blue) moved.
+    // A colour's hex field holds a colour, or its picker picked one.
     callback colour-typed(string, string);
-    callback colour-channel(string, int, float);
+    callback colour-picked(string, color);
     // The same, for the selected ring segments.
     callback selection-typed(string);
-    callback selection-channel(int, float);
+    callback selection-picked(color);
     // A click on the ring whose first segment is this pointer, at a point of its 100 by
     // 100 box, with Ctrl and Shift.
     callback ring-pointed(string, float, float, bool, bool);
@@ -437,7 +709,7 @@ export component SettingsTab {
                 flag-changed(field, on) => { root.flag-changed(field, on); }
                 choice-changed(field, i) => { root.choice-changed(field, i); }
                 colour-typed(field, t) => { root.colour-typed(field, t); }
-                colour-channel(field, k, v) => { root.colour-channel(field, k, v); }
+                colour-picked(field, c) => { root.colour-picked(field, c); }
             }
         }
         for f in root.page.ring-frames: FrameBody {
@@ -446,9 +718,9 @@ export component SettingsTab {
             number-changed(field, v) => { root.number-changed(field, v); }
             flag-changed(field, on) => { root.flag-changed(field, on); }
             colour-typed(field, t) => { root.colour-typed(field, t); }
-            colour-channel(field, k, v) => { root.colour-channel(field, k, v); }
+            colour-picked(field, c) => { root.colour-picked(field, c); }
             selection-typed(t) => { root.selection-typed(t); }
-            selection-channel(k, v) => { root.selection-channel(k, v); }
+            selection-picked(c) => { root.selection-picked(c); }
             ring-pointed(first, x, y, add, range) => { root.ring-pointed(first, x, y, add, range); }
             segment-keyed(field, add, range) => { root.segment-keyed(field, add, range); }
             select-all(field) => { root.select-all(field); }
