@@ -374,6 +374,15 @@ impl ProtocolCodec for Ultimate2 {
         blob: &[u8],
         profile_slot: Slot,
     ) -> Result<Vec<MacroDefinition>> {
+        // A record the pad never wrote is erased flash, whose `ff` descriptors the Pro 3
+        // code would read as macros. Only a record with the marker holds any.
+        let index = usize::from(profile_slot.get()).saturating_sub(1);
+        let record = SHARED_HEAD_END + index * pro3::tables::SECTION4_SLOT_STRIDE;
+        if blob.len() == BLOB_SIZE
+            && take(blob, record, pro3::tables::SLOT_MARKER.len())? != pro3::tables::SLOT_MARKER
+        {
+            return Ok(Vec::new());
+        }
         Pro3.decode_macro_metadata(&widen(blob)?, profile_slot)
     }
 
@@ -479,6 +488,15 @@ mod tests {
             mode_hint: XINPUT,
         };
         Ultimate2.map_profile(&raw).unwrap().canonical
+    }
+
+    #[test]
+    fn an_erased_macro_record_holds_no_macros() {
+        // Slots 2 and 3 of the capture are erased flash, `ff` but a few bytes.
+        for n in [2, 3] {
+            let slot = Slot::new(n).unwrap();
+            assert_eq!(Ultimate2.decode_macro_metadata(XINPUT_BLOB, slot).unwrap(), []);
+        }
     }
 
     #[test]
