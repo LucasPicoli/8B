@@ -255,14 +255,21 @@ fn press(pad: &Pad, mode: Mode) {
     println!("\nSelect profile {SLOT} on the pad with its profile button, then press Enter.");
     loop {
         line();
-        let playing = pad.bank(mode)[CUR_SLOT];
-        if usize::from(playing) == usize::from(SLOT) - 1 {
-            break;
+        // Read without the panic of `Pad::bank`: a pad caught between modes, or not
+        // reporting yet, gets asked again.
+        let read = pad.dev.read_all_profiles().unwrap();
+        let index = model().description().unwrap().modes.iter().position(|m| m.id == mode).unwrap();
+        match read.raw_blobs.get(index).and_then(|bank| bank.get(CUR_SLOT)) {
+            Some(&playing) if usize::from(playing) == usize::from(SLOT) - 1 => break,
+            Some(&playing) => println!(
+                "The pad plays profile {} (4 is its default map). Select {SLOT}, then press Enter.",
+                playing + 1
+            ),
+            None => println!(
+                "The pad says it is in {:?} now. Check its mode switch is on {mode}, select profile {SLOT}, then press Enter.",
+                pad.dev.current_mode()
+            ),
         }
-        println!(
-            "The pad plays profile {} (3 is its default map). Select {SLOT}, then press Enter.",
-            playing + 1
-        );
     }
     let mut input = Input::open(&pad.port);
     // Every press runs, so one run shows all the pad does; the mode fails at the end.
