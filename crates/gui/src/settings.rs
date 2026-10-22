@@ -10,14 +10,16 @@ use serde_json::Value;
 use slint::{Model as _, ModelRc, VecModel};
 use tr::tr;
 
+use crate::colours::Segments;
 use crate::language::prose;
 use crate::render::and_list;
 use crate::state::AppState;
 use crate::ui::{AppWindow, Setting, SettingFrame, SettingsPage, Toggle};
+use crate::{choices, colours};
 
 /// Replaces the value at `pointer` in `profile` with `new`, when the old value is of
 /// the same JSON type.
-fn patch(profile: &mut CanonicalProfile, pointer: &str, new: Value) {
+pub fn patch(profile: &mut CanonicalProfile, pointer: &str, new: Value) {
     let Ok(mut json) = serde_json::to_value(&*profile) else { return };
     let Some(old) = json.pointer_mut(pointer) else { return };
     if std::mem::discriminant(old) != std::mem::discriminant(&new) {
@@ -155,6 +157,7 @@ fn page(
     shown: &Value,
     pad: Option<&Value>,
     firmware: &str,
+    segments: &Segments,
 ) -> SettingsPage {
     let frames = spec.frames.iter().map(|frame| {
         let sliders = frame.sliders.iter().filter(|s| firmware_allows(slider_gate(s), firmware));
@@ -197,16 +200,33 @@ fn page(
             })
         });
         let (settings, toggles): (Vec<_>, Vec<_>) = (settings.collect(), toggles.collect());
-        (!settings.is_empty() || !toggles.is_empty()).then(|| SettingFrame {
+        let choices = choices::rows(frame, shown, pad);
+        let colours = colours::rows(frame, shown, pad);
+        let rings = colours::rings(frame, shown, pad, segments);
+        let editors =
+            if rings.is_empty() { Vec::new() } else { colours::editors(frame, shown, segments) };
+        let empty = settings.is_empty()
+            && toggles.is_empty()
+            && choices.is_empty()
+            && colours.is_empty()
+            && rings.is_empty();
+        (!empty).then(|| SettingFrame {
             title: prose(&frame.title).into(),
-            settings: ModelRc::from(Rc::new(VecModel::from(settings))),
-            toggles: ModelRc::from(Rc::new(VecModel::from(toggles))),
+            settings: model(settings),
+            toggles: model(toggles),
+            choices: model(choices),
+            colours: model(colours),
+            rings: model(rings),
+            editors: model(editors),
         })
     });
+    let (ring_frames, frames): (Vec<_>, Vec<_>) =
+        frames.flatten().partition(|f| f.rings.row_count() > 0);
     SettingsPage {
         lead: prose(&spec.lead).into(),
         note: hidden_note(spec, firmware).into(),
-        frames: ModelRc::from(Rc::new(frames.flatten().collect::<VecModel<_>>())),
+        frames: model(frames),
+        ring_frames: model(ring_frames),
     }
 }
 
@@ -225,28 +245,51 @@ pub fn pages_of(state: &AppState, (mode, number): (Mode, u8)) -> Vec<SettingsPag
     let Ok(json) = serde_json::to_value(shown) else { return Vec::new() };
     let pad = slot.pad.as_ref().and_then(|p| serde_json::to_value(p).ok());
     let firmware = state.firmware();
-    state.description().pages(mode).map(|spec| page(spec, &json, pad.as_ref(), firmware)).collect()
+    let segments = &state.segments;
+    let pages = state.description().pages(mode);
+    pages.map(|spec| page(spec, &json, pad.as_ref(), firmware, segments)).collect()
 }
 
 /// Copies `new` into the models `old` already shows, when both have the same frames
 /// with the same row counts, so a slider being dragged keeps its drag. False when
 /// the shape differs and nothing was copied.
 fn update(old: &SettingsPage, new: &SettingsPage) -> bool {
+    let pairs = || {
+        old.frames
+            .iter()
+            .chain(old.ring_frames.iter())
+            .zip(new.frames.iter().chain(new.ring_frames.iter()))
+    };
     let same = old.lead == new.lead
         && old.note == new.note
         && old.frames.row_count() == new.frames.row_count()
-        && old.frames.iter().zip(new.frames.iter()).all(|(o, n)| {
+        && old.ring_frames.row_count() == new.ring_frames.row_count()
+        && pairs().all(|(o, n)| {
             o.title == n.title
                 && o.settings.row_count() == n.settings.row_count()
                 && o.toggles.row_count() == n.toggles.row_count()
+                && o.choices.row_count() == n.choices.row_count()
+                && o.colours.row_count() == n.colours.row_count()
+                && o.editors.row_count() == n.editors.row_count()
+                && o.rings.row_count() == n.rings.row_count()
         });
     if same {
-        for (o, n) in old.frames.iter().zip(new.frames.iter()) {
+        for (o, n) in pairs() {
             copy_rows(&o.settings, &n.settings);
             copy_rows(&o.toggles, &n.toggles);
+            copy_rows(&o.choices, &n.choices);
+            copy_rows(&o.colours, &n.colours);
+            copy_rows(&o.editors, &n.editors);
+            // A ring row holds its segments' model, so it is set whole: no drag lives there.
+            copy_rows(&o.rings, &n.rings);
         }
     }
     same
+}
+
+/// `rows` as a model for the markup.
+fn model<T: Clone + 'static>(rows: Vec<T>) -> ModelRc<T> {
+    ModelRc::from(Rc::new(VecModel::from(rows)))
 }
 
 /// Sets each row of `old` that differs from the same row of `new`.

@@ -797,6 +797,7 @@ msgstr "Alterações não gravadas"
 msgid "{}, holds a macro that cannot be written"
 msgstr "{}, tem uma macro que não pode ser gravada"
 
+#. With no old value, only the new one shows.
 #: ui/parts.slint
 msgid "{}  →  {}"
 msgstr "{}  →  {}"
@@ -928,6 +929,50 @@ msgstr "Execute isto em um terminal:"
 #: ui/settings.slint
 msgid "was {}"
 msgstr "antes: {}"
+
+#: ui/settings.slint
+msgid "{}, {}, hex code"
+msgstr "{}, {}, código hex"
+
+#: ui/settings.slint
+msgid "Red"
+msgstr "Vermelho"
+
+#: ui/settings.slint
+msgid "Green"
+msgstr "Verde"
+
+#: ui/settings.slint
+msgid "Blue"
+msgstr "Azul"
+
+#: ui/settings.slint
+msgid "{n} changed"
+msgid_plural "{n} changed"
+msgstr[0] "{n} alterado"
+msgstr[1] "{n} alterados"
+
+#: ui/settings.slint
+msgid "Select segments to colour them"
+msgstr "Selecione segmentos para colori-los"
+
+#: ui/settings.slint
+msgid "{n} segment selected"
+msgid_plural "{n} segments selected"
+msgstr[0] "{n} segmento selecionado"
+msgstr[1] "{n} segmentos selecionados"
+
+#: ui/settings.slint
+msgid "Mixed"
+msgstr "Misturadas"
+
+#: ui/settings.slint
+msgid "Select all"
+msgstr "Selecionar todos"
+
+#: ui/settings.slint
+msgid "Same on both rings"
+msgstr "Igual nos dois anéis"
 
 #: ui/sidebar.slint
 msgid "Slot {}, empty"
@@ -1178,6 +1223,14 @@ msgstr "Botões"
 #: src/chooser.rs
 msgid "JSON files"
 msgstr "Arquivos JSON"
+
+#: src/colours.rs
+msgid "{ring}, segment {n}, {colour}"
+msgstr "{ring}, segmento {n}, {colour}"
+
+#: src/colours.rs
+msgid "Selected segments"
+msgstr "Segmentos selecionados"
 
 #: src/controllers.rs
 msgid "{name} · Disconnected"
@@ -1915,6 +1968,12 @@ msgstr "{mode} slot {n} limpo."
 #: src/review.rs
 msgid "{frame} · {setting}"
 msgstr "{frame} · {setting}"
+
+#: src/review.rs
+msgid "{n} segment changed"
+msgid_plural "{n} segments changed"
+msgstr[0] "{n} segmento alterado"
+msgstr[1] "{n} segmentos alterados"
 
 #: src/review.rs
 msgid "Off"
@@ -3039,16 +3098,16 @@ msgid "None"
 msgstr "Nenhum"
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/label
-msgid "The button"
-msgstr "O botão"
+msgid "How it turns on"
+msgstr "Como liga"
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/options/0/label
-msgid "Is held"
-msgstr "Fica pressionado"
+msgid "Hold the button"
+msgstr "Segurar o botão"
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/options/1/label
-msgid "Is pressed once, and again to turn off"
-msgstr "É pressionado uma vez, e de novo para desligar"
+msgid "Press to toggle"
+msgstr "Pressionar para alternar"
 
 #. Ultimate 2 /settings/4/label
 msgid "Lights"
@@ -3091,6 +3150,15 @@ msgstr "Anel esquerdo"
 #. Ultimate 2 /settings/4/frames/2/rings/1/label
 msgid "Right ring"
 msgstr "Anel direito"
+
+#~ msgid "The button"
+#~ msgstr "O botão"
+
+#~ msgid "Is held"
+#~ msgstr "Fica pressionado"
+
+#~ msgid "Is pressed once, and again to turn off"
+#~ msgstr "É pressionado uma vez, e de novo para desligar"
 
 #~ msgid "Start from the default profile or import a file, then change what you need. Nothing reaches the controller until you write."
 #~ msgstr "Comece pelo perfil padrão ou importe um arquivo, depois altere o que precisar. Nada é enviado ao controle até você gravar."

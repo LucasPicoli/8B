@@ -834,6 +834,7 @@ msgstr ""
 msgid "{}, holds a macro that cannot be written"
 msgstr ""
 
+#. With no old value, only the new one shows.
 #: ui/parts.slint
 msgid "{}  →  {}"
 msgstr ""
@@ -975,6 +976,50 @@ msgstr ""
 
 #: ui/settings.slint
 msgid "was {}"
+msgstr ""
+
+#: ui/settings.slint
+msgid "{}, {}, hex code"
+msgstr ""
+
+#: ui/settings.slint
+msgid "Red"
+msgstr ""
+
+#: ui/settings.slint
+msgid "Green"
+msgstr ""
+
+#: ui/settings.slint
+msgid "Blue"
+msgstr ""
+
+#: ui/settings.slint
+msgid "{n} changed"
+msgid_plural "{n} changed"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/settings.slint
+msgid "Select segments to colour them"
+msgstr ""
+
+#: ui/settings.slint
+msgid "{n} segment selected"
+msgid_plural "{n} segments selected"
+msgstr[0] ""
+msgstr[1] ""
+
+#: ui/settings.slint
+msgid "Mixed"
+msgstr ""
+
+#: ui/settings.slint
+msgid "Select all"
+msgstr ""
+
+#: ui/settings.slint
+msgid "Same on both rings"
 msgstr ""
 
 #: ui/sidebar.slint
@@ -1225,6 +1270,14 @@ msgstr ""
 
 #: src/chooser.rs
 msgid "JSON files"
+msgstr ""
+
+#: src/colours.rs
+msgid "{ring}, segment {n}, {colour}"
+msgstr ""
+
+#: src/colours.rs
+msgid "Selected segments"
 msgstr ""
 
 #: src/controllers.rs
@@ -2000,6 +2053,12 @@ msgstr ""
 #: src/review.rs
 msgid "{frame} · {setting}"
 msgstr ""
+
+#: src/review.rs
+msgid "{n} segment changed"
+msgid_plural "{n} segments changed"
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/review.rs
 msgid "Off"
@@ -3158,15 +3217,15 @@ msgid "None"
 msgstr ""
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/label
-msgid "The button"
+msgid "How it turns on"
 msgstr ""
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/options/0/label
-msgid "Is held"
+msgid "Hold the button"
 msgstr ""
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/options/1/label
-msgid "Is pressed once, and again to turn off"
+msgid "Press to toggle"
 msgstr ""
 
 #. Ultimate 2 /settings/4/label

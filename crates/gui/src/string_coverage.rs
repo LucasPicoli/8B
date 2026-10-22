@@ -7,7 +7,8 @@
 //!   glued into one string, or a `qps` catalogue older than the source. A unit may hold
 //!   others, as `⟦Output for ⟦Turbo⟧⟧` does, and whole sentences may follow each other.
 //!
-//! A string passes as it is when it has no letters, a controller description marks it as
+//! A string passes as it is when it has no letters or is a colour code, a controller
+//! description marks it as
 //! a name, or `translations/keep-english.txt` lists it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::indexing_slicing)]
@@ -112,10 +113,12 @@ fn translated(text: &str) -> bool {
         && sentences
 }
 
-/// `text` needs no translation: no letters, a file path, or listed in [`english`].
+/// `text` needs no translation: no letters, a file path, a colour code such as
+/// `#7E3200`, or listed in [`english`].
 fn stays(text: &str, english: &HashSet<&str>) -> bool {
     let path = text.starts_with('/') && !text.contains(' ');
-    !text.chars().any(char::is_alphabetic) || path || english.contains(text)
+    let colour = text.starts_with('#') && crate::colours::is_typed_colour(text);
+    !text.chars().any(char::is_alphabetic) || path || colour || english.contains(text)
 }
 
 /// The default names, which a slot or macro keeps as its name. Padded, "New profile"

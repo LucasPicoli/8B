@@ -1,14 +1,421 @@
-// The Sticks, Triggers and Vibration tabs: frames of sliders and check boxes. Rust
-// sends the frames, so the markup names no profile field.
-import { Theme, Slider, CheckBox } from "look/breeze/widgets.slint";
+// The settings tabs after Buttons, such as Sticks: frames of sliders, check boxes,
+// drop-down lists, colours and rings of coloured segments. Rust sends the frames, so the
+// markup names no profile field.
+import { Theme, Slider, CheckBox, ComboBox, LineEdit, Button } from "look/breeze/widgets.slint";
 import { Frame, Dot, Icons, SmallHead, RangeSlider } from "parts.slint";
-import { SettingsPage } from "types.slint";
+import { SettingsPage, SettingFrame, RingRow } from "types.slint";
+
+// Rust answers whether a typed colour is one a hex field takes, such as "#7E3200".
+export global ColourCheck {
+    pure callback valid(string) -> bool;
+}
+
+// One channel of a colour: its name, a slider from 0 to 255 and the value.
+component ChannelRow inherits HorizontalLayout {
+    in property <string> name;
+    in-out property <float> value;
+    in property <bool> enabled: true;
+    // Says what the channel belongs to, such as "Fire Ring, Colour".
+    in property <string> context;
+    callback moved(float);
+    spacing: 8px;
+    Text {
+        width: 48px;
+        text: root.name;
+        color: Theme.fg-muted;
+        vertical-alignment: center;
+    }
+    Slider {
+        horizontal-stretch: 1;
+        value <=> root.value;
+        minimum: 0;
+        maximum: 255;
+        enabled: root.enabled;
+        accessible-name: @tr("{}, {}", root.context, root.name);
+        changed(v) => { root.moved(v); }
+    }
+    Text {
+        width: 28px;
+        text: round(root.value);
+        color: Theme.fg-muted;
+        horizontal-alignment: right;
+        vertical-alignment: center;
+    }
+}
+
+// A colour: its name, the swatch, its hex code, then a slider per channel. The hex
+// field hands Rust each colour as it is typed, and shows the stored one again when it
+// loses focus.
+component ColourEditor {
+    in property <string> label;
+    in property <string> hex;
+    in property <color> swatch;
+    in property <string> was;
+    in-out property <float> red;
+    in-out property <float> green;
+    in-out property <float> blue;
+    in property <bool> enabled: true;
+    // Shown in the empty hex field, such as "Mixed".
+    in property <string> placeholder;
+    // Says what the colour belongs to, such as "Fire Ring".
+    in property <string> context;
+    callback typed(string);
+    callback channel(int, float);
+    property <bool> bad: hex-field.has-focus && hex-field.text != "" && !ColourCheck.valid(hex-field.text);
+
+    VerticalLayout {
+        spacing: 4px;
+        HorizontalLayout {
+            spacing: 8px;
+            Text {
+                horizontal-stretch: 1;
+                text: root.label;
+                color: root.enabled ? Theme.fg : Theme.fg-muted;
+                vertical-alignment: center;
+            }
+            if root.was != "": Text {
+                text: @tr("was {}", root.was);
+                color: Theme.fg-muted;
+                vertical-alignment: center;
+            }
+            Rectangle {
+                width: 24px;
+                height: 24px;
+                y: (parent.height - self.height) / 2;
+                border-radius: Theme.radius;
+                border-width: 1px;
+                border-color: Theme.line;
+                background: root.swatch;
+                opacity: root.enabled ? 1 : 0.45;
+                accessible-role: none;
+            }
+            Rectangle {
+                width: 92px;
+                hex-field := LineEdit {
+                    width: 100%;
+                    mono: true;
+                    enabled: root.enabled;
+                    text: root.hex;
+                    placeholder-text: root.placeholder;
+                    accessible-name: @tr("{}, {}, hex code", root.context, root.label);
+                    edited(t) => {
+                        if (ColourCheck.valid(t)) {
+                            root.typed(t);
+                        }
+                    }
+                    changed has-focus => { if (!self.has-focus) { self.text = root.hex; } }
+                }
+                if root.bad: Rectangle {
+                    border-radius: Theme.radius;
+                    border-width: 1px;
+                    border-color: Theme.negative;
+                }
+            }
+        }
+        ChannelRow {
+            name: @tr("Red");
+            value <=> root.red;
+            enabled: root.enabled;
+            context: root.context + ", " + root.label;
+            moved(v) => { root.channel(0, v); }
+        }
+        ChannelRow {
+            name: @tr("Green");
+            value <=> root.green;
+            enabled: root.enabled;
+            context: root.context + ", " + root.label;
+            moved(v) => { root.channel(1, v); }
+        }
+        ChannelRow {
+            name: @tr("Blue");
+            value <=> root.blue;
+            enabled: root.enabled;
+            context: root.context + ", " + root.label;
+            moved(v) => { root.channel(2, v); }
+        }
+    }
+    changed hex => { if (!hex-field.has-focus) { hex-field.text = self.hex; } }
+}
+
+// A ring of segments, clockwise from the top. A click hands Rust the point in a 100 by
+// 100 box; Rust finds the segment. The arrow keys move a focus mark around the ring, and
+// Space selects the marked segment.
+component RingView {
+    in property <RingRow> ring;
+    // What the ring belongs to, such as "Custom".
+    in property <string> context;
+    callback pointed(float, float, bool, bool);
+    callback keyed(string, bool, bool);
+    callback all();
+    property <int> mark: 0;
+    property <int> count: root.ring.segments.length;
+    width: 152px;
+    height: 152px;
+    accessible-role: list;
+    accessible-label: @tr("{}, {}", root.context, root.ring.label);
+    forward-focus: fs;
+
+    for s in root.ring.segments: Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        commands: s.path;
+        fill: s.fill;
+        stroke: s.selected ? Theme.accent : Theme.line;
+        stroke-width: s.selected ? 2.5px : 1px;
+        accessible-role: list-item;
+        accessible-label: s.spoken;
+        accessible-item-selected: s.selected;
+    }
+    if fs.has-focus && root.count > 0: Path {
+        width: 100%;
+        height: 100%;
+        viewbox-width: 100;
+        viewbox-height: 100;
+        commands: root.ring.segments[root.mark].path;
+        stroke: Theme.fg;
+        stroke-width: 1.5px;
+        accessible-role: none;
+    }
+    VerticalLayout {
+        alignment: center;
+        spacing: 2px;
+        Text {
+            text: root.ring.label;
+            color: Theme.fg;
+            horizontal-alignment: center;
+            accessible-role: none;
+        }
+        if root.ring.changed > 0: HorizontalLayout {
+            alignment: center;
+            spacing: 4px;
+            Dot {
+                y: (parent.height - self.height) / 2;
+            }
+            Text {
+                text: @tr("{n} changed" | "{n} changed" % root.ring.changed);
+                font-size: Theme.text-small;
+                color: Theme.fg-muted;
+                accessible-role: none;
+            }
+        }
+    }
+    TouchArea {
+        pointer-event(e) => {
+            if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
+                fs.focus();
+                root.pointed(self.mouse-x / self.width * 100, self.mouse-y / self.height * 100, e.modifiers.control, e.modifiers.shift);
+            }
+        }
+    }
+    fs := FocusScope {
+        key-pressed(e) => {
+            if (root.count == 0) {
+                return reject;
+            }
+            if (e.text == Key.RightArrow || e.text == Key.DownArrow) {
+                root.mark = mod(root.mark + 1, root.count);
+                return accept;
+            }
+            if (e.text == Key.LeftArrow || e.text == Key.UpArrow) {
+                root.mark = mod(root.mark - 1 + root.count, root.count);
+                return accept;
+            }
+            if (e.text == " ") {
+                root.keyed(root.ring.segments[root.mark].field, !e.modifiers.shift, e.modifiers.shift);
+                return accept;
+            }
+            if (e.modifiers.control && (e.text == "a" || e.text == "A")) {
+                root.all();
+                return accept;
+            }
+            reject
+        }
+    }
+    if fs.has-focus: Rectangle {
+        x: -2px;
+        y: -2px;
+        width: root.width + 4px;
+        height: root.height + 4px;
+        border-radius: self.width / 2;
+        border-width: 2px;
+        border-color: Theme.accent;
+    }
+}
+
+// One frame: its title, then its drop-down lists, colours, sliders, rings and check boxes.
+component FrameBody inherits Frame {
+    in property <SettingFrame> f;
+    callback number-changed(string, float);
+    callback flag-changed(string, bool);
+    callback choice-changed(string, int);
+    callback colour-typed(string, string);
+    callback colour-channel(string, int, float);
+    callback selection-typed(string);
+    callback selection-channel(int, float);
+    callback ring-pointed(string, float, float, bool, bool);
+    callback segment-keyed(string, bool, bool);
+    callback select-all(string);
+    callback mirror-toggled(bool);
+
+    VerticalLayout {
+        padding: 14px;
+        spacing: 12px;
+        alignment: start;
+        SmallHead {
+            text: root.f.title;
+        }
+        for c in root.f.choices: HorizontalLayout {
+            spacing: 8px;
+            Text {
+                horizontal-stretch: 1;
+                text: c.label;
+                color: Theme.fg;
+                vertical-alignment: center;
+            }
+            if c.was != "": Text {
+                text: @tr("was {}", c.was);
+                color: Theme.fg-muted;
+                vertical-alignment: center;
+            }
+            box := ComboBox {
+                width: max(self.fit-width, 180px);
+                model: c.options;
+                current-index <=> c.current;
+                accessible-name: @tr("{}, {}", root.f.title, c.label);
+                selected => { root.choice-changed(c.field, self.current-index); }
+            }
+        }
+        for c in root.f.colours: ColourEditor {
+            label: c.label;
+            hex: c.hex;
+            swatch: c.swatch;
+            was: c.was;
+            red <=> c.red;
+            green <=> c.green;
+            blue <=> c.blue;
+            context: root.f.title;
+            typed(t) => { root.colour-typed(c.field, t); }
+            channel(k, v) => { root.colour-channel(c.field, k, v); }
+        }
+        for st in root.f.settings: VerticalLayout {
+            spacing: 4px;
+            HorizontalLayout {
+                spacing: 8px;
+                Text {
+                    horizontal-stretch: 1;
+                    text: st.label;
+                    color: Theme.fg;
+                }
+                if st.was != "": Text {
+                    text: @tr("was {}", st.was);
+                    color: Theme.fg-muted;
+                }
+                Text {
+                    text: st.text;
+                    color: st.was != "" ? Theme.fg : Theme.fg-muted;
+                    font-weight: st.was != "" ? 600 : 400;
+                }
+            }
+            if st.high-field == "": Slider {
+                value <=> st.low;
+                minimum: st.minimum;
+                maximum: st.maximum;
+                accessible-name: @tr("{}, {}", root.f.title, st.label);
+                changed(v) => { root.number-changed(st.low-field, v); }
+            }
+            if st.high-field != "": RangeSlider {
+                low <=> st.low;
+                high <=> st.high;
+                minimum: st.minimum;
+                maximum: st.maximum;
+                accessible-name: @tr("{}, {}", root.f.title, st.label);
+                low-changed(v) => { root.number-changed(st.low-field, v); }
+                high-changed(v) => { root.number-changed(st.high-field, v); }
+            }
+        }
+        if root.f.rings.length > 0: HorizontalLayout {
+            spacing: 32px;
+            alignment: start;
+            HorizontalLayout {
+                spacing: 24px;
+                for r in root.f.rings: RingView {
+                    ring: r;
+                    context: root.f.title;
+                    pointed(x, y, add, range) => { root.ring-pointed(r.segments[0].field, x, y, add, range); }
+                    keyed(field, add, range) => { root.segment-keyed(field, add, range); }
+                    all => { root.select-all(r.segments[0].field); }
+                }
+            }
+            for e in root.f.editors: VerticalLayout {
+                width: 320px;
+                spacing: 12px;
+                alignment: center;
+                ColourEditor {
+                    label: e.count == 0 ? @tr("Select segments to colour them") : @tr("{n} segment selected" | "{n} segments selected" % e.count);
+                    hex: e.colour.hex;
+                    swatch: e.colour.swatch;
+                    red <=> e.colour.red;
+                    green <=> e.colour.green;
+                    blue <=> e.colour.blue;
+                    enabled: e.count > 0;
+                    placeholder: e.count > 1 ? @tr("Mixed") : "";
+                    context: root.f.title;
+                    typed(t) => { root.selection-typed(t); }
+                    channel(k, v) => { root.selection-channel(k, v); }
+                }
+                HorizontalLayout {
+                    spacing: 8px;
+                    alignment: start;
+                    Button {
+                        text: @tr("Select all");
+                        clicked => { root.select-all(root.f.rings[0].segments[0].field); }
+                    }
+                    if e.offer-mirror: CheckBox {
+                        y: (parent.height - self.height) / 2;
+                        text: @tr("Same on both rings");
+                        checked: e.mirror;
+                        toggled => { root.mirror-toggled(self.checked); }
+                    }
+                }
+            }
+        }
+        for t in root.f.toggles: HorizontalLayout {
+            spacing: 8px;
+            alignment: start;
+            CheckBox {
+                text: t.label;
+                checked <=> t.on;
+                toggled => { root.flag-changed(t.field, self.checked); }
+            }
+            if t.changed: Dot {
+                y: (parent.height - self.height) / 2;
+            }
+        }
+    }
+}
 
 export component SettingsTab {
     in property <SettingsPage> page;
     // A value moved: its JSON pointer into the profile, and the new value.
     callback number-changed(string, float);
     callback flag-changed(string, bool);
+    // A drop-down list picked the option at this index.
+    callback choice-changed(string, int);
+    // A colour's hex field holds a colour, or one channel (0 red, 1 green, 2 blue) moved.
+    callback colour-typed(string, string);
+    callback colour-channel(string, int, float);
+    // The same, for the selected ring segments.
+    callback selection-typed(string);
+    callback selection-channel(int, float);
+    // A click on the ring whose first segment is this pointer, at a point of its 100 by
+    // 100 box, with Ctrl and Shift.
+    callback ring-pointed(string, float, float, bool, bool);
+    // Space on a ring segment, with Ctrl and Shift.
+    callback segment-keyed(string, bool, bool);
+    callback select-all(string);
+    callback mirror-toggled(bool);
 
     VerticalLayout {
         spacing: 12px;
@@ -21,67 +428,31 @@ export component SettingsTab {
         HorizontalLayout {
             spacing: 16px;
             alignment: start;
-            for f in root.page.frames: Frame {
+            for f in root.page.frames: FrameBody {
                 preferred-width: 360px;
                 max-width: 442px;
                 horizontal-stretch: 1;
-                VerticalLayout {
-                    padding: 14px;
-                    spacing: 12px;
-                    alignment: start;
-                    SmallHead {
-                        text: f.title;
-                    }
-                    for st in f.settings: VerticalLayout {
-                        spacing: 4px;
-                        HorizontalLayout {
-                            spacing: 8px;
-                            Text {
-                                horizontal-stretch: 1;
-                                text: st.label;
-                                color: Theme.fg;
-                            }
-                            if st.was != "": Text {
-                                text: @tr("was {}", st.was);
-                                color: Theme.fg-muted;
-                            }
-                            Text {
-                                text: st.text;
-                                color: st.was != "" ? Theme.fg : Theme.fg-muted;
-                                font-weight: st.was != "" ? 600 : 400;
-                            }
-                        }
-                        if st.high-field == "": Slider {
-                            value <=> st.low;
-                            minimum: st.minimum;
-                            maximum: st.maximum;
-                            accessible-name: @tr("{}, {}", f.title, st.label);
-                            changed(v) => { root.number-changed(st.low-field, v); }
-                        }
-                        if st.high-field != "": RangeSlider {
-                            low <=> st.low;
-                            high <=> st.high;
-                            minimum: st.minimum;
-                            maximum: st.maximum;
-                            accessible-name: @tr("{}, {}", f.title, st.label);
-                            low-changed(v) => { root.number-changed(st.low-field, v); }
-                            high-changed(v) => { root.number-changed(st.high-field, v); }
-                        }
-                    }
-                    for t in f.toggles: HorizontalLayout {
-                        spacing: 8px;
-                        alignment: start;
-                        CheckBox {
-                            text: t.label;
-                            checked <=> t.on;
-                            toggled => { root.flag-changed(t.field, self.checked); }
-                        }
-                        if t.changed: Dot {
-                            y: (parent.height - self.height) / 2;
-                        }
-                    }
-                }
+                f: f;
+                number-changed(field, v) => { root.number-changed(field, v); }
+                flag-changed(field, on) => { root.flag-changed(field, on); }
+                choice-changed(field, i) => { root.choice-changed(field, i); }
+                colour-typed(field, t) => { root.colour-typed(field, t); }
+                colour-channel(field, k, v) => { root.colour-channel(field, k, v); }
             }
+        }
+        for f in root.page.ring-frames: FrameBody {
+            max-width: 900px;
+            f: f;
+            number-changed(field, v) => { root.number-changed(field, v); }
+            flag-changed(field, on) => { root.flag-changed(field, on); }
+            colour-typed(field, t) => { root.colour-typed(field, t); }
+            colour-channel(field, k, v) => { root.colour-channel(field, k, v); }
+            selection-typed(t) => { root.selection-typed(t); }
+            selection-channel(k, v) => { root.selection-channel(k, v); }
+            ring-pointed(first, x, y, add, range) => { root.ring-pointed(first, x, y, add, range); }
+            segment-keyed(field, add, range) => { root.segment-keyed(field, add, range); }
+            select-all(field) => { root.select-all(field); }
+            mirror-toggled(on) => { root.mirror-toggled(on); }
         }
         if root.page.note != "": HorizontalLayout {
             spacing: 6px;

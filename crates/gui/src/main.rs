@@ -7,8 +7,10 @@
 
 mod batch;
 mod buttons;
+mod choices;
 mod chooser;
 mod closing;
+mod colours;
 mod controllers;
 mod embedded;
 mod files;
@@ -701,6 +703,33 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     ui.on_number_changed(move |field, value| c(&|s| s.set_number(&field, value)));
     let c = change.clone();
     ui.on_flag_changed(move |field, on| c(&|s| s.set_flag(&field, on)));
+    let c = change.clone();
+    ui.on_choice_changed(move |field, i| {
+        c(&|s| s.set_choice_at(&field, usize::try_from(i).unwrap_or(usize::MAX)));
+    });
+    let c = change.clone();
+    ui.on_colour_typed(move |field, text| c(&|s| s.set_colour(&field, &text)));
+    let c = change.clone();
+    ui.on_colour_channel(move |field, k, v| {
+        c(&|s| s.set_colour_channel(&field, usize::try_from(k).unwrap_or(usize::MAX), v));
+    });
+    let c = change.clone();
+    ui.on_selection_typed(move |text| c(&|s| s.set_selection_colour(&text)));
+    let c = change.clone();
+    ui.on_selection_channel(move |k, v| {
+        c(&|s| s.set_selection_channel(usize::try_from(k).unwrap_or(usize::MAX), v));
+    });
+    let c = change.clone();
+    ui.on_ring_pointed(move |first, x, y, add, range| {
+        c(&|s| s.click_ring(&first, x, y, add, range));
+    });
+    let c = change.clone();
+    ui.on_segment_keyed(move |field, add, range| c(&|s| s.click_segment(&field, add, range)));
+    let c = change.clone();
+    ui.on_select_all_segments(move |field| c(&|s| s.select_all_segments(&field)));
+    let c = change.clone();
+    ui.on_mirror_toggled(move |on| c(&|s| s.set_mirror(on)));
+    ui.global::<ui::ColourCheck<'_>>().on_valid(|text| colours::is_typed_colour(&text));
     let c = change.clone();
     ui.on_import_confirmed(move || c(&AppState::confirm_import));
     let c = change.clone();

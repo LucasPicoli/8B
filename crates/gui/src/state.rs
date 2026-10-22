@@ -197,6 +197,8 @@ pub struct AppState {
     pub rule: Rule,
     /// The user skipped the install for this run.
     pub rule_skipped: bool,
+    /// The ring segments the colour editor sets.
+    pub segments: crate::colours::Segments,
     /// "Check again" was chosen and no read has succeeded or been replugged since:
     /// a denied read then means the screen shows "Still blocked".
     pub rechecked: bool,
@@ -304,6 +306,7 @@ impl AppState {
             install: Install::Idle,
             rule: Rule::Current,
             rule_skipped: false,
+            segments: crate::colours::Segments::default(),
             rechecked: false,
             sandboxed: false,
             fix_offered: BTreeSet::new(),
@@ -777,6 +780,30 @@ pub mod tests {
             ..Default::default()
         };
         s.read_finished(port, Ok(read));
+    }
+
+    /// An Ultimate 2 in `XInput`, read with slot 1 of each mode holding the mode's
+    /// default profile with no name, slots 2 and 3 empty.
+    pub fn ultimate_2() -> AppState {
+        let model = controller_core::devices::model_named("Ultimate 2").unwrap();
+        let summary = |mode: Mode| CanonicalProfileSummary {
+            id: format!("{mode}-1"),
+            name: String::new(),
+            mode,
+            source_slot: 1,
+            source_profile_index: 0,
+            canonical: model.default_profile(mode),
+        };
+        let mut s = new_state();
+        s.presence(PORT, Some(XINPUT));
+        s.set_model(PORT, model);
+        let read = ProfileReadResult {
+            profiles: vec![summary(XINPUT), summary(DINPUT)],
+            firmware_version: "1.10".to_owned(),
+            ..Default::default()
+        };
+        s.read_finished(PORT, Ok(read));
+        s
     }
 
     /// A read of the test pad: slot 1 named `name`, slot 2 empty.

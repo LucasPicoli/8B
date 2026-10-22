@@ -369,10 +369,13 @@ impl AppState {
             }
         }
         for page in pages_of(self, slot) {
-            for frame in page.frames.iter() {
+            for frame in page.frames.iter().chain(page.ring_frames.iter()) {
                 // A frame of sliders names what a check box belongs to; the swaps
                 // say it themselves, and their long names would be cut.
-                let named = frame.settings.row_count() > 0;
+                let named = frame.settings.row_count() > 0
+                    || frame.choices.row_count() > 0
+                    || frame.colours.row_count() > 0
+                    || frame.rings.row_count() > 0;
                 let mine = |what: &str| {
                     if named {
                         tr!("{frame} · {setting}", frame = frame.title, setting = what)
@@ -380,8 +383,20 @@ impl AppState {
                         what.to_owned()
                     }
                 };
+                for c in frame.choices.iter().filter(|c| !c.was.is_empty()) {
+                    let now = usize::try_from(c.current).ok().and_then(|i| c.options.row_data(i));
+                    out.push(change(&mine(&c.label), &c.was, &now.unwrap_or_default()));
+                }
+                for c in frame.colours.iter().filter(|c| !c.was.is_empty()) {
+                    out.push(change(&mine(&c.label), &c.was, &c.hex));
+                }
                 for s in frame.settings.iter().filter(|s| !s.was.is_empty()) {
                     out.push(change(&mine(&s.label), &s.was, &s.text));
+                }
+                for r in frame.rings.iter().filter(|r| r.changed > 0) {
+                    let n = r.changed;
+                    let what = tr!("{n} segment changed" | "{n} segments changed" % n);
+                    out.push(change(&mine(&r.label), "", &what));
                 }
                 for t in frame.toggles.iter().filter(|t| t.changed) {
                     let (off, on) = (tr!("Off"), tr!("On"));

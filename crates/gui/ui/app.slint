@@ -4,7 +4,7 @@ import { AccessibleNumber, Theme, Button, LineEdit, ScrollView, Spinner } from "
 import { MessageBar, Placeholder, Icons, TabBar, Diagnostics } from "parts.slint";
 import { ButtonsTab } from "buttons.slint";
 import { MacrosTab } from "macros.slint";
-import { SettingsTab } from "settings.slint";
+import { SettingsTab, ColourCheck } from "settings.slint";
 import { Sidebar } from "sidebar.slint";
 import { ChangedDialog, ClearDialog, CloseDialog, FailedDialog, FixDialog, ImportDialog, MacroImportDialog, MoveDialog, RelockDialog, ReviewDialog, StoppedDialog, WritingDialog } from "dialogs.slint";
 import { BatchFailedDialog, BatchReviewDialog, BatchWritingDialog } from "batch.slint";
@@ -13,7 +13,7 @@ import { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, Setti
 import { Palette } from "std-widgets.slint";
 import { AppMenu, LanguageChoice, Languages, Relock } from "app_menu.slint";
 
-export { ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, LockedInfo, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages, Relock, AccessibleNumber }
+export { ColourCheck, ModeGroup, Slot, Section, MapRow, PadView, Spot, Setting, Toggle, SettingFrame, SettingsPage, Change, ImportWarning, MacroImportInfo, ReviewInfo, ClearInfo, FailedInfo, BatchSlot, BatchInfo, CloseInfo, CloseGroup, CloseSlot, LockedInfo, MacroRow, MacroSpot, LaneInfo, StickInfo, StepCount, StepInfo, ChipInfo, Theme, Palette, Diagnostics, LanguageChoice, Languages, Relock, AccessibleNumber }
 
 export component AppWindow inherits Window {
     title: (has-controller && locked.view == 0 ? slot-title + " · " : "") + "8B";
@@ -209,6 +209,15 @@ export component AppWindow inherits Window {
     // A JSON pointer into the profile, and its new value.
     callback number-changed(string, float);
     callback flag-changed(string, bool);
+    callback choice-changed(string, int);
+    callback colour-typed(string, string);
+    callback colour-channel(string, int, float);
+    callback selection-typed(string);
+    callback selection-channel(int, float);
+    callback ring-pointed(string, float, float, bool, bool);
+    callback segment-keyed(string, bool, bool);
+    callback select-all-segments(string);
+    callback mirror-toggled(bool);
     callback discard;
     // Macros tab edits, each for a macro slot (0-based).
     callback macro-created(int);
@@ -610,6 +619,15 @@ export component AppWindow inherits Window {
                         page: root.pages[root.tab - root.first-page];
                         number-changed(field, v) => { root.number-changed(field, v); }
                         flag-changed(field, on) => { root.flag-changed(field, on); }
+                        choice-changed(field, i) => { root.choice-changed(field, i); }
+                        colour-typed(field, t) => { root.colour-typed(field, t); }
+                        colour-channel(field, k, v) => { root.colour-channel(field, k, v); }
+                        selection-typed(t) => { root.selection-typed(t); }
+                        selection-channel(k, v) => { root.selection-channel(k, v); }
+                        ring-pointed(first, x, y, add, range) => { root.ring-pointed(first, x, y, add, range); }
+                        segment-keyed(field, add, range) => { root.segment-keyed(field, add, range); }
+                        select-all(field) => { root.select-all-segments(field); }
+                        mirror-toggled(on) => { root.mirror-toggled(on); }
                     }
                 }
             }

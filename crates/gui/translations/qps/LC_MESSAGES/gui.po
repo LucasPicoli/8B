@@ -911,6 +911,7 @@ msgstr "⟦~~~~~~Unsaved edits⟧"
 msgid "{}, holds a macro that cannot be written"
 msgstr "⟦~~~~~~~~~~~~~~~~{}, holds a macro that cannot be written⟧"
 
+#. With no old value, only the new one shows.
 #: ui/parts.slint
 msgid "{}  →  {}"
 msgstr "⟦~~~~{}  →  {}⟧"
@@ -1073,6 +1074,50 @@ msgstr "⟦~~~~~~~~~~Run this in a terminal:⟧"
 #: ui/settings.slint
 msgid "was {}"
 msgstr "⟦~~~was {}⟧"
+
+#: ui/settings.slint
+msgid "{}, {}, hex code"
+msgstr "⟦~~~~~~~{}, {}, hex code⟧"
+
+#: ui/settings.slint
+msgid "Red"
+msgstr "⟦~~Red⟧"
+
+#: ui/settings.slint
+msgid "Green"
+msgstr "⟦~~Green⟧"
+
+#: ui/settings.slint
+msgid "Blue"
+msgstr "⟦~~Blue⟧"
+
+#: ui/settings.slint
+msgid "{n} changed"
+msgid_plural "{n} changed"
+msgstr[0] "⟦~~~~~{n} changed⟧"
+msgstr[1] "⟦~~~~~{n} changed⟧"
+
+#: ui/settings.slint
+msgid "Select segments to colour them"
+msgstr "⟦~~~~~~~~~~~~Select segments to colour them⟧"
+
+#: ui/settings.slint
+msgid "{n} segment selected"
+msgid_plural "{n} segments selected"
+msgstr[0] "⟦~~~~~~~~{n} segment selected⟧"
+msgstr[1] "⟦~~~~~~~~~{n} segments selected⟧"
+
+#: ui/settings.slint
+msgid "Mixed"
+msgstr "⟦~~Mixed⟧"
+
+#: ui/settings.slint
+msgid "Select all"
+msgstr "⟦~~~~Select all⟧"
+
+#: ui/settings.slint
+msgid "Same on both rings"
+msgstr "⟦~~~~~~~~Same on both rings⟧"
 
 #: ui/sidebar.slint
 msgid "Slot {}, empty"
@@ -1326,6 +1371,14 @@ msgstr "⟦~~~Buttons⟧"
 #: src/chooser.rs
 msgid "JSON files"
 msgstr "⟦~~~~JSON files⟧"
+
+#: src/colours.rs
+msgid "{ring}, segment {n}, {colour}"
+msgstr "⟦~~~~~~~~~~~~{ring}, segment {n}, {colour}⟧"
+
+#: src/colours.rs
+msgid "Selected segments"
+msgstr "⟦~~~~~~~Selected segments⟧"
 
 #: src/controllers.rs
 msgid "{name} · Disconnected"
@@ -2224,6 +2277,12 @@ msgstr "⟦~~~~~~~~~~Cleared {mode} slot {n}.⟧"
 #: src/review.rs
 msgid "{frame} · {setting}"
 msgstr "⟦~~~~~~~~{frame} · {setting}⟧"
+
+#: src/review.rs
+msgid "{n} segment changed"
+msgid_plural "{n} segments changed"
+msgstr[0] "⟦~~~~~~~~{n} segment changed⟧"
+msgstr[1] "⟦~~~~~~~~{n} segments changed⟧"
 
 #: src/review.rs
 msgid "Off"
@@ -3444,16 +3503,16 @@ msgid "None"
 msgstr "⟦~~None⟧"
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/label
-msgid "The button"
-msgstr "⟦~~~~The button⟧"
+msgid "How it turns on"
+msgstr "⟦~~~~~~How it turns on⟧"
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/options/0/label
-msgid "Is held"
-msgstr "⟦~~~Is held⟧"
+msgid "Hold the button"
+msgstr "⟦~~~~~~Hold the button⟧"
 
 #. Ultimate 2 /settings/3/frames/0/choices/2/options/1/label
-msgid "Is pressed once, and again to turn off"
-msgstr "⟦~~~~~~~~~~~~~~~~Is pressed once, and again to turn off⟧"
+msgid "Press to toggle"
+msgstr "⟦~~~~~~Press to toggle⟧"
 
 #. Ultimate 2 /settings/4/label
 msgid "Lights"

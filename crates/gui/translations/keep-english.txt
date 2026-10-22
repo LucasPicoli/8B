@@ -7,5 +7,7 @@ Noto Sans # a font name
 Hack # a font name
 z # the Ctrl+Z key a shortcut compares with
 Z # the Ctrl+Z key a shortcut compares with
+a # the Ctrl+A key a shortcut compares with
+A # the Ctrl+A key a shortcut compares with
 English # a language name, shown in its own words
 Português (Brasil) # a language name, shown in its own words

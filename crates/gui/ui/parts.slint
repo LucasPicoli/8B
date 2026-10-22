@@ -380,7 +380,8 @@ export component ChangeRow inherits Rectangle {
         }
         Text {
             horizontal-stretch: 1;
-            text: @tr("{}  →  {}", root.change.from, root.change.to);
+            // With no old value, only the new one shows.
+            text: root.change.from == "" ? root.change.to : @tr("{}  →  {}", root.change.from, root.change.to);
             color: Theme.fg;
             vertical-alignment: center;
             wrap: word-wrap;

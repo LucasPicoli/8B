@@ -599,16 +599,16 @@
               ]
             },
             {
-              "label": "The button",
+              "label": "How it turns on",
               "field": "/motion/method",
               "options": [
                 {
                   "id": "hold",
-                  "label": "Is held"
+                  "label": "Hold the button"
                 },
                 {
                   "id": "toggle",
-                  "label": "Is pressed once, and again to turn off"
+                  "label": "Press to toggle"
                 }
               ]
             }

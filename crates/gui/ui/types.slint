@@ -116,16 +116,84 @@ export struct Toggle {
     changed: bool,
 }
 
+// A setting that takes one of a few named values: a drop-down list.
+export struct ChoiceRow {
+    label: string,
+    // JSON pointer into the profile.
+    field: string,
+    // The name of each option, in display order.
+    options: [string],
+    // The picked option.
+    current: int,
+    // What the controller holds, such as "Nothing". "" when the same.
+    was: string,
+}
+
+// A colour: a swatch, its hex code and a slider per channel.
+export struct ColourRow {
+    label: string,
+    // JSON pointer into the profile. "" for the editor of the selected ring segments.
+    field: string,
+    // Such as "#7E3200". "" when the selected segments hold different colours.
+    hex: string,
+    red: float,
+    green: float,
+    blue: float,
+    swatch: color,
+    // What the controller holds, such as "#CC6200". "" when the same.
+    was: string,
+}
+
+// One lit segment of a ring.
+export struct RingSegment {
+    // JSON pointer of its colour.
+    field: string,
+    // Its outline in a 100 by 100 box, as SVG path commands.
+    path: string,
+    fill: color,
+    selected: bool,
+    // Differs from what the controller holds.
+    changed: bool,
+    // What a screen reader says, such as "Left ring, segment 3, #7E3200".
+    spoken: string,
+}
+
+// A ring of segments, such as the Ultimate 2's left ring.
+export struct RingRow {
+    label: string,
+    segments: [RingSegment],
+    // How many segments differ from what the controller holds.
+    changed: int,
+}
+
+// The colour editor under a frame's rings, for the selected segments.
+export struct RingEditor {
+    // How many segments are selected. 0 disables the editor.
+    count: int,
+    colour: ColourRow,
+    // Segment n of each ring is selected with segment n of the other.
+    mirror: bool,
+    // The frame has two rings of the same size, so the mirror applies.
+    offer-mirror: bool,
+}
+
 export struct SettingFrame {
     title: string,
     settings: [Setting],
     toggles: [Toggle],
+    choices: [ChoiceRow],
+    colours: [ColourRow],
+    rings: [RingRow],
+    // One editor when the frame has rings, else none.
+    editors: [RingEditor],
 }
 
 // The Sticks, Triggers or Vibration tab.
 export struct SettingsPage {
     lead: string,
     frames: [SettingFrame],
+    // The frames with rings, shown full width below the others.
+    ring-frames: [SettingFrame],
     // What the controller's firmware hides of the tab. Empty for nothing.
     note: string,
 }

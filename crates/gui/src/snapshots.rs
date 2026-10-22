@@ -500,6 +500,38 @@ fn ultimate_tabs(suffix: &str) {
     }
 }
 
+/// The Motion and Lights tabs of an Ultimate 2 in `XInput`, in light and dark: the motion
+/// sensor on the right stick, Fire Ring's colour edited, and three segments of each ring
+/// selected with the mirror on, one of them recoloured.
+#[test]
+fn ultimate_2_motion_and_lights() {
+    let mut s = crate::state::tests::ultimate_2();
+    s.select(0, 0);
+    s.set_choice_at("/motion/map_to", 2);
+    s.set_choice_at("/motion/button", 11);
+    s.set_colour("/lights/fire", "#3daee9");
+    s.click_segment("/lights/custom/0", false, false);
+    s.set_mirror(true);
+    s.click_segment("/lights/custom/2", false, true);
+    s.click_segment("/lights/custom/1", true, false);
+    s.set_selection_colour("#27ae60");
+    s.click_segment("/lights/custom/1", true, false);
+    for dark in [false, true] {
+        let ui = window(&s);
+        ui.window().set_size(PhysicalSize::new(1280, 1000));
+        if dark {
+            ui.global::<crate::ui::Palette<'_>>()
+                .set_color_scheme(slint::language::ColorScheme::Dark);
+        }
+        let shade = if dark { "dark" } else { "light" };
+        for (tab, name) in [(5, "motion"), (6, "lights")] {
+            ui.set_tab(tab);
+            render(&s, &ui);
+            save(&format!("ultimate-2-{name}-{shade}"), &ui);
+        }
+    }
+}
+
 #[test]
 fn ultimate_tabs_in_each_mode() {
     ultimate_tabs("");
