@@ -2,8 +2,9 @@
 //!
 //! Light-tracing has a colour and a background, Fire Ring a colour, a background and a
 //! speed, and Custom one colour per ring segment, 12 on the left ring then 12 on the
-//! right. Which effect plays is not stored in the slot. A value the profile leaves as
-//! read keeps its bytes.
+//! right. A ring's first segment sits at 6 o'clock and the next ones follow clockwise,
+//! as seen on the pad. Which effect plays is not stored in the slot. A value the
+//! profile leaves as read keeps its bytes.
 
 use std::ops::RangeInclusive;
 

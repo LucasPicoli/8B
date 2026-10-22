@@ -682,35 +682,35 @@
             {
               "label": "Left ring",
               "fields": [
-                "/lights/custom/0",
-                "/lights/custom/1",
-                "/lights/custom/2",
-                "/lights/custom/3",
-                "/lights/custom/4",
-                "/lights/custom/5",
                 "/lights/custom/6",
                 "/lights/custom/7",
                 "/lights/custom/8",
                 "/lights/custom/9",
                 "/lights/custom/10",
-                "/lights/custom/11"
+                "/lights/custom/11",
+                "/lights/custom/0",
+                "/lights/custom/1",
+                "/lights/custom/2",
+                "/lights/custom/3",
+                "/lights/custom/4",
+                "/lights/custom/5"
               ]
             },
             {
               "label": "Right ring",
               "fields": [
-                "/lights/custom/12",
-                "/lights/custom/13",
-                "/lights/custom/14",
-                "/lights/custom/15",
-                "/lights/custom/16",
-                "/lights/custom/17",
                 "/lights/custom/18",
                 "/lights/custom/19",
                 "/lights/custom/20",
                 "/lights/custom/21",
                 "/lights/custom/22",
-                "/lights/custom/23"
+                "/lights/custom/23",
+                "/lights/custom/12",
+                "/lights/custom/13",
+                "/lights/custom/14",
+                "/lights/custom/15",
+                "/lights/custom/16",
+                "/lights/custom/17"
               ]
             }
           ]

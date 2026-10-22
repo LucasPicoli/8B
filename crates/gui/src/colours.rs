@@ -443,12 +443,12 @@ mod tests {
         let mut s = crate::state::tests::ultimate_2();
         s.select_all_segments("/lights/custom/0");
         assert_eq!(s.segments.selected.len(), 24);
-        s.click_segment("/lights/custom/5", false, false);
+        s.click_segment("/lights/custom/7", false, false);
         s.set_selection_colour("00ff80");
-        s.click_segment("/lights/custom/6", true, false);
+        s.click_segment("/lights/custom/8", true, false);
         s.set_selection_channel(0, 255.0);
         assert_eq!(
-            [shown(&s, "/lights/custom/5"), shown(&s, "/lights/custom/6")],
+            [shown(&s, "/lights/custom/7"), shown(&s, "/lights/custom/8")],
             ["#ffff80", "#ffff80"]
         );
         s.set_colour("/lights/fire", "#12AB34");

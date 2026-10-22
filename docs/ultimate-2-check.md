@@ -22,10 +22,16 @@ of their modes. Both files hold the same profile:
 | PR (right back paddle) | R3 |
 | X | a macro: Y |
 | L4 | a macro: A with LT, then B |
+| LT, held | turns on the motion sensor, which moves the right stick (the left one, as the sticks are swapped) |
 
 The sticks are swapped. With swap sticks on, the pad plays a macro's trigger on the
 other side, so the L4 macro's LT comes out as RT. The physical triggers stay as they
 are. Button names are the ones printed on the pad.
+
+The lights of the slot are green on magenta at full speed for Fire Ring, orange with a
+white, a red and a green segment from 6 o'clock clockwise for Custom, and red on blue
+for Light-tracing. Which effect plays is the pad's choice, not the slot's: from off,
+the Star button cycles it through Fire Ring, Custom and Light-tracing.
 
 ## Before you start
 
@@ -66,10 +72,12 @@ dinput`. For each mode:
    refuse before it sends anything. It checks that the bank did not change.
 5. It asks you to select profile 3 with the pad's profile button, and reads the bank to
    confirm the pad plays it.
-6. It walks you through 11 presses. For each one it reads what the pad sends on its
+6. It walks you through 16 steps. For each press it reads what the pad sends on its
    input node and compares it with what the profile says. You do not need a tester.
-   For the RB press, which must send nothing, it waits for your Enter. A press that
-   sends something else is reported, the presses go on, and the mode fails at the end.
+   For the RB press, which must send nothing, it waits for your Enter. For the motion
+   sensor it checks that the stick moved both ways. For the lights it asks
+   what you see, and you answer y or n. A step that fails is reported, the steps go
+   on, and the mode fails at the end.
 
 ## 3. Restore
 

@@ -101,6 +101,11 @@ pub enum Expect {
     Sends(&'static [&'static str]),
     /// Nothing at all, confirmed by the person with Enter.
     Nothing,
+    /// At least these controls, among others: a motion sensor sends many small moves.
+    Includes(&'static [&'static str]),
+    /// A question the person answers with y or n, about what the pad shows, such as the
+    /// colour of its light rings.
+    Seen(&'static str),
 }
 
 /// One press the person makes, and what it must send.
@@ -111,7 +116,7 @@ pub struct Press {
 
 /// Every press of the check, the same in both modes: the files hold the same remaps
 /// and macros. Button names are the ones printed on the pad.
-pub const PRESSES: [Press; 11] = [
+pub const PRESSES: [Press; 16] = [
     Press { action: "Press A (bottom face). Remapped to B.", expect: Expect::Sends(&["BTN_B"]) },
     Press { action: "Press B (right face). Remapped to A.", expect: Expect::Sends(&["BTN_A"]) },
     Press { action: "Press Y (top face). Remapped to LB.", expect: Expect::Sends(&["BTN_TL"]) },
@@ -140,5 +145,30 @@ pub const PRESSES: [Press; 11] = [
     Press {
         action: "Push the LEFT stick to the RIGHT, then let go. The sticks are swapped.",
         expect: Expect::Sends(&["right stick right"]),
+    },
+    // Swap sticks moves the motion sensor's stick too, as it moves a macro's trigger.
+    Press {
+        action: "Hold LT, tilt the pad hard left, then hard right, then let go. While LT is held, the motion sensor moves the right stick, which swap sticks makes the left.",
+        expect: Expect::Includes(&["LT", "left stick left", "left stick right"]),
+    },
+    // The effect that plays is the pad's, not the slot's: from off, the Star button
+    // cycles it through Fire Ring, Custom and Light-tracing.
+    Press {
+        action: "Press Star until the rings spin (Fire Ring).",
+        expect: Expect::Seen("Do they show green on magenta, spinning fast?"),
+    },
+    Press {
+        action: "Press Star once for Custom.",
+        expect: Expect::Seen(
+            "Is each ring orange, with white at 6 o'clock, then red, then green going clockwise?",
+        ),
+    },
+    Press {
+        action: "Press Star once for Light-tracing, then move the right stick around.",
+        expect: Expect::Seen("Does the lit part show red on a blue ring?"),
+    },
+    Press {
+        action: "Press Star until the rings are off, as before the check.",
+        expect: Expect::Seen("Are the rings off?"),
     },
 ];

@@ -291,6 +291,32 @@ fn press(pad: &Pad, mode: Mode) {
                     failed.push(format!("{}: sent {got:?}, expected {want:?}", step.action));
                 }
             }
+            Expect::Includes(want) => {
+                let got = input.gesture();
+                if want.iter().all(|w| got.iter().any(|g| g == w)) {
+                    println!("  ok: {got:?}");
+                } else {
+                    println!("  FAILED: sent {got:?}, expected at least {want:?}");
+                    failed
+                        .push(format!("{}: sent {got:?}, expected at least {want:?}", step.action));
+                }
+            }
+            Expect::Seen(question) => {
+                println!("  {question} Type y or n, then press Enter.");
+                let answer = loop {
+                    match line().to_lowercase().as_str() {
+                        "y" => break true,
+                        "n" => break false,
+                        _ => println!("  Type y or n, then press Enter."),
+                    }
+                };
+                if answer {
+                    println!("  ok");
+                } else {
+                    println!("  FAILED: no");
+                    failed.push(format!("{}: {question} no", step.action));
+                }
+            }
             Expect::Nothing => {
                 println!("  Then press Enter here.");
                 line();
