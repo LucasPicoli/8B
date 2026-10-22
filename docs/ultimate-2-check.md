@@ -66,7 +66,8 @@ dinput`. For each mode:
    confirm the pad plays it.
 6. It walks you through 11 presses. For each one it reads what the pad sends on its
    input node and compares it with what the profile says. You do not need a tester.
-   For the RB press, which must send nothing, it waits for your Enter.
+   For the RB press, which must send nothing, it waits for your Enter. A press that
+   sends something else is reported, the presses go on, and the mode fails at the end.
 
 ## 3. Restore
 

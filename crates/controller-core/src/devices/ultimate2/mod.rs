@@ -356,6 +356,14 @@ impl ProtocolCodec for Ultimate2 {
         let wide = RawProfilePayload { payload: widen(&raw.payload)?, ..raw.clone() };
         let mut summary = Pro3.map_profile(&wide)?;
         summary.canonical = own(summary.canonical);
+        // The Pro 3 reads a paddle that holds its own code as its paddle output, which
+        // the Ultimate 2 does not offer. The code is what "the paddle sends itself"
+        // writes, so it reads back as that.
+        for m in &mut summary.canonical.button_mappings {
+            if m.target.strip_suffix(" output") == Some(m.source.as_str()) {
+                m.target.clone_from(&m.source);
+            }
+        }
         Ok(summary)
     }
 
@@ -497,6 +505,23 @@ mod tests {
             let slot = Slot::new(n).unwrap();
             assert_eq!(Ultimate2.decode_macro_metadata(XINPUT_BLOB, slot).unwrap(), []);
         }
+    }
+
+    #[test]
+    fn a_dinput_paddle_sent_to_itself_reads_back_as_itself() {
+        let slot = Slot::new(1).unwrap();
+        let mut profile = Ultimate2.default_profile(DINPUT);
+        let m = profile.button_mappings.iter_mut().find(|m| m.source == "l4").unwrap();
+        "l4".clone_into(&mut m.target);
+        let bank = Ultimate2.compile_profile(&profile, slot, &erased_dinput(), &[]).unwrap();
+        let raw = RawProfilePayload {
+            payload: bank,
+            source_slot: 1,
+            source_profile_index: 0,
+            mode_hint: DINPUT,
+        };
+        let read = Ultimate2.map_profile(&raw).unwrap().canonical;
+        assert_eq!(read.button_mappings, profile.button_mappings);
     }
 
     #[test]

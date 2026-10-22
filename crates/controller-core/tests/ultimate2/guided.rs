@@ -265,6 +265,8 @@ fn press(pad: &Pad, mode: Mode) {
         );
     }
     let mut input = Input::open(&pad.port);
+    // Every press runs, so one run shows all the pad does; the mode fails at the end.
+    let mut failed = Vec::new();
     for (i, step) in PRESSES.iter().enumerate() {
         println!("\n[{}/{}] {}", i + 1, PRESSES.len(), step.action);
         input.forget();
@@ -275,16 +277,25 @@ fn press(pad: &Pad, mode: Mode) {
                     (want.to_vec(), got.iter().map(String::as_str).collect::<Vec<_>>());
                 a.sort_unstable();
                 b.sort_unstable();
-                assert_eq!(b, a, "{mode}: {} sent {got:?}", step.action);
-                println!("  ok: {got:?}");
+                if b == a {
+                    println!("  ok: {got:?}");
+                } else {
+                    println!("  FAILED: sent {got:?}, expected {want:?}");
+                    failed.push(format!("{}: sent {got:?}, expected {want:?}", step.action));
+                }
             }
             Expect::Nothing => {
                 println!("  Then press Enter here.");
                 line();
                 let got = input.so_far();
-                assert!(got.is_empty(), "{mode}: {} sent {got:?}", step.action);
-                println!("  ok: nothing");
+                if got.is_empty() {
+                    println!("  ok: nothing");
+                } else {
+                    println!("  FAILED: sent {got:?}, expected nothing");
+                    failed.push(format!("{}: sent {got:?}, expected nothing", step.action));
+                }
             }
         }
     }
+    assert!(failed.is_empty(), "{mode}: {} presses failed:\n{}", failed.len(), failed.join("\n"));
 }

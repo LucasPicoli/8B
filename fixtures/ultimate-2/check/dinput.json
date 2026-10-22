@@ -14,7 +14,7 @@
     },
     {
       "source": "left face",
-      "target": "disabled"
+      "target": "left face"
     },
     {
       "source": "l1",
@@ -82,7 +82,7 @@
     },
     {
       "source": "l4",
-      "target": "disabled"
+      "target": "l4"
     },
     {
       "source": "r4",
