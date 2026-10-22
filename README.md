@@ -91,6 +91,8 @@ Bug reports, fixes and new controllers are welcome. To add a controller, start w
 If you own an Ultimate 2.4G or an Ultimate Wired, the app refuses it until a pad has been
 checked. [Validating a controller](docs/validating-a-controller.md) lists the six checks.
 
+To check an Ultimate 2 in both its modes, see [Checking an Ultimate 2](docs/ultimate-2-check.md).
+
 1. Install `just` and the fontconfig headers (`libfontconfig-dev` on Debian and Ubuntu).
 2. Make your change on a branch.
 3. Run `just lint`. It runs `cargo fmt --check`, clippy with warnings as errors, and the

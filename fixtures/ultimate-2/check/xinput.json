@@ -1,0 +1,214 @@
+{
+  "button_mappings": [
+    {
+      "source": "right face",
+      "target": "bottom face"
+    },
+    {
+      "source": "bottom face",
+      "target": "right face"
+    },
+    {
+      "source": "top face",
+      "target": "l1"
+    },
+    {
+      "source": "left face",
+      "target": "disabled"
+    },
+    {
+      "source": "l1",
+      "target": "l1"
+    },
+    {
+      "source": "r1",
+      "target": "disabled"
+    },
+    {
+      "source": "l2",
+      "target": "l2"
+    },
+    {
+      "source": "r2",
+      "target": "r2"
+    },
+    {
+      "source": "l3",
+      "target": "l3"
+    },
+    {
+      "source": "r3",
+      "target": "r3"
+    },
+    {
+      "source": "select/back",
+      "target": "start/menu"
+    },
+    {
+      "source": "start/menu",
+      "target": "start/menu"
+    },
+    {
+      "source": "turbo",
+      "target": "turbo"
+    },
+    {
+      "source": "home/guide",
+      "target": "home/guide"
+    },
+    {
+      "source": "d-pad up",
+      "target": "d-pad up"
+    },
+    {
+      "source": "d-pad down",
+      "target": "d-pad down"
+    },
+    {
+      "source": "d-pad left",
+      "target": "d-pad left"
+    },
+    {
+      "source": "d-pad right",
+      "target": "d-pad right"
+    },
+    {
+      "source": "rp",
+      "target": "r3"
+    },
+    {
+      "source": "lp",
+      "target": "bottom face"
+    },
+    {
+      "source": "l4",
+      "target": "disabled"
+    },
+    {
+      "source": "r4",
+      "target": "disabled"
+    }
+  ],
+  "device": "8bitdo-ultimate-2",
+  "id": "xinput-slot-3-index-2",
+  "kind": "8bitdo.ultimate-2.profile",
+  "macros": [
+    {
+      "macro_slot": 0,
+      "mode": "xinput",
+      "name": "Y from X",
+      "repeat": {
+        "count": 1,
+        "interval_ms": 0
+      },
+      "trigger_buttons": [
+        "left face"
+      ],
+      "steps": [
+        {
+          "actions": {
+            "buttons": {
+              "press": [
+                "top face"
+              ],
+              "release": []
+            }
+          },
+          "duration_ms": 100
+        },
+        {
+          "actions": {
+            "buttons": {
+              "press": [],
+              "release": []
+            }
+          },
+          "duration_ms": 0
+        }
+      ]
+    },
+    {
+      "macro_slot": 1,
+      "mode": "xinput",
+      "name": "A B LT",
+      "repeat": {
+        "count": 1,
+        "interval_ms": 0
+      },
+      "trigger_buttons": [
+        "l4"
+      ],
+      "steps": [
+        {
+          "actions": {
+            "buttons": {
+              "press": [
+                "bottom face"
+              ],
+              "release": []
+            },
+            "triggers": {
+              "left": 255,
+              "right": 0
+            }
+          },
+          "duration_ms": 100
+        },
+        {
+          "actions": {
+            "buttons": {
+              "press": [
+                "right face"
+              ],
+              "release": []
+            },
+            "triggers": {
+              "left": 0,
+              "right": 0
+            }
+          },
+          "duration_ms": 100
+        },
+        {
+          "actions": {
+            "buttons": {
+              "press": [],
+              "release": []
+            },
+            "triggers": {
+              "left": 0,
+              "right": 0
+            }
+          },
+          "duration_ms": 0
+        }
+      ]
+    }
+  ],
+  "mode": "xinput",
+  "name": "8B check",
+  "sticks": {
+    "invert_left_x": false,
+    "invert_left_y": false,
+    "invert_right_x": false,
+    "invert_right_y": false,
+    "left_max_pct": 100,
+    "left_min_pct": 13,
+    "right_max_pct": 100,
+    "right_min_pct": 13,
+    "swap_dpad_with_left_stick": false,
+    "swap_sticks": true
+  },
+  "triggers": {
+    "left_max_pct": 100,
+    "left_min_pct": 0,
+    "right_max_pct": 100,
+    "right_min_pct": 0,
+    "swap_triggers": false
+  },
+  "version": 1,
+  "vibration": {
+    "left_level": 5,
+    "right_level": 5
+  }
+}

@@ -1,0 +1,141 @@
+//! The profile files in `fixtures/ultimate-2/check/`, the comparison of a slot read
+//! from a pad with one of them, and the presses that prove the pad plays it.
+#![allow(clippy::unwrap_used)]
+
+use controller_core::model::{CanonicalProfile, MacroDefinition, MacroStep, Mode};
+use serde_json::Value;
+
+/// The slot the check writes, 1-based. Slot 1 is the one a pad usually plays.
+pub const SLOT: u8 = 3;
+
+/// The text of the file for `mode`.
+fn text(mode: Mode) -> String {
+    std::fs::read_to_string(format!("../../fixtures/ultimate-2/check/{mode}.json")).unwrap()
+}
+
+/// The file for `mode`: its profile and its macros.
+pub fn fixture(mode: Mode) -> (CanonicalProfile, Vec<MacroDefinition>) {
+    let profile: CanonicalProfile = serde_json::from_str(&text(mode)).unwrap();
+    let macros = profile.macros.clone().unwrap();
+    (profile, macros)
+}
+
+/// The profile of the file for `mode` as a write job takes it: no macros.
+pub fn profile_json(mode: Mode) -> Value {
+    let mut json: Value = serde_json::from_str(&text(mode)).unwrap();
+    let object = json.as_object_mut().unwrap();
+    object.remove("macros");
+    object.remove("macro_refs");
+    json
+}
+
+/// A step as one line. Button order does not matter.
+fn show_step(s: &MacroStep) -> String {
+    let mut buttons = s.pressed_buttons.clone();
+    buttons.sort();
+    format!(
+        "{} ms, buttons {buttons:?}, triggers ({}, {}), sticks ({}, {}) ({}, {})",
+        s.duration_ms,
+        s.trigger_left,
+        s.trigger_right,
+        s.left_stick_x,
+        s.left_stick_y,
+        s.right_stick_x,
+        s.right_stick_y
+    )
+}
+
+/// Every way the slot read, `profile` and `macros`, differs from the file of its
+/// mode: the name, a setting, a mapping, a macro's trigger, repeat or step.
+pub fn differences(profile: &CanonicalProfile, macros: &[MacroDefinition]) -> Vec<String> {
+    let (want, want_macros) = fixture(profile.mode);
+    let mut out = Vec::new();
+    if profile.name != want.name {
+        out.push(format!("name: expected {}, read {}", want.name, profile.name));
+    }
+    if profile.settings != want.settings {
+        out.push(format!("settings: expected {:?}, read {:?}", want.settings, profile.settings));
+    }
+    for m in &want.button_mappings {
+        let read = profile.button_mappings.iter().find(|g| g.source == m.source);
+        if read.map(|g| &g.target) != Some(&m.target) {
+            let read = read.map_or("nothing", |g| g.target.as_str());
+            out.push(format!("mapping {}: expected {}, read {read}", m.source, m.target));
+        }
+    }
+    for w in &want_macros {
+        let n = w.macro_slot.unwrap_or_default();
+        let Some(g) = macros.iter().find(|g| g.macro_slot == w.macro_slot) else {
+            out.push(format!("macro {n}: missing"));
+            continue;
+        };
+        if g.trigger_buttons != w.trigger_buttons {
+            out.push(format!(
+                "macro {n} trigger: expected {:?}, read {:?}",
+                w.trigger_buttons, g.trigger_buttons
+            ));
+        }
+        if (g.repeat_count, g.interval_ms) != (w.repeat_count, w.interval_ms) {
+            out.push(format!(
+                "macro {n} repeat: expected {}, read {}",
+                w.repeat_count, g.repeat_count
+            ));
+        }
+        let (a, b): (Vec<_>, Vec<_>) =
+            (w.steps.iter().map(show_step).collect(), g.steps.iter().map(show_step).collect());
+        if a != b {
+            out.push(format!("macro {n} steps: expected {a:?}, read {b:?}"));
+        }
+    }
+    for g in macros {
+        if !want_macros.iter().any(|w| w.macro_slot == g.macro_slot) {
+            out.push(format!("macro {}: not in the file", g.macro_slot.unwrap_or_default()));
+        }
+    }
+    out
+}
+
+/// What one press must make the pad send.
+pub enum Expect {
+    /// These controls, in any order, and nothing else.
+    Sends(&'static [&'static str]),
+    /// Nothing at all, confirmed by the person with Enter.
+    Nothing,
+}
+
+/// One press the person makes, and what it must send.
+pub struct Press {
+    pub action: &'static str,
+    pub expect: Expect,
+}
+
+/// Every press of the check, the same in both modes: the files hold the same remaps
+/// and macros. Button names are the ones printed on the pad.
+pub const PRESSES: [Press; 11] = [
+    Press { action: "Press A (bottom face). Remapped to B.", expect: Expect::Sends(&["BTN_B"]) },
+    Press { action: "Press B (right face). Remapped to A.", expect: Expect::Sends(&["BTN_A"]) },
+    Press { action: "Press Y (top face). Remapped to LB.", expect: Expect::Sends(&["BTN_TL"]) },
+    Press { action: "Press LB. Unchanged.", expect: Expect::Sends(&["BTN_TL"]) },
+    Press { action: "Press View. Remapped to Menu.", expect: Expect::Sends(&["BTN_START"]) },
+    Press { action: "Press RB. Disabled.", expect: Expect::Nothing },
+    Press {
+        action: "Press the left back paddle (PL). Mapped to A.",
+        expect: Expect::Sends(&["BTN_A"]),
+    },
+    Press {
+        action: "Press the right back paddle (PR). Mapped to R3.",
+        expect: Expect::Sends(&["BTN_THUMBR"]),
+    },
+    Press {
+        action: "Press X (left face). It plays a macro: Y.",
+        expect: Expect::Sends(&["BTN_Y"]),
+    },
+    Press {
+        action: "Press L4. It plays a macro: A with LT, then B.",
+        expect: Expect::Sends(&["BTN_A", "LT", "BTN_B"]),
+    },
+    Press {
+        action: "Push the left stick right, then let go. The sticks are swapped.",
+        expect: Expect::Sends(&["right stick right"]),
+    },
+];

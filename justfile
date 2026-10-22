@@ -85,7 +85,7 @@ missing-strings:
 # run it by hand after an encoder change, never here. `import_check` is a guided run
 # with a person, see docs/ultimate-import-check.md.
 hw:
-    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate --skip import_check
+    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate --skip import_check --skip guided::
 
 # One phase of the guided check of an imported profile on an Ultimate: backup, check or
 # restore. Run each once, in that order. `check` takes the modes to press, both by default,
@@ -95,6 +95,15 @@ ultimate-import-check phase *modes:
     set -euo pipefail
     case "{{phase}}" in backup|check|restore) ;; *) echo 'phase: backup, check or restore' >&2; exit 2 ;; esac
     IMPORT_CHECK_MODES="{{modes}}" cargo test -p controller-core --features hardware --test ultimate -- --ignored --nocapture --exact "import_check::{{phase}}"
+
+# One phase of the guided check of an Ultimate 2 in both modes: backup, check or restore.
+# Run each once, in that order. Name modes to run one only, as in `just ultimate-2-check
+# check dinput`. See docs/ultimate-2-check.md.
+ultimate-2-check phase *modes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{phase}}" in backup|check|restore) ;; *) echo 'phase: backup, check or restore' >&2; exit 2 ;; esac
+    ULTIMATE_2_CHECK_MODES="{{modes}}" cargo test -p controller-core --features hardware --test ultimate2 -- --ignored --nocapture --exact "guided::{{phase}}"
 
 # Build the x86_64 AppImage in ubuntu:22.04 (glibc 2.35), so it runs on that glibc and newer.
 appimage:
