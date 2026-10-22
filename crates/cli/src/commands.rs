@@ -238,7 +238,8 @@ pub fn run_dump(output_dir: &str) -> i32 {
         return 5; // export_failure
     }
 
-    for (i, blob) in out.raw_blobs.iter().enumerate() {
+    // A pad that serves only its current mode's bank leaves the others empty.
+    for (i, blob) in out.raw_blobs.iter().enumerate().filter(|(_, b)| !b.is_empty()) {
         let filename = format!("raw-blob-{i}.bin");
         let file_path = Path::new(output_dir).join(&filename);
         match fs::write(&file_path, blob) {

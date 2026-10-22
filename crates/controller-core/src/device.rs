@@ -95,6 +95,21 @@ pub trait ControllerSpec {
     fn firmware_version(&self, reply: &[u8]) -> Result<String> {
         crate::protocol::wire::decode_firmware_version(reply)
     }
+    /// The request that asks which mode the pad is in, sent as it is, for a pad that
+    /// keeps one USB id in every mode. Such a pad serves only the bank of its current
+    /// mode, so a read skips the other banks and a write to another mode is refused.
+    /// `None`, the default, takes the mode from the USB id.
+    fn mode_request(&self) -> Option<RawRequest> {
+        None
+    }
+    /// The mode named by the reply to [`Self::mode_request`].
+    ///
+    /// # Errors
+    /// Returns [`crate::Error::Decode`] if the reply is short or names a mode the model
+    /// does not list. The default refuses every reply.
+    fn mode_in_reply(&self, _reply: &[u8]) -> Result<Mode> {
+        Err(crate::Error::Decode("this controller does not report its mode".to_owned()))
+    }
     /// Whether every profile write is read back and compared, decoded, with what was
     /// sent, and rolled back on a difference. Set it for a pad that checks no CRC of
     /// its own, so a corrupted chunk shows only in the read-back. `false`, the default,

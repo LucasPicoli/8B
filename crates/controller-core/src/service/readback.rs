@@ -37,8 +37,9 @@ pub struct ReadbackResult {
 /// Returns the blob of `mode`'s bank from a full read of `model`, checked for size.
 ///
 /// # Errors
-/// Returns [`Error::Usb`] if the read has no blob for `mode` or one that is not the
-/// model's blob size.
+/// Returns [`Error::Validation`] if the pad served no bank for `mode`, since it serves
+/// only its current mode's, and [`Error::Usb`] if the read has no blob for `mode` or
+/// one that is not the model's blob size.
 pub fn bank_of<'r>(
     model: &dyn Model,
     read: &'r ProfileReadResult,
@@ -49,6 +50,11 @@ pub fn bank_of<'r>(
     }
     let blob = blob_for_mode(model, read, mode)
         .ok_or_else(|| Error::Usb(format!("no blob available for mode '{mode}'")))?;
+    if blob.is_empty() {
+        return Err(Error::Validation(format!(
+            "the controller serves no {mode} bank in its current mode: switch it to {mode} mode"
+        )));
+    }
     let size = model.blob_size();
     if blob.len() != size {
         return Err(Error::Usb(format!(

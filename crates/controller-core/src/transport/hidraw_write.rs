@@ -154,6 +154,13 @@ fn command(session: &mut Session, packet: &[u8; PACKET_LEN], echo: u8, what: &st
 }
 
 pub(super) fn send_slot_select(session: &mut Session, mode: Mode) -> Result<()> {
+    // A pad that reports its mode ignores the select and stays on its current bank.
+    if session.model()?.mode_request().is_some() && mode != session.current_mode {
+        return Err(Error::write(format!(
+            "the controller is in {} mode: switch it to {mode} mode first",
+            session.current_mode
+        )));
+    }
     let packet = build_slot_select(session.model()?.slot_select_value(mode)?);
     command(session, &packet, CMD_SLOT_SELECT, "slot select")
 }

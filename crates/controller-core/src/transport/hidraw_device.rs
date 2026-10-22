@@ -36,6 +36,9 @@ pub struct HidrawDevice {
     /// The model the last read session identified, for [`DeviceIo::model`]. Each read
     /// refreshes it, so another pad plugged into the same port is seen.
     model: Mutex<Option<&'static dyn Model>>,
+    /// The mode the pad named in the last read session, for a model whose modes share
+    /// one USB id. `None` for any other model.
+    told_mode: Mutex<Option<Mode>>,
     /// The session of the write job in progress, from [`DeviceIo::begin_write`] to
     /// [`DeviceIo::end_write`]. Every call uses it while it is held.
     held: Mutex<Option<Session>>,
@@ -46,14 +49,24 @@ impl HidrawDevice {
     /// operation is performed.
     #[must_use]
     pub const fn first() -> Self {
-        Self { port: None, model: Mutex::new(None), held: Mutex::new(None) }
+        Self {
+            port: None,
+            model: Mutex::new(None),
+            told_mode: Mutex::new(None),
+            held: Mutex::new(None),
+        }
     }
 
     /// A handle to the controller on USB port path `port`, such as `8-5`. Nothing
     /// is opened until an operation is performed.
     #[must_use]
     pub fn at(port: &str) -> Self {
-        Self { port: Some(port.to_owned()), model: Mutex::new(None), held: Mutex::new(None) }
+        Self {
+            port: Some(port.to_owned()),
+            model: Mutex::new(None),
+            told_mode: Mutex::new(None),
+            held: Mutex::new(None),
+        }
     }
 
     fn target(&self) -> Target<'_> {
@@ -91,7 +104,13 @@ impl HidrawDevice {
     fn read_session(&self) -> Result<Session> {
         let opened = Session::open(self.target(), READ_TIMEOUT);
         let model = opened.as_ref().ok().map(Session::model).transpose()?;
+        let told = opened
+            .as_ref()
+            .ok()
+            .filter(|_| model.is_some_and(|m| m.mode_request().is_some()))
+            .map(|s| s.current_mode);
         *self.model.lock().unwrap_or_else(PoisonError::into_inner) = model;
+        *self.told_mode.lock().unwrap_or_else(PoisonError::into_inner) = told;
         opened
     }
 
@@ -215,7 +234,9 @@ fn select_current_bank(session: &mut Session) -> Result<()> {
     Ok(())
 }
 
-/// Reads every bank in the model's mode order, then selects the current mode's bank.
+/// Reads every bank in the model's mode order, then selects the current mode's bank. A
+/// model with a [`crate::device::ControllerSpec::mode_request`] gets the current mode's
+/// bank only, and an empty blob and no profiles for each other mode.
 fn read_all_banks(session: &mut Session) -> Result<ProfileReadResult> {
     let model = session.model()?;
     let description = model.description()?;
@@ -224,6 +245,11 @@ fn read_all_banks(session: &mut Session) -> Result<ProfileReadResult> {
     let mut raw_blobs = Vec::new();
 
     for target_mode in description.modes.iter().map(|m| m.id) {
+        // A pad that reports its mode serves only that bank: the others stay unread.
+        if model.mode_request().is_some() && target_mode != session.current_mode {
+            raw_blobs.push(Vec::new());
+            continue;
+        }
         let slot_select = model.slot_select_value(target_mode)?;
         let _ = session.send_recv(&build_slot_select(slot_select))?;
         let blob = read_blob_chunks(session)?;
@@ -274,6 +300,12 @@ fn empty_summary(model: &dyn Model, mode: Mode, source_slot: u8) -> CanonicalPro
 // ---------------------------------------------------------------------------
 
 impl crate::transport::DeviceIo for HidrawDevice {
+    /// The mode the pad named in the last read session, for a model whose modes share
+    /// one USB id. A mode change re-enumerates the pad, and the app reads it again.
+    fn current_mode(&self) -> Option<Mode> {
+        *self.told_mode.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
     fn model(&self) -> Result<&'static dyn Model> {
         let known = *self.model.lock().unwrap_or_else(PoisonError::into_inner);
         match known {
@@ -362,7 +394,10 @@ impl crate::transport::DeviceIo for HidrawDevice {
         let description = model.description()?;
         let name = &description.display_name;
         readiness.firmware_version.clone_from(&session.firmware_version);
-        let blob = match read_blob(&mut session, model.slot_select_value(found.port.mode)?) {
+        // The session's mode: the pad's own answer when its USB id does not tell.
+        readiness.mode = Some(session.current_mode);
+        let select = model.slot_select_value(session.current_mode)?;
+        let blob = match read_blob(&mut session, select) {
             Ok(blob) => blob,
             Err(e) => {
                 readiness.message =

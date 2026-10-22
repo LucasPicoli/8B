@@ -20,7 +20,7 @@ Device|Features
 ---|---
 Pro 3|- Edit button mappings, sticks, triggers and vibration settings in every XInput, Switch and DInput slot</br>- Create and edit macros</br>- Import and export profiles as JSON
 Ultimate Bluetooth|- Edit button mappings, sticks, triggers and vibration settings in every XInput and Switch slot, over the cable</br>- Create and edit macros</br>- Import and export profiles as JSON
-Ultimate 2 Wireless|- Edit button mappings, sticks, triggers and vibration settings in every XInput slot, over the cable</br>- Create and edit macros</br>- Import and export profiles as JSON
+Ultimate 2 Wireless|- Edit button mappings, sticks, triggers and vibration settings in every XInput and DInput slot, over the cable. The pad serves only the mode it is in, so switch it on the pad to edit the other</br>- Create and edit macros</br>- Import and export profiles as JSON
 
 ## Roadmap
 

@@ -69,7 +69,8 @@ pub(super) struct Session {
     paused: bool,
     /// Framing of the current mode.
     pub(super) framing: Framing,
-    /// The current mode, from the USB id the controller enumerated with.
+    /// The current mode, from the USB id the controller enumerated with, or from the
+    /// pad itself when its model has a [`crate::device::ControllerSpec::mode_request`].
     pub(super) current_mode: Mode,
     /// The mode to flip to before a write, from the matched config port.
     pub(super) write_via: Option<Mode>,
@@ -167,6 +168,9 @@ impl Session {
             session.firmware_version = model
                 .firmware_version(&reply)
                 .inspect_err(|e| warn!("cannot read the firmware version: {e}"))?;
+        }
+        if let Some(request) = model.mode_request() {
+            session.current_mode = model.mode_in_reply(&session.send_raw(&request)?)?;
         }
         info!(
             "controller opened: {named_by}, mode {:?}, firmware {}",

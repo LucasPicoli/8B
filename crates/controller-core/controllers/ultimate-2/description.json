@@ -25,6 +25,12 @@
       "trigger_kind": "analog",
       "macro_stick_floor": 2,
       "extra_outputs": []
+    },
+    {
+      "id": "dinput",
+      "label": "DInput",
+      "trigger_kind": "analog",
+      "extra_outputs": []
     }
   ],
   "slot_count": 3,
@@ -60,7 +66,8 @@
     {
       "id": "right face",
       "labels": {
-        "xinput": "B"
+        "xinput": "B",
+        "dinput": "B"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -70,7 +77,8 @@
     {
       "id": "bottom face",
       "labels": {
-        "xinput": "A"
+        "xinput": "A",
+        "dinput": "A"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -80,7 +88,8 @@
     {
       "id": "top face",
       "labels": {
-        "xinput": "Y"
+        "xinput": "Y",
+        "dinput": "Y"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -90,7 +99,8 @@
     {
       "id": "left face",
       "labels": {
-        "xinput": "X"
+        "xinput": "X",
+        "dinput": "X"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -100,7 +110,8 @@
     {
       "id": "l1",
       "labels": {
-        "xinput": "LB"
+        "xinput": "LB",
+        "dinput": "LB"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -110,7 +121,8 @@
     {
       "id": "r1",
       "labels": {
-        "xinput": "RB"
+        "xinput": "RB",
+        "dinput": "RB"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -120,7 +132,8 @@
     {
       "id": "l2",
       "labels": {
-        "xinput": "LT"
+        "xinput": "LT",
+        "dinput": "LT"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -131,7 +144,8 @@
     {
       "id": "r2",
       "labels": {
-        "xinput": "RT"
+        "xinput": "RT",
+        "dinput": "RT"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -142,7 +156,8 @@
     {
       "id": "l3",
       "labels": {
-        "xinput": "LS"
+        "xinput": "LS",
+        "dinput": "LS"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -152,7 +167,8 @@
     {
       "id": "r3",
       "labels": {
-        "xinput": "RS"
+        "xinput": "RS",
+        "dinput": "RS"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -162,7 +178,8 @@
     {
       "id": "select/back",
       "labels": {
-        "xinput": "View"
+        "xinput": "View",
+        "dinput": "View"
       },
       "spoken_labels": {},
       "can_be_remapped": true,
@@ -173,7 +190,8 @@
     {
       "id": "start/menu",
       "labels": {
-        "xinput": "Menu"
+        "xinput": "Menu",
+        "dinput": "Menu"
       },
       "spoken_labels": {},
       "can_be_remapped": true,
@@ -184,7 +202,8 @@
     {
       "id": "turbo",
       "labels": {
-        "xinput": "Turbo"
+        "xinput": "Turbo",
+        "dinput": "Turbo"
       },
       "can_be_remapped": false,
       "can_be_output": false,
@@ -194,7 +213,8 @@
     {
       "id": "home/guide",
       "labels": {
-        "xinput": "Guide"
+        "xinput": "Guide",
+        "dinput": "Guide"
       },
       "can_be_remapped": false,
       "can_be_output": true,
@@ -204,10 +224,12 @@
     {
       "id": "d-pad up",
       "labels": {
-        "xinput": "↑"
+        "xinput": "↑",
+        "dinput": "↑"
       },
       "spoken_labels": {
-        "xinput": "D-pad up"
+        "xinput": "D-pad up",
+        "dinput": "D-pad up"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -217,10 +239,12 @@
     {
       "id": "d-pad down",
       "labels": {
-        "xinput": "↓"
+        "xinput": "↓",
+        "dinput": "↓"
       },
       "spoken_labels": {
-        "xinput": "D-pad down"
+        "xinput": "D-pad down",
+        "dinput": "D-pad down"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -230,10 +254,12 @@
     {
       "id": "d-pad left",
       "labels": {
-        "xinput": "←"
+        "xinput": "←",
+        "dinput": "←"
       },
       "spoken_labels": {
-        "xinput": "D-pad left"
+        "xinput": "D-pad left",
+        "dinput": "D-pad left"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -243,10 +269,12 @@
     {
       "id": "d-pad right",
       "labels": {
-        "xinput": "→"
+        "xinput": "→",
+        "dinput": "→"
       },
       "spoken_labels": {
-        "xinput": "D-pad right"
+        "xinput": "D-pad right",
+        "dinput": "D-pad right"
       },
       "can_be_remapped": true,
       "can_be_output": true,
@@ -256,7 +284,8 @@
     {
       "id": "rp",
       "labels": {
-        "xinput": "PR"
+        "xinput": "PR",
+        "dinput": "PR"
       },
       "can_be_remapped": true,
       "can_be_output": false,
@@ -266,7 +295,8 @@
     {
       "id": "lp",
       "labels": {
-        "xinput": "PL"
+        "xinput": "PL",
+        "dinput": "PL"
       },
       "can_be_remapped": true,
       "can_be_output": false,
@@ -276,7 +306,8 @@
     {
       "id": "l4",
       "labels": {
-        "xinput": "L4"
+        "xinput": "L4",
+        "dinput": "L4"
       },
       "can_be_remapped": true,
       "can_be_output": false,
@@ -286,7 +317,8 @@
     {
       "id": "r4",
       "labels": {
-        "xinput": "R4"
+        "xinput": "R4",
+        "dinput": "R4"
       },
       "can_be_remapped": true,
       "can_be_output": false,
@@ -384,7 +416,8 @@
       "id": "triggers",
       "label": "Triggers",
       "modes": [
-        "xinput"
+        "xinput",
+        "dinput"
       ],
       "lead": "Below the range the trigger reads as released. Above it, as pulled all the way.",
       "frames": [

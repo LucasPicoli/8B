@@ -2,21 +2,26 @@
 //!
 //! The Ultimate 2 speaks the Pro 3 protocol and keeps the Pro 3 image layout, less the
 //! Pro 3's 1176-byte legacy macro section and plus 420 bytes of motion and light
-//! settings at the end. The codec widens an Ultimate 2 image to the Pro 3 layout, runs
-//! the Pro 3 codec on it, and narrows the result back.
+//! settings at the end. Its faces carry Xbox letters where the Pro 3's carry Nintendo
+//! ones, which moves face entries and codes (see `translate`). The codec widens an
+//! Ultimate 2 image to the Pro 3 layout, runs the Pro 3 codec on it, and narrows the
+//! result back.
 
 use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::description::ControllerDescription;
-use crate::device::{ControllerSpec, ProtocolCodec};
-use crate::devices::pro3::{self, Pro3, XINPUT};
+use crate::device::{ControllerSpec, ProtocolCodec, RawRequest};
+use crate::devices::pro3::{self, Pro3, DINPUT, XINPUT};
 use crate::error::Result;
 use crate::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, MacroSlot, MacroStep, Mode,
     RawProfilePayload, Slot,
 };
-use crate::protocol::bytes::{put_slice, read_u16_le, take};
+use crate::protocol::bytes::{
+    put_slice, put_u16_le, put_u32_le, read_u16_le, read_u32_le, read_u8, take,
+};
+use crate::protocol::wire_write::PACKET_LEN;
 
 /// Ultimate 2 image size in bytes (`0x0638`).
 pub const BLOB_SIZE: usize = 0x0638;
@@ -34,6 +39,9 @@ const TAIL_END: usize = SHARED_HEAD_END + (pro3::tables::EXPECTED_PROFILE_SIZE -
 /// the two layouts. A swap is its own inverse, so it serves both directions.
 const FACE_SWAPS: [usize; 2] = [0, 2];
 
+/// Letter codes that trade places between the two pads: A with B, X with Y.
+const LETTER_SWAPS: [(u32, u32); 2] = [(0x2000, 0x1000), (0x10, 0x20)];
+
 /// The vendor app waits this long between the last chunk and the apply, on the
 /// Ultimate 2 only.
 const APPLY_DELAY: Duration = Duration::from_millis(100);
@@ -44,6 +52,59 @@ const MODE_OFFSET: usize = 0x0010;
 /// Offset of the macro count in a slot's macro record: the number of macros with
 /// steps, a byte. The Pro 3 code writes its macro slot count there instead.
 const MACRO_COUNT_OFFSET: usize = 4;
+
+/// Each per-slot section of the image: its first slot's offset, the stride between
+/// slots and its length. Flag, name, vibration, sticks, triggers, options, button
+/// map, macro record, motor range, motion, and the three light themes.
+const SLOT_SECTIONS: [(usize, usize, usize); 13] = [
+    (0x000, 4, 4),
+    (0x014, 32, 32),
+    (0x074, 12, 12),
+    (0x098, 8, 8),
+    (0x0B0, 8, 8),
+    (0x0C8, 8, 8),
+    (0x0E0, 0x5C, 0x5C),
+    (0x1F4, 216, 216),
+    (0x47C, 8, 8),
+    (0x494, 12, 12),
+    (0x4B8, 12, 12),
+    (0x4DC, 16, 16),
+    (0x50C, 100, 100),
+];
+
+/// `base` with every section of `slot` zeroed when the slot holds no profile. A bank
+/// the pad never saved is erased flash, and the Pro 3 code keeps a base byte that
+/// decodes to the value it would write, so `ff` would survive as a stick end of 255 and
+/// as option bits nobody set.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if `base` is a full image cut short.
+fn clear_unused(base: &[u8], slot: Slot) -> Result<Vec<u8>> {
+    let mut out = base.to_vec();
+    if base.len() != BLOB_SIZE || Pro3.slot_active(base, slot)? {
+        return Ok(out);
+    }
+    let index = usize::from(slot.get()) - 1;
+    for (first, stride, len) in SLOT_SECTIONS {
+        put_slice(&mut out, first + index * stride, &vec![0; len])?;
+    }
+    Ok(out)
+}
+
+/// The request that asks the pad its mode, which its USB id does not tell.
+const MODE_REQUEST: [u8; 4] = [0x81, 0x04, 0x05, 0x01];
+/// The first two bytes of the reply to [`MODE_REQUEST`].
+const MODE_REPLY_HEAD: [u8; 2] = [0x02, 0x04];
+/// Where the reply to [`MODE_REQUEST`] names the mode.
+const MODE_REPLY_OFFSET: usize = 18;
+/// The reply's value for `XInput`, seen on the pad.
+const MODE_REPLY_XINPUT: u8 = 1;
+/// The reply's value for `DInput`, seen on the pad.
+const MODE_REPLY_DINPUT: u8 = 0;
+
+/// The Pro 3's `DInput` paddle outputs. The Ultimate 2 vendor app offers none of them
+/// and leaves the paddles unmapped, so a default profile disables them.
+const PRO3_PADDLE_OUTPUTS: [&str; 4] = ["rp output", "lp output", "l4 output", "r4 output"];
 
 /// The `device` every Ultimate 2 profile carries.
 const DEVICE: &str = "8bitdo-ultimate-2";
@@ -65,45 +126,52 @@ static DESCRIPTION: LazyLock<Result<ControllerDescription>> = LazyLock::new(|| {
     )
 });
 
+/// The mode whose bank `blob` is, from the mode it records.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if `blob` is too short or records a mode the
+/// description does not list. The pad serves the bank of the mode it is in, whatever
+/// mode the slot select names, and keeps `2dc8:310b` in every mode, so only the bank
+/// tells.
+fn bank_mode(blob: &[u8]) -> Result<Mode> {
+    let recorded = read_u16_le(blob, MODE_OFFSET)?;
+    for mode in Ultimate2.description()?.modes.iter().map(|m| m.id) {
+        if u16::from(Pro3.slot_select_value(mode)?) == recorded {
+            return Ok(mode);
+        }
+    }
+    Err(crate::Error::Decode(format!(
+        "the pad is in a mode 8B does not support (mode byte {recorded}): switch it to XInput"
+    )))
+}
+
+/// Refuses `blob`, a full image, unless it is the bank of `mode`.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if it records another mode or one not listed.
+fn check_bank(blob: &[u8], mode: Mode) -> Result<()> {
+    match bank_mode(blob)? {
+        found if blob.len() != BLOB_SIZE || found == mode => Ok(()),
+        found => Err(crate::Error::Decode(format!(
+            "the pad is in {found} mode: switch it to {mode} mode first"
+        ))),
+    }
+}
+
 /// `blob` in the Pro 3 layout. A blob of another size, such as the empty base of a new
 /// write, passes through, and the Pro 3 codec treats it as it would its own.
 ///
 /// # Errors
-/// Returns [`crate::Error::Decode`] if `blob` is the bank of a mode other than
-/// `XInput`. The pad serves the bank of the mode it is in, whatever mode the slot
-/// select names, and keeps `2dc8:310b` in both, so only the bank tells.
+/// Returns [`crate::Error::Decode`] if `blob` records a mode the description does not list.
 fn widen(blob: &[u8]) -> Result<Vec<u8>> {
     if blob.len() != BLOB_SIZE {
         return Ok(blob.to_vec());
     }
-    if read_u16_le(blob, MODE_OFFSET)? != u16::from(Pro3.slot_select_value(XINPUT)?) {
-        return Err(crate::Error::Decode(
-            "the pad is in DInput mode, which 8B does not support yet: switch it to XInput"
-                .to_owned(),
-        ));
-    }
-    let (head, rest) = blob.split_at(SHARED_HEAD_END);
+    let mut own = blob.to_vec();
+    translate(&mut own)?;
+    let (head, rest) = own.split_at(SHARED_HEAD_END);
     let tail = rest.get(..TAIL_END - SHARED_HEAD_END).unwrap_or_default();
-    let mut wide = [head, &[0; LEGACY_LEN], tail].concat();
-    swap_faces(&mut wide);
-    Ok(wide)
-}
-
-/// Swaps the [`FACE_SWAPS`] entries of every slot's button map in `blob`. The map
-/// lies in the shared head, so the same offsets serve both layouts.
-fn swap_faces(blob: &mut [u8]) {
-    use pro3::tables::{BUTTON_ENTRY_BYTES, BUTTON_MAP_BASE_OFFSET, BUTTON_MAP_SLOT_STRIDE};
-    for slot in 0..usize::from(pro3::tables::PROFILE_SLOT_COUNT) {
-        let map = BUTTON_MAP_BASE_OFFSET + slot * BUTTON_MAP_SLOT_STRIDE;
-        for index in FACE_SWAPS {
-            let start = map + index * BUTTON_ENTRY_BYTES;
-            let Some(pair) = blob.get_mut(start..start + 2 * BUTTON_ENTRY_BYTES) else {
-                return;
-            };
-            let (first, second) = pair.split_at_mut(BUTTON_ENTRY_BYTES);
-            first.swap_with_slice(second);
-        }
-    }
+    Ok([head, &[0; LEGACY_LEN], tail].concat())
 }
 
 /// `wide`, a Pro 3 layout image, back in the Ultimate 2 layout, with the motion and
@@ -120,10 +188,78 @@ fn narrow(wide: &[u8], base: &[u8]) -> Result<Vec<u8>> {
         _ => vec![0; BLOB_SIZE - TAIL_END],
     };
     let mut out = [head, tail, &extra].concat();
-    swap_faces(&mut out);
+    translate(&mut out)?;
     count_macros(&mut out)?;
     pro3::profile::seal_crc(&mut out)?;
     Ok(out)
+}
+
+/// Turns an Ultimate 2 image into what the Pro 3 codec expects of the same bytes, or
+/// back: each step is its own inverse.
+///
+/// 1. The button map lists the faces bottom, right, left, top, where the Pro 3 lists
+///    right, bottom, top, left: [`FACE_SWAPS`].
+/// 2. Macro triggers name a face by its printed letter, and A, B, X and Y sit on other
+///    faces than on the Pro 3: [`swap_letters`]. In `DInput` the button map does too.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if `blob` is short or records a mode not listed.
+fn translate(blob: &mut [u8]) -> Result<()> {
+    use pro3::tables::{
+        BUTTON_ENTRY_BYTES, BUTTON_MAP_BASE_OFFSET, BUTTON_MAP_SLOT_STRIDE, MACRO_DESCRIPTOR_SIZE,
+        MACRO_KEY_MAP_OFFSET, MACRO_SLOTS_PER_PROFILE, SECTION4_RECORD_HEADER_SIZE,
+        SECTION4_SLOT_STRIDE, SOURCE_BUTTON_COUNT,
+    };
+    let letters_in_map = bank_mode(blob)? == DINPUT;
+    for slot in 0..usize::from(pro3::tables::PROFILE_SLOT_COUNT) {
+        let map = BUTTON_MAP_BASE_OFFSET + slot * BUTTON_MAP_SLOT_STRIDE;
+        for index in FACE_SWAPS {
+            let start = map + index * BUTTON_ENTRY_BYTES;
+            let pair = blob
+                .get_mut(start..start + 2 * BUTTON_ENTRY_BYTES)
+                .ok_or_else(|| crate::Error::Decode("image too short".to_owned()))?;
+            let (first, second) = pair.split_at_mut(BUTTON_ENTRY_BYTES);
+            first.swap_with_slice(second);
+        }
+        if letters_in_map {
+            for index in 0..SOURCE_BUTTON_COUNT {
+                let at = map + index * BUTTON_ENTRY_BYTES;
+                let code = swap_letters(read_u32_le(blob, at)?);
+                put_u32_le(blob, at, code)?;
+            }
+        }
+        let record = SHARED_HEAD_END + slot * SECTION4_SLOT_STRIDE + SECTION4_RECORD_HEADER_SIZE;
+        for index in 0..MACRO_SLOTS_PER_PROFILE {
+            let at = record + index * MACRO_DESCRIPTOR_SIZE + MACRO_KEY_MAP_OFFSET;
+            let code = swap_letters(read_u32_le(blob, at)?);
+            put_u32_le(blob, at, code)?;
+        }
+    }
+    Ok(())
+}
+
+/// `code` with the A and B bits traded, and the X and Y bits. The codes follow the
+/// printed letter, which sits on another face than on the Pro 3.
+fn swap_letters(code: u32) -> u32 {
+    LETTER_SWAPS.iter().fold(code, |code, &(a, b)| {
+        let rest = code & !(a | b);
+        let moved = if code & a != 0 { b } else { 0 } | if code & b != 0 { a } else { 0 };
+        rest | moved
+    })
+}
+
+/// [`swap_letters`] on each step's button bits in `stream`, a run of step records.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if a step record is cut short.
+fn swap_step_letters(stream: &mut [u8]) -> Result<()> {
+    use pro3::tables::{MACRO_STEP_RECORD_SIZE, STEP_KEYS_OFFSET};
+    for start in (0..stream.len() / MACRO_STEP_RECORD_SIZE).map(|i| i * MACRO_STEP_RECORD_SIZE) {
+        let at = start + STEP_KEYS_OFFSET;
+        let keys = swap_letters(u32::from(read_u16_le(stream, at)?));
+        put_u16_le(stream, at, u16::try_from(keys).unwrap_or_default())?;
+    }
+    Ok(())
 }
 
 /// Writes the macro count of each slot whose macro record is in use, the number of
@@ -185,6 +321,22 @@ impl ControllerSpec for Ultimate2 {
     fn apply_delay(&self) -> Duration {
         APPLY_DELAY
     }
+    fn mode_request(&self) -> Option<RawRequest> {
+        let mut wire = [0; PACKET_LEN];
+        for (dst, b) in wire.iter_mut().zip(MODE_REQUEST) {
+            *dst = b;
+        }
+        Some(RawRequest { wire, reply_head: MODE_REPLY_HEAD })
+    }
+    fn mode_in_reply(&self, reply: &[u8]) -> Result<Mode> {
+        match read_u8(reply, MODE_REPLY_OFFSET)? {
+            MODE_REPLY_XINPUT => Ok(XINPUT),
+            MODE_REPLY_DINPUT => Ok(DINPUT),
+            other => Err(crate::Error::Decode(format!(
+                "the pad names an unknown mode {other}: switch it to XInput or DInput"
+            ))),
+        }
+    }
     fn slot_select_value(&self, mode: Mode) -> Result<u8> {
         Pro3.slot_select_value(has(mode)?)
     }
@@ -200,6 +352,7 @@ impl ProtocolCodec for Ultimate2 {
     }
 
     fn map_profile(&self, raw: &RawProfilePayload) -> Result<CanonicalProfileSummary> {
+        check_bank(&raw.payload, raw.mode_hint)?;
         let wide = RawProfilePayload { payload: widen(&raw.payload)?, ..raw.clone() };
         let mut summary = Pro3.map_profile(&wide)?;
         summary.canonical = own(summary.canonical);
@@ -207,7 +360,13 @@ impl ProtocolCodec for Ultimate2 {
     }
 
     fn default_profile(&self, mode: Mode) -> CanonicalProfile {
-        own(Pro3.default_profile(mode))
+        let mut profile = own(Pro3.default_profile(mode));
+        for m in &mut profile.button_mappings {
+            if PRO3_PADDLE_OUTPUTS.contains(&m.target.as_str()) {
+                "disabled".clone_into(&mut m.target);
+            }
+        }
+        profile
     }
 
     fn decode_macro_metadata(
@@ -224,11 +383,15 @@ impl ProtocolCodec for Ultimate2 {
         step_count: usize,
         mode: Mode,
     ) -> Result<Vec<MacroStep>> {
-        Pro3.decode_macro_steps(stream, step_count, mode)
+        let mut stream = stream.to_vec();
+        swap_step_letters(&mut stream)?;
+        Pro3.decode_macro_steps(&stream, step_count, mode)
     }
 
     fn encode_macro_steps(&self, steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
-        Pro3.encode_macro_steps(steps, mode)
+        let mut stream = Pro3.encode_macro_steps(steps, mode)?;
+        swap_step_letters(&mut stream)?;
+        Ok(stream)
     }
 
     fn encode_macro_metadata(
@@ -236,7 +399,11 @@ impl ProtocolCodec for Ultimate2 {
         def: &MacroDefinition,
         macro_slot: MacroSlot,
     ) -> Result<Vec<u8>> {
-        Pro3.encode_macro_metadata(def, macro_slot)
+        let mut descriptor = Pro3.encode_macro_metadata(def, macro_slot)?;
+        let at = pro3::tables::MACRO_KEY_MAP_OFFSET;
+        let code = swap_letters(read_u32_le(&descriptor, at)?);
+        put_u32_le(&mut descriptor, at, code)?;
+        Ok(descriptor)
     }
 
     fn compile_profile(
@@ -246,7 +413,9 @@ impl ProtocolCodec for Ultimate2 {
         base_blob: &[u8],
         macros: &[MacroDefinition],
     ) -> Result<Vec<u8>> {
-        let wide = Pro3.compile_profile(profile, target_slot, &widen(base_blob)?, macros)?;
+        check_bank(base_blob, profile.mode)?;
+        let base = clear_unused(base_blob, target_slot)?;
+        let wide = Pro3.compile_profile(profile, target_slot, &widen(&base)?, macros)?;
         narrow(&wide, base_blob)
     }
 
@@ -256,7 +425,9 @@ impl ProtocolCodec for Ultimate2 {
         target_slot: Slot,
         base_blob: &[u8],
     ) -> Result<Vec<u8>> {
-        let wide = Pro3.compile_profile_keep_macros(profile, target_slot, &widen(base_blob)?)?;
+        check_bank(base_blob, profile.mode)?;
+        let base = clear_unused(base_blob, target_slot)?;
+        let wide = Pro3.compile_profile_keep_macros(profile, target_slot, &widen(&base)?)?;
         narrow(&wide, base_blob)
     }
 
@@ -342,22 +513,93 @@ mod tests {
     }
 
     #[test]
-    fn a_dinput_bank_is_refused() {
-        // What the pad served in DInput: erased flash with the DInput mode byte.
-        let mut dinput = vec![0xff; BLOB_SIZE];
-        dinput[MODE_OFFSET..MODE_OFFSET + 2].copy_from_slice(&[1, 0]);
+    fn letters_trade_places_and_back() {
+        assert_eq!(swap_letters(0x2000), 0x1000);
+        assert_eq!(swap_letters(0x1000 | 0x10 | 0x400), 0x2000 | 0x20 | 0x400);
+        assert_eq!(swap_letters(swap_letters(0xFFFF_FFFF)), 0xFFFF_FFFF);
+        assert_eq!(swap_letters(0x0020_0000), 0x0020_0000, "L4 is no letter");
+    }
+
+    #[test]
+    fn a_macro_started_by_b_reads_as_the_right_face() {
+        // On the pad, the trigger code 0x1000 (B) fired from the right face.
+        let mut blob = XINPUT_BLOB.to_vec();
+        let key_map = SHARED_HEAD_END + 8 + pro3::tables::MACRO_KEY_MAP_OFFSET;
+        blob[key_map..key_map + 4].copy_from_slice(&0x1000u32.to_le_bytes());
+        let macros = Ultimate2.decode_macro_metadata(&blob, Slot::new(1).unwrap()).unwrap();
+        assert_eq!(macros[0].trigger_buttons, ["right face"]);
+    }
+
+    #[test]
+    fn a_step_of_b_presses_the_right_face() {
+        let steps =
+            Ultimate2.decode_macro_steps(&[0, 0, 0x00, 0x10, 0, 0, 0, 0, 0, 0], 1, XINPUT).unwrap();
+        let back = Ultimate2.encode_macro_steps(&steps, XINPUT).unwrap();
+        assert_eq!(back[2..4], [0x00, 0x10]);
+        assert_eq!(steps[0].pressed_buttons, ["right face"]);
+    }
+
+    /// What the pad served in `DInput`: never saved, erased flash with the mode byte.
+    fn erased_dinput() -> Vec<u8> {
+        let mut bank = vec![0xff; BLOB_SIZE];
+        bank[MODE_OFFSET..MODE_OFFSET + 2].copy_from_slice(&[1, 0]);
+        bank
+    }
+
+    #[test]
+    fn a_bank_of_another_mode_is_refused() {
         let raw = RawProfilePayload {
-            payload: dinput.clone(),
+            payload: erased_dinput(),
             source_slot: 1,
             source_profile_index: 0,
             mode_hint: XINPUT,
         };
         assert!(Ultimate2.map_profile(&raw).is_err());
         let slot = Slot::new(1).unwrap();
-        assert!(Ultimate2.slot_active(&dinput, slot).is_err());
-        assert!(Ultimate2.compile_profile(&slot1(), slot, &dinput, &[]).is_err());
-        assert!(Ultimate2.compile_profile_keep_macros(&slot1(), slot, &dinput).is_err());
-        assert!(Ultimate2.deactivate_profile(&dinput, slot).is_err());
+        assert!(Ultimate2.compile_profile(&slot1(), slot, &erased_dinput(), &[]).is_err());
+        let mut switch = erased_dinput();
+        switch[MODE_OFFSET] = 0;
+        assert!(Ultimate2.slot_active(&switch, slot).is_err(), "Switch is no mode of the pad");
+    }
+
+    #[test]
+    fn a_dinput_profile_round_trips_through_the_erased_bank() {
+        let slot = Slot::new(2).unwrap();
+        assert!(!Ultimate2.slot_active(&erased_dinput(), slot).unwrap());
+        let mut profile = Ultimate2.default_profile(DINPUT);
+        "Blue".clone_into(&mut profile.name);
+        let m = profile.button_mappings.iter_mut().find(|m| m.source == "bottom face").unwrap();
+        "right face".clone_into(&mut m.target);
+        let bank = Ultimate2.compile_profile(&profile, slot, &erased_dinput(), &[]).unwrap();
+        // No erased byte survives in the slot: full stick range, no option bits.
+        assert_eq!(bank[0x098 + 8 + 4..0x098 + 8 + 8], [0x11, 0x80, 0x11, 0x80]);
+        assert_eq!(bank[0x0C8 + 8 + 4..0x0C8 + 8 + 8], [0, 0, 0, 0]);
+        // The other slots stay erased.
+        assert!(bank[0x098 + 4..0x098 + 8].iter().all(|&b| b == 0xff));
+        // The bottom face (entry 0) now sends B, the right face's code.
+        let entry = pro3::tables::BUTTON_MAP_BASE_OFFSET + pro3::tables::BUTTON_MAP_SLOT_STRIDE;
+        assert_eq!(bank[entry..entry + 4], 0x1000u32.to_le_bytes());
+        let raw = RawProfilePayload {
+            payload: bank,
+            source_slot: 2,
+            source_profile_index: 1,
+            mode_hint: DINPUT,
+        };
+        let read = Ultimate2.map_profile(&raw).unwrap().canonical;
+        assert_eq!(read.button_mappings, profile.button_mappings);
+        assert_eq!(read.name, "Blue");
+    }
+
+    #[test]
+    fn the_mode_reply_names_the_mode() {
+        let mut reply = [0u8; 64];
+        reply[..2].copy_from_slice(&MODE_REPLY_HEAD);
+        reply[MODE_REPLY_OFFSET] = 1;
+        assert_eq!(Ultimate2.mode_in_reply(&reply).unwrap(), XINPUT);
+        reply[MODE_REPLY_OFFSET] = 0;
+        assert_eq!(Ultimate2.mode_in_reply(&reply).unwrap(), DINPUT);
+        reply[MODE_REPLY_OFFSET] = 2;
+        assert!(Ultimate2.mode_in_reply(&reply).is_err());
     }
 
     #[test]
