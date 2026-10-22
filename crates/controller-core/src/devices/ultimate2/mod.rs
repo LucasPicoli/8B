@@ -102,9 +102,35 @@ const MODE_REPLY_XINPUT: u8 = 1;
 /// The reply's value for `DInput`, seen on the pad.
 const MODE_REPLY_DINPUT: u8 = 0;
 
-/// The Pro 3's `DInput` paddle outputs. The Ultimate 2 vendor app offers none of them
-/// and leaves the paddles unmapped, so a default profile disables them.
-const PRO3_PADDLE_OUTPUTS: [&str; 4] = ["rp output", "lp output", "l4 output", "r4 output"];
+/// The back paddles and extra shoulder buttons. None has an output of its own on the
+/// Ultimate 2: the vendor app stores `0` for one left as it is, in every mode, and a
+/// macro on it plays only then. The Pro 3 code writes its own code instead, which made
+/// L4 send LB and not start its macro on the pad.
+const PADDLES: [&str; 4] = ["rp", "lp", "l4", "r4"];
+
+/// `profile` with each paddle that the Pro 3 code reads as `disabled`, or as its Pro 3
+/// output, read as itself: on the Ultimate 2 all of them mean the paddle is left as it is.
+fn paddles_as_themselves(profile: &mut CanonicalProfile) {
+    for m in &mut profile.button_mappings {
+        let src = m.source.as_str();
+        let leftover = m.target == "disabled" || m.target.strip_suffix(" output") == Some(src);
+        if PADDLES.contains(&src) && leftover {
+            m.target.clone_from(&m.source);
+        }
+    }
+}
+
+/// `profile` for the Pro 3 code, with each paddle left as itself sent to `disabled`,
+/// which it writes as `0`.
+fn paddles_for_pro3(profile: &CanonicalProfile) -> CanonicalProfile {
+    let mut out = profile.clone();
+    for m in &mut out.button_mappings {
+        if PADDLES.contains(&m.source.as_str()) && m.target == m.source {
+            "disabled".clone_into(&mut m.target);
+        }
+    }
+    out
+}
 
 /// The `device` every Ultimate 2 profile carries.
 const DEVICE: &str = "8bitdo-ultimate-2";
@@ -356,24 +382,13 @@ impl ProtocolCodec for Ultimate2 {
         let wide = RawProfilePayload { payload: widen(&raw.payload)?, ..raw.clone() };
         let mut summary = Pro3.map_profile(&wide)?;
         summary.canonical = own(summary.canonical);
-        // The Pro 3 reads a paddle that holds its own code as its paddle output, which
-        // the Ultimate 2 does not offer. The code is what "the paddle sends itself"
-        // writes, so it reads back as that.
-        for m in &mut summary.canonical.button_mappings {
-            if m.target.strip_suffix(" output") == Some(m.source.as_str()) {
-                m.target.clone_from(&m.source);
-            }
-        }
+        paddles_as_themselves(&mut summary.canonical);
         Ok(summary)
     }
 
     fn default_profile(&self, mode: Mode) -> CanonicalProfile {
         let mut profile = own(Pro3.default_profile(mode));
-        for m in &mut profile.button_mappings {
-            if PRO3_PADDLE_OUTPUTS.contains(&m.target.as_str()) {
-                "disabled".clone_into(&mut m.target);
-            }
-        }
+        paddles_as_themselves(&mut profile);
         profile
     }
 
@@ -432,7 +447,8 @@ impl ProtocolCodec for Ultimate2 {
     ) -> Result<Vec<u8>> {
         check_bank(base_blob, profile.mode)?;
         let base = clear_unused(base_blob, target_slot)?;
-        let wide = Pro3.compile_profile(profile, target_slot, &widen(&base)?, macros)?;
+        let pro3 = paddles_for_pro3(profile);
+        let wide = Pro3.compile_profile(&pro3, target_slot, &widen(&base)?, macros)?;
         narrow(&wide, base_blob)
     }
 
@@ -444,7 +460,8 @@ impl ProtocolCodec for Ultimate2 {
     ) -> Result<Vec<u8>> {
         check_bank(base_blob, profile.mode)?;
         let base = clear_unused(base_blob, target_slot)?;
-        let wide = Pro3.compile_profile_keep_macros(profile, target_slot, &widen(&base)?)?;
+        let pro3 = paddles_for_pro3(profile);
+        let wide = Pro3.compile_profile_keep_macros(&pro3, target_slot, &widen(&base)?)?;
         narrow(&wide, base_blob)
     }
 
@@ -504,6 +521,24 @@ mod tests {
         for n in [2, 3] {
             let slot = Slot::new(n).unwrap();
             assert_eq!(Ultimate2.decode_macro_metadata(XINPUT_BLOB, slot).unwrap(), []);
+        }
+    }
+
+    #[test]
+    fn a_paddle_left_as_itself_is_stored_as_zero_in_both_modes() {
+        let slot = Slot::new(1).unwrap();
+        // Entry 20 of slot 1's map: L4.
+        let entry = pro3::tables::BUTTON_MAP_BASE_OFFSET + 20 * 4;
+        for (mode, base) in [(XINPUT, XINPUT_BLOB.to_vec()), (DINPUT, erased_dinput())] {
+            let profile = Ultimate2.default_profile(mode);
+            assert!(profile.button_mappings.iter().any(|m| m.source == "l4" && m.target == "l4"));
+            let bank = Ultimate2.compile_profile(&profile, slot, &base, &[]).unwrap();
+            assert_eq!(bank[entry..entry + 4], [0, 0, 0, 0], "{mode}");
+        }
+        // The capture's L4 and R4 start macros and hold 0: they read as themselves.
+        let p = slot1();
+        for paddle in ["l4", "r4"] {
+            assert!(p.button_mappings.iter().any(|m| m.source == paddle && m.target == paddle));
         }
     }
 

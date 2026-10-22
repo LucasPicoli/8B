@@ -2,7 +2,6 @@
 //! from a pad with one of them, and the presses that prove the pad plays it.
 #![allow(clippy::unwrap_used)]
 
-use controller_core::devices::model_named;
 use controller_core::model::{CanonicalProfile, MacroDefinition, MacroStep, Mode};
 use serde_json::Value;
 
@@ -57,17 +56,9 @@ pub fn differences(profile: &CanonicalProfile, macros: &[MacroDefinition]) -> Ve
     if profile.settings != want.settings {
         out.push(format!("settings: expected {:?}, read {:?}", want.settings, profile.settings));
     }
-    // A button the file leaves unchanged may read back as the mode's default for it:
-    // `XInput` has no L4 output, so "L4 sends L4" is stored, and read, as `disabled`.
-    let defaults = model_named("Ultimate 2").unwrap().default_profile(profile.mode);
-    let default_of = |source: &str| {
-        defaults.button_mappings.iter().find(|d| d.source == source).map(|d| d.target.clone())
-    };
     for m in &want.button_mappings {
         let read = profile.button_mappings.iter().find(|g| g.source == m.source);
-        let unchanged =
-            m.target == m.source && read.map(|g| g.target.clone()) == default_of(&m.source);
-        if read.map(|g| &g.target) != Some(&m.target) && !unchanged {
+        if read.map(|g| &g.target) != Some(&m.target) {
             let read = read.map_or("nothing", |g| g.target.as_str());
             out.push(format!("mapping {}: expected {}, read {read}", m.source, m.target));
         }
@@ -144,7 +135,7 @@ pub const PRESSES: [Press; 11] = [
         expect: Expect::Sends(&["BTN_A", "LT", "BTN_B"]),
     },
     Press {
-        action: "Push the left stick right, then let go. The sticks are swapped.",
+        action: "Push the LEFT stick to the RIGHT, then let go. The sticks are swapped.",
         expect: Expect::Sends(&["right stick right"]),
     },
 ];

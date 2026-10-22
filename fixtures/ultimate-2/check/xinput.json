@@ -86,7 +86,7 @@
     },
     {
       "source": "r4",
-      "target": "disabled"
+      "target": "r4"
     }
   ],
   "device": "8bitdo-ultimate-2",
