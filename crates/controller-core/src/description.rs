@@ -20,7 +20,7 @@ mod firmware;
 mod lock;
 mod prose;
 
-pub use fields::{is_colour_value, Choice, ChoiceOption, Colour, Ring};
+pub use fields::{is_colour_value, ButtonNote, Choice, ChoiceIs, ChoiceOption, Colour, Ring};
 pub use firmware::{firmware_allows, FirmwareVersion};
 pub use lock::{Lock, LockedPort, Relock, TimedPacket, Unlock, MAX_PACKET_LEN};
 pub use prose::Prose;
@@ -826,6 +826,16 @@ impl ControllerDescription {
                         "choice '{}' needs at least one option and no id twice",
                         choice.field
                     ));
+                }
+                let unless = choice.button_note.as_ref().and_then(|n| n.unless.as_ref());
+                if let Some(c) = unless {
+                    if self.choice(mode, &c.field).and_then(|o| o.option(&c.is)).is_none() {
+                        return Err(format!(
+                            "choice '{}' hides its button note on '{}' of '{}', no option of a \
+                             choice in {mode} mode",
+                            choice.field, c.is, c.field
+                        ));
+                    }
                 }
             }
             if let Some(ring) = frames().flat_map(|f| &f.rings).find(|r| r.fields.is_empty()) {

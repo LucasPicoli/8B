@@ -51,6 +51,11 @@ export struct MapRow {
     warning: string,
     // Differs from what the controller holds: not written yet.
     changed: bool,
+    // A line under the button's name, such as "Also turns on the motion sensor". Empty
+    // for none.
+    note: string,
+    // How many rows above this one carry a note, so a scroll can find it.
+    notes-above: int,
 }
 
 // One drawing of the controller, recoloured for the theme.

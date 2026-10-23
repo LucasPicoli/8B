@@ -397,6 +397,25 @@
               "label": { "type": "string", "minLength": 1 }
             }
           }
+        },
+        "button_note": {
+          "description": "A line the Buttons tab shows under the row of the button the choice holds, such as the one that turns the motion sensor on.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text"],
+          "properties": {
+            "text": { "type": "string", "minLength": 1 },
+            "unless": {
+              "description": "Another choice that hides the line while it holds the option `is`.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["field", "is"],
+              "properties": {
+                "field": { "type": "string", "pattern": "^/" },
+                "is": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
         }
       }
     },

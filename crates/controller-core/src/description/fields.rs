@@ -16,6 +16,32 @@ pub struct Choice {
     pub field: String,
     /// The values it may take, in display order.
     pub options: Vec<ChoiceOption>,
+    /// A line the Buttons tab shows under the row of the button the choice holds, when
+    /// the choice names a button, such as the one that turns the motion sensor on.
+    #[serde(default)]
+    pub button_note: Option<ButtonNote>,
+}
+
+/// The line under the row of the button a [`Choice`] holds.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ButtonNote {
+    /// The line, such as "Also turns on the motion sensor".
+    pub text: String,
+    /// Another choice that hides the line while it holds one option, such as the motion
+    /// sensor's stick while it moves nothing.
+    #[serde(default)]
+    pub unless: Option<ChoiceIs>,
+}
+
+/// A choice, by its JSON pointer, holding one of its options.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ChoiceIs {
+    /// JSON pointer of the choice, such as `/motion/map_to`.
+    pub field: String,
+    /// The option's id, such as `off`.
+    pub is: String,
 }
 
 impl Choice {

@@ -90,10 +90,16 @@ export component ButtonsTab {
     // Asks the page to scroll a table row into view (absolute y, height).
     callback reveal(length, length);
 
+    // The line a note adds under a button's name.
+    property <length> note-height: 16px;
+
     // A click on the drawing: select the row and scroll it into view.
     function show(row: int) {
         selected = row;
-        reveal(table.absolute-position.y + Theme.row-height * (row + 1), Theme.row-height);
+        let r = root.rows[row];
+        reveal(
+            table.absolute-position.y + Theme.row-height * (row + 1) + root.note-height * r.notes-above,
+            Theme.row-height + (r.note != "" ? root.note-height : 0));
     }
 
     VerticalLayout {
@@ -166,7 +172,8 @@ export component ButtonsTab {
                             }
                         }
                         for r[i] in root.rows: Rectangle {
-                            height: Theme.row-height;
+                            // A note adds a line under the button's name.
+                            height: r.note != "" ? Theme.row-height + root.note-height : Theme.row-height;
                             background: i == root.selected ? Theme.accent-wash : transparent;
                             Rectangle {
                                 y: 0;
@@ -185,51 +192,70 @@ export component ButtonsTab {
                                 accessible-role: text;
                                 accessible-label: r.changed ? @tr("Not written yet") : @tr("Remapped");
                             }
-                            HorizontalLayout {
-                                padding-left: 10px;
-                                padding-right: 10px;
-                                spacing: 10px;
-                                VerticalLayout {
-                                    width: 40%;
-                                    alignment: center;
-                                    HorizontalLayout {
-                                        spacing: 6px;
-                                        alignment: start;
-                                        Text {
-                                            text: r.label;
-                                            color: Theme.fg;
-                                            accessible-label: r.spoken;
+                            VerticalLayout {
+                                HorizontalLayout {
+                                    // With a note, the name and the picker sit a little higher.
+                                    height: r.note != "" ? Theme.row-height - 4px : Theme.row-height;
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    spacing: 10px;
+                                    VerticalLayout {
+                                        width: 40%;
+                                        alignment: center;
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            alignment: start;
+                                            Text {
+                                                text: r.label;
+                                                color: Theme.fg;
+                                                accessible-label: r.spoken;
+                                            }
+                                        }
+                                    }
+                                    if r.fixed: Text {
+                                        horizontal-stretch: 1;
+                                        text: @tr("Cannot be remapped");
+                                        color: Theme.fg-muted;
+                                        font-italic: true;
+                                        vertical-alignment: center;
+                                        // Two lines fit the row, in a longer language.
+                                        wrap: word-wrap;
+                                    }
+                                    if !r.fixed: VerticalLayout {
+                                        alignment: center;
+                                        // A tooltip cannot sit in a layout, so the picker gets a frame.
+                                        Rectangle {
+                                            HorizontalLayout {
+                                                output := ComboBox {
+                                                    small: true;
+                                                    model: r.outputs;
+                                                    spoken: r.spoken-outputs;
+                                                    current-index <=> r.output;
+                                                    accessible-name: @tr("Output for {}", r.spoken);
+                                                    accessible-description: r.unknown ? @tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.") : r.hint;
+                                                    focused => { root.selected = i; }
+                                                    selected => { root.output-picked(i, self.current-index); }
+                                                }
+                                            }
+                                            if r.unknown || r.hint != "": Tooltip {
+                                                text: @markdown("\{output.accessible-description}");
+                                            }
                                         }
                                     }
                                 }
-                                if r.fixed: Text {
-                                    horizontal-stretch: 1;
-                                    text: @tr("Cannot be remapped");
-                                    color: Theme.fg-muted;
-                                    font-italic: true;
-                                    vertical-alignment: center;
-                                    // Two lines fit the row, in a longer language.
-                                    wrap: word-wrap;
-                                }
-                                if !r.fixed: VerticalLayout {
-                                    alignment: center;
-                                    // A tooltip cannot sit in a layout, so the picker gets a frame.
-                                    Rectangle {
-                                        HorizontalLayout {
-                                            output := ComboBox {
-                                                small: true;
-                                                model: r.outputs;
-                                                spoken: r.spoken-outputs;
-                                                current-index <=> r.output;
-                                                accessible-name: @tr("Output for {}", r.spoken);
-                                                accessible-description: r.unknown ? @tr("The controller holds an output 8B does not recognise for this button. It stays as it is until you pick another output.") : r.hint;
-                                                focused => { root.selected = i; }
-                                                selected => { root.output-picked(i, self.current-index); }
-                                            }
-                                        }
-                                        if r.unknown || r.hint != "": Tooltip {
-                                            text: @markdown("\{output.accessible-description}");
-                                        }
+                                // Across the whole row, under the name and the picker.
+                                if r.note != "": HorizontalLayout {
+                                    padding-left: 10px;
+                                    padding-right: 10px;
+                                    Text {
+                                        // Elided: the note never widens the table.
+                                        min-width: 0px;
+                                        preferred-width: 0px;
+                                        horizontal-stretch: 1;
+                                        text: r.note;
+                                        font-size: Theme.text-small;
+                                        color: Theme.fg-muted;
+                                        overflow: elide;
                                     }
                                 }
                             }

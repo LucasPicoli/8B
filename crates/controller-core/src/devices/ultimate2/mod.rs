@@ -524,6 +524,23 @@ mod tests {
     /// Where the CRC sits. The pad does not check it, and its own differs from ours.
     const CRC: std::ops::Range<usize> = 0x0C..0x10;
 
+    /// The motion sensor's button note hides while the sensor moves nothing, and a note
+    /// that names an option its choice lacks is refused.
+    #[test]
+    fn the_button_note_names_an_option_of_a_choice() {
+        let raw = include_str!("../../../controllers/ultimate-2/description.json");
+        let svgs = [
+            ("front.svg", include_str!("../../../controllers/ultimate-2/front.svg")),
+            ("back.svg", include_str!("../../../controllers/ultimate-2/back.svg")),
+        ];
+        let note = Ultimate2.description().unwrap().choice(XINPUT, "/motion/button").unwrap();
+        let unless = note.button_note.as_ref().unwrap().unless.as_ref().unwrap();
+        assert_eq!((unless.field.as_str(), unless.is.as_str()), ("/motion/map_to", "off"));
+        let broken = raw.replacen(r#""is": "off""#, r#""is": "sideways""#, 1);
+        assert_ne!(broken, raw);
+        assert!(ControllerDescription::parse(&broken, &svgs).is_err());
+    }
+
     /// `blob` with its CRC zeroed.
     fn sans_crc(blob: &[u8]) -> Vec<u8> {
         let mut out = blob.to_vec();

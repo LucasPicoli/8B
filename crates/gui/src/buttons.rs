@@ -212,6 +212,24 @@ fn hint(state: &AppState, mode: Mode, button: &str, name: &str, current: &str) -
         .map_or_else(String::new, |now| prose(&now.hint))
 }
 
+/// The lines under the row of `button` that the description's choices give it, such
+/// as "Also turns on the motion sensor" on the button that turns the sensor on in
+/// `profile`. Joined by a space, empty for none.
+fn note(state: &AppState, mode: Mode, profile: &CanonicalProfile, button: &str) -> String {
+    let holds = |field: &str, id: &str| profile.setting(field).and_then(|v| v.as_str()) == Some(id);
+    let notes: Vec<String> = state
+        .description()
+        .pages(mode)
+        .flat_map(|p| &p.frames)
+        .flat_map(|f| &f.choices)
+        .filter(|c| holds(&c.field, button))
+        .filter_map(|c| c.button_note.as_ref())
+        .filter(|n| n.unless.as_ref().is_none_or(|u| !holds(&u.field, &u.is)))
+        .map(|n| prose(&n.text))
+        .collect();
+    notes.join(" ")
+}
+
 /// Whether `button`, a remappable button, outputs something other than it does in
 /// `mode`'s default profile.
 fn remapped(state: &AppState, mode: Mode, button: &str, current: &str) -> bool {
@@ -227,11 +245,15 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
     if slot.shown().is_none() {
         return Vec::new();
     }
+    let mut notes_above = 0;
     state
         .description()
         .buttons
         .iter()
         .map(|b| {
+            let note = slot.shown().map(|p| note(state, mode, p, &b.id)).unwrap_or_default();
+            let above = notes_above;
+            notes_above += i32::from(!note.is_empty());
             let current = current(&slot, &b.id).unwrap_or_default();
             let list = choices(state, mode, &b.id, &current);
             let label = prose(b.printed(mode));
@@ -259,6 +281,8 @@ pub fn rows(state: &AppState) -> Vec<MapRow> {
                 hint: hint(state, mode, &b.id, &label, &current).into(),
                 warning: warning(state, mode, &b.id, &label, &current).into(),
                 changed: held_current(&slot, &b.id).is_some_and(|held| held != current),
+                note: note.into(),
+                notes_above: above,
                 label: label.into(),
             }
         })
@@ -460,6 +484,26 @@ mod tests {
         assert_eq!(picked_output(&s, row, 17), Some(("r1".to_owned(), "disabled".to_owned())));
         assert_eq!(picked_output(&s, row, 99), None);
         assert_eq!(picked_output(&s, 99, 0), None);
+    }
+
+    #[test]
+    fn the_button_that_turns_the_motion_sensor_on_says_so() {
+        let mut s = crate::state::tests::ultimate_2();
+        s.select(0, 0);
+        s.set_choice_at("/motion/button", 11);
+        let noted = |s: &AppState| -> Vec<(String, String, i32)> {
+            rows(s)
+                .into_iter()
+                .filter(|r| !r.note.is_empty() || r.notes_above > 0)
+                .map(|r| (r.label.into(), r.note.into(), r.notes_above))
+                .take(2)
+                .collect()
+        };
+        assert!(noted(&s).is_empty(), "the sensor moves nothing yet");
+        s.set_choice_at("/motion/map_to", 2);
+        let found = noted(&s);
+        assert_eq!(found[0].1, "Also turns on the motion sensor");
+        assert_eq!((found[0].2, found[1].1.as_str(), found[1].2), (0, "", 1));
     }
 
     #[test]

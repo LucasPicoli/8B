@@ -3145,6 +3145,10 @@ msgstr "Ligado por"
 msgid "None"
 msgstr "Nenhum"
 
+#. Ultimate 2 /settings/3/frames/0/choices/1/button_note/text
+msgid "Also turns on the motion sensor"
+msgstr "Também liga o sensor de movimento"
+
 #. Ultimate 2 /settings/3/frames/0/choices/2/label
 msgid "How it turns on"
 msgstr "Como liga"

@@ -596,7 +596,11 @@
                   "id": "lp",
                   "label": "PL"
                 }
-              ]
+              ],
+              "button_note": {
+                "text": "Also turns on the motion sensor",
+                "unless": { "field": "/motion/map_to", "is": "off" }
+              }
             },
             {
               "label": "How it turns on",

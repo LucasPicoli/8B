@@ -119,6 +119,10 @@ fn frame_prose<'a>(out: &mut Vec<Prose<'a>>, at: &str, frame: &'a SettingsFrame)
             let pointer = format!("{at}/options/{o}/label");
             out.push(Prose { pointer, text: &option.label, is_name: false });
         }
+        if let Some(note) = &choice.button_note {
+            let pointer = format!("{at}/button_note/text");
+            out.push(Prose { pointer, text: &note.text, is_name: false });
+        }
     }
     for (c, colour) in frame.colours.iter().enumerate() {
         let pointer = format!("{at}/colours/{c}/label");
@@ -152,7 +156,7 @@ mod tests {
     use crate::devices::{pro3::Pro3, test_pad::TestPad};
 
     /// Keys whose string values, at any depth below, a person reads.
-    const TEXT_KEYS: [&str; 12] = [
+    const TEXT_KEYS: [&str; 13] = [
         "display_name",
         "family_name",
         "short_name",
@@ -165,6 +169,7 @@ mod tests {
         "unit",
         "hint",
         "leaving_hint",
+        "text",
     ];
 
     /// The pointer of every non-empty string under a [`TEXT_KEYS`] key in `json`.

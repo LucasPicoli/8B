@@ -524,7 +524,7 @@ fn ultimate_2_motion_and_lights() {
                 .set_color_scheme(slint::language::ColorScheme::Dark);
         }
         let shade = if dark { "dark" } else { "light" };
-        for (tab, name) in [(5, "motion"), (6, "lights")] {
+        for (tab, name) in [(0, "buttons"), (5, "motion"), (6, "lights")] {
             ui.set_tab(tab);
             render(&s, &ui);
             save(&format!("ultimate-2-{name}-{shade}"), &ui);
