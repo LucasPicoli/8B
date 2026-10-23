@@ -11,8 +11,9 @@ export global ColourCheck {
 }
 
 // The colour picker in a swatch button's popup: a saturation and brightness square, a
-// hue strip, the colour before and now, its hex code and its red, green and blue numbers.
-// Each move hands the parent the colour; the hue is kept here, so a grey keeps it.
+// hue strip, its red, green and blue numbers, then the colour before and now with its
+// hex code, Cancel and OK. Each move hands the parent the colour; the hue is kept here,
+// so a grey keeps it.
 component ColourPicker {
     in property <color> colour;
     in property <color> before;
@@ -27,6 +28,10 @@ component ColourPicker {
     in-out property <float> val;
     callback picked(color);
     callback typed(string);
+    // Cancel: the colours go back to what they were when the picker opened.
+    callback cancelled();
+    // OK: the picked colour stays, as with a click outside.
+    callback accepted();
     property <bool> bad: hex-field.has-focus && hex-field.text != "" && !ColourCheck.valid(hex-field.text);
     width: 300px;
 
@@ -144,9 +149,32 @@ component ColourPicker {
             }
         }
         HorizontalLayout {
+            spacing: 6px;
+            for c[i] in [@tr("R"), @tr("G"), @tr("B")]: HorizontalLayout {
+                spacing: 4px;
+                Text {
+                    text: c;
+                    color: Theme.fg-muted;
+                    vertical-alignment: center;
+                }
+                NumberEdit {
+                    value: i == 0 ? root.red : i == 1 ? root.green : root.blue;
+                    minimum: 0;
+                    maximum: 255;
+                    accessible-name: @tr("{}, {}", root.context, c);
+                    committed(v) => {
+                        root.picked(rgb(i == 0 ? v : root.red, i == 1 ? v : root.green, i == 2 ? v : root.blue));
+                    }
+                }
+            }
+        }
+        // The before and now chip gives way first when a language's button words are long.
+        HorizontalLayout {
             spacing: 8px;
             Rectangle {
-                width: 56px;
+                min-width: 28px;
+                max-width: 56px;
+                horizontal-stretch: 1;
                 border-radius: Theme.radius;
                 border-width: 1px;
                 border-color: Theme.line;
@@ -182,25 +210,17 @@ component ColourPicker {
                     border-color: Theme.negative;
                 }
             }
-        }
-        HorizontalLayout {
-            spacing: 6px;
-            for c[i] in [@tr("R"), @tr("G"), @tr("B")]: HorizontalLayout {
-                spacing: 4px;
-                Text {
-                    text: c;
-                    color: Theme.fg-muted;
-                    vertical-alignment: center;
-                }
-                NumberEdit {
-                    value: i == 0 ? root.red : i == 1 ? root.green : root.blue;
-                    minimum: 0;
-                    maximum: 255;
-                    accessible-name: @tr("{}, {}", root.context, c);
-                    committed(v) => {
-                        root.picked(rgb(i == 0 ? v : root.red, i == 1 ? v : root.green, i == 2 ? v : root.blue));
-                    }
-                }
+            Rectangle {
+                horizontal-stretch: 1;
+            }
+            Button {
+                text: @tr("Cancel");
+                clicked => { root.cancelled(); }
+            }
+            Button {
+                text: @tr("OK");
+                primary: true;
+                clicked => { root.accepted(); }
             }
         }
     }
@@ -216,11 +236,17 @@ component ColourButton {
     in property <int> red;
     in property <int> green;
     in property <int> blue;
-    in property <bool> enabled: true;
     // Says what the colour belongs to, such as "Fire Ring, Colour".
     in property <string> context;
     callback picked(color);
     callback typed(string);
+    callback opened();
+    // Cancel closed the picker.
+    callback cancelled();
+    // OK or a click outside closed the picker, and the picked colour stays.
+    callback dismissed();
+    property <bool> showing: popup.is-open;
+    property <bool> cancelling;
     property <float> hue;
     property <float> sat;
     property <float> val;
@@ -229,15 +255,11 @@ component ColourButton {
     height: Theme.control-height;
     accessible-role: button;
     accessible-label: @tr("{}, pick a colour", root.context);
-    accessible-enabled: root.enabled;
     accessible-action-default => { root.open(); }
     forward-focus: fs;
 
     // Takes the hue, saturation and brightness from the swatch, then shows the picker.
     public function open() {
-        if (!root.enabled) {
-            return;
-        }
         let c = root.swatch.to-hsv();
         // A grey or black has no hue of its own: keep the last one.
         if (c.saturation > 0 && c.value > 0) {
@@ -246,7 +268,17 @@ component ColourButton {
         root.sat = c.saturation;
         root.val = c.value;
         root.before = root.swatch;
+        root.opened();
         popup.show();
+    }
+
+    changed showing => {
+        if (!self.showing) {
+            if (!root.cancelling) {
+                root.dismissed();
+            }
+            root.cancelling = false;
+        }
     }
 
     Rectangle {
@@ -254,7 +286,6 @@ component ColourButton {
         border-width: 1px;
         background: ta.has-hover ? Theme.hover : Theme.button;
         border-color: ta.has-hover || fs.has-focus ? Theme.accent : Theme.line;
-        opacity: root.enabled ? 1 : 0.45;
         // A mix shows the first colour beside an empty half.
         Rectangle {
             x: 6px;
@@ -281,7 +312,6 @@ component ColourButton {
         }
     }
     fs := FocusScope {
-        enabled: root.enabled;
         key-pressed(e) => {
             if (e.text == " " || e.text == Key.Return) {
                 root.open();
@@ -291,7 +321,6 @@ component ColourButton {
         }
     }
     ta := TouchArea {
-        enabled: root.enabled;
         clicked => {
             fs.focus();
             root.open();
@@ -334,6 +363,17 @@ component ColourButton {
             val <=> root.val;
             picked(c) => { root.picked(c); }
             typed(t) => { root.typed(t); }
+            // Closes before it tells the parent, which may drop this button in answer.
+            cancelled => {
+                root.cancelling = true;
+                popup.close();
+                fs.focus();
+                root.cancelled();
+            }
+            accepted => {
+                popup.close();
+                fs.focus();
+            }
         }
     }
 }
@@ -349,7 +389,6 @@ component ColourEditor inherits HorizontalLayout {
     in property <int> red;
     in property <int> green;
     in property <int> blue;
-    in property <bool> enabled: true;
     in property <bool> mixed;
     // Shown in the empty hex field, such as "Mixed".
     in property <string> placeholder;
@@ -357,13 +396,16 @@ component ColourEditor inherits HorizontalLayout {
     in property <string> context;
     callback typed(string);
     callback picked(color);
+    callback opened();
+    callback cancelled();
+    callback dismissed();
     property <bool> bad: hex-field.has-focus && hex-field.text != "" && !ColourCheck.valid(hex-field.text);
     spacing: 8px;
 
     Text {
         horizontal-stretch: 1;
         text: root.label;
-        color: root.enabled ? Theme.fg : Theme.fg-muted;
+        color: Theme.fg;
         vertical-alignment: center;
     }
     if root.was != "": Text {
@@ -378,17 +420,18 @@ component ColourEditor inherits HorizontalLayout {
         red: root.red;
         green: root.green;
         blue: root.blue;
-        enabled: root.enabled;
         context: root.context + ", " + root.label;
         picked(c) => { root.picked(c); }
         typed(t) => { root.typed(t); }
+        opened => { root.opened(); }
+        cancelled => { root.cancelled(); }
+        dismissed => { root.dismissed(); }
     }
     Rectangle {
         width: 92px;
         hex-field := LineEdit {
             width: 100%;
             mono: true;
-            enabled: root.enabled;
             text: root.hex;
             placeholder-text: root.placeholder;
             accessible-name: @tr("{}, {}, hex code", root.context, root.label);
@@ -420,6 +463,8 @@ component RingView {
     // The marked segment, and Shift.
     callback keyed(string, bool);
     callback all();
+    // Escape: no segment stays selected.
+    callback cleared();
     property <int> mark: 0;
     // The arrow keys moved the mark since the ring took focus. Until then no mark shows,
     // so a click does not leave an outline that reads as a second selection.
@@ -502,6 +547,10 @@ component RingView {
                 root.all();
                 return accept;
             }
+            if (e.text == Key.Escape) {
+                root.cleared();
+                return accept;
+            }
             reject
         }
     }
@@ -538,7 +587,8 @@ component FrameBody inherits Frame {
     callback segment-keyed(string, bool);
     callback select-all(string);
     callback clear-segments();
-    callback mirror-toggled(bool);
+    callback picker-opened();
+    callback picker-cancelled();
     // One width for every drop-down list of the frame: the one that shows the longest
     // entry of any of them, as the ComboBox's own `fit-width` does.
     property <length> choice-width: max(ceil((options.preferred-width + 34px) / 1phx) * 1phx, 180px);
@@ -594,6 +644,8 @@ component FrameBody inherits Frame {
             context: root.f.title;
             typed(t) => { root.colour-typed(c.field, t); }
             picked(colour) => { root.colour-picked(c.field, colour); }
+            opened => { root.picker-opened(); }
+            cancelled => { root.picker-cancelled(); }
         }
         for st in root.f.settings: VerticalLayout {
             spacing: 4px;
@@ -642,45 +694,45 @@ component FrameBody inherits Frame {
                     pointed(x, y, range) => { root.ring-pointed(r.segments[0].field, x, y, range); }
                     keyed(field, range) => { root.segment-keyed(field, range); }
                     all => { root.select-all(r.segments[0].field); }
+                    cleared => { root.clear-segments(); }
                 }
             }
             for e in root.f.editors: VerticalLayout {
                 width: 320px;
                 spacing: 12px;
                 alignment: center;
-                ColourEditor {
-                    label: e.count == 0 ? @tr("Select segments to colour them") : @tr("{n} segment selected" | "{n} segments selected" % e.count);
+                // No swatch or hex code until a segment is selected.
+                if e.count == 0: Text {
+                    height: Theme.control-height;
+                    text: @tr("Select segments to colour them");
+                    color: Theme.fg;
+                    vertical-alignment: center;
+                }
+                if e.count > 0: ColourEditor {
+                    label: @tr("{n} segment selected" | "{n} segments selected" % e.count);
                     hex: e.colour.hex;
                     swatch: e.colour.swatch;
                     red: e.colour.red;
                     green: e.colour.green;
                     blue: e.colour.blue;
-                    enabled: e.count > 0;
                     mixed: e.count > 1 && e.colour.hex == "";
                     placeholder: e.count > 1 ? @tr("Mixed") : "";
                     context: root.f.title;
                     typed(t) => { root.selection-typed(t); }
                     picked(colour) => { root.selection-picked(colour); }
+                    opened => { root.picker-opened(); }
+                    // Either way the segments are done: Cancel puts their colours back first.
+                    cancelled => {
+                        root.picker-cancelled();
+                        root.clear-segments();
+                    }
+                    dismissed => { root.clear-segments(); }
                 }
                 HorizontalLayout {
-                    spacing: 8px;
                     alignment: start;
                     Button {
                         text: @tr("Select all");
                         clicked => { root.select-all(root.f.rings[0].segments[0].field); }
-                    }
-                    Button {
-                        text: @tr("segments" => "Clear");
-                        enabled: e.count > 0;
-                        clicked => { root.clear-segments(); }
-                    }
-                }
-                if e.offer-mirror: HorizontalLayout {
-                    alignment: start;
-                    CheckBox {
-                        text: @tr("Same on both rings");
-                        checked: e.mirror;
-                        toggled => { root.mirror-toggled(self.checked); }
                     }
                 }
             }
@@ -719,9 +771,12 @@ export component SettingsTab {
     // Space on a ring segment, with Shift.
     callback segment-keyed(string, bool);
     callback select-all(string);
-    // Clear: no segment stays selected.
+    // A click off the rings, Escape on one, or their picker closing: no segment stays
+    // selected.
     callback clear-segments();
-    callback mirror-toggled(bool);
+    // A colour picker opened, or its Cancel put the colours back.
+    callback picker-opened();
+    callback picker-cancelled();
 
     VerticalLayout {
         spacing: 12px;
@@ -731,35 +786,46 @@ export component SettingsTab {
             color: Theme.fg-muted;
             wrap: word-wrap;
         }
+        // One column, as wide as the row of frames: a frame of rings below it ends where
+        // the row ends.
         HorizontalLayout {
-            spacing: 16px;
             alignment: start;
-            for f in root.page.frames: FrameBody {
-                preferred-width: 360px;
-                max-width: 442px;
-                horizontal-stretch: 1;
-                f: f;
-                number-changed(field, v) => { root.number-changed(field, v); }
-                flag-changed(field, on) => { root.flag-changed(field, on); }
-                choice-changed(field, i) => { root.choice-changed(field, i); }
-                colour-typed(field, t) => { root.colour-typed(field, t); }
-                colour-picked(field, c) => { root.colour-picked(field, c); }
+            VerticalLayout {
+                spacing: 12px;
+                HorizontalLayout {
+                    spacing: 16px;
+                    alignment: start;
+                    for f in root.page.frames: FrameBody {
+                        preferred-width: 360px;
+                        max-width: 442px;
+                        horizontal-stretch: 1;
+                        f: f;
+                        number-changed(field, v) => { root.number-changed(field, v); }
+                        flag-changed(field, on) => { root.flag-changed(field, on); }
+                        choice-changed(field, i) => { root.choice-changed(field, i); }
+                        colour-typed(field, t) => { root.colour-typed(field, t); }
+                        colour-picked(field, c) => { root.colour-picked(field, c); }
+                        picker-opened => { root.picker-opened(); }
+                        picker-cancelled => { root.picker-cancelled(); }
+                    }
+                }
+                for f in root.page.ring-frames: FrameBody {
+                    max-width: 900px;
+                    f: f;
+                    number-changed(field, v) => { root.number-changed(field, v); }
+                    flag-changed(field, on) => { root.flag-changed(field, on); }
+                    colour-typed(field, t) => { root.colour-typed(field, t); }
+                    colour-picked(field, c) => { root.colour-picked(field, c); }
+                    selection-typed(t) => { root.selection-typed(t); }
+                    selection-picked(c) => { root.selection-picked(c); }
+                    ring-pointed(first, x, y, range) => { root.ring-pointed(first, x, y, range); }
+                    segment-keyed(field, range) => { root.segment-keyed(field, range); }
+                    select-all(field) => { root.select-all(field); }
+                    clear-segments => { root.clear-segments(); }
+                    picker-opened => { root.picker-opened(); }
+                    picker-cancelled => { root.picker-cancelled(); }
+                }
             }
-        }
-        for f in root.page.ring-frames: FrameBody {
-            max-width: 900px;
-            f: f;
-            number-changed(field, v) => { root.number-changed(field, v); }
-            flag-changed(field, on) => { root.flag-changed(field, on); }
-            colour-typed(field, t) => { root.colour-typed(field, t); }
-            colour-picked(field, c) => { root.colour-picked(field, c); }
-            selection-typed(t) => { root.selection-typed(t); }
-            selection-picked(c) => { root.selection-picked(c); }
-            ring-pointed(first, x, y, range) => { root.ring-pointed(first, x, y, range); }
-            segment-keyed(field, range) => { root.segment-keyed(field, range); }
-            select-all(field) => { root.select-all(field); }
-            clear-segments => { root.clear-segments(); }
-            mirror-toggled(on) => { root.mirror-toggled(on); }
         }
         if root.page.note != "": HorizontalLayout {
             spacing: 6px;

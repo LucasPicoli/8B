@@ -725,7 +725,9 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     let c = change.clone();
     ui.on_clear_segments(move || c(&|s| s.clear_segments()));
     let c = change.clone();
-    ui.on_mirror_toggled(move |on| c(&|s| s.set_mirror(on)));
+    ui.on_picker_opened(move || c(&|s| s.open_picker()));
+    let c = change.clone();
+    ui.on_picker_cancelled(move || c(&|s| s.cancel_pick()));
     ui.global::<ui::ColourCheck<'_>>().on_valid(|text| colours::is_typed_colour(&text));
     let c = change.clone();
     ui.on_import_confirmed(move || c(&AppState::confirm_import));

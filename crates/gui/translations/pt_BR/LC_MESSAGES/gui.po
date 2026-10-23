@@ -400,7 +400,7 @@ msgstr[1] "“{}”, feita no modo {}: {n} passos, ativada por {}."
 msgid "no button"
 msgstr "nenhum botão"
 
-#: ui/dialogs.slint ui/parts.slint src/review.rs
+#: ui/dialogs.slint ui/parts.slint ui/settings.slint src/review.rs
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -938,10 +938,6 @@ msgstr "saturação {}%, brilho {}%"
 msgid "{}, hue"
 msgstr "{}, matiz"
 
-#: ui/settings.slint
-msgid "{}, hex code"
-msgstr "{}, código hex"
-
 #. Pro 3 /buttons/5/labels/switch
 #. Ultimate (BT) /buttons/5/labels/switch
 #. Ultimate (BT) /buttons/5/printed_label
@@ -969,6 +965,14 @@ msgstr "G"
 #. Ultimate 2 /settings/3/frames/0/choices/1/options/2/label
 msgid "B"
 msgstr "B"
+
+#: ui/settings.slint
+msgid "{}, hex code"
+msgstr "{}, código hex"
+
+#: ui/settings.slint
+msgid "OK"
+msgstr "OK"
 
 #: ui/settings.slint
 msgid "{}, pick a colour"
@@ -1005,15 +1009,6 @@ msgstr "Misturadas"
 #: ui/settings.slint
 msgid "Select all"
 msgstr "Selecionar todos"
-
-#: ui/settings.slint
-msgctxt "segments"
-msgid "Clear"
-msgstr "Limpar"
-
-#: ui/settings.slint
-msgid "Same on both rings"
-msgstr "Igual nos dois anéis"
 
 #: ui/sidebar.slint
 msgid "Slot {}, not available"
@@ -3202,6 +3197,13 @@ msgstr "Anel esquerdo"
 #. Ultimate 2 /settings/4/frames/2/rings/1/label
 msgid "Right ring"
 msgstr "Anel direito"
+
+#~ msgctxt "segments"
+#~ msgid "Clear"
+#~ msgstr "Limpar"
+
+#~ msgid "Same on both rings"
+#~ msgstr "Igual nos dois anéis"
 
 #~ msgid "Red"
 #~ msgstr "Vermelho"

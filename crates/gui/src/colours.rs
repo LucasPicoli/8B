@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 use std::rc::Rc;
 
 use controller_core::description::{self as described, ControllerDescription};
-use controller_core::model::{colour, Mode};
+use controller_core::model::{colour, CanonicalProfile, Mode};
 use serde_json::Value;
 use slint::{Color, ModelRc, VecModel};
 use tr::tr;
@@ -35,8 +35,8 @@ const SLACK: f64 = 4.0;
 pub struct Segments {
     /// The selected segments.
     pub selected: BTreeSet<String>,
-    /// Segment n of each ring of a frame goes with segment n of the other.
-    pub mirror: bool,
+    /// The selected slot and its edits when a colour picker opened, which Cancel puts back.
+    pub before_pick: Option<((Mode, u8), Option<CanonicalProfile>)>,
     /// The segment a Shift click selects from: the last one clicked.
     pub anchor: Option<String>,
 }
@@ -92,22 +92,6 @@ fn locate<'a>(
             Some((frame, r, i))
         })
     })
-}
-
-/// Whether the mirror applies to `frame`: two rings of the same size.
-fn mirrored(frame: &described::SettingsFrame) -> bool {
-    matches!(frame.rings.as_slice(), [a, b] if a.fields.len() == b.fields.len())
-}
-
-/// `field`, and with the mirror on its partner in the other ring of its frame.
-fn with_partner(d: &ControllerDescription, mode: Mode, field: &str, mirror: bool) -> Vec<String> {
-    let mut out = vec![field.to_owned()];
-    if let Some((frame, r, i)) = locate(d, mode, field).filter(|(f, ..)| mirror && mirrored(f)) {
-        if let Some(other) = frame.rings.get(1 - r).and_then(|ring| ring.fields.get(i)) {
-            out.push(other.clone());
-        }
-    }
-    out
 }
 
 /// The colour code `json` holds at `pointer`.
@@ -242,8 +226,6 @@ pub fn editors(
     vec![RingEditor {
         count: i32::try_from(picked.len()).unwrap_or(i32::MAX),
         colour: colour_row(tr!("Selected segments"), "", same, first, String::new()),
-        mirror: segments.mirror,
-        offer_mirror: mirrored(frame),
     }]
 }
 
@@ -305,12 +287,11 @@ impl AppState {
 
     /// Adds segment `field` to the selection, or takes it off when it is selected, as a
     /// click does. With `range`, as a Shift click, the run from the anchor to `field` in
-    /// its ring is the selection instead. With the mirror on, its partner goes with it.
+    /// its ring is the selection instead.
     pub fn click_segment(&mut self, field: &str, range: bool) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let d = self.description();
         let Some((frame, r, i)) = locate(d, mode, field) else { return };
-        let mirror = self.segments.mirror;
         let anchor = self.segments.anchor.as_deref().and_then(|a| locate(d, mode, a));
         let run = match anchor {
             Some((_, ar, ai)) if range && ar == r => {
@@ -320,35 +301,28 @@ impl AppState {
             }
             _ => vec![field.to_owned()],
         };
-        let picked: Vec<String> =
-            run.iter().flat_map(|f| with_partner(d, mode, f, mirror)).collect();
         let s = &mut self.segments;
         if range {
-            s.selected = picked.into_iter().collect();
+            s.selected = run.into_iter().collect();
         } else {
-            let on = !s.selected.contains(field);
-            for f in picked {
-                if on {
-                    s.selected.insert(f);
-                } else {
-                    s.selected.remove(&f);
-                }
+            if !s.selected.remove(field) {
+                s.selected.insert(field.to_owned());
             }
-        }
-        if !range {
             s.anchor = Some(field.to_owned());
         }
     }
 
     /// Picks the segment under `(x, y)` of the box of the ring whose first segment is
-    /// `first`, as [`Self::click_segment`] does. A point off the ring changes nothing.
+    /// `first`, as [`Self::click_segment`] does. A point off the ring unselects every
+    /// segment, as a click anywhere else on the page does.
     pub fn click_ring(&mut self, first: &str, x: f32, y: f32, range: bool) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let Some((frame, r, _)) = locate(self.description(), mode, first) else { return };
         let Some(ring) = frame.rings.get(r) else { return };
         let hit = segment_at(ring.fields.len(), f64::from(x), f64::from(y));
-        if let Some(field) = hit.and_then(|i| ring.fields.get(i)).cloned() {
-            self.click_segment(&field, range);
+        match hit.and_then(|i| ring.fields.get(i)).cloned() {
+            Some(field) => self.click_segment(&field, range),
+            None => self.clear_segments(),
         }
     }
 
@@ -359,26 +333,28 @@ impl AppState {
         self.segments.selected = frame.rings.iter().flat_map(|r| r.fields.clone()).collect();
     }
 
+    /// Notes the selected slot's edits as a colour picker opens, for [`Self::cancel_pick`].
+    pub fn open_picker(&mut self) {
+        let Some((mode, number)) = self.selected_slot() else { return };
+        let edited = self.slot(mode, number).edited;
+        self.segments.before_pick = Some(((mode, number), edited));
+    }
+
+    /// Puts back the selected slot's edits from when the colour picker opened: every
+    /// colour it picked goes, and a slot with no edits then has none again.
+    pub fn cancel_pick(&mut self) {
+        let Some((at, edited)) = self.segments.before_pick.take() else { return };
+        if self.selected_slot() == Some(at) {
+            if let Some(slot) = self.selected_mut() {
+                slot.edited = edited;
+            }
+        }
+    }
+
     /// Unselects every segment.
     pub fn clear_segments(&mut self) {
         self.segments.selected.clear();
         self.segments.anchor = None;
-    }
-
-    /// Turns the mirror on or off. Turning it on adds each selected segment's partner.
-    pub fn set_mirror(&mut self, on: bool) {
-        self.segments.mirror = on;
-        let Some((mode, _)) = self.selected_slot() else { return };
-        if on {
-            let d = self.description();
-            let partners: Vec<String> = self
-                .segments
-                .selected
-                .iter()
-                .flat_map(|f| with_partner(d, mode, f, true))
-                .collect();
-            self.segments.selected.extend(partners);
-        }
     }
 }
 
@@ -413,23 +389,39 @@ mod tests {
         s.clear_segments();
         assert_eq!(picked(&s), [] as [&str; 0]);
         s.click_segment("/lights/custom/3", true);
-        assert_eq!(picked(&s), ["/lights/custom/3"], "Clear drops the anchor too");
+        assert_eq!(picked(&s), ["/lights/custom/3"], "unselecting drops the anchor too");
     }
 
     #[test]
-    fn the_mirror_selects_the_same_segment_on_the_other_ring() {
+    fn cancel_puts_back_the_colours_from_when_the_picker_opened() {
         let mut s = crate::state::tests::ultimate_2();
-        s.click_segment("/lights/custom/1", false);
-        s.set_mirror(true);
-        assert_eq!(picked(&s), ["/lights/custom/1", "/lights/custom/13"]);
-        s.click_segment("/lights/custom/12", false);
-        assert_eq!(picked(&s).len(), 4);
-        s.click_segment("/lights/custom/13", false);
+        s.select(0, 0);
+        s.set_colour("/lights/custom/0", "#112233");
+        s.set_colour("/lights/custom/1", "#445566");
+        let before = s.slot(controller_core::devices::pro3::XINPUT, 1).edited;
+        s.select_all_segments("/lights/custom/0");
+        s.open_picker();
+        s.set_selection_rgb(Color::from_rgb_u8(0xff, 0, 0));
+        assert_eq!(shown(&s, "/lights/custom/1"), "#ff0000");
+        s.cancel_pick();
         assert_eq!(
-            picked(&s),
-            ["/lights/custom/0", "/lights/custom/12"],
-            "a pair goes off together"
+            [shown(&s, "/lights/custom/0"), shown(&s, "/lights/custom/1")],
+            ["#112233", "#445566"],
+            "each segment gets its own colour back"
         );
+        assert_eq!(s.slot(controller_core::devices::pro3::XINPUT, 1).edited, before);
+        s.cancel_pick();
+        assert_eq!(shown(&s, "/lights/custom/0"), "#112233", "a second Cancel does nothing");
+    }
+
+    #[test]
+    fn a_click_off_the_ring_unselects_every_segment() {
+        let mut s = crate::state::tests::ultimate_2();
+        s.select(0, 0);
+        s.click_ring("/lights/custom/0", 50.0, 98.0, false);
+        assert_eq!(picked(&s), ["/lights/custom/0"], "6 o'clock on the left ring");
+        s.click_ring("/lights/custom/0", 50.0, 50.0, false);
+        assert_eq!(picked(&s), [] as [&str; 0], "the hole in the middle");
     }
 
     #[test]

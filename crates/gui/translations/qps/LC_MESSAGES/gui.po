@@ -451,7 +451,7 @@ msgstr[1] ""
 msgid "no button"
 msgstr "⟦~~~~no button⟧"
 
-#: ui/dialogs.slint ui/parts.slint src/review.rs
+#: ui/dialogs.slint ui/parts.slint ui/settings.slint src/review.rs
 msgid "Cancel"
 msgstr "⟦~~~Cancel⟧"
 
@@ -1083,10 +1083,6 @@ msgstr "⟦~~~~~~~~~~~~saturation {}%, brightness {}%⟧"
 msgid "{}, hue"
 msgstr "⟦~~~{}, hue⟧"
 
-#: ui/settings.slint
-msgid "{}, hex code"
-msgstr "⟦~~~~~{}, hex code⟧"
-
 #. Pro 3 /buttons/5/labels/switch
 #. Ultimate (BT) /buttons/5/labels/switch
 #. Ultimate (BT) /buttons/5/printed_label
@@ -1114,6 +1110,14 @@ msgstr "⟦~G⟧"
 #. Ultimate 2 /settings/3/frames/0/choices/1/options/2/label
 msgid "B"
 msgstr "⟦~B⟧"
+
+#: ui/settings.slint
+msgid "{}, hex code"
+msgstr "⟦~~~~~{}, hex code⟧"
+
+#: ui/settings.slint
+msgid "OK"
+msgstr "⟦~OK⟧"
 
 #: ui/settings.slint
 msgid "{}, pick a colour"
@@ -1150,15 +1154,6 @@ msgstr "⟦~~Mixed⟧"
 #: ui/settings.slint
 msgid "Select all"
 msgstr "⟦~~~~Select all⟧"
-
-#: ui/settings.slint
-msgctxt "segments"
-msgid "Clear"
-msgstr "⟦~~Clear⟧"
-
-#: ui/settings.slint
-msgid "Same on both rings"
-msgstr "⟦~~~~~~~~Same on both rings⟧"
 
 #: ui/sidebar.slint
 msgid "Slot {}, not available"

@@ -502,7 +502,7 @@ fn ultimate_tabs(suffix: &str) {
 
 /// The Motion and Lights tabs of an Ultimate 2 in `XInput`, in light and dark: the motion
 /// sensor on the right stick, Fire Ring's colour edited, and three segments of each ring
-/// selected with the mirror on, one of them recoloured.
+/// selected, one pair of them recoloured.
 #[test]
 fn ultimate_2_motion_and_lights() {
     let mut s = crate::state::tests::ultimate_2();
@@ -510,12 +510,12 @@ fn ultimate_2_motion_and_lights() {
     s.set_choice_at("/motion/map_to", 2);
     s.set_choice_at("/motion/button", 11);
     s.set_colour("/lights/fire", "#3daee9");
-    s.click_segment("/lights/custom/0", false);
-    s.set_mirror(true);
-    s.click_segment("/lights/custom/2", true);
-    s.click_segment("/lights/custom/1", false);
+    for i in [0, 2, 12, 14] {
+        s.click_segment(&format!("/lights/custom/{i}"), false);
+    }
     s.set_selection_colour("#27ae60");
     s.click_segment("/lights/custom/1", false);
+    s.click_segment("/lights/custom/13", false);
     for dark in [false, true] {
         let ui = window(&s);
         ui.window().set_size(PhysicalSize::new(1280, 1000));
@@ -600,6 +600,68 @@ fn ring_and_picker_clicks_reach_the_profile() {
     let now = fire();
     let byte = |at: usize| u8::from_str_radix(&now[at..at + 2], 16).unwrap();
     assert!(byte(1) > 0xf0 && (0x60..0x90).contains(&byte(3)) && byte(5) < 0x10, "{now}");
+}
+
+/// The picker of the selected ring segments: Cancel puts their colour back, and OK or a
+/// click outside keeps the picked one. Each of them unselects the segments. With none
+/// selected, the editor shows no swatch.
+#[test]
+fn ring_picker_cancel_ok_and_click_outside() {
+    if qps_stops_here() {
+        return;
+    }
+    let state = Rc::new(std::cell::RefCell::new(crate::state::tests::ultimate_2()));
+    state.borrow_mut().select(0, 0);
+    let ui = window(&state.borrow());
+    ui.window().set_size(PhysicalSize::new(1280, 1000));
+    ui.set_tab(6);
+    render(&state.borrow(), &ui);
+    save("ultimate-2-lights-none-selected", &ui);
+    let wire = |apply: fn(&mut AppState)| {
+        let (s, weak) = (Rc::clone(&state), ui.as_weak());
+        move || {
+            apply(&mut s.borrow_mut());
+            render(&s.borrow(), &weak.upgrade().unwrap());
+        }
+    };
+    ui.on_picker_opened(wire(AppState::open_picker));
+    ui.on_picker_cancelled(wire(AppState::cancel_pick));
+    ui.on_clear_segments(wire(AppState::clear_segments));
+    let (s, weak) = (Rc::clone(&state), ui.as_weak());
+    ui.on_selection_picked(move |colour| {
+        s.borrow_mut().set_selection_rgb(colour);
+        render(&s.borrow(), &weak.upgrade().unwrap());
+    });
+    let segment = || {
+        let s = state.borrow();
+        let slot = s.slot(XINPUT, 1);
+        slot.shown().unwrap().setting("/lights/custom/6").unwrap().as_str().unwrap().to_owned()
+    };
+    // Selects the segment, opens the editor's swatch, and clicks the top right of the
+    // picker's square.
+    let pick = || {
+        state.borrow_mut().click_segment("/lights/custom/6", false);
+        render(&state.borrow(), &ui);
+        click_drawn(&ui, 847.0, 421.0);
+        click_drawn(&ui, 857.0, 453.0);
+        segment()
+    };
+    let was = segment();
+    assert_ne!(pick(), was, "the picker set the segment");
+    save("ultimate-2-ring-picker", &ui);
+    // Cancel, left of OK at the end of the hex code's row.
+    click_drawn(&ui, 780.0, 708.0);
+    assert_eq!(segment(), was, "Cancel puts the colour back");
+    assert!(state.borrow().segments.selected.is_empty(), "and unselects the segment");
+    let picked = pick();
+    click_drawn(&ui, 845.0, 708.0);
+    assert_eq!(segment(), picked, "OK keeps the colour");
+    assert!(state.borrow().segments.selected.is_empty(), "and unselects the segment");
+    let picked = pick();
+    // An empty spot of the page, outside the picker.
+    click_drawn(&ui, 1100.0, 800.0);
+    assert_eq!(segment(), picked, "a click outside keeps the colour");
+    assert!(state.borrow().segments.selected.is_empty(), "and unselects the segment");
 }
 
 #[test]

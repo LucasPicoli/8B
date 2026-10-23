@@ -413,7 +413,7 @@ msgstr[1] ""
 msgid "no button"
 msgstr ""
 
-#: ui/dialogs.slint ui/parts.slint src/review.rs
+#: ui/dialogs.slint ui/parts.slint ui/settings.slint src/review.rs
 msgid "Cancel"
 msgstr ""
 
@@ -986,10 +986,6 @@ msgstr ""
 msgid "{}, hue"
 msgstr ""
 
-#: ui/settings.slint
-msgid "{}, hex code"
-msgstr ""
-
 #. Pro 3 /buttons/5/labels/switch
 #. Ultimate (BT) /buttons/5/labels/switch
 #. Ultimate (BT) /buttons/5/printed_label
@@ -1017,6 +1013,14 @@ msgstr ""
 #. Ultimate 2 /settings/3/frames/0/choices/1/options/2/label
 msgid "B"
 msgstr "B"
+
+#: ui/settings.slint
+msgid "{}, hex code"
+msgstr ""
+
+#: ui/settings.slint
+msgid "OK"
+msgstr ""
 
 #: ui/settings.slint
 msgid "{}, pick a colour"
@@ -1052,15 +1056,6 @@ msgstr ""
 
 #: ui/settings.slint
 msgid "Select all"
-msgstr ""
-
-#: ui/settings.slint
-msgctxt "segments"
-msgid "Clear"
-msgstr ""
-
-#: ui/settings.slint
-msgid "Same on both rings"
 msgstr ""
 
 #: ui/sidebar.slint

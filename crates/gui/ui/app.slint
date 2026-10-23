@@ -226,7 +226,8 @@ export component AppWindow inherits Window {
     callback segment-keyed(string, bool);
     callback select-all-segments(string);
     callback clear-segments();
-    callback mirror-toggled(bool);
+    callback picker-opened();
+    callback picker-cancelled();
     callback discard;
     // Macros tab edits, each for a macro slot (0-based).
     callback macro-created(int);
@@ -561,6 +562,10 @@ export component AppWindow inherits Window {
             page := ScrollView {
                 visible: !root.no-editor;
                 vertical-stretch: root.no-editor ? 0 : 1;
+                // A click on a page of rings that lands on no control unselects every segment.
+                if root.tab >= root.first-page && root.pages[root.tab - root.first-page].ring-frames.length > 0: TouchArea {
+                    clicked => { root.clear-segments(); }
+                }
                 VerticalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
@@ -649,7 +654,8 @@ export component AppWindow inherits Window {
                         segment-keyed(field, range) => { root.segment-keyed(field, range); }
                         select-all(field) => { root.select-all-segments(field); }
                         clear-segments => { root.clear-segments(); }
-                        mirror-toggled(on) => { root.mirror-toggled(on); }
+                        picker-opened => { root.picker-opened(); }
+                        picker-cancelled => { root.picker-cancelled(); }
                     }
                 }
             }
