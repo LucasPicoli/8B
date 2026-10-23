@@ -37,7 +37,7 @@ pub struct Segments {
     pub selected: BTreeSet<String>,
     /// Segment n of each ring of a frame goes with segment n of the other.
     pub mirror: bool,
-    /// The segment a Shift click selects from.
+    /// The segment a Shift click selects from: the last one clicked.
     pub anchor: Option<String>,
 }
 
@@ -303,10 +303,10 @@ impl AppState {
         });
     }
 
-    /// Selects segment `field`: alone, added to or taken off the selection (`add`, as
-    /// a Ctrl click), or with every segment from the anchor in its ring (`range`, as a
-    /// Shift click). With the mirror on, its partner goes with it.
-    pub fn click_segment(&mut self, field: &str, add: bool, range: bool) {
+    /// Adds segment `field` to the selection, or takes it off when it is selected, as a
+    /// click does. With `range`, as a Shift click, the run from the anchor to `field` in
+    /// its ring is the selection instead. With the mirror on, its partner goes with it.
+    pub fn click_segment(&mut self, field: &str, range: bool) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let d = self.description();
         let Some((frame, r, i)) = locate(d, mode, field) else { return };
@@ -323,7 +323,9 @@ impl AppState {
         let picked: Vec<String> =
             run.iter().flat_map(|f| with_partner(d, mode, f, mirror)).collect();
         let s = &mut self.segments;
-        if add && !range {
+        if range {
+            s.selected = picked.into_iter().collect();
+        } else {
             let on = !s.selected.contains(field);
             for f in picked {
                 if on {
@@ -332,8 +334,6 @@ impl AppState {
                     s.selected.remove(&f);
                 }
             }
-        } else {
-            s.selected = picked.into_iter().collect();
         }
         if !range {
             s.anchor = Some(field.to_owned());
@@ -342,13 +342,13 @@ impl AppState {
 
     /// Picks the segment under `(x, y)` of the box of the ring whose first segment is
     /// `first`, as [`Self::click_segment`] does. A point off the ring changes nothing.
-    pub fn click_ring(&mut self, first: &str, x: f32, y: f32, add: bool, range: bool) {
+    pub fn click_ring(&mut self, first: &str, x: f32, y: f32, range: bool) {
         let Some((mode, _)) = self.selected_slot() else { return };
         let Some((frame, r, _)) = locate(self.description(), mode, first) else { return };
         let Some(ring) = frame.rings.get(r) else { return };
         let hit = segment_at(ring.fields.len(), f64::from(x), f64::from(y));
         if let Some(field) = hit.and_then(|i| ring.fields.get(i)).cloned() {
-            self.click_segment(&field, add, range);
+            self.click_segment(&field, range);
         }
     }
 
@@ -357,6 +357,12 @@ impl AppState {
         let Some((mode, _)) = self.selected_slot() else { return };
         let Some((frame, ..)) = locate(self.description(), mode, field) else { return };
         self.segments.selected = frame.rings.iter().flat_map(|r| r.fields.clone()).collect();
+    }
+
+    /// Unselects every segment.
+    pub fn clear_segments(&mut self) {
+        self.segments.selected.clear();
+        self.segments.anchor = None;
     }
 
     /// Turns the mirror on or off. Turning it on adds each selected segment's partner.
@@ -393,25 +399,37 @@ mod tests {
     }
 
     #[test]
-    fn clicks_select_one_add_one_or_a_run() {
+    fn a_click_toggles_a_segment_and_shift_selects_a_run() {
         let mut s = crate::state::tests::ultimate_2();
-        s.click_segment("/lights/custom/2", false, false);
-        s.click_segment("/lights/custom/4", false, true);
+        s.click_segment("/lights/custom/9", false);
+        s.click_segment("/lights/custom/2", false);
+        assert_eq!(picked(&s), ["/lights/custom/2", "/lights/custom/9"]);
+        s.click_segment("/lights/custom/4", true);
         assert_eq!(picked(&s), ["/lights/custom/2", "/lights/custom/3", "/lights/custom/4"]);
-        s.click_segment("/lights/custom/3", true, false);
+        s.click_segment("/lights/custom/3", false);
         assert_eq!(picked(&s), ["/lights/custom/2", "/lights/custom/4"]);
-        s.click_segment("/lights/custom/14", false, true);
+        s.click_segment("/lights/custom/14", true);
         assert_eq!(picked(&s), ["/lights/custom/14"], "a run stays in one ring");
+        s.clear_segments();
+        assert_eq!(picked(&s), [] as [&str; 0]);
+        s.click_segment("/lights/custom/3", true);
+        assert_eq!(picked(&s), ["/lights/custom/3"], "Clear drops the anchor too");
     }
 
     #[test]
     fn the_mirror_selects_the_same_segment_on_the_other_ring() {
         let mut s = crate::state::tests::ultimate_2();
-        s.click_segment("/lights/custom/1", false, false);
+        s.click_segment("/lights/custom/1", false);
         s.set_mirror(true);
         assert_eq!(picked(&s), ["/lights/custom/1", "/lights/custom/13"]);
-        s.click_segment("/lights/custom/12", true, false);
+        s.click_segment("/lights/custom/12", false);
         assert_eq!(picked(&s).len(), 4);
+        s.click_segment("/lights/custom/13", false);
+        assert_eq!(
+            picked(&s),
+            ["/lights/custom/0", "/lights/custom/12"],
+            "a pair goes off together"
+        );
     }
 
     #[test]
@@ -419,9 +437,10 @@ mod tests {
         let mut s = crate::state::tests::ultimate_2();
         s.select_all_segments("/lights/custom/0");
         assert_eq!(s.segments.selected.len(), 24);
-        s.click_segment("/lights/custom/7", false, false);
+        s.clear_segments();
+        s.click_segment("/lights/custom/7", false);
         s.set_selection_colour("00ff80");
-        s.click_segment("/lights/custom/8", true, false);
+        s.click_segment("/lights/custom/8", false);
         s.set_selection_rgb(Color::from_rgb_u8(0xff, 0xff, 0x80));
         assert_eq!(
             [shown(&s, "/lights/custom/7"), shown(&s, "/lights/custom/8")],

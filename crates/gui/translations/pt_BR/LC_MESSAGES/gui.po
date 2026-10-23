@@ -1007,6 +1007,11 @@ msgid "Select all"
 msgstr "Selecionar todos"
 
 #: ui/settings.slint
+msgctxt "segments"
+msgid "Clear"
+msgstr "Limpar"
+
+#: ui/settings.slint
 msgid "Same on both rings"
 msgstr "Igual nos dois anéis"
 

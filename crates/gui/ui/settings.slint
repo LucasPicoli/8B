@@ -410,15 +410,20 @@ component ColourEditor inherits HorizontalLayout {
 
 // A ring of segments, clockwise from the top. A click hands Rust the point in a 100 by
 // 100 box; Rust finds the segment. The arrow keys move a focus mark around the ring, and
-// Space selects the marked segment.
+// Space selects or unselects the marked segment.
 component RingView {
     in property <RingRow> ring;
     // What the ring belongs to, such as "Custom".
     in property <string> context;
-    callback pointed(float, float, bool, bool);
-    callback keyed(string, bool, bool);
+    // The point, and Shift.
+    callback pointed(float, float, bool);
+    // The marked segment, and Shift.
+    callback keyed(string, bool);
     callback all();
     property <int> mark: 0;
+    // The arrow keys moved the mark since the ring took focus. Until then no mark shows,
+    // so a click does not leave an outline that reads as a second selection.
+    property <bool> marked;
     property <int> count: root.ring.segments.length;
     width: 152px;
     height: 152px;
@@ -439,7 +444,7 @@ component RingView {
         accessible-label: s.spoken;
         accessible-item-selected: s.selected;
     }
-    if fs.has-focus && root.count > 0: Path {
+    if fs.has-focus && root.marked && root.count > 0: Path {
         width: 100%;
         height: 100%;
         viewbox-width: 100;
@@ -473,20 +478,24 @@ component RingView {
         }
     }
     fs := FocusScope {
+        changed has-focus => { if (!self.has-focus) { root.marked = false; } }
         key-pressed(e) => {
             if (root.count == 0) {
                 return reject;
             }
             if (e.text == Key.RightArrow || e.text == Key.DownArrow) {
                 root.mark = mod(root.mark + 1, root.count);
+                root.marked = true;
                 return accept;
             }
             if (e.text == Key.LeftArrow || e.text == Key.UpArrow) {
                 root.mark = mod(root.mark - 1 + root.count, root.count);
+                root.marked = true;
                 return accept;
             }
             if (e.text == " ") {
-                root.keyed(root.ring.segments[root.mark].field, !e.modifiers.shift, e.modifiers.shift);
+                root.marked = true;
+                root.keyed(root.ring.segments[root.mark].field, e.modifiers.shift);
                 return accept;
             }
             if (e.modifiers.control && (e.text == "a" || e.text == "A")) {
@@ -500,7 +509,7 @@ component RingView {
         pointer-event(e) => {
             if (e.kind == PointerEventKind.down && e.button == PointerEventButton.left) {
                 fs.focus();
-                root.pointed(self.mouse-x / self.width * 100, self.mouse-y / self.height * 100, e.modifiers.control, e.modifiers.shift);
+                root.pointed(self.mouse-x / self.width * 100, self.mouse-y / self.height * 100, e.modifiers.shift);
             }
         }
     }
@@ -525,9 +534,10 @@ component FrameBody inherits Frame {
     callback colour-picked(string, color);
     callback selection-typed(string);
     callback selection-picked(color);
-    callback ring-pointed(string, float, float, bool, bool);
-    callback segment-keyed(string, bool, bool);
+    callback ring-pointed(string, float, float, bool);
+    callback segment-keyed(string, bool);
     callback select-all(string);
+    callback clear-segments();
     callback mirror-toggled(bool);
     // One width for every drop-down list of the frame: the one that shows the longest
     // entry of any of them, as the ComboBox's own `fit-width` does.
@@ -629,8 +639,8 @@ component FrameBody inherits Frame {
                 for r in root.f.rings: RingView {
                     ring: r;
                     context: root.f.title;
-                    pointed(x, y, add, range) => { root.ring-pointed(r.segments[0].field, x, y, add, range); }
-                    keyed(field, add, range) => { root.segment-keyed(field, add, range); }
+                    pointed(x, y, range) => { root.ring-pointed(r.segments[0].field, x, y, range); }
+                    keyed(field, range) => { root.segment-keyed(field, range); }
                     all => { root.select-all(r.segments[0].field); }
                 }
             }
@@ -659,8 +669,15 @@ component FrameBody inherits Frame {
                         text: @tr("Select all");
                         clicked => { root.select-all(root.f.rings[0].segments[0].field); }
                     }
-                    if e.offer-mirror: CheckBox {
-                        y: (parent.height - self.height) / 2;
+                    Button {
+                        text: @tr("segments" => "Clear");
+                        enabled: e.count > 0;
+                        clicked => { root.clear-segments(); }
+                    }
+                }
+                if e.offer-mirror: HorizontalLayout {
+                    alignment: start;
+                    CheckBox {
                         text: @tr("Same on both rings");
                         checked: e.mirror;
                         toggled => { root.mirror-toggled(self.checked); }
@@ -697,11 +714,13 @@ export component SettingsTab {
     callback selection-typed(string);
     callback selection-picked(color);
     // A click on the ring whose first segment is this pointer, at a point of its 100 by
-    // 100 box, with Ctrl and Shift.
-    callback ring-pointed(string, float, float, bool, bool);
-    // Space on a ring segment, with Ctrl and Shift.
-    callback segment-keyed(string, bool, bool);
+    // 100 box, with Shift.
+    callback ring-pointed(string, float, float, bool);
+    // Space on a ring segment, with Shift.
+    callback segment-keyed(string, bool);
     callback select-all(string);
+    // Clear: no segment stays selected.
+    callback clear-segments();
     callback mirror-toggled(bool);
 
     VerticalLayout {
@@ -736,9 +755,10 @@ export component SettingsTab {
             colour-picked(field, c) => { root.colour-picked(field, c); }
             selection-typed(t) => { root.selection-typed(t); }
             selection-picked(c) => { root.selection-picked(c); }
-            ring-pointed(first, x, y, add, range) => { root.ring-pointed(first, x, y, add, range); }
-            segment-keyed(field, add, range) => { root.segment-keyed(field, add, range); }
+            ring-pointed(first, x, y, range) => { root.ring-pointed(first, x, y, range); }
+            segment-keyed(field, range) => { root.segment-keyed(field, range); }
             select-all(field) => { root.select-all(field); }
+            clear-segments => { root.clear-segments(); }
             mirror-toggled(on) => { root.mirror-toggled(on); }
         }
         if root.page.note != "": HorizontalLayout {

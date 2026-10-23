@@ -222,9 +222,10 @@ export component AppWindow inherits Window {
     callback colour-picked(string, color);
     callback selection-typed(string);
     callback selection-picked(color);
-    callback ring-pointed(string, float, float, bool, bool);
-    callback segment-keyed(string, bool, bool);
+    callback ring-pointed(string, float, float, bool);
+    callback segment-keyed(string, bool);
     callback select-all-segments(string);
+    callback clear-segments();
     callback mirror-toggled(bool);
     callback discard;
     // Macros tab edits, each for a macro slot (0-based).
@@ -644,9 +645,10 @@ export component AppWindow inherits Window {
                         colour-picked(field, c) => { root.colour-picked(field, c); }
                         selection-typed(t) => { root.selection-typed(t); }
                         selection-picked(c) => { root.selection-picked(c); }
-                        ring-pointed(first, x, y, add, range) => { root.ring-pointed(first, x, y, add, range); }
-                        segment-keyed(field, add, range) => { root.segment-keyed(field, add, range); }
+                        ring-pointed(first, x, y, range) => { root.ring-pointed(first, x, y, range); }
+                        segment-keyed(field, range) => { root.segment-keyed(field, range); }
                         select-all(field) => { root.select-all-segments(field); }
+                        clear-segments => { root.clear-segments(); }
                         mirror-toggled(on) => { root.mirror-toggled(on); }
                     }
                 }

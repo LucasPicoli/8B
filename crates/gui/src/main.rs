@@ -717,13 +717,13 @@ fn wire_edits(ui: &AppWindow, change: &(impl Fn(&dyn Fn(&mut AppState)) + Clone 
     let c = change.clone();
     ui.on_selection_picked(move |colour| c(&|s| s.set_selection_rgb(colour)));
     let c = change.clone();
-    ui.on_ring_pointed(move |first, x, y, add, range| {
-        c(&|s| s.click_ring(&first, x, y, add, range));
-    });
+    ui.on_ring_pointed(move |first, x, y, range| c(&|s| s.click_ring(&first, x, y, range)));
     let c = change.clone();
-    ui.on_segment_keyed(move |field, add, range| c(&|s| s.click_segment(&field, add, range)));
+    ui.on_segment_keyed(move |field, range| c(&|s| s.click_segment(&field, range)));
     let c = change.clone();
     ui.on_select_all_segments(move |field| c(&|s| s.select_all_segments(&field)));
+    let c = change.clone();
+    ui.on_clear_segments(move || c(&|s| s.clear_segments()));
     let c = change.clone();
     ui.on_mirror_toggled(move |on| c(&|s| s.set_mirror(on)));
     ui.global::<ui::ColourCheck<'_>>().on_valid(|text| colours::is_typed_colour(&text));

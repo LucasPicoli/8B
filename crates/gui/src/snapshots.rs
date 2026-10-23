@@ -510,12 +510,12 @@ fn ultimate_2_motion_and_lights() {
     s.set_choice_at("/motion/map_to", 2);
     s.set_choice_at("/motion/button", 11);
     s.set_colour("/lights/fire", "#3daee9");
-    s.click_segment("/lights/custom/0", false, false);
+    s.click_segment("/lights/custom/0", false);
     s.set_mirror(true);
-    s.click_segment("/lights/custom/2", false, true);
-    s.click_segment("/lights/custom/1", true, false);
+    s.click_segment("/lights/custom/2", true);
+    s.click_segment("/lights/custom/1", false);
     s.set_selection_colour("#27ae60");
-    s.click_segment("/lights/custom/1", true, false);
+    s.click_segment("/lights/custom/1", false);
     for dark in [false, true] {
         let ui = window(&s);
         ui.window().set_size(PhysicalSize::new(1280, 1000));
@@ -571,8 +571,8 @@ fn ring_and_picker_clicks_reach_the_profile() {
     ui.set_tab(6);
     render(&state.borrow(), &ui);
     let (s, weak) = (Rc::clone(&state), ui.as_weak());
-    ui.on_ring_pointed(move |first, x, y, add, range| {
-        s.borrow_mut().click_ring(&first, x, y, add, range);
+    ui.on_ring_pointed(move |first, x, y, range| {
+        s.borrow_mut().click_ring(&first, x, y, range);
         render(&s.borrow(), &weak.upgrade().unwrap());
     });
     let (s, weak) = (Rc::clone(&state), ui.as_weak());
@@ -589,6 +589,9 @@ fn ring_and_picker_clicks_reach_the_profile() {
     click(&ui, 370.0, 375.0);
     let picked: Vec<String> = state.borrow().segments.selected.iter().cloned().collect();
     assert_eq!(picked, ["/lights/custom/6"]);
+    // A second click takes it off again.
+    click(&ui, 370.0, 375.0);
+    assert_eq!(state.borrow().segments.selected, std::collections::BTreeSet::new());
     // Fire Ring's swatch, then the top right of its picker's square: full saturation and
     // brightness at the colour's own hue, orange.
     assert_eq!(fire(), "#cc6200");
