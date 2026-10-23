@@ -451,9 +451,9 @@ component ColourEditor inherits HorizontalLayout {
     changed hex => { if (!hex-field.has-focus) { hex-field.text = self.hex; } }
 }
 
-// A ring of segments, clockwise from the top. A click hands Rust the point in a 100 by
-// 100 box; Rust finds the segment. The arrow keys move a focus mark around the ring, and
-// Space selects or unselects the marked segment.
+// A ring of segments, the first centred at the top, then clockwise. A click hands Rust
+// the point in a 100 by 100 box; Rust finds the segment. The arrow keys move a focus mark
+// around the ring, and Space selects or unselects the marked segment.
 component RingView {
     in property <RingRow> ring;
     // What the ring belongs to, such as "Custom".

@@ -48,13 +48,15 @@ fn point(radius: f64, degrees: f64) -> (f64, f64) {
     (radius.mul_add(rad.cos(), centre), radius.mul_add(rad.sin(), centre))
 }
 
-/// The outline of segment `i` of `n`, as SVG path commands in the box.
+/// The outline of segment `i` of `n`, as SVG path commands in the box. Segment 0 is
+/// centred at the top, as a pad's first light sits at 12 o'clock, and the rest follow
+/// clockwise.
 #[must_use]
 pub fn segment_path(i: usize, n: usize) -> String {
     // A ring has a few dozen segments at most.
     #[allow(clippy::cast_precision_loss)]
     let (span, i) = (360.0 / n.max(1) as f64, i as f64);
-    let (start, end) = (i.mul_add(span, GAP), (i + 1.0).mul_add(span, -GAP));
+    let (start, end) = ((i - 0.5).mul_add(span, GAP), (i + 0.5).mul_add(span, -GAP));
     let large = u8::from(end - start > 180.0);
     let (o1, o2) = (point(OUTER, start), point(OUTER, end));
     let (i1, i2) = (point(INNER, start), point(INNER, end));
@@ -73,10 +75,13 @@ pub fn segment_at(n: usize, x: f64, y: f64) -> Option<usize> {
     if n == 0 || radius < INNER - SLACK || radius > OUTER + SLACK {
         return None;
     }
-    let degrees = dx.atan2(-dy).to_degrees().rem_euclid(360.0);
+    #[allow(clippy::cast_precision_loss)]
+    let span = 360.0 / n as f64;
+    // Half a span on, so each segment's range starts where its outline starts.
+    let degrees = (dx.atan2(-dy).to_degrees() + span / 2.0).rem_euclid(360.0);
     // In 0 to 360 over a positive span: the floor is a small whole number.
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-    let index = (degrees / (360.0 / n as f64)).floor() as usize;
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let index = (degrees / span).floor() as usize;
     Some(index.min(n - 1))
 }
 
@@ -451,20 +456,24 @@ mod tests {
 
     #[test]
     fn a_click_finds_the_segment_it_lands_on() {
-        // 12 segments of 30 degrees, clockwise from the top.
+        // 12 segments of 30 degrees, clockwise, segment 0 centred at the top.
         let at = |deg: f64| {
             let (x, y) = point((OUTER + INNER) / 2.0, deg);
             segment_at(12, x, y)
         };
-        assert_eq!([at(5.0), at(35.0), at(95.0), at(355.0)], [Some(0), Some(1), Some(3), Some(11)]);
+        assert_eq!(
+            [at(5.0), at(355.0), at(16.0), at(95.0), at(180.0), at(344.0)],
+            [Some(0), Some(0), Some(1), Some(3), Some(6), Some(11)]
+        );
         assert_eq!(segment_at(12, 50.0, 50.0), None, "the hole in the middle");
         assert_eq!(segment_at(12, 0.0, 0.0), None, "a corner, off the ring");
     }
 
     #[test]
-    fn a_segment_outline_starts_at_the_top_and_turns_clockwise() {
+    fn a_segment_outline_is_centred_at_the_top_and_turns_clockwise() {
+        // Segment 0 of 4 runs from 45 degrees left of the top to 45 right, less its gaps.
         let path = segment_path(0, 4);
-        assert!(path.starts_with("M 51.28 1.02 A 49 49 0 0 1 98.98 48.72"), "{path}");
+        assert!(path.starts_with("M 16.27 14.46 A 49 49 0 0 1 83.73 14.46"), "{path}");
         assert!(path.ends_with('Z'));
     }
 
