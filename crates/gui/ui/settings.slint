@@ -529,6 +529,21 @@ component FrameBody inherits Frame {
     callback segment-keyed(string, bool, bool);
     callback select-all(string);
     callback mirror-toggled(bool);
+    // One width for every drop-down list of the frame: the one that shows the longest
+    // entry of any of them, as the ComboBox's own `fit-width` does.
+    property <length> choice-width: max(ceil((options.preferred-width + 34px) / 1phx) * 1phx, 180px);
+
+    // Measures `choice-width`, never drawn. No height, so the frame keeps its own.
+    options := VerticalLayout {
+        visible: false;
+        for c in root.f.choices: VerticalLayout {
+            for m in c.options: Text {
+                height: 0;
+                text: m;
+                accessible-role: none;
+            }
+        }
+    }
 
     VerticalLayout {
         padding: 14px;
@@ -551,7 +566,7 @@ component FrameBody inherits Frame {
                 vertical-alignment: center;
             }
             box := ComboBox {
-                width: max(self.fit-width, 180px);
+                width: root.choice-width;
                 model: c.options;
                 current-index <=> c.current;
                 accessible-name: @tr("{}, {}", root.f.title, c.label);
