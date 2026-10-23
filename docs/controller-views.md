@@ -86,7 +86,9 @@ The rules:
    under the body, for example, ends where the body starts. Otherwise its highlight
    spills over the body.
 5. On a back view, the controller's right side is on the left. The Pro 3 back has
-   R4 at the left and L4 at the right.
+   R4 at the left and L4 at the right. The Ultimate back has P1 at the left, because
+   P1 sits under the right hand. Check each back button's hand on the real pad: the
+   first Ultimate drawing had P1 and P2 the wrong way round.
 
 ## 4. List the views and embed the files
 

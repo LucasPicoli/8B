@@ -1,10 +1,13 @@
 # Adding a controller
 
-The 8BitDo Pro 3 is the only supported model, so every path below uses it as the
-example. No second real model has been ported yet. The tests run a made-up one,
-`devices/test_pad.rs`, that differs on purpose: one mode, two slots, no macros and a
-64-byte blob. Where the code still assumes the Pro 3, this guide says so (see "What is
-tied to the Pro 3 today").
+Two families are supported. The 8BitDo Pro 3 is one model, and its driver is the
+example for most paths below. The 8BitDo Ultimate is three models, Bluetooth, 2.4G and
+Wired, served by one driver. It is the example for a pad that differs from the Pro 3:
+it hides its config port until an unlock sequence, no reply names it, it keeps macro
+steps inside its profile image, and its description holds every button code. The tests
+also run a made-up model, `devices/test_pad.rs`, that differs on purpose: one mode, two
+slots, no macros and a 64-byte blob. Where the code still assumes the Pro 3, this guide
+says so (see "What is tied to the Pro 3 today").
 
 To learn your controller's protocol first, see
 [Reverse engineering a controller](reverse-engineering.md).
@@ -47,9 +50,17 @@ A new model gets its own folder next to `pro3/`, and one entry in `MODELS` in
 transport choice, the access rule, the keepalive rule and `dev list` read that
 registry (see [The udev rule](#the-udev-rule)).
 
+The Ultimate's driver in
+[`devices/ultimate/`](../crates/controller-core/src/devices/ultimate/) has the same
+files, and holds only the image layout. Each of its three models is one folder under
+`controllers/` and one `MODELS` line, such as `&ultimate::model!("ultimate-wired")`.
+A new pad of a family whose image layout a driver already reads needs no Rust: copy a
+sibling's folder, change its facts, and add the line (see
+[Codes and indexes in the description](#codes-and-indexes-in-the-description)).
+
 For the smallest complete model, read
 [`devices/test_pad.rs`](../crates/controller-core/src/devices/test_pad.rs). It is
-about 190 lines of code and 175 of tests, and its description sits in
+about 330 lines of code and 225 of tests, and its description sits in
 `crates/controller-core/controllers/test-pad/`.
 
 ## Modes
@@ -87,6 +98,24 @@ A constant can be a `match` pattern. Add a `_` arm that refuses the mode, becaus
 the type holds any id. Test that each constant reads back whole, as
 `pro3_mode_constants_match_its_description` does.
 
+A mode needs no config port of its own. A pad may keep one profile image per mode
+under one USB id and pick the image with a command. The Ultimate Bluetooth lists one
+port, `2dc8:6007` for XInput, and reaches its Switch image through it:
+`slot_select_value` returns the mode's `gamepad_mode` byte, which selects that image.
+An image the pad has never saved reads as erased flash, every byte `ff` but the mode
+and the selection (`fixtures/ultimate/switch-erased.bin`). The codec decodes it as
+empty slots.
+
+### A pad that serves only its current mode
+
+Some pads keep one USB id in every mode and answer only for the image of the mode they
+are in, whatever the slot select names. The Ultimate 2 does this. Its driver
+implements `ControllerSpec::mode_request` and `mode_in_reply`, so the session asks the
+pad its mode. A read skips the other modes' images, and a write to one is refused
+before anything is sent. The app lists those slots as not available, keeps the edits
+already made to them, and leaves them out of Write all until the pad is switched to
+their mode.
+
 ## Settings tabs
 
 The `settings` list of the description makes the tabs after Buttons in the app, and
@@ -113,18 +142,40 @@ A slider with a `high` end edits a range, such as a dead zone. `unit` follows th
 value, such as `%`. Without one, the value shows as `3 of 5`. A number that picks one
 of a few choices names them in `labels`, one per value from `min` to `max`, and the
 app shows the name: `"labels": ["Pulse", "Wave", "Burst"]` with `min` 1 and `max` 3
-shows `Wave` for 2. Settings are whole numbers and flags only. A colour, for example,
-is three sliders from 0 to 255. A frame's `flags` are
+shows `Wave` for 2. A frame's `flags` are
 check boxes, and a flag's `excludes` names the flags that may not be on with it: the
 app turns them off, and `set` refuses the change. A tab with `modes` shows in those modes
 only, which is how the Pro 3 has one Triggers tab for analog modes and another for
 Switch.
 
+A frame may also hold `choices`, `colours` and `rings`. A choice is a drop-down list:
+each of its `options` gives the `id` the profile holds and a `label`. A colour holds
+`#rrggbb`, edited with a swatch and a hex field. A ring lists the `fields` of its
+segments, one colour each, clockwise from the top. The Ultimate 2's Motion and Lights
+tabs use all three.
+
+A choice whose options name buttons may carry a `button_note`. The Buttons tab shows
+its `text` under the row of the button the choice holds. `unless` names another choice
+and the option that hides the line:
+
+```json
+"button_note": {
+  "text": "Also turns on the motion sensor",
+  "unless": { "field": "/motion/map_to", "is": "off" }
+}
+```
+
+The Ultimate 2 needs it because the button that turns its motion sensor on keeps its
+other job: it still starts its macro, or sends the output it is remapped to. The note
+is description text, so `just translations` puts it in the translation files with the
+labels.
+
 A profile holds each settings group as a JSON object beside its other fields, such as
 `"vibration": { "left_level": 5, "right_level": 5 }`. The codec reads and writes those
 objects. Validation checks every profile against its model's description: the
 `device` and `kind` of the model's default profile, each declared setting present with
-a value in range, no undeclared group, the `excludes` rules, and button names. A model
+a value in range, no undeclared group, the `excludes` rules, button names, and no
+remap of a button whose `can_be_remapped` is `false`. A model
 with a stricter JSON schema of its own, as the Pro 3 has in
 [`schemas/profile-v1.schema.json`](../schemas/profile-v1.schema.json), returns its
 errors from `ProtocolCodec::profile_schema_errors`.
@@ -198,11 +249,26 @@ then: absent means false, and the app refuses a model that is not validated. Set
 `EIGHTB_UNVALIDATED=1` lets such a model through, and the app then saves a backup file
 before every write.
 
+Make one model per retail pad. The Ultimate's three pads share one image layout, but
+their descriptions differ in the USB id of the config port, the order of the face
+buttons in the button map, the prints, the modes, the default maps and a few firmware
+gates. Each of
+those facts lives in the model's description.
+
+Ship a model nobody has checked without `validated`, and point its owner at
+[Validating a controller](validating-a-controller.md). The flag turns true in the
+commit that adds the owner's report as a test fixture. The app refuses an unchecked
+model as soon as it knows it: a locked pad by its string, before any unlock goes out,
+and an open pad by its config port, whether an unlock brought it back or the pad was
+already there.
+
 ### Profile names
 
 `"profile_rename": false` tells the editor to offer no rename. The Ultimate keeps the
 profile names as the pad holds them. `limits.profile_name_length` stays, because the
-codec still reads the stored name.
+codec still reads the stored name. On such a model, `upload-all` uploads a file whose
+name is blank and does not read it as a slot to clear. To clear a slot, leave its file
+out and pass `--clear-missing`.
 
 ### Macro shape
 
@@ -228,6 +294,10 @@ and hold each stick as a direction. Its macro limits, beside `profile_name_lengt
   `directions8` (the centre or one of 8 directions at full deflection). The codec
   maps each direction to its axis values.
 
+The Ultimate plays a macro step through the slot's button map: a step on X, in a slot
+that maps X to A, sends A. The macro editor names the remap of each step button for
+every model, so check on your pad that it does the same.
+
 ### A locked controller
 
 A pad that hides its config port until it gets an unlock sequence declares a `lock`.
@@ -250,7 +320,11 @@ The declaration holds every byte and time, so the model needs no unlock code:
 ```
 
 - `locked` is the USB id and the USB product string of the locked pad. Another pad
-  may share the USB id, so both must match.
+  may share the USB id, so both must match, and the pad must also show an interface
+  of class `ff/5d/01`, the one `xpad` binds. That class is fixed in core. All three
+  Ultimates lock as `2dc8:3106`, and so do the Pro 2 Wired and some receivers. The
+  string is only a hint: the USB id that the unlock brings back names the model, and
+  it wins when the two disagree.
 - `unlock` goes to the interrupt OUT `endpoint` of USB `interface` on the locked pad.
   The unlock worked when a config port shows on the same USB port within
   `timeout_ms` of the last packet.
@@ -275,12 +349,26 @@ How 8B acts on it, all in the core:
   port's hidraw node, once it opens to read and write, or `Unsupported` with the USB id
   when the port path comes back as an id no description lists.
 - `transport::lock::relock` sends `relock` to the config port and waits for the locked
-  USB id on the same port path.
+  USB id on the same port path. The app runs it from the controller's menu, and when
+  the window closes for every pad whose description declares a lock, a pad it found
+  already unlocked included.
 - The access rule gains `SUBSYSTEM=="usb", ATTR{idVendor}=="2dc8", TAG+="uaccess"`
   for each vendor with a lock, so the user at the seat may open the usbfs node. A rule
   installed before the line was added reads as outdated, and the app offers to
   install the new one. A denied usbfs node gives the same error as a denied hidraw
   node.
+
+The Ultimate showed these on the pad. A new locked model may do the same:
+
+1. The unlock takes about 2.8 s, the half-second pause included.
+2. The pad can leave USB while the last packet goes out. A packet that finds the
+   device gone, after the first one went out, counts as the unlock working.
+3. udev gives the seat access to the new hidraw node a moment after the node shows.
+   An open in that gap fails with a permission error, which is why `unlock` waits
+   until the node opens to read and write.
+4. A replug of an unlocked pad brings it back locked. A profile picked with the pad's
+   profile button while it is unlocked is lost at the relock: the next unlock finds
+   the profile that was in use before.
 
 `unlock_and_relock_ten_times` in `tests/ultimate/hardware_lock.rs` runs both on a
 locked Ultimate with `just hw`.
@@ -330,7 +418,8 @@ name it, so the session skips `START_CONFIG` and takes the model from the port
 (`find_model_by_port` in [`devices/mod.rs`](../crates/controller-core/src/devices/mod.rs)).
 No other description may list any of its config port USB ids. If one does, the port
 names neither model, and the pad fails with `UnsupportedModel`. The test pad works
-this way.
+this way, and so does each Ultimate: it never answers `START_CONFIG`, and its config
+port (`2dc8:6007` on the Bluetooth model) is its identity.
 
 Each `config_ports` entry in `description.json` has these fields. One USB id stands for
 one mode, so the loader refuses a description that lists an id twice.
@@ -402,7 +491,12 @@ has no device state and no I/O:
 | `text.rs` | UTF-16BE profile and macro names |
 
 If the new model talks the same `81 04` config protocol, it reuses all of this. The
-profile is read and written in 45-byte chunks starting at payload offset 18.
+profile is read and written in 45-byte chunks starting at payload offset 18. The
+Ultimate talks it under `length` framing, and its 1652-byte image takes 37 chunks.
+
+A write reply counts as good when it echoes the command byte, the chunk size and the
+offset. Its status byte is not read: the Ultimate returns status 2 on some good
+chunks.
 
 The model supplies:
 
@@ -532,7 +626,10 @@ A port is correct when the bytes match, not when the code looks right.
    made by the vendor's app too, if you can capture one.
 2. Put them in `fixtures/<model>/`, next to their decoded JSON. The Pro 3 catalog
    [`fixtures/pro3/FIXTURES.md`](../fixtures/pro3/FIXTURES.md) says where each file
-   came from and how to regenerate the ones the encoders make.
+   came from and how to regenerate the ones the encoders make. The Ultimate's
+   [`fixtures/ultimate/FIXTURES.md`](../fixtures/ultimate/FIXTURES.md) also lists
+   images rebuilt from the write packets of vendor-app saves, and images 8B built,
+   read back byte for byte and played on the pad.
 3. Write golden-vector tests as the Pro 3 does in
    [`crates/controller-core/tests/pro3/`](../crates/controller-core/tests/pro3/).
    Each model keeps its integration tests in `tests/<model>/`, entered from that
@@ -542,7 +639,16 @@ A port is correct when the bytes match, not when the code looks right.
    `golden_profile_decode.rs` decodes a blob and compares it to the JSON,
    `golden_profile_compile.rs` compiles a profile and compares every byte to the blob,
    and `golden_macro_decode.rs` and `golden_macro_encode.rs` do the same for macros.
-   The fixtures are the oracle. When code and fixture disagree, the code is wrong.
+   The Ultimate's `golden_packets.rs` rebuilds the 335 write packets of nine captured
+   saves, byte for byte. The fixtures are the oracle. When code and fixture disagree,
+   the code is wrong.
+
+   A compare skips only the bytes the pad never checks, such as the Ultimate's image
+   CRC at `0x00C`..`0x00F`. A vendor-app save is not an oracle for every byte, though.
+   The Ultimate's app also wrote defaults into a slot it marked empty, and copies of
+   its own read requests into unused macro records. Match the app on what each
+   setting changes, and have the codec write back as read every byte it does not own:
+   an unedited slot, hidden bits, the mode and selection bytes.
 4. Run the tests:
 
    ```sh
@@ -558,7 +664,20 @@ A port is correct when the bytes match, not when the code looks right.
    They are `#[ignore]` tests behind the `hardware` feature. The Pro 3's are
    `hardware_read.rs`, `hardware_write.rs`, `hardware_macro.rs` and
    `hardware_batch.rs` in `tests/pro3/`. They read every bank, write a remap and
-   revert it, write and remove a macro, and time batch writes.
+   revert it, write and remove a macro, and time batch writes. The Ultimate's
+   `hardware_lock.rs` unlocks and relocks a locked pad ten times, and
+   `just ultimate-import-check` walks you through an imported profile on the pad
+   ([Checking an imported profile on an Ultimate](ultimate-import-check.md)).
+
+   A hardware test runs once and stops at the first failure. It never retries and
+   never resets USB: a USB reset from a test can hang every device on the bus. To
+   recover a pad, unplug it and plug it in again.
+
+   Name each press by the print and the place on the pad, such as "printed A, right
+   face". A mode's output names can differ from the prints: on the Ultimate
+   Bluetooth, XInput swaps A with B and X with Y. Check a Switch-mode profile's
+   presses on a phone or a Switch. Paired by Bluetooth to a Linux PC, the Ultimate
+   drops the slot's profile after a moment, and an Android phone keeps it.
 
    Every model shares the guard in
    [`tests/support/hw.rs`](../crates/controller-core/tests/support/hw.rs):

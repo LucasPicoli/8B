@@ -47,6 +47,12 @@ and its own config interface. The Pro 3 has three: `2dc8:310b` on interface 2 fo
 XInput, `057e:2009` on interface 0 for Switch, and `2dc8:6009` on interface 0 for
 DInput. Write them down. They become the `config_ports` of your description.
 
+A switch does not always change the USB id. The Ultimate shows `2dc8:3106` in both its
+2.4G and its Bluetooth position, and only its serial number changes. Several pads can
+also share one USB id: the event node `xpad` gives the locked Ultimate is named
+"8BitDo Ultimate Wireless / Pro 2 Wired Controller". Note the USB product string from
+`lsusb -v` too. It is often the only thing that tells such pads apart.
+
 If `dev list` shows the node but `dev send` says permission denied, install the access
 rule from the README, or run the command with `sudo` once.
 
@@ -56,8 +62,18 @@ Some pads show no config port until they get an unlock sequence. The Ultimate is
 `dev list` shows no config node, and its vendor app unlocks it, reads and writes, then
 relocks it on close. You do not read the app to learn the sequences. You capture them.
 
+The locked Ultimate has no HID interface, so `dev list` does not list it at all.
+`lsusb -v -d 2dc8:3106` does: one vendor interface of class `ff/5d/01`, bound to
+`xpad`. Its unlock is a rumble pattern, three passes of five rumble packets 16 ms
+apart. It comes back on the same USB port as `2dc8:6007`, with one 64-byte HID
+interface: the config port. That is why the virtual machine gets the pad by port
+(section 3).
+
 1. Capture the vendor app opening and closing normally (section 3 sets up the capture).
-   Save the open and the close as two files. The close is the relock.
+   Save the open and the close as two files. The close is the relock. Windows sends
+   its own packets each time the pad enumerates, such as Xbox 360 LED packets. They
+   are not part of the unlock. Start the declaration at the vendor app's first
+   packet.
 2. Filter each to the pad and export the rows with `tshark` (section 3). The unlock
    packets go from the host to an interrupt OUT endpoint of the locked pad. The relock
    packets go to the config port after the unlock.
@@ -79,6 +95,10 @@ Be careful if you send the same packets through a kernel driver instead. A drive
 reshape a packet. xpad, for one, sends the first packet of a new rumble effect twice.
 Compare against usbmon, not against what you meant to send.
 
+To get a locked pad back, unplug it and plug it in again: an unlocked Ultimate comes
+back locked. Never reset the USB port from a script to do it. A reset can hang every
+device on the bus.
+
 ## 3. Capture the vendor app
 
 The vendor app already speaks the protocol, so a capture of it is the fastest way to
@@ -99,8 +119,17 @@ Linux host with Wireshark.
 5. Pass the pad through to the virtual machine by its USB port, not its USB id (see
    below).
 
+The host sees every packet the guest sends, so the guest needs no capture tool.
+Wireshark is optional too. The kernel also writes the bus as text:
+`sudo cat /sys/kernel/debug/usb/usbmon/8u > bus8.txt`, with `8` the bus number. The
+shell redirect leaves the file owned by you, and you can read it while the capture
+runs. Each line names the bus and address as `:8:007:`, so `grep ':8:007:'` keeps
+only the pad at address 7.
+
 Any Windows 10 or 11 guest works. Download the vendor app inside the guest, and check
-that its name and version list your pad before you capture anything.
+that its name and version list your pad before you capture anything. Names can be
+close: "8BitDo Ultimate Software" supports the original Ultimate, and "8BitDo Ultimate
+Software V2" does not.
 
 ### Pass the pad through by port
 
@@ -151,7 +180,11 @@ Two habits keep a capture usable:
 Make these captures first:
 
 1. Connect and read, once in each mode. This gives the hello packet, the read loop and
-   a full copy of the pad's profile memory.
+   a full copy of the pad's profile memory. If the app has a platform picker, read once
+   with each choice too. The Ultimate keeps one image per platform under one USB id
+   and picks the image with command `0x14`. An image the app has never saved reads as
+   erased flash, nearly every byte `ff`, until the first save with that platform
+   picked.
 2. One setting change and save, for each setting.
 3. One button remap and save.
 4. A mode change, if the app has one. The pad drops off USB and comes back at a new
@@ -224,13 +257,19 @@ Read the OUT packets of a "connect and read" capture from the top. Look for:
 1. A hello packet that the app always sends first. Its reply often carries a model id
    and a firmware version. On the Pro 3 the hello is `81 04 00 01`. Bytes 22 and 23 of
    the reply hold the model id `0x6009`, and bytes 18 and 19 hold the firmware version
-   times 100.
+   times 100. Some pads have no such hello. The Ultimate's app starts with a firmware
+   request, `81 05 00 21 01`, whose reply starts `02 22` and holds the version times
+   100 at bytes 2 and 3. The pad does not answer `81 04 00 01`, and no reply names
+   the model, so the USB id of its config port does.
 2. A read loop: the same command over and over with an offset that grows by a fixed
    step. That is the profile read. The Pro 3 reads a 2348-byte blob in 45-byte
-   chunks.
+   chunks, and the Ultimate a 1652-byte image in 37 chunks.
 3. A checksum. If two packets differ in a single payload byte and two other bytes also
    change, those two bytes are probably a CRC. The Pro 3 uses CRC-16/MODBUS over the
-   payload.
+   payload. A pad need not check it. The Ultimate stores and acknowledges a chunk
+   whose CRC is wrong, so only a read-back proves a write.
+4. A reply's status byte. It can mislead: the Ultimate returns status 2 on some good
+   chunks. Match a write reply by the command byte and the offset it echoes.
 
 Replay a read-only packet to confirm it:
 
@@ -268,6 +307,31 @@ Change one setting at a time and compare the bytes before and after.
    size, a first line says so and compares only the shorter length. One change in the
    app should move one small run, plus a checksum if the format has one.
 
+Not every run is your change:
+
+1. Some bytes change outside a save. The Ultimate's byte `0x012` is the profile in
+   use. It moves on every press of the profile button, and the pad ignores what a
+   write puts there.
+2. The vendor app can save its own mistakes. On the Ultimate, its saves also wrote
+   defaults into a slot it marked empty, and copies of its own read requests into
+   unused macro records. Match each run against the screenshot of what you set. A
+   run that no setting explains is the app's, and your codec writes those bytes back
+   as it read them.
+
+Then check each byte map on the pad itself: write a remap, press the button and watch
+a tester such as `evtest`. Name each press by the print and the place on the pad,
+such as "printed A, right face", because a mode's output names can differ from the
+prints. The Ultimate taught three things this way:
+
+1. One button can have two codes. Its macro records name the printed letter, and its
+   button map names the output, so on a pad with Nintendo prints A and B, and X and
+   Y, swap between the two tables.
+2. A macro step plays through the slot's button map. A step on X, in a slot that maps
+   X to A, sends A.
+3. Some state lives outside the profile image. Swap, an output that trades two
+   buttons, keeps its swap across an unlock, a relock and a replug, until a power-off.
+   No read shows it, and no write clears it.
+
 Repeat this for each setting, each button and each mode. Record each result as a
 named constant in your model's `tables.rs`, as the Pro 3 does in
 `crates/controller-core/src/devices/pro3/tables.rs`.
@@ -276,11 +340,19 @@ named constant in your model's `tables.rs`, as the Pro 3 does in
 
 You now have the facts that a port needs:
 
-1. The config ports and model ids, for `description.json`.
-2. The command packets, for the driver.
+1. The config ports and model ids, for `description.json`. For a locked pad, also the
+   locked USB id, the product string and the two sequences.
+2. The command packets, for the driver, the firmware request among them.
 3. The byte map, for the codec.
 4. The dumps and captures, for `fixtures/<model>/`. Add a `FIXTURES.md` that says
    where each file came from, as `fixtures/pro3/FIXTURES.md` does.
+
+If the vendor app serves several pads of one family, find which of them are sold
+before you count models. Each pad you can buy becomes a model of its own, even when
+the image layout is shared: the three Ultimate descriptions differ in the config
+port's USB id, the face-button order, the prints, the modes and the defaults. A model
+you cannot check on a real pad ships unchecked, and its owner checks it with
+[Validating a controller](validating-a-controller.md).
 
 Continue with [Adding a controller](adding-a-controller.md). If you are stuck, open an
 issue with your `dev list --descriptors` output and a capture. A capture holds your
