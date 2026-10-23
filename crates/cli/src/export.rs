@@ -15,7 +15,7 @@ use controller_core::model::{
     CanonicalProfile, CanonicalProfileSummary, MacroDefinition, Mode, ProfileReadResult,
 };
 use controller_core::orchestrator::profile::{detect_and_read_all, DetectAndReadResult};
-use controller_core::service::read::{macro_summaries, read_macro_steps, MacroAt};
+use controller_core::service::read::{macro_summaries, read_macro_steps, MacroAt, StepsRead};
 use controller_core::service::validation::{validate_profile, ValidationError};
 use controller_core::transport::DeviceIo;
 
@@ -113,11 +113,12 @@ impl Exported {
 
 /// Exports `profiles`, each held one with its macros from `macros` in its `macros`
 /// list. An empty slot, one whose profile has no id, is skipped: its default profile is
-/// no backup and would not upload back.
+/// no backup and would not upload back. A macro the controller lost is left out, and the
+/// message names it.
 fn export_held(
     model: &dyn Model,
     profiles: &[CanonicalProfileSummary],
-    macros: &[MacroAt],
+    macros: &[StepsRead],
     dir: &Path,
     overwrite: bool,
 ) -> Exported {
@@ -136,8 +137,8 @@ fn export_held(
     for p in &held {
         let own: Vec<MacroDefinition> = macros
             .iter()
-            .filter(|(at, _)| *at == (p.mode, p.source_slot))
-            .map(|(_, def)| def.clone())
+            .filter(|m| !m.lost && m.at == (p.mode, p.source_slot))
+            .map(|m| m.def.clone())
             .collect();
         counts.push(own.len());
         let canonical =
@@ -174,6 +175,16 @@ fn export_held(
     let category = if failed == 0 { ErrorCategory::None } else { ErrorCategory::ValidationFailure };
     let message =
         if failed == 0 { message } else { format!("{failed} exported file(s) failed validation.") };
+    let lost: Vec<String> =
+        macros.iter().filter(|m| m.lost).map(|m| format!("'{}'", m.def.name)).collect();
+    let message = if lost.is_empty() {
+        message
+    } else {
+        format!(
+            "{message} Left out the macros the controller's firmware erased: {}.",
+            lost.join(", ")
+        )
+    };
     Exported { category, message, profiles: entries, macros: (macro_count, macros_failed) }
 }
 
@@ -185,7 +196,7 @@ fn held_macros(
     dev: &dyn DeviceIo,
     model: &dyn Model,
     read: &DetectAndReadResult,
-) -> Result<Vec<MacroAt>> {
+) -> Result<Vec<StepsRead>> {
     let read = ProfileReadResult {
         profiles: read.profiles.clone(),
         raw_blobs: read.raw_blobs.clone(),
@@ -200,7 +211,7 @@ fn held_macros(
         .flat_map(|(at, defs)| defs.into_iter().map(move |def| (at, def)))
         .collect();
     if macros.is_empty() {
-        return Ok(macros);
+        return Ok(Vec::new());
     }
     read_macro_steps(dev, macros)
 }
@@ -411,9 +422,22 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut bad = three_steps("Dash", XINPUT, "l1", 0);
         bad.steps[0].pressed_buttons = vec!["nope".to_owned()];
-        let at = ((XINPUT, 1), bad);
+        let at = StepsRead { at: (XINPUT, 1), def: bad, lost: false };
         let done = export_held(&Pro3, &[summary(1, "Mine")], &[at], dir.path(), false);
         assert_eq!(done.category, ErrorCategory::ValidationFailure, "{}", done.message);
         assert_eq!(done.macros, (1, 1));
+    }
+
+    #[test]
+    fn a_lost_macro_is_left_out_and_named() {
+        let dir = tempfile::tempdir().unwrap();
+        let kept =
+            StepsRead { at: (XINPUT, 1), def: three_steps("Dash", XINPUT, "l1", 0), lost: false };
+        let lost =
+            StepsRead { at: (XINPUT, 1), def: three_steps("Spin", XINPUT, "r1", 1), lost: true };
+        let done = export_held(&Pro3, &[summary(1, "Mine")], &[kept, lost], dir.path(), false);
+        assert_eq!(done.category, ErrorCategory::None, "{}", done.message);
+        assert_eq!(done.macros, (1, 0), "only the kept macro is exported");
+        assert!(done.message.contains("'Spin'"), "{}", done.message);
     }
 }

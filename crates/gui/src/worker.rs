@@ -144,7 +144,7 @@ pub fn relock_all(locks: &dyn Locks, targets: &[Target]) {
     }
 }
 
-pub use controller_core::service::read::MacroAt;
+pub use controller_core::service::read::{MacroAt, StepsRead};
 
 /// A read that failed, retry included.
 #[derive(Debug)]
@@ -178,7 +178,7 @@ pub enum Event {
         /// The USB port path the read went to.
         port: String,
         /// The macros of the command with their steps read, or why the read failed.
-        result: Result<Vec<MacroAt>, Failure>,
+        result: Result<Vec<StepsRead>, Failure>,
     },
     /// The result of [`Command::Write`] for `port`.
     Written {
@@ -1395,7 +1395,10 @@ mod tests {
             panic!("expected the steps")
         };
         let steps = Pro3.decode_macro_steps(&stream, summary.steps.len(), XINPUT).unwrap();
-        assert_eq!(read, [(at, MacroDefinition { steps, ..summary })]);
+        assert_eq!(
+            read,
+            [StepsRead { at, def: MacroDefinition { steps, ..summary }, lost: false }]
+        );
     }
 
     #[test]

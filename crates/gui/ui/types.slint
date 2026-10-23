@@ -404,6 +404,10 @@ export struct MacroRow {
     steps-invalid: bool,
     // A stick it moves sits under the dead zone floor, so the move may not play.
     warned: bool,
+    // The controller lost the macro's steps, or erases this macro slot on its own: the
+    // bar's title and body. Empty when neither.
+    risk-title: string,
+    risk-body: string,
 }
 
 // A macro the controller would refuse, which turns a write button off: what to say, and

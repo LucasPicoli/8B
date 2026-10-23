@@ -21,7 +21,7 @@ use controller_core::model::{
 use controller_core::orchestrator::{MacroEdit, WriteJob, WriteOp};
 use controller_core::service::read::read_macros;
 use controller_core::service::validation::{
-    low_sticks, macro_stick_warnings, validate_macro, validate_profile,
+    low_sticks, macro_risk_warnings, macro_stick_warnings, validate_macro, validate_profile,
 };
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
@@ -84,7 +84,10 @@ fn upload(dev: &dyn DeviceIo, req: &Upload<'_>, policy: &ConfirmPolicy) -> (Valu
         puts = edits
             .iter()
             .filter_map(|e| match e {
-                MacroEdit::Put { definition, .. } => Some(definition.clone()),
+                MacroEdit::Put { macro_slot, definition } => Some(MacroDefinition {
+                    macro_slot: Some(macro_slot.get()),
+                    ..definition.clone()
+                }),
                 MacroEdit::Delete { .. } => None,
             })
             .collect();
@@ -101,7 +104,11 @@ fn upload(dev: &dyn DeviceIo, req: &Upload<'_>, policy: &ConfirmPolicy) -> (Valu
             .unwrap_or_else(|| fail(&Error::Usb("the write gave no result".to_owned())))
     });
     let warnings = match (r.success, dev.model().and_then(ControllerSpec::description)) {
-        (true, Ok(description)) => macro_stick_warnings(description, mode, &profile, &puts),
+        (true, Ok(description)) => {
+            let mut warnings = macro_stick_warnings(description, mode, &profile, &puts);
+            warnings.extend(macro_risk_warnings(description, mode, slot.get(), &puts));
+            warnings
+        }
         _ => Vec::new(),
     };
     with_fields(&r, with_warnings(json!({ "macro_count": puts.len() }), &warnings))

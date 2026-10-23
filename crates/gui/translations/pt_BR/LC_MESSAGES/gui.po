@@ -592,6 +592,10 @@ msgstr "{}, não pode ser gravada"
 msgid "{}, a stick move may not play"
 msgstr "{}, um movimento de analógico pode não ser reproduzido"
 
+#: ui/macros.slint ui/parts.slint ui/settings.slint ui/step_panel.slint
+msgid "{}, {}"
+msgstr "{}, {}"
+
 #. A macro with no name is written as "Macro n": shown muted, as in the field.
 #: ui/macros.slint
 msgctxt "macro"
@@ -805,10 +809,6 @@ msgstr "{}  →  {}"
 #: ui/parts.slint
 msgid "{} to {}"
 msgstr "{} a {}"
-
-#: ui/parts.slint ui/settings.slint
-msgid "{}, {}"
-msgstr "{}, {}"
 
 #: ui/screens.slint
 msgid "Connect your controller"
@@ -1589,6 +1589,30 @@ msgstr "Desfaça isso antes ou descarte as alterações do slot."
 #: src/macro_revert.rs
 msgid "Could not revert {macro}."
 msgstr "Não foi possível reverter {macro}."
+
+#: src/macro_risk.rs
+msgid "The controller's firmware erased macro {n}."
+msgstr "O firmware do controle apagou a macro {n}."
+
+#: src/macro_risk.rs
+msgid "Import it again, or delete it."
+msgstr "Importe-a novamente ou exclua-a."
+
+#: src/macro_risk.rs
+msgid "A firmware bug erased macro {n}."
+msgstr "Um bug de firmware apagou a macro {n}."
+
+#: src/macro_risk.rs
+msgid "The bug erases this macro slot in profile {slot} of {mode} mode. Import the macro into another macro slot, or delete it."
+msgstr "O bug apaga este slot de macro no perfil {slot} do modo {mode}. Importe a macro em outro slot de macro ou exclua-a."
+
+#: src/macro_risk.rs
+msgid "A firmware bug erases this macro slot in profile {slot} of {mode} mode."
+msgstr "Há um bug de firmware que apaga este slot de macro no perfil {slot} do modo {mode}."
+
+#: src/macro_risk.rs
+msgid "8B cannot prevent this. Use another macro slot, or keep a copy."
+msgstr "8B não consegue impedir isso. Use outro slot de macro ou guarde uma cópia."
 
 #: src/macro_tab.rs
 msgid "And {n} more problem."

@@ -328,6 +328,7 @@ impl AppState {
                             .map(|m| PadMacro {
                                 def: descriptor(&named(m, names), glide_step_ms),
                                 loaded: false,
+                                lost: false,
                             })
                             .collect();
                     }

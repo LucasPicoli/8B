@@ -16,9 +16,9 @@ use controller_core::description::ControllerDescription;
 use controller_core::device::Model;
 use controller_core::devices;
 use controller_core::error::Error;
-use controller_core::model::{Mode, Slot, WriteResult};
+use controller_core::model::{MacroDefinition, Mode, Slot, WriteResult};
 use controller_core::orchestrator::{MacroEdit, ProfileWriteOrchestrator, WriteJob, WriteOp};
-use controller_core::service::validation::macro_stick_warnings;
+use controller_core::service::validation::{macro_risk_warnings, macro_stick_warnings};
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
 
@@ -157,11 +157,16 @@ fn job(
         let puts: Vec<_> = macro_edits_of_job
             .iter()
             .filter_map(|e| match e {
-                MacroEdit::Put { definition, .. } => Some(definition.clone()),
+                MacroEdit::Put { macro_slot, definition } => Some(MacroDefinition {
+                    macro_slot: Some(macro_slot.get()),
+                    ..definition.clone()
+                }),
                 MacroEdit::Delete { .. } => None,
             })
             .collect();
-        let warnings = macro_stick_warnings(model.description()?, mode, &profile, &puts);
+        let description = model.description()?;
+        let mut warnings = macro_stick_warnings(description, mode, &profile, &puts);
+        warnings.extend(macro_risk_warnings(description, mode, slot.get(), &puts));
         extra = with_warnings(json!({ "macro_count": puts.len() }), &warnings);
     }
     // The job's profile carries no macros: they travel as the edits.

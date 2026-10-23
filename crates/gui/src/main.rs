@@ -23,6 +23,7 @@ mod logging;
 mod macro_check;
 mod macro_files;
 mod macro_revert;
+mod macro_risk;
 mod macro_steps;
 mod macro_tab;
 mod macros;

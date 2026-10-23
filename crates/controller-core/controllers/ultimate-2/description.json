@@ -30,7 +30,8 @@
       "id": "dinput",
       "label": "DInput",
       "trigger_kind": "on_off",
-      "extra_outputs": []
+      "extra_outputs": [],
+      "macro_slots_at_risk": [{ "slot": 3, "macro_slot": 1 }]
     }
   ],
   "slot_count": 3,

@@ -629,6 +629,10 @@ msgstr ""
 msgid "{}, a stick move may not play"
 msgstr ""
 
+#: ui/macros.slint ui/parts.slint ui/settings.slint ui/step_panel.slint
+msgid "{}, {}"
+msgstr ""
+
 #. A macro with no name is written as "Macro n": shown muted, as in the field.
 #: ui/macros.slint
 msgctxt "macro"
@@ -841,10 +845,6 @@ msgstr ""
 
 #: ui/parts.slint
 msgid "{} to {}"
-msgstr ""
-
-#: ui/parts.slint ui/settings.slint
-msgid "{}, {}"
 msgstr ""
 
 #: ui/screens.slint
@@ -1661,6 +1661,32 @@ msgstr ""
 
 #: src/macro_revert.rs
 msgid "Could not revert {macro}."
+msgstr ""
+
+#: src/macro_risk.rs
+msgid "The controller's firmware erased macro {n}."
+msgstr ""
+
+#: src/macro_risk.rs
+msgid "Import it again, or delete it."
+msgstr ""
+
+#: src/macro_risk.rs
+msgid "A firmware bug erased macro {n}."
+msgstr ""
+
+#: src/macro_risk.rs
+msgid ""
+"The bug erases this macro slot in profile {slot} of {mode} mode. Import the "
+"macro into another macro slot, or delete it."
+msgstr ""
+
+#: src/macro_risk.rs
+msgid "A firmware bug erases this macro slot in profile {slot} of {mode} mode."
+msgstr ""
+
+#: src/macro_risk.rs
+msgid "8B cannot prevent this. Use another macro slot, or keep a copy."
 msgstr ""
 
 #: src/macro_tab.rs

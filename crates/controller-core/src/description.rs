@@ -273,6 +273,21 @@ pub struct ModeDescription {
     /// Where a new profile starts the low end of both triggers in this mode, in percent.
     #[serde(default)]
     pub default_trigger_start: i32,
+    /// Macro slots whose steps the controller erases on its own when it starts in this
+    /// mode. The apps warn about a macro in one; nothing is refused. Empty when the JSON
+    /// omits it.
+    #[serde(default)]
+    pub macro_slots_at_risk: Vec<MacroSlotAt>,
+}
+
+/// One macro slot of one profile slot.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct MacroSlotAt {
+    /// The profile slot, from 1.
+    pub slot: u8,
+    /// The macro slot, from 0, as a macro file numbers it.
+    pub macro_slot: u8,
 }
 
 /// How a mode's triggers read.
@@ -674,6 +689,7 @@ impl ControllerDescription {
             }
         }
         self.check_settings(&modes)?;
+        self.check_macro_slots_at_risk()?;
         let mut ids = BTreeSet::new();
         for button in &self.buttons {
             if !ids.insert(button.id.as_str()) {
@@ -748,6 +764,22 @@ impl ControllerDescription {
     }
 
     /// Macro button flags need macro slots, and macro slots need both flags somewhere.
+    /// Every macro slot at risk names a profile slot and a macro slot the controller has.
+    fn check_macro_slots_at_risk(&self) -> std::result::Result<(), String> {
+        for mode in &self.modes {
+            let outside = mode.macro_slots_at_risk.iter().find(|at| {
+                !(1..=self.slot_count).contains(&at.slot) || at.macro_slot >= self.macro_slot_count
+            });
+            if let Some(at) = outside {
+                return Err(format!(
+                    "mode '{}' lists macro slot {} of slot {} as at risk, outside the controller's slots",
+                    mode.id, at.macro_slot, at.slot
+                ));
+            }
+        }
+        Ok(())
+    }
+
     fn check_macro_buttons(&self) -> std::result::Result<(), String> {
         let starts = self.buttons.iter().any(|b| b.can_start_macro);
         let in_step = self.buttons.iter().any(|b| b.can_be_in_macro_step);
@@ -1063,7 +1095,9 @@ mod tests {
 
     #[test]
     fn semantic_check_catches_each_rule() {
-        let cases: [fn(&mut Value); 34] = [
+        let cases: [fn(&mut Value); 36] = [
+            |v| v["modes"][0]["macro_slots_at_risk"] = json!([{ "slot": 4, "macro_slot": 0 }]),
+            |v| v["modes"][0]["macro_slots_at_risk"] = json!([{ "slot": 1, "macro_slot": 4 }]),
             |v| v["modes"][1]["extra_outputs"][0]["buttons"] = json!(["home"]),
             |v| v["modes"][1]["extra_outputs"][0]["buttons"] = json!(["nothing"]),
             |v| v["modes"][1]["extra_outputs"][0]["min_firmware"] = json!("1.3"),

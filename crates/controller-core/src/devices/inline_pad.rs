@@ -279,7 +279,7 @@ mod tests {
         let held = &dev.read_all_profiles().unwrap().raw_blobs[0];
         let summary = InlinePad.decode_macro_metadata(held, slot(1)).unwrap();
         let full = read_macro_steps(&dev, vec![((XINPUT, 1), summary[0].clone())]).unwrap();
-        assert_eq!(full.into_iter().map(|(_, d)| d.steps).collect::<Vec<_>>(), [new.steps]);
+        assert_eq!(full.into_iter().map(|r| r.def.steps).collect::<Vec<_>>(), [new.steps]);
     }
 
     #[test]

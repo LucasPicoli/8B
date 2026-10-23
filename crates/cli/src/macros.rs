@@ -14,9 +14,9 @@ use controller_core::device::Model;
 use controller_core::devices;
 use controller_core::error::{Error, ErrorCategory};
 use controller_core::model::macros::{macro_from_json, macro_to_json};
-use controller_core::model::{MacroSlot, Mode, Slot, WriteResult};
+use controller_core::model::{MacroDefinition, MacroSlot, Mode, Slot, WriteResult};
 use controller_core::service::read::macro_summaries;
-use controller_core::service::validation::macro_stick_warnings;
+use controller_core::service::validation::{macro_risk_warnings, macro_stick_warnings};
 use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo;
 
@@ -96,7 +96,13 @@ fn write_macro(dev: &dyn DeviceIo, req: &MacroWrite<'_>, policy: &ConfirmPolicy)
         Err(r) => r,
     });
     let Some(p) = planned else { return with_fields(&r, json!({})) };
-    let warnings = if r.success { stick_warnings(dev, mode, slot, &p.json) } else { Vec::new() };
+    let warnings = if r.success {
+        let mut warnings = stick_warnings(dev, mode, slot, &p.json);
+        warnings.extend(risk_warnings(dev, mode, slot, &p));
+        warnings
+    } else {
+        Vec::new()
+    };
     let mut fields = serde_json::Map::new();
     fields.insert("macro_slot".to_owned(), json!(p.macro_slot.get()));
     fields.insert("name".to_owned(), json!(p.name));
@@ -106,6 +112,17 @@ fn write_macro(dev: &dyn DeviceIo, req: &MacroWrite<'_>, policy: &ConfirmPolicy)
         fields.insert("dropped".to_owned(), json!(dropped));
     }
     with_fields(&r, with_warnings(Value::Object(fields), &warnings))
+}
+
+/// The warning for the macro of `p` when the controller erases its macro slot on its own.
+fn risk_warnings(dev: &dyn DeviceIo, mode: Mode, slot: Slot, p: &Planned) -> Vec<String> {
+    let found = || -> Result<Vec<String>, Error> {
+        let description = dev.model()?.description()?;
+        let def =
+            MacroDefinition { macro_slot: Some(p.macro_slot.get()), ..macro_from_json(&p.json)? };
+        Ok(macro_risk_warnings(description, mode, slot.get(), &[def]))
+    };
+    found().unwrap_or_default()
 }
 
 /// The macro stick warnings for the macro `json` in `slot` of `mode` on `dev`. Reads the

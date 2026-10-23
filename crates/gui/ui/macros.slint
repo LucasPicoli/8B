@@ -48,7 +48,8 @@ component MacroSlotRow inherits Rectangle {
         : root.item.name != "" ? @tr("Macro {}, {}", root.item.number, root.item.name)
         : @tr("Macro {0}, no name, written as Macro {0}", root.item.number);
     accessible-label: root.item.error != "" ? @tr("{}, cannot be written", spoken)
-        : root.item.warned ? @tr("{}, a stick move may not play", spoken) : spoken;
+        : root.item.warned ? @tr("{}, a stick move may not play", spoken)
+        : root.item.risk-title != "" ? @tr("{}, {}", spoken, root.item.risk-title) : spoken;
     accessible-item-selected: root.selected;
     accessible-action-default => { root.picked(); }
     ta := TouchArea {
@@ -95,7 +96,7 @@ component MacroSlotRow inherits Rectangle {
                 }
                 Rectangle {
                     width: 14px;
-                    if root.item.error != "" || root.item.warned: Image {
+                    if root.item.error != "" || root.item.warned || root.item.risk-title != "": Image {
                         y: round((parent.height - self.height) / 2 / 1phx) * 1phx;
                         source: root.item.error != "" ? Icons.error : Icons.warning;
                         colorize: root.item.error != "" ? Theme.negative : Theme.neutral;
@@ -454,7 +455,7 @@ component MacroHeader inherits Frame {
                     text: @tr("Macro {}", root.item.number);
                     vertical-alignment: center;
                 }
-                if root.item.error != "" || root.item.warned: VerticalLayout {
+                if root.item.error != "" || root.item.warned || root.item.risk-title != "": VerticalLayout {
                     padding-left: 6px;
                     alignment: center;
                     Image {
@@ -463,7 +464,8 @@ component MacroHeader inherits Frame {
                         width: 14px;
                         height: 14px;
                         accessible-role: image;
-                        accessible-label: root.item.error != "" ? @tr("Cannot be written") : @tr("A stick move may not play");
+                        accessible-label: root.item.error != "" ? @tr("Cannot be written")
+                            : root.item.warned ? @tr("A stick move may not play") : root.item.risk-title;
                     }
                 }
                 Rectangle {
@@ -786,6 +788,10 @@ export component MacrosTab {
                 pause-changed(v) => { root.pause-changed(root.selected, v); }
                 button-added(c) => { root.button-added(root.selected, c); }
                 button-removed(c) => { root.button-removed(root.selected, c); }
+            }
+            if root.current.risk-title != "": MessageBar {
+                title: root.current.risk-title;
+                body: root.current.risk-body;
             }
             if root.current.filled && root.current.error != "": MessageBar {
                 error: true;

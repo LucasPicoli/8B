@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use controller_core::description::ControllerDescription;
 use controller_core::model::glide::expanded_len;
 use controller_core::model::{MacroDefinition, MacroStep, Mode};
+use controller_core::service::read::StepsRead;
 use tr::tr;
 
 use crate::buttons::target;
@@ -19,6 +20,9 @@ pub struct PadMacro {
     pub def: MacroDefinition,
     /// Whether the steps have been read.
     pub loaded: bool,
+    /// The controller lost the steps: its page read as erased flash. The macro keeps
+    /// its placeholder steps.
+    pub lost: bool,
 }
 
 /// The start of the output id the picker gives a button that starts a macro. The rest
@@ -138,7 +142,7 @@ impl SlotState {
                 old.iter()
                     .find(|m| descriptor(&m.def, glide_step_ms) == def)
                     .cloned()
-                    .unwrap_or(PadMacro { loaded: def.steps.is_empty(), def })
+                    .unwrap_or(PadMacro { loaded: def.steps.is_empty(), def, lost: false })
             })
             .collect();
         changed
@@ -272,20 +276,20 @@ impl AppState {
     /// The steps of `read`, read from the controller on `port`, fill the macros they
     /// belong to. A macro whose descriptor changed since the read was asked for is
     /// left to the next one.
-    pub fn steps_read(&mut self, port: &str, read: Vec<((Mode, u8), MacroDefinition)>) {
+    pub fn steps_read(&mut self, port: &str, read: Vec<StepsRead>) {
         let fallback = self.fallback_description;
         let Some(c) = self.controller_mut(port) else { return };
         let glide_step_ms = c.description.unwrap_or(fallback).limits.glide_step_ms;
-        for (key, def) in read {
+        for StepsRead { at, def, lost } in read {
             let wanted = descriptor(&def, glide_step_ms);
-            let Some(m) = c.slots.get_mut(&key).and_then(|s| {
+            let Some(m) = c.slots.get_mut(&at).and_then(|s| {
                 s.pad_macros
                     .iter_mut()
                     .find(|m| !m.loaded && descriptor(&m.def, glide_step_ms) == wanted)
             }) else {
                 continue;
             };
-            *m = PadMacro { def, loaded: true };
+            *m = PadMacro { def, loaded: true, lost };
         }
     }
 
@@ -378,6 +382,11 @@ mod tests {
         }
     }
 
+    /// `def`, its steps read from slot `slot` of `XInput`.
+    fn read_in(slot: u8, def: MacroDefinition) -> StepsRead {
+        StepsRead { at: (XINPUT, slot), def, lost: false }
+    }
+
     /// What a read finds: slot 2 of `XInput` holds `macros`, and slot 3, empty, keeps
     /// a leftover.
     fn found(macros: &[MacroDefinition]) -> BTreeMap<(Mode, u8), Vec<MacroDefinition>> {
@@ -391,7 +400,7 @@ mod tests {
     fn loaded(macros: &[MacroDefinition]) -> AppState {
         let mut s = connected(XINPUT);
         s.set_macros(PORT, found(macros));
-        s.steps_read(PORT, macros.iter().map(|m| ((XINPUT, 2), m.clone())).collect());
+        s.steps_read(PORT, macros.iter().map(|m| read_in(2, m.clone())).collect());
         s.select(0, 1);
         s
     }
@@ -416,7 +425,10 @@ mod tests {
     fn read_steps_fill_their_macro_and_survive_a_read_with_the_same_descriptor() {
         let jump = macro_def(1, "Jump", 3);
         let mut s = loaded(std::slice::from_ref(&jump));
-        assert_eq!(s.slot(XINPUT, 2).pad_macros, [PadMacro { def: jump.clone(), loaded: true }]);
+        assert_eq!(
+            s.slot(XINPUT, 2).pad_macros,
+            [PadMacro { def: jump.clone(), loaded: true, lost: false }]
+        );
         assert_eq!(s.unread_macros(PORT), []);
         // The next read finds the same descriptor: the steps stay, nothing to read.
         s.set_macros(PORT, found(std::slice::from_ref(&jump)));
@@ -427,7 +439,7 @@ mod tests {
         s.set_macros(PORT, found(std::slice::from_ref(&longer)));
         assert_eq!(s.unread_macros(PORT), [((XINPUT, 2), descriptor(&longer, GLIDE_MS))]);
         // Steps for the old descriptor, late, fill nothing.
-        s.steps_read(PORT, vec![((XINPUT, 2), jump)]);
+        s.steps_read(PORT, vec![read_in(2, jump)]);
         assert!(!s.slot(XINPUT, 2).pad_macros[0].loaded);
     }
 
@@ -442,8 +454,11 @@ mod tests {
         let mut s = connected(XINPUT);
         let found = BTreeMap::from([((XINPUT, 2), vec![descriptor(&on_pad, GLIDE_MS)])]);
         s.set_macros(PORT, found.clone());
-        s.steps_read(PORT, vec![((XINPUT, 2), glide.clone())]);
-        assert_eq!(s.slot(XINPUT, 2).pad_macros, [PadMacro { def: glide.clone(), loaded: true }]);
+        s.steps_read(PORT, vec![read_in(2, glide.clone())]);
+        assert_eq!(
+            s.slot(XINPUT, 2).pad_macros,
+            [PadMacro { def: glide.clone(), loaded: true, lost: false }]
+        );
         s.set_macros(PORT, found);
         assert!(s.slot(XINPUT, 2).pad_macros[0].loaded, "a read of the same macro keeps its steps");
         assert_eq!(s.unread_macros(PORT), []);
@@ -465,7 +480,7 @@ mod tests {
         s.select(0, 1);
         s.edit_macros(|m| m[0].repeat_count = REPEAT_CONTINUOUS);
         assert_eq!(s.slot(XINPUT, 2).edited_macros, None, "the steps are not read yet");
-        s.steps_read(PORT, vec![((XINPUT, 2), jump)]);
+        s.steps_read(PORT, vec![read_in(2, jump)]);
         s.edit_macros(|m| m[0].repeat_count = REPEAT_CONTINUOUS);
         let slot = s.slot(XINPUT, 2);
         assert!(slot.unsaved() && slot.macros_unsaved() && !slot.profile_unsaved());
@@ -505,7 +520,7 @@ mod tests {
         let dash = MacroDefinition { name: "Dash".to_owned(), ..jump };
         s.set_macros(PORT, found(std::slice::from_ref(&dash)));
         assert_eq!(s.changed_slots(), []);
-        s.steps_read(PORT, vec![((XINPUT, 2), dash)]);
+        s.steps_read(PORT, vec![read_in(2, dash)]);
         assert!(!s.slot(XINPUT, 2).unsaved(), "equal once the steps are read");
         // Edits again, then another change on the pad: the question shows.
         s.edit_macros(|m| m[0].name = "Run".to_owned());

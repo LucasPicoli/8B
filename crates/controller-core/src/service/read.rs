@@ -10,6 +10,9 @@ use crate::model::glide::fold;
 use crate::model::{MacroDefinition, MacroSlot, Mode, ProfileReadResult, Slot};
 use crate::transport::device_io::{DeviceIo, MacroStream};
 
+/// The value of every byte of erased flash.
+const ERASED_BYTE: u8 = 0xFF;
+
 /// The result of a successful [`read_macros`] call.
 #[derive(Debug, Clone)]
 pub struct MacroReadResult {
@@ -133,6 +136,19 @@ pub(crate) fn blob_for_mode<'r>(
 /// A macro and the mode and profile slot that hold it.
 pub type MacroAt = ((Mode, u8), MacroDefinition);
 
+/// One macro of [`read_macro_steps`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StepsRead {
+    /// The mode and profile slot that hold the macro.
+    pub at: (Mode, u8),
+    /// The macro with its steps, or, when lost, with the placeholder steps it was asked
+    /// with.
+    pub def: MacroDefinition,
+    /// Every byte of the macro's page read as erased flash, `0xFF`: the controller lost
+    /// the steps while the descriptor still names them.
+    pub lost: bool,
+}
+
 /// Reads the step streams of `macros` in one session and decodes each into its macro,
 /// with the runs of short steps folded back into glides.
 ///
@@ -144,11 +160,14 @@ pub type MacroAt = ((Mode, u8), MacroDefinition);
 /// - [`Error::Decode`] if a summary has no macro slot or a stream does not decode.
 /// - [`Error::Validation`] if a profile or macro slot is out of range.
 /// - Any [`Error`] from [`DeviceIo::read_macro_streams`].
-pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<MacroAt>> {
+pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<StepsRead>> {
     let model = dev.model()?;
     let glide_step_ms = model.description()?.limits.glide_step_ms;
     if model.macro_steps_in_blob() {
-        return Ok(macros.into_iter().map(|(at, def)| (at, fold(&def, glide_step_ms))).collect());
+        return Ok(macros
+            .into_iter()
+            .map(|(at, def)| StepsRead { at, def: fold(&def, glide_step_ms), lost: false })
+            .collect());
     }
     let streams = macros
         .iter()
@@ -168,10 +187,18 @@ pub fn read_macro_steps(dev: &dyn DeviceIo, macros: Vec<MacroAt>) -> Result<Vec<
         .into_iter()
         .zip(macros)
         .map(|(stream, (at, mut def))| {
+            if erased(&stream) {
+                return Ok(StepsRead { at, def, lost: true });
+            }
             def.steps = model.decode_macro_steps(&stream, def.steps.len(), def.mode)?;
-            Ok((at, fold(&def, glide_step_ms)))
+            Ok(StepsRead { at, def: fold(&def, glide_step_ms), lost: false })
         })
         .collect()
+}
+
+/// Whether `stream` holds steps and reads as erased flash only.
+fn erased(stream: &[u8]) -> bool {
+    !stream.is_empty() && stream.iter().all(|&b| b == ERASED_BYTE)
 }
 
 /// The macro descriptors of every slot of a full read, empty slots included.
@@ -333,5 +360,41 @@ mod tests {
         assert_eq!(summaries.len(), 1, "an active slot has its summaries, slot 2 none");
         let golden = &summaries[&(XINPUT, 1)][0];
         assert_eq!((golden.name.as_str(), golden.steps.len()), ("GoldenMac", 3));
+    }
+
+    /// The summary of the one macro in `fixtures/pro3/macro-meta.blob`, `XInput` slot 1.
+    fn fixture_summary() -> MacroDefinition {
+        let blob = std::fs::read("../../fixtures/pro3/macro-meta.blob").unwrap();
+        Pro3.decode_macro_metadata(&blob, Slot::new(1).unwrap()).unwrap().remove(0)
+    }
+
+    /// The fixture macro's steps read from a pad whose page holds `page`.
+    fn steps_read_from(page: Vec<u8>) -> StepsRead {
+        let summary = fixture_summary();
+        let macro_slot = MacroSlot::new(summary.macro_slot.unwrap()).unwrap();
+        let dev = MockDevice::new().with_model(&Pro3).with_macro_stream(
+            XINPUT,
+            Slot::new(1).unwrap(),
+            macro_slot,
+            page,
+        );
+        read_macro_steps(&dev, vec![((XINPUT, 1), summary)]).unwrap().remove(0)
+    }
+
+    #[test]
+    fn a_page_of_erased_flash_reads_as_a_lost_macro_with_its_descriptor() {
+        let summary = fixture_summary();
+        let read = steps_read_from(vec![0xFF; summary.steps.len() * 10]);
+        assert!(read.lost);
+        assert_eq!(read.at, (XINPUT, 1));
+        assert_eq!(read.def, summary, "a lost macro keeps the descriptor it was asked with");
+    }
+
+    #[test]
+    fn a_page_with_steps_is_not_lost() {
+        let page = std::fs::read("../../fixtures/pro3/macro-sample.steps.bin").unwrap();
+        let read = steps_read_from(page);
+        assert!(!read.lost);
+        assert_ne!(read.def.steps, fixture_summary().steps, "the steps were decoded");
     }
 }

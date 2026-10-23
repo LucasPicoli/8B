@@ -844,8 +844,10 @@ pub mod tests {
     /// Slot `key` of the controller on [`PORT`] holds `macros`, their steps read.
     pub fn hold_macros(s: &mut AppState, key: (Mode, u8), macros: &[MacroDefinition]) {
         let slot = s.controller_mut(PORT).unwrap().slots.get_mut(&key).unwrap();
-        slot.pad_macros =
-            macros.iter().map(|def| PadMacro { def: def.clone(), loaded: true }).collect();
+        slot.pad_macros = macros
+            .iter()
+            .map(|def| PadMacro { def: def.clone(), loaded: true, lost: false })
+            .collect();
     }
 
     #[test]

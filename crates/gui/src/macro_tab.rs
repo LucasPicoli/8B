@@ -11,6 +11,7 @@ use slint::{Model as _, ModelRc, SharedString, VecModel};
 use tr::tr;
 
 use crate::buttons::{button_label, keep_same, output_label, push_model, target};
+use crate::macro_risk::risk_bar;
 use crate::macros::takes_trigger;
 use crate::reasons::worded;
 use crate::state::{cut_name, AppState, SlotState};
@@ -255,10 +256,13 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
     let label = |b: &String| button_label(description, mode, b);
     (0..description.macro_slot_count)
         .map(|n| {
+            let [risk_title, risk_body] = risk_bar(state, n).unwrap_or_default().map(Into::into);
             let Some(m) = slot.shown_macro(n) else {
                 return MacroRow {
                     number: i32::from(n) + 1,
                     unsaved: slot.macro_unsaved(n),
+                    risk_title,
+                    risk_body,
                     ..MacroRow::default()
                 };
             };
@@ -298,6 +302,8 @@ pub fn macro_rows(state: &AppState) -> Vec<MacroRow> {
                 error: reasons(state.description(), &errors).into(),
                 steps_invalid: errors.iter().any(|e| e.path == "/steps"),
                 warned: floor_bar(state, n).is_some(),
+                risk_title,
+                risk_body,
             }
         })
         .collect()
@@ -348,10 +354,11 @@ fn name_max(description: &ControllerDescription) -> i32 {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use controller_core::devices::pro3::XINPUT;
+    use controller_core::devices::pro3::{DINPUT, XINPUT};
 
     use super::*;
-    use crate::state::tests::{connected, hold_macros, macro_def};
+    use crate::macros::PadMacro;
+    use crate::state::tests::{connected, hold_macros, macro_def, ultimate_2, PORT};
 
     /// `XInput` slot 2 selected, holding "Jump" in macro slot 0 on PR and PL, and "Dash"
     /// in macro slot 2 on R4.
@@ -365,6 +372,37 @@ mod tests {
 
     fn row(s: &AppState, n: usize) -> MacroRow {
         macro_rows(s)[n].clone()
+    }
+
+    /// An Ultimate 2 with `DInput` slot 3 selected, holding a profile and `macros`.
+    fn ultimate_2_slot_3(macros: Vec<PadMacro>) -> AppState {
+        let model = controller_core::devices::model_named("Ultimate 2").unwrap();
+        let mut s = ultimate_2();
+        let slot = s.controller_mut(PORT).unwrap().slots.entry((DINPUT, 3)).or_default();
+        slot.pad = Some(model.default_profile(DINPUT));
+        slot.pad_macros = macros;
+        s.select(1, 2);
+        s
+    }
+
+    #[test]
+    fn the_macro_slot_the_controller_erases_warns_when_empty_and_when_filled() {
+        let empty = ultimate_2_slot_3(Vec::new());
+        assert!(!row(&empty, 1).risk_title.is_empty(), "macro 2 of DInput slot 3");
+        assert!(row(&empty, 0).risk_title.is_empty(), "macro 1 is not erased");
+        let combo = MacroDefinition { mode: DINPUT, ..macro_def(1, "Combo", &[], 3) };
+        let filled = ultimate_2_slot_3(vec![PadMacro { def: combo, loaded: true, lost: false }]);
+        assert_eq!(row(&filled, 1).risk_title, row(&empty, 1).risk_title);
+        assert!(!row(&filled, 1).risk_body.is_empty());
+    }
+
+    #[test]
+    fn a_lost_macro_says_so_in_a_macro_slot_that_is_not_at_risk() {
+        let combo = MacroDefinition { mode: DINPUT, ..macro_def(0, "Combo", &[], 3) };
+        let s = ultimate_2_slot_3(vec![PadMacro { def: combo, loaded: true, lost: true }]);
+        let (lost, at_risk) = (row(&s, 0), row(&s, 1));
+        assert!(!lost.risk_title.is_empty() && !lost.risk_body.is_empty());
+        assert_ne!(lost.risk_title, at_risk.risk_title, "lost is not the same warning");
     }
 
     fn list(m: &ModelRc<SharedString>) -> Vec<String> {

@@ -260,6 +260,19 @@
           "type": "integer",
           "minimum": 0
         },
+        "macro_slots_at_risk": {
+          "description": "Optional. Macro slots whose steps the controller erases on its own when it starts in this mode. The apps warn about a macro in one and refuse nothing. slot counts from 1 and macro_slot from 0, as a macro file numbers it; both must be within slot_count and macro_slot_count.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "macro_slot"],
+            "properties": {
+              "slot": { "type": "integer", "minimum": 1 },
+              "macro_slot": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
         "gamepad_mode": {
           "description": "Optional. The byte the pad stores in a profile image, and selects the mode by. Unique per model.",
           "type": "integer",
