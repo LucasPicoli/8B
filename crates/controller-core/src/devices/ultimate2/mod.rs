@@ -690,27 +690,32 @@ mod tests {
 
     #[test]
     fn a_step_trigger_is_stored_as_the_vendor_app_stores_it() {
-        // The vendor app's XInput steps (`fixtures/pro3/xinput-vendor-triggers.steps.bin`):
-        // R2 as keys 0x8000, then L2 as 0x4000, trigger_value 0, sticks centred. The
-        // Ultimate 2 played its own app's L2 as LT, and 8B's trigger_value 0xFF00 as RT.
+        // The vendor app's save of LT, RT, then both, to an Ultimate 2 in XInput
+        // (`fixtures/ultimate-2/xinput-vendor-triggers.steps.bin`): L2 as keys 0x4000, R2
+        // as 0x8000, trigger_value 0, sticks centred. The pad played 8B's trigger_value
+        // 0xFF00 as RT.
         let vendor =
-            include_bytes!("../../../../../fixtures/pro3/xinput-vendor-triggers.steps.bin");
-        let centre = 0x7F;
+            include_bytes!("../../../../../fixtures/ultimate-2/xinput-vendor-triggers.steps.bin");
         let step = |duration_ms, trigger_left, trigger_right| MacroStep {
             duration_ms,
             trigger_left,
             trigger_right,
-            left_stick_x: centre,
-            left_stick_y: centre,
-            right_stick_x: centre,
-            right_stick_y: centre,
             ..MacroStep::default()
         };
-        let steps = [step(203, 0, 255), step(156, 255, 0)];
+        let steps = [
+            step(500, 255, 0),
+            step(500, 0, 0),
+            step(500, 0, 255),
+            step(500, 0, 0),
+            step(500, 255, 255),
+            step(500, 0, 255),
+            step(0, 0, 0),
+        ];
         for mode in [XINPUT, DINPUT] {
             let stream = Ultimate2.encode_macro_steps(&steps, mode).unwrap();
             assert_eq!(stream[..vendor.len()], vendor[..], "{mode}");
-            assert_eq!(Ultimate2.decode_macro_steps(&stream, 2, mode).unwrap(), steps, "{mode}");
+            let back = Ultimate2.decode_macro_steps(&stream, steps.len(), mode).unwrap();
+            assert_eq!(back, steps, "{mode}");
         }
     }
 
