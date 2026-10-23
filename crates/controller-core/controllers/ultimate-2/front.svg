@@ -1,29 +1,34 @@
 <?xml version="1.0" encoding="utf-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 356">
-  <path data-button="l4" d="M 182 44 L 182 36 A 4 4 0 0 1 186 32 L 204 32 A 4 4 0 0 1 208 36 L 208 44 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
-  <path data-button="r4" d="M 292 44 L 292 36 A 4 4 0 0 1 296 32 L 314 32 A 4 4 0 0 1 318 36 L 318 44 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
-  <path data-button="l1" d="M 48 63.6 C 55.1 42.6 76.3 29.8 110 28 L 168 28 C 173 28 175 31 175 36 L 175 44 L 112 44 C 85.9 44 63.6 50.5 48 63.6 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
-  <path data-button="r1" d="M 452 63.6 C 444.9 42.6 423.7 29.8 390 28 L 332 28 C 327 28 325 31 325 36 L 325 44 L 388 44 C 414.1 44 436.4 50.5 452 63.6 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M 250.0 44 L 112 44 C 62 44 26 68 24 116 C 22 164 26 250 40 306 C 50 342 108 344 128 316 C 146 290 156 250 184 234 C 206 224 228 224 250.0 224 C 272 224 294 224 316 234 C 344 250 354 290 372 316 C 392 344 450 342 460 306 C 474 250 478 164 476 116 C 474 68 438 44 388 44 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
-  <path d="M 105 76 L 131 76 L 131 101 L 156 101 L 156 127 L 131 127 L 131 152 L 105 152 L 105 127 L 80 127 L 80 101 L 105 101 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
-  <rect data-button="d-pad up" x="105" y="76" width="26" height="25" fill="none" stroke="none"/>
-  <rect data-button="d-pad down" x="105" y="127" width="26" height="25" fill="none" stroke="none"/>
-  <rect data-button="d-pad left" x="80" y="101" width="25" height="26" fill="none" stroke="none"/>
-  <rect data-button="d-pad right" x="131" y="101" width="25" height="26" fill="none" stroke="none"/>
-  <circle data-button="top face" cx="382" cy="82" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle data-button="left face" cx="345" cy="114" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle data-button="right face" cx="419" cy="114" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle data-button="bottom face" cx="382" cy="146" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <rect data-button="select/back" x="209" y="107" width="36" height="12" rx="6" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <rect data-button="start/menu" x="255" y="107" width="36" height="12" rx="6" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle cx="182" cy="182" r="36" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle cx="182" cy="182" r="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
-  <circle data-button="l3" cx="182" cy="182" r="22" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle cx="318" cy="182" r="36" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle cx="318" cy="182" r="29" fill="#ffffff" stroke="#000000" stroke-width="1"/>
-  <circle data-button="r3" cx="318" cy="182" r="22" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <circle data-button="turbo" cx="118" cy="194" r="10" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <path d="M 118 188 L 119.53 191.9 L 123.71 192.15 L 120.47 194.8 L 121.53 198.85 L 118 196.6 L 114.47 198.85 L 115.53 194.8 L 112.29 192.15 L 116.47 191.9 Z" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
-  <circle data-button="home/guide" cx="382" cy="194" r="10" fill="#ffffff" stroke="#000000" stroke-width="1.5"/>
-  <rect x="377" y="189" width="10" height="10" rx="2" fill="#ffffff" stroke="#000000" stroke-width="1"/>
+  <path data-button="l4" d="M 140 28 L 140 25 A 3 3 0 0 1 143 22 L 155 22 A 3 3 0 0 1 158 25 L 158 28 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="r4" d="M 360 28 L 360 25 A 3 3 0 0 0 357 22 L 345 22 A 3 3 0 0 0 342 25 L 342 28 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="l1" d="M 70 62 C 74 48 94 31 122 28 L 156 28 C 161 28 165 31 167 35 C 128 35 92 42 70 62 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path data-button="r1" d="M 430 62 C 426 48 406 31 378 28 L 344 28 C 339 28 335 31 333 35 C 372 35 408 42 430 62 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 250 35 L 167 35 C 128 35 92 42 70 62 C 56 76 48 100 44 128 C 38 170 32 230 29 290 C 28 322 45 342 76 344 C 86 340 116 284 132 256 C 140 247 148 244 160 244 L 250 244 L 340 244 C 352 244 360 247 368 256 C 384 284 414 340 424 344 C 455 342 472 322 471 290 C 468 230 462 170 456 128 C 452 100 444 76 430 62 C 408 42 372 35 333 35 L 250 35 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="120" cy="117" r="36" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="120" cy="117" r="30" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <circle data-button="l3" cx="120" cy="117" r="22" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="312" cy="189" r="36" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="312" cy="189" r="30" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <circle data-button="r3" cx="312" cy="189" r="22" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 175 151 L 201 151 L 201 176 L 226 176 L 226 202 L 201 202 L 201 227 L 175 227 L 175 202 L 150 202 L 150 176 L 175 176 Z" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <rect data-button="d-pad up" x="175" y="151" width="26" height="25" fill="none" stroke="none"/>
+  <rect data-button="d-pad down" x="175" y="202" width="26" height="25" fill="none" stroke="none"/>
+  <rect data-button="d-pad left" x="150" y="176" width="25" height="26" fill="none" stroke="none"/>
+  <rect data-button="d-pad right" x="201" y="176" width="25" height="26" fill="none" stroke="none"/>
+  <circle data-button="top face" cx="380" cy="84" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle data-button="left face" cx="348" cy="117" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle data-button="right face" cx="413" cy="117" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle data-button="bottom face" cx="380" cy="149" r="15" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle data-button="select/back" cx="191" cy="78" r="10" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 186 78 L 196 78" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <circle data-button="start/menu" cx="309" cy="78" r="10" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 304 78 L 314 78 M 309 73 L 309 83" fill="none" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <circle data-button="home/guide" cx="250" cy="78" r="13" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <circle cx="250" cy="78" r="9" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <circle cx="219" cy="112" r="10" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <rect x="216" y="109" width="6" height="6" rx="1" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <circle data-button="turbo" cx="281" cy="112" r="10" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="M 281 106 L 282.53 109.9 L 286.71 110.15 L 283.47 112.8 L 284.53 116.85 L 281 114.6 L 277.47 116.85 L 278.53 112.8 L 275.29 110.15 L 279.47 109.9 Z" fill="#ffffff" stroke="#000000" stroke-width="1" stroke-linejoin="round"/>
+  <rect x="239" y="144" width="22" height="12" rx="6" fill="#ffffff" stroke="#000000" stroke-width="1.5" stroke-linejoin="round"/>
 </svg>

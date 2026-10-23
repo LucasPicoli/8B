@@ -569,6 +569,57 @@ mod tests {
         assert!(ControllerDescription::parse(&broken, &svgs).is_err());
     }
 
+    /// Points picked from the art: each button's centre lands on that button only.
+    #[test]
+    fn ultimate_2_hotspots_sit_on_their_buttons() {
+        let views = &Ultimate2.description().unwrap().views;
+        let hit = |view: usize, x: f64, y: f64| -> Vec<&str> {
+            let hotspots = views[view].hotspots.iter();
+            hotspots.filter(|h| h.contains(x, y)).map(|h| h.button.as_str()).collect()
+        };
+        let none = Vec::<&str>::new();
+        let front = [
+            (380.0, 84.0, "top face"),
+            (348.0, 117.0, "left face"),
+            (413.0, 117.0, "right face"),
+            (380.0, 149.0, "bottom face"),
+            (188.0, 163.0, "d-pad up"),
+            (188.0, 215.0, "d-pad down"),
+            (162.0, 189.0, "d-pad left"),
+            (214.0, 189.0, "d-pad right"),
+            (120.0, 117.0, "l3"),
+            (312.0, 189.0, "r3"),
+            (191.0, 78.0, "select/back"),
+            (309.0, 78.0, "start/menu"),
+            (250.0, 78.0, "home/guide"),
+            (281.0, 112.0, "turbo"),
+            (122.0, 33.0, "l1"),
+            (378.0, 33.0, "r1"),
+            (149.0, 25.0, "l4"),
+            (351.0, 25.0, "r4"),
+        ];
+        for (x, y, button) in front {
+            assert_eq!(hit(0, x, y), [button], "front ({x}, {y})");
+        }
+        assert_eq!(hit(0, 188.0, 189.0), none, "d-pad centre");
+        assert_eq!(hit(0, 90.0, 60.0), none, "body below L1");
+        assert_eq!(hit(0, 219.0, 112.0), none, "the square button has no id");
+        assert_eq!(hit(0, 250.0, 150.0), none, "the profile button has no id");
+        // Seen from behind, the right hand is on the left.
+        let back = [
+            (102.0, 40.0, "r2"),
+            (398.0, 40.0, "l2"),
+            (151.0, 21.0, "r4"),
+            (349.0, 21.0, "l4"),
+            (165.0, 165.0, "rp"),
+            (335.0, 165.0, "lp"),
+        ];
+        for (x, y, button) in back {
+            assert_eq!(hit(1, x, y), [button], "back ({x}, {y})");
+        }
+        assert_eq!(hit(1, 250.0, 120.0), none, "the back between the paddles");
+    }
+
     /// `blob` with its CRC zeroed.
     fn sans_crc(blob: &[u8]) -> Vec<u8> {
         let mut out = blob.to_vec();
