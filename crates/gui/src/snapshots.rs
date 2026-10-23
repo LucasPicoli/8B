@@ -1269,6 +1269,31 @@ fn the_batch_review_opens_and_closes_a_row_on_a_click() {
     assert_eq!(toggled.get(), 0);
 }
 
+/// A new slot with no macros has nothing to list: its row has no chevron, and a click on
+/// it opens nothing.
+#[test]
+fn a_new_slot_row_with_nothing_to_list_does_not_open() {
+    let mut s = connected(XINPUT);
+    s.select(0, 2);
+    assert!(s.slot(XINPUT, 3).pad.is_none(), "slot 3 starts empty");
+    s.start_from_default();
+    // A name the user typed, as the coverage walk knows it.
+    s.set_name("Edited");
+    s.begin_batch().unwrap();
+    s.review_read(PORT, true);
+    let ui = window(&s);
+    save("batch-review-new-slot", &ui);
+    let toggled = Rc::new(std::cell::Cell::new(-1));
+    let t = Rc::clone(&toggled);
+    ui.on_batch_slot_toggled(move |row| t.set(row));
+    if qps_stops_here() {
+        return;
+    }
+    // The header of the only row, in the card the review centres in the window.
+    click(&ui, 640.0, 402.0);
+    assert_eq!(toggled.get(), -1);
+}
+
 /// The batch of 3 slots, writing in one run.
 fn batch_writing() -> AppState {
     let mut s = batch_reviewing();

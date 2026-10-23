@@ -752,7 +752,8 @@ export component Disclosure inherits Rectangle {
     in property <string> detail;
     in property <string> note;
     in property <bool> open;
-    // A row with nothing to show opens to nothing.
+    // A row with nothing to show, such as a new slot with no macros, has no chevron and
+    // does not open.
     in property <bool> has-body: true;
     // The last row has no rule under it.
     in property <bool> last;
@@ -764,14 +765,14 @@ export component Disclosure inherits Rectangle {
             background: ta.has-hover ? Theme.hover : transparent;
             accessible-role: button;
             accessible-label: root.detail != "" ? @tr("{}, {}", root.title, root.detail) : root.title;
-            accessible-expandable: true;
-            accessible-expanded: root.open;
-            accessible-action-default => { root.toggled(); }
+            accessible-expandable: root.has-body;
+            accessible-expanded: root.open && root.has-body;
+            accessible-action-default => { if (root.has-body) { root.toggled(); } }
 
             fs := FocusScope {
                 focus-on-click: false;
                 key-pressed(e) => {
-                    if (e.text == " " || e.text == Key.Return) {
+                    if (root.has-body && (e.text == " " || e.text == Key.Return)) {
                         root.toggled();
                         return accept;
                     }
@@ -789,6 +790,8 @@ export component Disclosure inherits Rectangle {
                     source: @image-url("icons/chevron.svg");
                     colorize: Theme.fg-muted;
                     transform-rotation: root.open ? 0deg : -90deg;
+                    // Hidden, not removed, so the titles of every row line up.
+                    opacity: root.has-body ? 1 : 0;
                 }
                 Text {
                     text: root.title;
@@ -810,6 +813,7 @@ export component Disclosure inherits Rectangle {
                 }
             }
             ta := TouchArea {
+                enabled: root.has-body;
                 clicked => { root.toggled(); }
             }
             // Keyboard focus: the Breeze accent frame.
