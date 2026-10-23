@@ -1,6 +1,7 @@
-//! The profile files in `fixtures/ultimate-2/check/`, the comparison of a slot read
-//! from a pad with one of them, and the presses that prove the pad plays it.
-#![allow(clippy::unwrap_used)]
+//! The profile files in `fixtures/ultimate-2/check/` and `fixtures/ultimate-2/gui-check/`,
+//! the comparison of a slot read from a pad with one of them, and the presses that prove
+//! the pad plays the check's file.
+#![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use controller_core::model::{CanonicalProfile, MacroDefinition, MacroStep, Mode};
 use serde_json::Value;
@@ -15,8 +16,19 @@ fn text(mode: Mode) -> String {
 
 /// The file for `mode`: its profile and its macros.
 pub fn fixture(mode: Mode) -> (CanonicalProfile, Vec<MacroDefinition>) {
-    let profile: CanonicalProfile = serde_json::from_str(&text(mode)).unwrap();
-    let macros = profile.macros.clone().unwrap();
+    parse(&text(mode))
+}
+
+/// The profile file at `path`, from the crate's folder: its profile and its macros, none
+/// when it has none.
+pub fn load(path: &str) -> (CanonicalProfile, Vec<MacroDefinition>) {
+    parse(&std::fs::read_to_string(path).expect(path))
+}
+
+/// A profile file's text as its profile and its macros.
+fn parse(text: &str) -> (CanonicalProfile, Vec<MacroDefinition>) {
+    let profile: CanonicalProfile = serde_json::from_str(text).unwrap();
+    let macros = profile.macros.clone().unwrap_or_default();
     (profile, macros)
 }
 
@@ -34,21 +46,33 @@ fn show_step(s: &MacroStep) -> String {
     let mut buttons = s.pressed_buttons.clone();
     buttons.sort();
     format!(
-        "{} ms, buttons {buttons:?}, triggers ({}, {}), sticks ({}, {}) ({}, {})",
+        "{} ms, buttons {buttons:?}, triggers ({}, {}), sticks ({}, {}) ({}, {}), glide {:?}",
         s.duration_ms,
         s.trigger_left,
         s.trigger_right,
         s.left_stick_x,
         s.left_stick_y,
         s.right_stick_x,
-        s.right_stick_y
+        s.right_stick_y,
+        s.glide
     )
 }
 
-/// Every way the slot read, `profile` and `macros`, differs from the file of its
-/// mode: the name, a setting, a mapping, a macro's trigger, repeat or step.
+/// Every way the slot read, `profile` and `macros`, differs from the check's file of
+/// its mode, as [`differences_from`] finds them.
 pub fn differences(profile: &CanonicalProfile, macros: &[MacroDefinition]) -> Vec<String> {
     let (want, want_macros) = fixture(profile.mode);
+    differences_from(&want, &want_macros, profile, macros)
+}
+
+/// Every way the slot read, `profile` and `macros`, differs from `want` and
+/// `want_macros`: the name, a setting, a mapping, a macro's name, trigger, repeat or step.
+pub fn differences_from(
+    want: &CanonicalProfile,
+    want_macros: &[MacroDefinition],
+    profile: &CanonicalProfile,
+    macros: &[MacroDefinition],
+) -> Vec<String> {
     let mut out = Vec::new();
     if profile.name != want.name {
         out.push(format!("name: expected {}, read {}", want.name, profile.name));
@@ -63,12 +87,15 @@ pub fn differences(profile: &CanonicalProfile, macros: &[MacroDefinition]) -> Ve
             out.push(format!("mapping {}: expected {}, read {read}", m.source, m.target));
         }
     }
-    for w in &want_macros {
+    for w in want_macros {
         let n = w.macro_slot.unwrap_or_default();
         let Some(g) = macros.iter().find(|g| g.macro_slot == w.macro_slot) else {
             out.push(format!("macro {n}: missing"));
             continue;
         };
+        if g.name != w.name {
+            out.push(format!("macro {n} name: expected {}, read {}", w.name, g.name));
+        }
         if g.trigger_buttons != w.trigger_buttons {
             out.push(format!(
                 "macro {n} trigger: expected {:?}, read {:?}",

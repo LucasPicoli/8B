@@ -1,0 +1,4095 @@
+{
+  "version": 1,
+  "device": "8bitdo-ultimate-2",
+  "mode": "xinput",
+  "name": "408 passos",
+  "repeat": {
+    "count": 1,
+    "interval_ms": 0
+  },
+  "trigger_buttons": [
+    "l4"
+  ],
+  "steps": [
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [
+            "bottom face"
+          ],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    },
+    {
+      "actions": {
+        "buttons": {
+          "press": [],
+          "release": []
+        }
+      },
+      "duration_ms": 20
+    }
+  ]
+}

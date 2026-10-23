@@ -1,0 +1,161 @@
+{
+  "button_mappings": [
+    {
+      "source": "right face",
+      "target": "bottom face"
+    },
+    {
+      "source": "bottom face",
+      "target": "right face"
+    },
+    {
+      "source": "top face",
+      "target": "left face"
+    },
+    {
+      "source": "left face",
+      "target": "top face"
+    },
+    {
+      "source": "l1",
+      "target": "r2"
+    },
+    {
+      "source": "r1",
+      "target": "l2"
+    },
+    {
+      "source": "l2",
+      "target": "l1"
+    },
+    {
+      "source": "r2",
+      "target": "disabled"
+    },
+    {
+      "source": "l3",
+      "target": "r3"
+    },
+    {
+      "source": "r3",
+      "target": "l3"
+    },
+    {
+      "source": "select/back",
+      "target": "home/guide"
+    },
+    {
+      "source": "start/menu",
+      "target": "select/back"
+    },
+    {
+      "source": "turbo",
+      "target": "turbo"
+    },
+    {
+      "source": "home/guide",
+      "target": "home/guide"
+    },
+    {
+      "source": "d-pad up",
+      "target": "d-pad down"
+    },
+    {
+      "source": "d-pad down",
+      "target": "d-pad up"
+    },
+    {
+      "source": "d-pad left",
+      "target": "start/menu"
+    },
+    {
+      "source": "d-pad right",
+      "target": "d-pad right"
+    },
+    {
+      "source": "rp",
+      "target": "d-pad left"
+    },
+    {
+      "source": "lp",
+      "target": "bottom face"
+    },
+    {
+      "source": "l4",
+      "target": "l4"
+    },
+    {
+      "source": "r4",
+      "target": "r4"
+    }
+  ],
+  "device": "8bitdo-ultimate-2",
+  "id": "xinput-slot-2-index-1",
+  "kind": "8bitdo.ultimate-2.profile",
+  "mode": "xinput",
+  "name": "Mapas XI çãé 16!",
+  "sticks": {
+    "invert_left_x": true,
+    "invert_left_y": false,
+    "invert_right_x": false,
+    "invert_right_y": true,
+    "left_max_pct": 10,
+    "left_min_pct": 0,
+    "right_max_pct": 100,
+    "right_min_pct": 90,
+    "swap_dpad_with_left_stick": false,
+    "swap_sticks": true
+  },
+  "triggers": {
+    "left_max_pct": 50,
+    "left_min_pct": 0,
+    "right_max_pct": 100,
+    "right_min_pct": 50,
+    "swap_triggers": true
+  },
+  "version": 1,
+  "vibration": {
+    "left_level": 0,
+    "right_level": 5
+  },
+  "motion": {
+    "map_to": "left_stick",
+    "button": "d-pad down",
+    "method": "toggle",
+    "sensitivity": 1,
+    "dead_zone": 0
+  },
+  "lights": {
+    "tracing": "#112233",
+    "tracing_background": "#445566",
+    "fire": "#778899",
+    "fire_background": "#aabbcc",
+    "fire_speed": 1,
+    "custom": [
+      "#ffffff",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#ff0000",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff",
+      "#ffffff",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff",
+      "#0000ff"
+    ]
+  }
+}

@@ -32,7 +32,7 @@ pub fn model() -> &'static dyn Model {
 
 /// The modes `ULTIMATE_2_CHECK_MODES` names, such as "dinput", or both when it names
 /// none, in the description's order.
-fn modes() -> Vec<Mode> {
+pub fn modes() -> Vec<Mode> {
     let listed: Vec<Mode> = model().description().unwrap().modes.iter().map(|m| m.id).collect();
     let named = std::env::var("ULTIMATE_2_CHECK_MODES").unwrap_or_default();
     let picked: Vec<Mode> = named

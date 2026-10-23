@@ -85,7 +85,7 @@ missing-strings:
 # run it by hand after an encoder change, never here. `import_check` is a guided run
 # with a person, see docs/ultimate-import-check.md.
 hw:
-    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate --skip import_check --skip guided::
+    cargo test --features hardware --no-fail-fast -- --ignored --skip regenerate --skip import_check --skip guided:: --skip gui_check:: --skip probe::
 
 # One phase of the guided check of an imported profile on an Ultimate: backup, check or
 # restore. Run each once, in that order. `check` takes the modes to press, both by default,
@@ -104,6 +104,16 @@ ultimate-2-check phase *modes:
     set -euo pipefail
     case "{{phase}}" in backup|check|restore) ;; *) echo 'phase: backup, check or restore' >&2; exit 2 ;; esac
     ULTIMATE_2_CHECK_MODES="{{modes}}" cargo test -p controller-core --features hardware --test ultimate2 -- --ignored --nocapture --exact "guided::{{phase}}"
+
+# One phase of the GUI check of an Ultimate 2: backup, check, cleared or restore. The
+# slots are built in the window between backup and check, and cleared in it before
+# cleared. Name modes to run one only, as in `just ultimate-2-gui-check check dinput`.
+# See docs/ultimate-2-gui-check.md.
+ultimate-2-gui-check phase *modes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "{{phase}}" in backup|check|cleared|restore) ;; *) echo 'phase: backup, check, cleared or restore' >&2; exit 2 ;; esac
+    ULTIMATE_2_CHECK_MODES="{{modes}}" cargo test -p controller-core --features hardware --test ultimate2 -- --ignored --nocapture --exact "gui_check::{{phase}}_phase"
 
 # Build the x86_64 AppImage in ubuntu:22.04 (glibc 2.35), so it runs on that glibc and newer.
 appimage:
