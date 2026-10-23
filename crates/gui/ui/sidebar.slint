@@ -14,7 +14,7 @@ component SlotRow inherits Rectangle {
     border-color: current ? Theme.accent : transparent;
     background: current ? Theme.accent-wash : ta.has-hover ? Theme.hover : transparent;
     accessible-role: list-item;
-    accessible-label: slot.empty ? @tr("Slot {}, empty", slot.number) : @tr("Slot {}, {}", slot.number, slot.name);
+    accessible-label: slot.away ? @tr("Slot {}, not available", slot.number) : slot.empty ? @tr("Slot {}, empty", slot.number) : @tr("Slot {}, {}", slot.number, slot.name);
     accessible-item-selected: current;
     accessible-action-default => { picked(); }
 
@@ -54,9 +54,9 @@ component SlotRow inherits Rectangle {
         }
         Text {
             horizontal-stretch: 1;
-            text: root.slot.empty ? @tr("slot" => "Empty") : root.slot.name;
-            color: root.slot.empty ? Theme.fg-muted : Theme.fg;
-            font-italic: root.slot.empty;
+            text: root.slot.away ? @tr("slot" => "Not available") : root.slot.empty ? @tr("slot" => "Empty") : root.slot.name;
+            color: root.slot.empty || root.slot.away ? Theme.fg-muted : Theme.fg;
+            font-italic: root.slot.empty || root.slot.away;
             vertical-alignment: center;
             overflow: elide;
         }
@@ -195,6 +195,9 @@ export component Sidebar inherits Rectangle {
     in property <string> edited-caption;
     in property <string> write-all-label;
     in property <bool> can-write-all;
+    // Edited slots of the modes the pad serves no bank for now, such as "1 DInput slot
+    // waits for DInput mode". Empty when there are none.
+    in property <string> waiting-caption;
     // Why Write all is off, in place of the caption, and where Show leads. Empty text
     // otherwise.
     in property <Blocked> write-all-blocked;
@@ -293,16 +296,16 @@ export component Sidebar inherits Rectangle {
         }
 
         // Write all sits under the slot list it counts, apart from the footer's button.
-        if root.edited-count > 0: Rectangle {
+        if root.edited-count > 0 || root.waiting-caption != "": Rectangle {
             height: 1px;
             background: Theme.line-soft;
         }
-        if root.edited-count > 0: Rectangle {
+        if root.edited-count > 0 || root.waiting-caption != "": Rectangle {
             background: Theme.window;
             VerticalLayout {
                 padding: 10px;
                 spacing: 8px;
-                HorizontalLayout {
+                if root.edited-count > 0: HorizontalLayout {
                     spacing: 6px;
                     if !root.checking-all && root.write-all-blocked.text == "": Dot {
                         y: (parent.height - self.height) / 2;
@@ -337,7 +340,23 @@ export component Sidebar inherits Rectangle {
                         }
                     }
                 }
-                Button {
+                // Under the line above, past its dot; alone, with a dot of its own.
+                if root.waiting-caption != "": HorizontalLayout {
+                    padding-left: root.edited-count > 0 ? 13px : 0;
+                    spacing: 6px;
+                    if root.edited-count == 0: Dot {
+                        y: (parent.height - self.height) / 2;
+                    }
+                    Text {
+                        horizontal-stretch: 1;
+                        text: root.waiting-caption;
+                        font-size: Theme.text-caption;
+                        color: Theme.fg-muted;
+                        vertical-alignment: center;
+                        wrap: word-wrap;
+                    }
+                }
+                if root.edited-count > 0: Button {
                     text: root.write-all-label;
                     icon: Icons.stack;
                     enabled: root.can-write-all;

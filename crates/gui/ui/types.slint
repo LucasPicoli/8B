@@ -8,6 +8,8 @@ export struct Slot {
     empty: bool,
     macros: int,
     unsaved: bool,
+    // The pad is in another mode and serves no bank for this slot now.
+    away: bool,
 }
 
 export struct ModeGroup {

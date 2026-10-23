@@ -10,7 +10,7 @@ use slint::{ModelRc, VecModel};
 use tr::tr;
 
 use crate::controllers::Controller;
-use crate::render::slot_name;
+use crate::render::{and_list, slot_name};
 use crate::review::{count, paths, WriteFailure};
 use crate::state::{AppState, Notice, SlotState};
 use crate::ui::{AppWindow, BatchInfo, BatchSlot};
@@ -65,11 +65,21 @@ pub enum Stage {
 }
 
 impl AppState {
-    /// Every slot of the shown controller with unsaved edits, in the sidebar's order:
-    /// by mode, then by number.
+    /// Every slot of the shown controller with unsaved edits that it can take now, in
+    /// the sidebar's order: by mode, then by number. The edits to a bank the pad does
+    /// not serve now wait, see [`Self::waiting_slots`].
     #[must_use]
     pub fn edited_slots(&self) -> Vec<Key> {
-        self.active().map(|c| self.edited_of(c)).unwrap_or_default()
+        let Some(c) = self.active() else { return Vec::new() };
+        self.edited_of(c).into_iter().filter(|&(mode, _)| !c.out_of_reach(mode)).collect()
+    }
+
+    /// The slots of the shown controller with unsaved edits in a bank the pad does not
+    /// serve now. They are kept, and Write all leaves them until the pad is switched.
+    #[must_use]
+    pub fn waiting_slots(&self) -> Vec<Key> {
+        let Some(c) = self.active() else { return Vec::new() };
+        self.edited_of(c).into_iter().filter(|&(mode, _)| c.out_of_reach(mode)).collect()
     }
 
     /// Every slot of controller `c` with unsaved edits, in the sidebar's order.
@@ -317,9 +327,34 @@ impl AppState {
     }
 }
 
+/// The line under the Write all bar for the edits that wait for a mode, such as "1
+/// `DInput` slot waits for `DInput` mode". Empty when none waits.
+#[must_use]
+pub fn waiting_caption(state: &AppState) -> String {
+    let d = state.description();
+    let waiting = state.waiting_slots();
+    let lines: Vec<String> = d
+        .modes
+        .iter()
+        .filter_map(|m| {
+            let n = waiting.iter().filter(|(mode, _)| *mode == m.id).count();
+            (n > 0).then(|| {
+                let mode = m.label.as_str();
+                tr!(
+                    "{n} {mode} slot waits for {mode} mode"
+                        | "{n} {mode} slots wait for {mode} mode" % n,
+                    mode = mode
+                )
+            })
+        })
+        .collect();
+    and_list(&lines)
+}
+
 /// Pushes the sidebar bar and the batch dialog.
 pub fn render_batch(state: &AppState, ui: &AppWindow) {
     ui.set_edited_count(count(state.edited_slots().len()));
+    ui.set_waiting_caption(waiting_caption(state).into());
     ui.set_can_write_all(state.can_write_all());
     ui.set_checking_all(state.checking_batch());
     ui.set_batch(state.batch_info());
@@ -335,6 +370,72 @@ mod tests {
     use super::*;
     use crate::state::tests::{connected, full_read, hold_macros, macro_def, PORT};
     use crate::writes::WriteOp;
+
+    /// An Ultimate 2 in `XInput` with an edit in each mode's slot 1. The `DInput` edit was
+    /// made while the pad was in `DInput`.
+    fn edits_in_both_banks() -> AppState {
+        let mut s = crate::state::tests::ultimate_2();
+        s.active_mut().unwrap().mode = Some(DINPUT);
+        s.select(1, 0);
+        s.set_choice_at("/motion/map_to", 2);
+        s.active_mut().unwrap().mode = Some(XINPUT);
+        s.select(0, 0);
+        s.set_choice_at("/motion/map_to", 1);
+        s
+    }
+
+    #[test]
+    fn write_all_leaves_the_bank_the_pad_does_not_serve() {
+        let mut s = edits_in_both_banks();
+        assert_eq!(s.edited_slots(), [(XINPUT, 1)]);
+        assert_eq!(s.waiting_slots(), [(DINPUT, 1)]);
+        assert_eq!(waiting_caption(&s), "1 DInput slot waits for DInput mode");
+        assert!(s.can_write_all() && s.can_write());
+        s.select(1, 0);
+        assert!(!s.can_write() && !s.can_clear(), "DInput slot 1 is out of reach");
+        assert_eq!(s.begin_review(), None);
+        let (title, body) = crate::render::away_text(&s);
+        assert_eq!(title, "The controller is in XInput mode");
+        assert!(body.starts_with("Switch the controller to DInput mode") && body.contains("kept"));
+        let dinput = &crate::render::groups(&s)[1];
+        let row = dinput.slots.row_data(0).unwrap();
+        assert!(row.away && row.unsaved && row.name.is_empty() && !row.empty);
+        assert!(!crate::render::selected_empty(&s));
+    }
+
+    #[test]
+    fn the_kept_edits_come_back_in_their_mode() {
+        let mut s = edits_in_both_banks();
+        s.presence(PORT, Some(DINPUT));
+        s.read_finished(PORT, Ok(controller_core::model::ProfileReadResult::default()));
+        assert_eq!(s.edited_slots(), [(DINPUT, 1)]);
+        assert_eq!(s.waiting_slots(), [(XINPUT, 1)]);
+        assert!(s.changed_slots().is_empty(), "nothing changed under the edits");
+        s.select(1, 0);
+        assert!(s.can_write());
+        assert_eq!(crate::render::away_text(&s), (String::new(), String::new()));
+    }
+
+    #[test]
+    fn a_write_to_a_bank_the_pad_does_not_serve_says_to_switch() {
+        let mut s = edits_in_both_banks();
+        let job = s.upload_job((DINPUT, 1)).unwrap();
+        let slot = controller_core::model::Slot::new(1).unwrap();
+        let result = WriteResult::failure(
+            DINPUT,
+            slot,
+            controller_core::ErrorCategory::ValidationFailure,
+            "the controller serves no dinput bank in its current mode",
+        );
+        s.write.running = Some((PORT.to_owned(), vec![job]));
+        s.write_finished(PORT, &[result], None);
+        let failed = s.write.failed.as_ref().unwrap();
+        assert!(
+            failed.detail.starts_with("Switch the controller to DInput mode"),
+            "{}",
+            failed.detail
+        );
+    }
 
     /// The two macros [`full_read`] gives slot 2, both started by `p1`.
     fn two_on_p1() -> [controller_core::model::MacroDefinition; 2] {

@@ -418,7 +418,8 @@ fn wire_files(ui: &AppWindow, state: &Rc<RefCell<AppState>>) -> Sender<Job> {
     });
     let (weak, s, tx) = (ui.as_weak(), Rc::clone(state), jobs_tx.clone());
     ui.on_import_file(move || {
-        if let Some(slot) = s.borrow().selected_slot() {
+        let slot = s.borrow().selected_slot().filter(|&(mode, _)| !s.borrow().out_of_reach(mode));
+        if let Some(slot) = slot {
             import(weak.clone(), tx.clone(), slot);
         }
     });

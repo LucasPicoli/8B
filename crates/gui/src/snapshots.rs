@@ -535,6 +535,28 @@ fn ultimate_2_motion_and_lights() {
     }
 }
 
+/// An Ultimate 2 in `XInput` with kept edits in `DInput` slot 1, which shows: the sidebar
+/// lists the `DInput` slots as not available, and the editor says to switch modes.
+#[test]
+fn ultimate_2_slots_of_the_other_mode() {
+    let mut s = crate::state::tests::ultimate_2();
+    s.active_mut().unwrap().mode = Some(DINPUT);
+    s.select(1, 0);
+    s.set_choice_at("/motion/map_to", 2);
+    s.active_mut().unwrap().mode = Some(XINPUT);
+    s.select(0, 0);
+    s.set_choice_at("/motion/map_to", 1);
+    s.select(1, 0);
+    for dark in [false, true] {
+        let ui = window(&s);
+        if dark {
+            ui.global::<crate::ui::Palette<'_>>()
+                .set_color_scheme(slint::language::ColorScheme::Dark);
+        }
+        save(&format!("ultimate-2-other-mode-{}", if dark { "dark" } else { "light" }), &ui);
+    }
+}
+
 /// A click on a ring selects the segment under it, and a click in the picker's square
 /// sets the colour: the clicks reach Rust through the markup at 1280×1000.
 #[test]

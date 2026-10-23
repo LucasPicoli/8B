@@ -36,19 +36,22 @@ pub fn groups(state: &AppState) -> Vec<ModeGroup> {
     (0_i32..)
         .zip(&description.modes)
         .map(|(gi, mode)| {
+            let away = state.out_of_reach(mode.id);
             let slots = (1..=description.slot_count).map(|number| {
                 let slot = state.slot(mode.id, number);
-                let shown = slot.edited.as_ref().or(slot.pad.as_ref());
+                // A bank the pad does not serve now shows no profile, not even the last one read.
+                let shown = slot.edited.as_ref().or(slot.pad.as_ref()).filter(|_| !away);
                 Slot {
                     mode: gi,
                     number: i32::from(number),
                     name: shown
                         .map_or_else(SharedString::new, |p| shown_name(&p.name, number).into()),
-                    empty: shown.is_none(),
+                    empty: shown.is_none() && !away,
                     // Every macro shown, so one that no button starts counts too.
                     macros: i32::try_from(shown.map_or(0, |_| slot.shown_macros().len()))
                         .unwrap_or(i32::MAX),
                     unsaved: slot.unsaved(),
+                    away,
                 }
             });
             ModeGroup {
@@ -151,13 +154,46 @@ pub fn slot_name(d: &ControllerDescription, mode: Mode, n: impl Display) -> Stri
     tr!("{mode} slot {n}", mode = d.mode_label(mode), n = n)
 }
 
-/// Whether the selected slot holds nothing, on the controller or in the edits.
+/// Whether the selected slot holds nothing, on the controller or in the edits. A slot
+/// the pad serves no bank for now is not empty: it is out of reach.
 #[must_use]
 pub fn selected_empty(state: &AppState) -> bool {
     state.selected_slot().is_none_or(|(mode, n)| {
         let slot = state.slot(mode, n);
-        slot.pad.is_none() && slot.edited.is_none()
+        slot.pad.is_none() && slot.edited.is_none() && !state.out_of_reach(mode)
     })
+}
+
+/// Why the editor shows no profile for the selected slot, and what to do, when the pad
+/// serves no bank for it now: ("The controller is in `XInput` mode", "Switch the
+/// controller to `DInput` mode…"). Two empty strings otherwise.
+#[must_use]
+pub fn away_text(state: &AppState) -> (String, String) {
+    let d = state.description();
+    let (Some((mode, n)), Some(now)) = (state.selected_slot(), state.current_mode()) else {
+        return (String::new(), String::new());
+    };
+    if !state.out_of_reach(mode) {
+        return (String::new(), String::new());
+    }
+    let kept = state.slot(mode, n).unsaved();
+    let (now, mode) = (d.mode_label(now), d.mode_label(mode));
+    let title = tr!("The controller is in {mode} mode", mode = now);
+    let switch =
+        tr!("Switch the controller to {mode} mode to see and edit these slots.", mode = mode);
+    let body = if kept {
+        format!(
+            "{switch} {}",
+            tr!(
+                "Your edits to this slot are kept. They come back when the controller is in \
+                 {mode} mode.",
+                mode = mode
+            )
+        )
+    } else {
+        switch
+    };
+    (title, body)
 }
 
 /// `items` joined for a sentence: "A", "A and B", "A, B and C".
@@ -225,6 +261,9 @@ pub fn render(state: &AppState, ui: &AppWindow) {
     ui.set_selected_slot(i32::try_from(state.selected.1).unwrap_or(0));
     ui.set_slot_title(slot_title(state).into());
     ui.set_empty_slot(selected_empty(state));
+    let (away_title, away_body) = away_text(state);
+    ui.set_away_title(away_title.into());
+    ui.set_away_body(away_body.into());
     let selected = state.selected_slot().map(|(m, n)| state.slot(m, n));
     let name = profile_name(state);
     if ui.get_profile_name() != name {

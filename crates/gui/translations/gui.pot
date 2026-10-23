@@ -1059,11 +1059,20 @@ msgid "Same on both rings"
 msgstr ""
 
 #: ui/sidebar.slint
+msgid "Slot {}, not available"
+msgstr ""
+
+#: ui/sidebar.slint
 msgid "Slot {}, empty"
 msgstr ""
 
 #: ui/sidebar.slint
 msgid "Slot {}, {}"
+msgstr ""
+
+#: ui/sidebar.slint
+msgctxt "slot"
+msgid "Not available"
 msgstr ""
 
 #: ui/sidebar.slint
@@ -1291,6 +1300,12 @@ msgstr[1] ""
 #: src/batch.rs
 msgid "The controller uses a profile while its slot’s light is on."
 msgstr ""
+
+#: src/batch.rs
+msgid "{n} {mode} slot waits for {mode} mode"
+msgid_plural "{n} {mode} slots wait for {mode} mode"
+msgstr[0] ""
+msgstr[1] ""
 
 #: src/buttons.rs
 msgid "Disabled"
@@ -1965,6 +1980,20 @@ msgid "{mode} slot {n}"
 msgstr ""
 
 #: src/render.rs
+msgid "The controller is in {mode} mode"
+msgstr ""
+
+#: src/render.rs
+msgid "Switch the controller to {mode} mode to see and edit these slots."
+msgstr ""
+
+#: src/render.rs
+msgid ""
+"Your edits to this slot are kept. They come back when the controller is in "
+"{mode} mode."
+msgstr ""
+
+#: src/render.rs
 msgid "{a}, {b}"
 msgstr ""
 
@@ -2068,6 +2097,11 @@ msgstr ""
 
 #: src/review/macro_edits.rs
 msgid "{new} replaces {old} in Macro {n}."
+msgstr ""
+
+#: src/review.rs
+msgid ""
+"Switch the controller to {mode} mode to write this slot. Nothing was written."
 msgstr ""
 
 #: src/review.rs

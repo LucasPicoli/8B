@@ -87,7 +87,8 @@ impl AppState {
     /// now.
     fn writable(&self) -> Option<Target> {
         let c = self.idle()?;
-        Some((c.port.clone(), self.selected_slot()?))
+        let slot = self.selected_slot().filter(|&(mode, _)| !c.out_of_reach(mode))?;
+        Some((c.port.clone(), slot))
     }
 
     /// Whether the footer's write button ("Write `XInput` slot 2…") is on: the selected
@@ -285,7 +286,13 @@ impl AppState {
                 ErrorCategory::Timeout | ErrorCategory::ConnectionFailure
             ) && !result.rollback_attempted;
             let mut detail = crate::plain::write_failure(result);
-            if lost {
+            // The pad serves no bank for the slot: the read before the write found none.
+            if self.controllers.iter().any(|c| c.port == port && c.out_of_reach(job.mode)) {
+                detail = tr!(
+                    "Switch the controller to {mode} mode to write this slot. Nothing was written.",
+                    mode = mode
+                );
+            } else if lost {
                 detail = format!(
                     "{} {detail}",
                     tr!("Could not reach the controller, so nothing was written.")

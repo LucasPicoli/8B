@@ -1156,12 +1156,21 @@ msgid "Same on both rings"
 msgstr "⟦~~~~~~~~Same on both rings⟧"
 
 #: ui/sidebar.slint
+msgid "Slot {}, not available"
+msgstr "⟦~~~~~~~~~Slot {}, not available⟧"
+
+#: ui/sidebar.slint
 msgid "Slot {}, empty"
 msgstr "⟦~~~~~~Slot {}, empty⟧"
 
 #: ui/sidebar.slint
 msgid "Slot {}, {}"
 msgstr "⟦~~~~~Slot {}, {}⟧"
+
+#: ui/sidebar.slint
+msgctxt "slot"
+msgid "Not available"
+msgstr "⟦~~~~~~Not available⟧"
 
 #: ui/sidebar.slint
 msgctxt "slot"
@@ -1391,6 +1400,12 @@ msgid "The controller uses a profile while its slot’s light is on."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~The controller uses a profile while its slot’s "
 "light is on.⟧"
+
+#: src/batch.rs
+msgid "{n} {mode} slot waits for {mode} mode"
+msgid_plural "{n} {mode} slots wait for {mode} mode"
+msgstr[0] "⟦~~~~~~~~~~~~~~~{n} {mode} slot waits for {mode} mode⟧"
+msgstr[1] "⟦~~~~~~~~~~~~~~~{n} {mode} slots wait for {mode} mode⟧"
 
 #: src/buttons.rs
 msgid "Disabled"
@@ -2179,6 +2194,24 @@ msgid "{mode} slot {n}"
 msgstr "⟦~~~~~~{mode} slot {n}⟧"
 
 #: src/render.rs
+msgid "The controller is in {mode} mode"
+msgstr "⟦~~~~~~~~~~~~~The controller is in {mode} mode⟧"
+
+#: src/render.rs
+msgid "Switch the controller to {mode} mode to see and edit these slots."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~Switch the controller to {mode} mode to see and "
+"edit these slots.⟧"
+
+#: src/render.rs
+msgid ""
+"Your edits to this slot are kept. They come back when the controller is in "
+"{mode} mode."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Your edits to this slot are kept. They "
+"come back when the controller is in {mode} mode.⟧"
+
+#: src/render.rs
 msgid "{a}, {b}"
 msgstr "⟦~~~~{a}, {b}⟧"
 
@@ -2290,6 +2323,13 @@ msgstr ""
 #: src/review/macro_edits.rs
 msgid "{new} replaces {old} in Macro {n}."
 msgstr "⟦~~~~~~~~~~~~~~{new} replaces {old} in Macro {n}.⟧"
+
+#: src/review.rs
+msgid ""
+"Switch the controller to {mode} mode to write this slot. Nothing was written."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Switch the controller to {mode} mode to "
+"write this slot. Nothing was written.⟧"
 
 #: src/review.rs
 msgid "Could not reach the controller, so nothing was written."

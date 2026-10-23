@@ -43,6 +43,11 @@ export component AppWindow inherits Window {
     in property <int> selected-slot;
     in property <string> slot-title;
     in property <bool> empty-slot;
+    // The pad is in another mode and serves no bank for the selected slot: why, and
+    // what to do. Empty when it serves the slot. The editor shows no profile then.
+    in property <string> away-title;
+    in property <string> away-body;
+    property <bool> no-editor: root.empty-slot || root.away-title != "";
     // The profile name field, cut to `name-max` characters by Rust.
     in-out property <string> profile-name;
     in property <int> name-max;
@@ -153,6 +158,9 @@ export component AppWindow inherits Window {
     // all can be used now, and whether the controller is read again for it.
     in property <int> edited-count;
     in property <bool> can-write-all;
+    // The edited slots that wait for the pad to switch mode, such as "1 DInput slot
+    // waits for DInput mode". Empty when none does.
+    in property <string> waiting-caption;
     // Why Write all is off: a macro the controller would refuse, and where Show leads.
     // Empty text otherwise.
     in property <Blocked> write-all-blocked;
@@ -370,6 +378,7 @@ export component AppWindow inherits Window {
             edited-caption: root.edited-caption;
             write-all-label: root.write-all-label;
             can-write-all: root.can-write-all;
+            waiting-caption: root.waiting-caption;
             write-all-blocked: root.write-all-blocked;
             blocked-shown => {
                 root.selected-row = -1;
@@ -399,12 +408,12 @@ export component AppWindow inherits Window {
                         color: Theme.fg;
                         vertical-alignment: center;
                     }
-                    if !root.empty-slot && !root.can-rename: Text {
+                    if !root.no-editor && !root.can-rename: Text {
                         text: root.profile-name;
                         color: Theme.fg-muted;
                         vertical-alignment: center;
                     }
-                    if !root.empty-slot && root.can-rename: HorizontalLayout {
+                    if !root.no-editor && root.can-rename: HorizontalLayout {
                         padding-left: 6px;
                         spacing: 6px;
                         VerticalLayout {
@@ -430,21 +439,21 @@ export component AppWindow inherits Window {
                         alignment: center;
                         HorizontalLayout {
                             spacing: 4px;
-                            Button {
+                            if root.away-title == "": Button {
                                 text: @tr("Import…");
                                 icon: Icons.import;
                                 icon-only: root.compact;
                                 flat: true;
                                 clicked => { root.import-file(); }
                             }
-                            if !root.empty-slot: Button {
+                            if !root.no-editor: Button {
                                 text: @tr("Export…");
                                 icon: Icons.export;
                                 icon-only: root.compact;
                                 flat: true;
                                 clicked => { root.export-file(); }
                             }
-                            if !root.empty-slot: Button {
+                            if !root.no-editor: Button {
                                 text: @tr("Clear slot…");
                                 icon: Icons.clear;
                                 icon-only: root.compact;
@@ -510,7 +519,7 @@ export component AppWindow inherits Window {
                 }
             }
 
-            if !root.empty-slot: TabBar {
+            if !root.no-editor: TabBar {
                 model: root.sections;
                 current <=> root.tab;
             }
@@ -537,9 +546,20 @@ export component AppWindow inherits Window {
                 }
             }
 
+            if root.away-title != "": Rectangle {
+                vertical-stretch: 1;
+                max-height: 100000px;
+                Placeholder {
+                    width: 100%;
+                    height: 100%;
+                    title: root.away-title;
+                    body: root.away-body;
+                }
+            }
+
             page := ScrollView {
-                visible: !root.empty-slot;
-                vertical-stretch: root.empty-slot ? 0 : 1;
+                visible: !root.no-editor;
+                vertical-stretch: root.no-editor ? 0 : 1;
                 VerticalLayout {
                     padding-left: 16px;
                     padding-right: 16px;
@@ -632,7 +652,7 @@ export component AppWindow inherits Window {
                 }
             }
 
-            if !root.empty-slot: Rectangle {
+            if !root.no-editor: Rectangle {
                 height: 48px;
                 background: Theme.header;
                 Rectangle {

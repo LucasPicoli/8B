@@ -41,6 +41,9 @@ pub struct Controller {
     /// The firmware version the last good read reported, such as `1.09`. Empty when
     /// the model cannot report it.
     pub firmware: String,
+    /// The pad serves only the bank of the mode it is in: the other modes' slots can be
+    /// neither read nor written until it is switched to them.
+    pub one_bank: bool,
 }
 
 impl Controller {
@@ -54,6 +57,13 @@ impl Controller {
     #[must_use]
     pub const fn disconnected(&self) -> bool {
         self.mode.is_none()
+    }
+
+    /// Whether the pad, connected, serves no bank for `mode` now. Edits to those slots
+    /// are kept, and wait until the pad is switched to `mode`.
+    #[must_use]
+    pub fn out_of_reach(&self, mode: Mode) -> bool {
+        self.one_bank && self.mode.is_some_and(|m| m != mode)
     }
 
     /// Takes a read: replaces what every slot holds and keeps the edits. A slot whose
@@ -131,6 +141,13 @@ impl AppState {
     #[must_use]
     pub fn current_mode(&self) -> Option<Mode> {
         self.shown().and_then(|c| c.mode)
+    }
+
+    /// Whether the shown controller serves no bank for `mode` now, see
+    /// [`Controller::out_of_reach`].
+    #[must_use]
+    pub fn out_of_reach(&self, mode: Mode) -> bool {
+        self.active().is_some_and(|c| c.out_of_reach(mode))
     }
 
     /// Whether a read of the shown controller is running.
@@ -451,6 +468,7 @@ impl AppState {
         let Some(c) = self.controller_mut(port) else { return };
         let Ok(description) = model.description() else { return };
         c.description = Some(description);
+        c.one_bank = model.mode_request().is_some();
         c.defaults =
             description.modes.iter().map(|m| (m.id, model.default_profile(m.id))).collect();
     }
