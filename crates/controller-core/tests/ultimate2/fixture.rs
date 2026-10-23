@@ -135,18 +135,17 @@ pub const PRESSES: [Press; 16] = [
         action: "Press X (left face). It plays a macro: Y.",
         expect: Expect::Sends(&["BTN_Y"]),
     },
-    // The step holds the left trigger, stored as the vendor app stores it: a macro of
-    // its own that holds it plays LT. With swap sticks on, the pad plays a macro's
-    // trigger on the other side, though it leaves the physical triggers alone.
+    // The step holds the left trigger, stored as the vendor app stores it: a `keys` bit.
+    // Stored as a `trigger_value`, it played as RT, with or without swap sticks.
     Press {
-        action: "Press L4. It plays a macro: A with LT, then B. Swap sticks moves LT to RT.",
-        expect: Expect::Sends(&["BTN_A", "RT", "BTN_B"]),
+        action: "Press L4. It plays a macro: A with LT, then B.",
+        expect: Expect::Sends(&["BTN_A", "LT", "BTN_B"]),
     },
     Press {
         action: "Push the LEFT stick to the RIGHT, then let go. The sticks are swapped.",
         expect: Expect::Sends(&["right stick right"]),
     },
-    // Swap sticks moves the motion sensor's stick too, as it moves a macro's trigger.
+    // Swap sticks moves the motion sensor's stick too.
     Press {
         action: "Hold LT, tilt the pad hard left, then hard right, then let go. While LT is held, the motion sensor moves the right stick, which swap sticks makes the left.",
         expect: Expect::Includes(&["LT", "left stick left", "left stick right"]),

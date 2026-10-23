@@ -22,14 +22,14 @@
     {
       "id": "xinput",
       "label": "XInput",
-      "trigger_kind": "analog",
+      "trigger_kind": "on_off",
       "macro_stick_floor": 2,
       "extra_outputs": []
     },
     {
       "id": "dinput",
       "label": "DInput",
-      "trigger_kind": "analog",
+      "trigger_kind": "on_off",
       "extra_outputs": []
     }
   ],

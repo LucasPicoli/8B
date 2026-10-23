@@ -24,9 +24,8 @@ of their modes. Both files hold the same profile:
 | L4 | a macro: A with LT, then B |
 | LT, held | turns on the motion sensor, which moves the right stick (the left one, as the sticks are swapped) |
 
-The sticks are swapped. With swap sticks on, the pad plays a macro's trigger on the
-other side, so the L4 macro's LT comes out as RT. The physical triggers stay as they
-are. Button names are the ones printed on the pad.
+The sticks are swapped. The triggers stay as they are, both the physical ones and the
+L4 macro's LT. Button names are the ones printed on the pad.
 
 The lights of the slot are green on magenta at full speed for Fire Ring, orange with a
 white, a red and a green segment from 6 o'clock clockwise for Custom, and red on blue

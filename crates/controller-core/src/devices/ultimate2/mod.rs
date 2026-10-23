@@ -291,6 +291,32 @@ fn swap_step_letters(stream: &mut [u8]) -> Result<()> {
     Ok(())
 }
 
+/// Moves each step's triggers in `stream` from `trigger_value` into the `keys` bits, as
+/// the vendor app stores them on the Ultimate 2: any pull of a trigger becomes a full one.
+/// The pad plays a `trigger_value` of `0xFF00`, the Pro 3's left trigger, as RT.
+///
+/// # Errors
+/// Returns [`crate::Error::Decode`] if a step record is cut short.
+fn triggers_in_keys(stream: &mut [u8]) -> Result<()> {
+    use pro3::tables::{
+        MACRO_STEP_RECORD_SIZE, STEP_KEYS_OFFSET, STEP_SWITCH_L2_MASK, STEP_SWITCH_R2_MASK,
+        STEP_TRIGGER_VALUE_OFFSET,
+    };
+    for start in (0..stream.len() / MACRO_STEP_RECORD_SIZE).map(|i| i * MACRO_STEP_RECORD_SIZE) {
+        let value = read_u16_le(stream, start + STEP_TRIGGER_VALUE_OFFSET)?;
+        let mut keys = read_u16_le(stream, start + STEP_KEYS_OFFSET)?;
+        if value >> 8 != 0 {
+            keys |= STEP_SWITCH_L2_MASK;
+        }
+        if value & 0xFF != 0 {
+            keys |= STEP_SWITCH_R2_MASK;
+        }
+        put_u16_le(stream, start + STEP_KEYS_OFFSET, keys)?;
+        put_u16_le(stream, start + STEP_TRIGGER_VALUE_OFFSET, 0)?;
+    }
+    Ok(())
+}
+
 /// Writes the macro count of each slot whose macro record is in use, the number of
 /// its macros with steps, as the vendor app counts it before a write. An erased
 /// record keeps its `ff`.
@@ -448,6 +474,7 @@ impl ProtocolCodec for Ultimate2 {
 
     fn encode_macro_steps(&self, steps: &[MacroStep], mode: Mode) -> Result<Vec<u8>> {
         let mut stream = Pro3.encode_macro_steps(steps, mode)?;
+        triggers_in_keys(&mut stream)?;
         swap_step_letters(&mut stream)?;
         Ok(stream)
     }
@@ -658,6 +685,32 @@ mod tests {
         let back = Ultimate2.encode_macro_steps(&steps, XINPUT).unwrap();
         assert_eq!(back[2..4], [0x00, 0x10]);
         assert_eq!(steps[0].pressed_buttons, ["right face"]);
+    }
+
+    #[test]
+    fn a_step_trigger_is_stored_as_the_vendor_app_stores_it() {
+        // The vendor app's XInput steps (`fixtures/pro3/xinput-vendor-triggers.steps.bin`):
+        // R2 as keys 0x8000, then L2 as 0x4000, trigger_value 0, sticks centred. The
+        // Ultimate 2 played its own app's L2 as LT, and 8B's trigger_value 0xFF00 as RT.
+        let vendor =
+            include_bytes!("../../../../../fixtures/pro3/xinput-vendor-triggers.steps.bin");
+        let centre = 0x7F;
+        let step = |duration_ms, trigger_left, trigger_right| MacroStep {
+            duration_ms,
+            trigger_left,
+            trigger_right,
+            left_stick_x: centre,
+            left_stick_y: centre,
+            right_stick_x: centre,
+            right_stick_y: centre,
+            ..MacroStep::default()
+        };
+        let steps = [step(203, 0, 255), step(156, 255, 0)];
+        for mode in [XINPUT, DINPUT] {
+            let stream = Ultimate2.encode_macro_steps(&steps, mode).unwrap();
+            assert_eq!(stream[..vendor.len()], vendor[..], "{mode}");
+            assert_eq!(Ultimate2.decode_macro_steps(&stream, 2, mode).unwrap(), steps, "{mode}");
+        }
     }
 
     /// What the pad served in `DInput`: never saved, erased flash with the mode byte.
