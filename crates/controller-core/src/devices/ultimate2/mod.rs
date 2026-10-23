@@ -293,7 +293,8 @@ fn swap_step_letters(stream: &mut [u8]) -> Result<()> {
 
 /// Moves each step's triggers in `stream` from `trigger_value` into the `keys` bits, as
 /// the vendor app stores them on the Ultimate 2: any pull of a trigger becomes a full one.
-/// The pad plays a `trigger_value` of `0xFF00`, the Pro 3's left trigger, as RT.
+/// The pad plays the high byte of `trigger_value`, the Pro 3's left trigger, as RT and
+/// ignores the low byte (`trigger_probe`), so no value there plays LT.
 ///
 /// # Errors
 /// Returns [`crate::Error::Decode`] if a step record is cut short.

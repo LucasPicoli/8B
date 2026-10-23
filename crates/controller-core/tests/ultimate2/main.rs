@@ -17,6 +17,8 @@ mod guided;
 mod hw;
 #[cfg(feature = "hardware")]
 mod input;
+#[cfg(feature = "hardware")]
+mod trigger_probe;
 
 use controller_core::devices::model_named;
 use controller_core::model::{RawProfilePayload, Slot};

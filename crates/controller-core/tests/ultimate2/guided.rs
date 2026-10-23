@@ -26,7 +26,7 @@ use controller_core::transport::{DeviceIo, HidrawDevice};
 const CUR_SLOT: usize = 0x12;
 
 /// The Ultimate 2.
-fn model() -> &'static dyn Model {
+pub fn model() -> &'static dyn Model {
     model_named("Ultimate 2").expect("the Ultimate 2 is registered")
 }
 
@@ -56,7 +56,7 @@ fn backup_file(mode: Mode) -> PathBuf {
 }
 
 /// The app's backup folder.
-fn backup_dir() -> PathBuf {
+pub fn backup_dir() -> PathBuf {
     let state = std::env::var_os("XDG_STATE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/state")))
@@ -65,7 +65,7 @@ fn backup_dir() -> PathBuf {
 }
 
 /// Reads one line, without its newline.
-fn line() -> String {
+pub fn line() -> String {
     let mut text = String::new();
     let n = std::io::stdin().read_line(&mut text).unwrap();
     assert!(n > 0, "no input: run this in a terminal");
@@ -73,9 +73,9 @@ fn line() -> String {
 }
 
 /// An attached Ultimate 2 and its USB port path.
-struct Pad {
-    port: String,
-    dev: HidrawDevice,
+pub struct Pad {
+    pub port: String,
+    pub dev: HidrawDevice,
 }
 
 impl Pad {
@@ -92,7 +92,7 @@ impl Pad {
     }
 
     /// The bank of `mode`, which must be the mode the pad is in.
-    fn bank(&self, mode: Mode) -> Vec<u8> {
+    pub fn bank(&self, mode: Mode) -> Vec<u8> {
         let read = self.dev.read_all_profiles().unwrap();
         let index = model().description().unwrap().modes.iter().position(|m| m.id == mode).unwrap();
         let bank = read.raw_blobs[index].clone();
@@ -102,7 +102,7 @@ impl Pad {
 }
 
 /// Asks the person to put the pad in `mode`, and waits until the pad says it is.
-fn pad_in(mode: Mode) -> Pad {
+pub fn pad_in(mode: Mode) -> Pad {
     let label = model().description().unwrap().mode_label(mode);
     println!("\n== {label} ==");
     println!("Put the pad in {label} mode with its own switch, on its USB cable. Press Enter.");

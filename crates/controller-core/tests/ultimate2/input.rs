@@ -92,6 +92,11 @@ impl Input {
         Self { events, held: BTreeSet::new() }
     }
 
+    /// Every event so far as type, code and value, in order.
+    pub fn drain(&self) -> Vec<(u16, u16, i32)> {
+        self.events.try_iter().collect()
+    }
+
     /// Drops every event so far, so a gesture starts clean.
     pub fn forget(&mut self) {
         while self.events.try_recv().is_ok() {}
