@@ -15,3 +15,8 @@ stores differs from the one the codec computes, and the pad accepts the codec's.
   LT up, RT up, 500 ms apart. The app stores L2 as `keys` `0x4000` and R2 as `0x8000`,
   `trigger_value` 0, sticks `7f7f`. The 26 bytes it sent after the last record are left
   out: they are stale data from its buffer.
+
+- `erase-probe/dinput-slot3.json`: the `DInput` slot 3 profile the erase probes in
+  `crates/controller-core/tests/ultimate2/erase_probe.rs` write. It keeps a macro in
+  macro slot 2, the page the firmware 1.10 erases, which the GUI check's own file now
+  leaves empty.

@@ -96,8 +96,9 @@ If the imported macro is not started by L4, add L4.
 Switch the pad to DInput and open 8B.
 
 1. Slot 2: Import… `xi2.json`. Rename it `Mapas DI`. Set PR to RB.
-2. Slot 3: Import… `xi3.json`. Rename it `Macros DI`. Delete macro 4. Set macro 2 to
-   play 5 times.
+2. Slot 3: Import… `xi3.json`. Rename it `Macros DI`. Delete macro 2: a firmware bug
+   erases that macro slot in this slot of DInput, and the window warns on its row.
+   Rename macro 1 `Cinco vezes` and set it to play 5 times.
 3. Write both slots, then close 8B.
 
 ## 6. Check

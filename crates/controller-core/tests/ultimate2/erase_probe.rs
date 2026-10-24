@@ -5,8 +5,8 @@
 //!   `cargo test -p controller-core --features hardware --test ultimate2 -- --ignored
 //!    --nocapture --exact erase_probe::probe`
 //!
-//! It writes slots 2 and 3 with the GUI check's files, the state the check expects, so
-//! it needs the GUI check's backup first. Slot 3's macros are read four times: after
+//! It writes slot 2 with the GUI check's file and slot 3 with [`SLOT_3_FILE`], so it
+//! needs the GUI check's backup first. Slot 3's macros are read four times: after
 //! slot 3's write, after an apply alone, after a switch to `XInput` and back, and after
 //! slot 2's write. Nothing retries or resets USB.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -21,12 +21,16 @@ use controller_core::service::ConfirmPolicy;
 use controller_core::transport::DeviceIo as _;
 use serde_json::Value;
 
+/// The probes' `DInput` slot 3 file. Unlike the GUI check's, it keeps a macro in macro
+/// slot 2, the page the firmware erases.
+const SLOT_3_FILE: &str = "../../fixtures/ultimate-2/erase-probe/dinput-slot3.json";
+
 /// The length an erased step reads as: every byte `0xFF`.
 const ERASED_MS: u16 = u16::MAX;
 
-/// The GUI check's file of `DInput` slot `n` as a write job takes it: no macros.
+/// The file of `DInput` slot `n` as a write job takes it: no macros.
 fn profile_json(n: u8) -> Value {
-    let path = gui_check_file("dinput", n);
+    let path = if n == 3 { SLOT_3_FILE.to_owned() } else { gui_check_file("dinput", n) };
     let mut json: Value = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
     let object = json.as_object_mut().unwrap();
     object.remove("macros");
@@ -56,7 +60,7 @@ fn write(pad: &Pad, mode: Mode, n: u8, macros: &[MacroDefinition]) {
 /// Reads slot 3's macros and prints, per macro, whether it matches the file. Returns
 /// whether every macro matched.
 fn report(pad: &Pad, mode: Mode, when: &str) -> bool {
-    let (want, want_macros) = load(&gui_check_file("dinput", 3));
+    let (want, want_macros) = load(SLOT_3_FILE);
     let read = read_macros(&pad.dev, mode, Slot::new(3).unwrap()).unwrap().macros;
     println!("\n{when}:");
     let mut all_ok = true;
@@ -99,7 +103,7 @@ fn probe() {
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
     let pad = pad_in(mode);
 
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     write(&pad, mode, 3, &macros);
     println!("wrote slot 3 with its {} macros", macros.len());
     report(&pad, mode, "1. after slot 3's write");
@@ -135,7 +139,7 @@ fn one_page_probe() {
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
     let pad = pad_in(mode);
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let only = |slot: u8| -> Vec<MacroDefinition> {
         macros.iter().filter(|m| m.macro_slot == Some(slot)).cloned().collect()
     };
@@ -171,7 +175,7 @@ fn mode_trip_probe() {
     let (mode, xinput) = (named("dinput"), named("xinput"));
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let macro_2: Vec<MacroDefinition> =
         macros.iter().filter(|m| m.macro_slot == Some(1)).cloned().collect();
 
@@ -207,7 +211,7 @@ fn which_page_probe() {
     let (mode, xinput) = (named("dinput"), named("xinput"));
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let only = |slot: u8| -> Vec<MacroDefinition> {
         macros.iter().filter(|m| m.macro_slot == Some(slot)).cloned().collect()
     };
@@ -248,7 +252,7 @@ fn page_one_probe() {
     let (mode, xinput) = (named("dinput"), named("xinput"));
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let macro_2: Vec<MacroDefinition> =
         macros.iter().filter(|m| m.macro_slot == Some(1)).cloned().collect();
     let slot_3 = Slot::new(3).unwrap();
@@ -292,7 +296,7 @@ fn quiet_trip_probe() {
     let mode = mode.unwrap().id;
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let macro_2: Vec<MacroDefinition> =
         macros.iter().filter(|m| m.macro_slot == Some(1)).cloned().collect();
 
@@ -359,7 +363,7 @@ fn record_watch_probe() {
     let mode = mode.unwrap().id;
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let macro_2: Vec<MacroDefinition> =
         macros.iter().filter(|m| m.macro_slot == Some(1)).cloned().collect();
     let slot_3 = Slot::new(3).unwrap();
@@ -402,7 +406,7 @@ fn boot_side_probe() {
     let (mode, xinput) = (named("dinput"), named("xinput"));
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let macro_2: Vec<MacroDefinition> =
         macros.iter().filter(|m| m.macro_slot == Some(1)).cloned().collect();
     let slot_3 = Slot::new(3).unwrap();
@@ -453,7 +457,7 @@ fn record_cycle_probe() {
     let (mode, xinput) = (named("dinput"), named("xinput"));
     let backup = backup_dir().join("ultimate-2-gui-check-dinput.bin");
     assert!(backup.exists(), "no GUI check backup: run `just ultimate-2-gui-check backup` first");
-    let (_, macros) = load(&gui_check_file("dinput", 3));
+    let (_, macros) = load(SLOT_3_FILE);
     let slot_3 = Slot::new(3).unwrap();
     let look = |pad: &Pad, when: &str| {
         let page =
