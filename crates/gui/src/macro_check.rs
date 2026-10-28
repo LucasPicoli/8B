@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use controller_core::model::macros::macro_to_json;
 use controller_core::model::{MacroDefinition, Mode};
-use controller_core::service::validation::{validate_macro, ValidationError};
+use controller_core::service::validation::{slot_step_error, validate_macro, ValidationError};
 use tr::tr;
 
 use crate::reasons::worded;
@@ -40,7 +40,7 @@ impl AppState {
         let puts = self.slot(mode, number).macro_puts(self.macro_names());
         let Some(def) = puts.iter().find(|d| d.macro_slot == Some(n)) else { return Vec::new() };
         let device = model.default_profile(mode).device;
-        CHECKED.with_borrow_mut(|checked| {
+        let errors = CHECKED.with_borrow_mut(|checked| {
             if let Some((.., errors)) = checked.iter().find(|(d, m, _)| *d == device && m == def) {
                 return errors.clone();
             }
@@ -51,7 +51,12 @@ impl AppState {
             }
             checked.push((device, def.clone(), errors.clone()));
             errors
-        })
+        });
+        // The macro slot's own step limit, which the cache above does not key on.
+        match slot_step_error(self.description(), mode, number, n, def) {
+            Some(error) if errors.is_empty() => vec![error],
+            _ => errors,
+        }
     }
 
     /// Each macro the write of `slot` puts that the controller refuses, by macro slot.
@@ -140,11 +145,12 @@ pub fn render_blocks(state: &AppState, ui: &AppWindow) {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::indexing_slicing)]
 mod tests {
-    use controller_core::devices::pro3::XINPUT;
+    use controller_core::devices::pro3::{DINPUT, XINPUT};
     use controller_core::model::{GlideControl, MacroStep};
 
     use super::*;
-    use crate::state::tests::{connected, hold_macros, macro_def};
+    use crate::macros::PadMacro;
+    use crate::state::tests::{connected, hold_macros, macro_def, ultimate_2, PORT};
 
     /// `XInput` slot 2 selected, holding "Jump" in macro slot 0 on PR.
     fn held() -> AppState {
@@ -152,6 +158,35 @@ mod tests {
         hold_macros(&mut s, (XINPUT, 2), &[macro_def(0, "Jump", &["rp"], 3)]);
         s.select(0, 1);
         s
+    }
+
+    /// An Ultimate 2 with `DInput` slot 3 selected, its macro 1 edited to `steps` plain
+    /// steps.
+    fn ultimate_2_macro_1(steps: usize) -> AppState {
+        let model = controller_core::devices::model_named("Ultimate 2").unwrap();
+        let mut s = ultimate_2();
+        let slot = s.controller_mut(PORT).unwrap().slots.entry((DINPUT, 3)).or_default();
+        slot.pad = Some(model.default_profile(DINPUT));
+        let def = MacroDefinition { mode: DINPUT, ..macro_def(0, "Long", &["left face"], 1) };
+        slot.pad_macros = vec![PadMacro { def, loaded: true, lost: false }];
+        s.select(1, 2);
+        s.edit_macro(0, |m| {
+            m.steps = vec![MacroStep { duration_ms: 50, ..MacroStep::default() }; steps];
+        });
+        s
+    }
+
+    #[test]
+    fn macro_1_of_dinput_slot_3_takes_the_lower_step_limit_its_description_sets() {
+        let s = ultimate_2_macro_1(307);
+        assert_eq!(s.steps_max(0), 307);
+        assert_eq!(s.steps_max(1), s.description().limits.macro_steps.max, "macro 2");
+        assert_eq!(s.invalid_macro((DINPUT, 3)), None);
+        let s = ultimate_2_macro_1(308);
+        let invalid = s.invalid_macro((DINPUT, 3)).unwrap();
+        assert_eq!(invalid.macro_slot, 0);
+        assert!(invalid.reason.contains("at most 307 steps"), "{}", invalid.reason);
+        assert!(!s.can_write());
     }
 
     #[test]

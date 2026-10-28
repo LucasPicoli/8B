@@ -19,7 +19,7 @@ use crate::error::{Error, Result};
 use crate::Reason;
 
 pub use macro_risk::{at_risk, macro_risk_warnings};
-pub use macros::validate_macro;
+pub use macros::{slot_step_error, validate_macro};
 pub use profile::{validate_all_profiles, validate_profile};
 pub use stick_floor::{low_sticks, macro_stick_warnings, moved_low_sticks, LowStick};
 

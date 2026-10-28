@@ -273,6 +273,20 @@
             }
           }
         },
+        "macro_step_limits": {
+          "description": "Optional. Macro slots that keep fewer steps than limits.macro_steps allows: the controller erases a longer macro there when it starts in this mode. The apps refuse one. slot counts from 1 and macro_slot from 0, as a macro file numbers it; both must be within slot_count and macro_slot_count. max counts steps with glides expanded, and lies within limits.macro_steps, below its max.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["slot", "macro_slot", "max"],
+            "properties": {
+              "slot": { "type": "integer", "minimum": 1 },
+              "macro_slot": { "type": "integer", "minimum": 0 },
+              "max": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
         "gamepad_mode": {
           "description": "Optional. The byte the pad stores in a profile image, and selects the mode by. Unique per model.",
           "type": "integer",

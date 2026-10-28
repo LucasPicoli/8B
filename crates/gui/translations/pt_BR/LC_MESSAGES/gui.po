@@ -1837,6 +1837,18 @@ msgstr[0] "Este controle aceita no máximo {n} passo. Remova passos."
 msgstr[1] "Este controle aceita no máximo {n} passos. Remova passos."
 
 #: src/reasons.rs
+msgid "The macro needs {n} step on the controller."
+msgid_plural "The macro needs {n} steps on the controller."
+msgstr[0] "A macro precisa de {n} passo no controle."
+msgstr[1] "A macro precisa de {n} passos no controle."
+
+#: src/reasons.rs
+msgid "This macro slot keeps at most {n} step: the controller erases a longer macro here. Remove steps."
+msgid_plural "This macro slot keeps at most {n} steps: the controller erases a longer macro here. Remove steps."
+msgstr[0] "Este slot de macro guarda no máximo {n} passo: o controle apaga uma macro mais longa aqui. Remova passos."
+msgstr[1] "Este slot de macro guarda no máximo {n} passos: o controle apaga uma macro mais longa aqui. Remova passos."
+
+#: src/reasons.rs
 msgid "With its glides, this macro needs {n} step on the controller."
 msgid_plural "With its glides, this macro needs {n} steps on the controller."
 msgstr[0] "Com as transições, esta macro precisa de {n} passo no controle."

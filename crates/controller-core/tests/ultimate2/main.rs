@@ -21,6 +21,11 @@ mod guided;
 mod hw;
 #[cfg(feature = "hardware")]
 mod input;
+mod step_limit;
+#[cfg(feature = "hardware")]
+mod step_probe;
+#[cfg(feature = "hardware")]
+mod sweep_probe;
 #[cfg(feature = "hardware")]
 mod trigger_probe;
 

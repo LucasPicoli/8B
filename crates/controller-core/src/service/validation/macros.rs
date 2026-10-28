@@ -137,6 +137,30 @@ fn glide_errors(
     errors
 }
 
+/// The error for a macro with more steps than its macro slot keeps.
+///
+/// `def` goes in macro slot `macro_slot` (from 0) of profile slot `slot` (from 1) of
+/// `mode`, and its steps count with glides expanded against
+/// [`ControllerDescription::macro_steps_max`]. `None` within that limit, and past the
+/// controller's own, which [`validate_macro`] refuses.
+#[must_use]
+pub fn slot_step_error(
+    description: &ControllerDescription,
+    mode: Mode,
+    slot: u8,
+    macro_slot: u8,
+    def: &MacroDefinition,
+) -> Option<ValidationError> {
+    let limits = &description.limits;
+    let top = usize::try_from(limits.macro_steps.max).unwrap_or_default();
+    let max = usize::try_from(description.macro_steps_max(mode, slot, macro_slot)).unwrap_or(top);
+    let needed = expanded_len(&def.steps, limits.glide_step_ms);
+    (needed > max && needed <= top).then(|| ValidationError {
+        path: "/steps".to_owned(),
+        reason: Reason::TooManyStepsInSlot { needed, max },
+    })
+}
+
 /// What the user calls `control` in `mode`: the title of its stick's settings frame
 /// (`Left stick`) or the label of its trigger button (`LT`). The schema id when the
 /// description names neither.

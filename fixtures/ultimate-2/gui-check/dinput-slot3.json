@@ -268,7 +268,7 @@
     {
       "macro_slot": 3,
       "mode": "dinput",
-      "name": "408 passos",
+      "name": "406 passos",
       "repeat": {
         "count": 1,
         "interval_ms": 0
@@ -277,26 +277,6 @@
         "l4"
       ],
       "steps": [
-        {
-          "actions": {
-            "buttons": {
-              "press": [
-                "bottom face"
-              ],
-              "release": []
-            }
-          },
-          "duration_ms": 20
-        },
-        {
-          "actions": {
-            "buttons": {
-              "press": [],
-              "release": []
-            }
-          },
-          "duration_ms": 20
-        },
         {
           "actions": {
             "buttons": {

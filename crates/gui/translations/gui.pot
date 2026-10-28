@@ -1922,6 +1922,22 @@ msgstr[0] ""
 msgstr[1] ""
 
 #: src/reasons.rs
+msgid "The macro needs {n} step on the controller."
+msgid_plural "The macro needs {n} steps on the controller."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
+msgid ""
+"This macro slot keeps at most {n} step: the controller erases a longer macro "
+"here. Remove steps."
+msgid_plural ""
+"This macro slot keeps at most {n} steps: the controller erases a longer "
+"macro here. Remove steps."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/reasons.rs
 msgid "With its glides, this macro needs {n} step on the controller."
 msgid_plural "With its glides, this macro needs {n} steps on the controller."
 msgstr[0] ""

@@ -19,7 +19,7 @@ use crate::model::{
 };
 use crate::protocol::wire_write::MACRO_CHUNK_LEN;
 use crate::service::readback::confirm_slot_losing;
-use crate::service::validation::validate_macro;
+use crate::service::validation::{slot_step_error, validate_macro};
 use crate::service::{ConfirmPolicy, ReadbackResult};
 
 /// Success message of a put.
@@ -186,7 +186,7 @@ impl ProfileWriteOrchestrator<'_> {
             let old = held_in(m);
             let (warning, action, def) = match (edit, old) {
                 (MacroEdit::Put { definition, .. }, old) => {
-                    self.check_definition(definition, mode, m)?;
+                    self.check_definition(definition, mode, slot, m)?;
                     let warning = old.map(|old| {
                         format!(
                             "Macro slot {} of slot {} in {mode} mode already holds the macro '{}'.",
@@ -286,15 +286,24 @@ impl ProfileWriteOrchestrator<'_> {
         Ok(if lost.is_empty() { String::new() } else { format!(" It loses {}.", lost.join(", ")) })
     }
 
-    /// Validates `def`, a macro a caller built, as [`Self::check_macro`] validates a file.
+    /// Validates `def`, a macro a caller built, as [`Self::check_macro`] validates a file,
+    /// then against the step limit of macro slot `macro_slot` of `slot`.
     fn check_definition(
         &self,
         def: &MacroDefinition,
         mode: Mode,
+        slot: Slot,
         macro_slot: MacroSlot,
     ) -> Result<MacroDefinition> {
         let device = self.model.default_profile(mode).device;
-        self.check_macro(&macro_to_json(def, &device), mode, macro_slot)
+        let checked = self.check_macro(&macro_to_json(def, &device), mode, macro_slot)?;
+        let description = self.model.description()?;
+        match slot_step_error(description, mode, slot.get(), macro_slot.get(), def) {
+            Some(e) => {
+                Err(Error::Validation(format!("Macro validation failed: {}: {}", e.path, e.reason)))
+            }
+            None => Ok(checked),
+        }
     }
 
     /// Refuses a trigger button of `def` that starts another macro of `slot` in `bank`, or

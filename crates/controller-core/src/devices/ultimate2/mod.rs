@@ -770,6 +770,26 @@ mod tests {
         }
     }
 
+    /// Each step limit keeps its padded write off what the pad keeps in `DInput` slot 3's
+    /// page 0. The controller's limit ends before its byte at `0x0FF0`, and is the longest
+    /// every other macro slot kept across mode switches (`sweep_probe`). That slot's macro
+    /// 1 limit ends by `0x0C00`, where the pad's own region starts: a longer macro 1 was
+    /// erased at the next `DInput` start-up (`step_probe::record_probe`).
+    #[test]
+    fn each_step_limit_keeps_its_write_off_the_pad_s_own_bytes() {
+        const PAD_BYTE: usize = 0x0FF0;
+        const PAD_REGION: usize = 0x0C00;
+        let d = Ultimate2.description().unwrap();
+        let written = |mode, steps: i32| {
+            let steps = vec![MacroStep::default(); usize::try_from(steps).unwrap()];
+            Ultimate2.encode_macro_steps(&steps, mode).unwrap().len()
+        };
+        for mode in [XINPUT, DINPUT] {
+            assert!(written(mode, d.limits.macro_steps.max) <= PAD_BYTE, "{mode}");
+        }
+        assert!(written(DINPUT, d.macro_steps_max(DINPUT, 3, 0)) <= PAD_REGION);
+    }
+
     /// What the pad served in `DInput`: never saved, erased flash with the mode byte.
     fn erased_dinput() -> Vec<u8> {
         let mut bank = vec![0xff; BLOB_SIZE];

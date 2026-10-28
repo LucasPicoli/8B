@@ -128,9 +128,17 @@ impl AppState {
         expanded_len(steps, self.description().limits.glide_step_ms)
     }
 
-    /// Whether `steps` fill the controller's step limit.
-    fn steps_full(&self, steps: &[MacroStep]) -> bool {
-        let max = usize::try_from(self.description().limits.macro_steps.max).unwrap_or(0);
+    /// The most steps, glides expanded, that macro slot `n` of the selected slot keeps:
+    /// the controller's limit, or a lower one its description sets for that macro slot.
+    pub(crate) fn steps_max(&self, n: u8) -> i32 {
+        let d = self.description();
+        self.selected_slot()
+            .map_or(d.limits.macro_steps.max, |(mode, slot)| d.macro_steps_max(mode, slot, n))
+    }
+
+    /// Whether `steps` fill the step limit of macro slot `n`.
+    fn steps_full(&self, n: u8, steps: &[MacroStep]) -> bool {
+        let max = usize::try_from(self.steps_max(n)).unwrap_or(0);
         self.pad_steps(steps) >= max
     }
 
@@ -139,7 +147,7 @@ impl AppState {
     /// the macro is full and the edit adds steps.
     pub fn edit_step(&mut self, n: u8, step: usize, edit: StepEdit) -> Option<usize> {
         let steps = self.macro_steps(n)?;
-        if edit.grows() && self.steps_full(&steps) {
+        if edit.grows() && self.steps_full(n, &steps) {
             return None;
         }
         let mut selected = None;
@@ -388,12 +396,12 @@ pub fn step_rows(
 /// The numbers of the line under the step table. `.slint` words them, as
 /// "12/408 steps · 1.20 s", and writes the seconds in the language's decimal form.
 #[must_use]
-pub fn step_count(state: &AppState, steps: &[MacroStep]) -> StepCount {
+pub fn step_count(state: &AppState, n: u8, steps: &[MacroStep]) -> StepCount {
     let total: u32 = steps.iter().map(|s| u32::from(s.duration_ms)).sum();
     StepCount {
         steps: count(steps.len()),
         pad_steps: count(state.pad_steps(steps)),
-        max: state.description().limits.macro_steps.max,
+        max: state.steps_max(n),
         total_ms: i32::try_from(total).unwrap_or(i32::MAX),
     }
 }
@@ -408,8 +416,8 @@ pub fn render_steps(state: &AppState, ui: &AppWindow) {
         _ => (Vec::new(), Vec::new()),
     };
     ui.set_steps_ready(steps.is_some());
-    ui.set_steps_full(steps.as_ref().is_some_and(|s| state.steps_full(s)));
-    ui.set_step_count(steps.as_ref().map(|s| step_count(state, s)).unwrap_or_default());
+    ui.set_steps_full(steps.as_ref().is_some_and(|s| state.steps_full(n, s)));
+    ui.set_step_count(steps.as_ref().map(|s| step_count(state, n, s)).unwrap_or_default());
     let lanes = lanes.into_iter().map(SharedString::from).collect();
     push_model(&ui.get_step_lanes(), lanes, |m| ui.set_step_lanes(m));
     let remaps = match (&steps, mode) {
@@ -531,9 +539,9 @@ mod tests {
             MacroStep { left_stick_x: 0, glide: [GlideControl::LeftStick].into(), ..step(100) };
         let s = holding(vec![step(100), step(100)]);
         let counts = |c: StepCount| (c.steps, c.pad_steps, c.max, c.total_ms);
-        assert_eq!(counts(step_count(&s, &s.macro_steps(0).unwrap())), (2, 2, 408, 200));
+        assert_eq!(counts(step_count(&s, 0, &s.macro_steps(0).unwrap())), (2, 2, 408, 200));
         let s = holding(vec![glide, step(100)]);
-        assert_eq!(counts(step_count(&s, &s.macro_steps(0).unwrap())), (2, 6, 408, 200));
+        assert_eq!(counts(step_count(&s, 0, &s.macro_steps(0).unwrap())), (2, 6, 408, 200));
     }
 
     #[test]

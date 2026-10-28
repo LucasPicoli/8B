@@ -120,7 +120,8 @@ pub fn worded(d: &ControllerDescription, reason: &Reason) -> String {
             | "Give the macro a name of at most {n} characters." % *max),
         Reason::NameTooLong { .. }
         | Reason::TooManySteps { .. }
-        | Reason::TooManyGlideSteps { .. } => too_big(reason),
+        | Reason::TooManyGlideSteps { .. }
+        | Reason::TooManyStepsInSlot { .. } => too_big(reason),
         Reason::RepeatCount { .. } => tr!("The macro must play at least once."),
         Reason::PressAndRelease { step, button, mode } => tr!(
             "Step {n}: {button} appears in both press and release.",
@@ -163,6 +164,14 @@ fn too_big(reason: &Reason) -> String {
             tr!("The macro has {n} step." | "The macro has {n} steps." % *needed),
             tr!("This controller holds at most {n} step. Remove steps."
                 | "This controller holds at most {n} steps. Remove steps." % *max)
+        ),
+        Reason::TooManyStepsInSlot { needed, max } => format!(
+            "{} {}",
+            tr!("The macro needs {n} step on the controller."
+                | "The macro needs {n} steps on the controller." % *needed),
+            tr!("This macro slot keeps at most {n} step: the controller erases a longer macro here. Remove steps."
+                | "This macro slot keeps at most {n} steps: the controller erases a longer macro here. Remove steps."
+                    % *max)
         ),
         Reason::TooManyGlideSteps { needed, max } => format!(
             "{} {}",

@@ -82,6 +82,23 @@ stick with `"macro_stick": "left_stick"` or `"right_stick"`. The app and the com
 line warn about a macro that moves a stick whose low end is under the floor, and
 still write it. Leave both out when every low end plays.
 
+A mode whose firmware erases macro steps on its own when the pad starts in it lists
+the affected macro slots. `slot` counts from 1 and `macro_slot` from 0, as a macro
+file numbers it. On the Ultimate 2 in DInput:
+
+```json
+"macro_slots_at_risk": [{ "slot": 3, "macro_slot": 1 }],
+"macro_step_limits": [{ "slot": 3, "macro_slot": 0, "max": 307 }]
+```
+
+- `macro_slots_at_risk` names a macro slot the firmware erases whatever the macro
+  holds. The app and the command line warn about it and still write.
+- `macro_step_limits` gives a macro slot a lower step limit than `limits.macro_steps`,
+  with glides expanded. The firmware erases a longer macro there. The app's step
+  counter shows the lower limit, and a write refuses a longer macro.
+
+Leave both out when the firmware keeps every macro.
+
 The `id` is 1 to 15 lowercase letters, digits, `-` or `_`. Profiles, the command
 line (`-m xinput`), config ports and settings tabs use it. The app shows the
 `label`. A model may have one mode or several, and its ids need not match another

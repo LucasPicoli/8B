@@ -183,6 +183,14 @@ pub enum Reason {
         /// The most steps the controller holds.
         max: usize,
     },
+    /// The macro needs more steps than its macro slot keeps: the controller erases a
+    /// longer macro there.
+    TooManyStepsInSlot {
+        /// The steps on the controller, glides expanded.
+        needed: usize,
+        /// The most steps the macro slot keeps.
+        max: usize,
+    },
     /// The macro plays less than once.
     RepeatCount {
         /// The file's count.
@@ -314,6 +322,11 @@ impl fmt::Display for Reason {
                 f,
                 "With its glides, this macro needs {needed} steps on the controller, and the \
                  controller holds {max}. Shorten a glide or remove steps."
+            ),
+            Self::TooManyStepsInSlot { needed, max } => write!(
+                f,
+                "The macro needs {needed} steps on the controller. This macro slot keeps at \
+                 most {max}: the controller erases a longer macro here. Remove steps."
             ),
             Self::RepeatCount { count } => write!(f, "repeat.count must be >= 1 (got {count})."),
             Self::PressAndRelease { step, button, .. } => {

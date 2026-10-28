@@ -78,7 +78,7 @@ its Duration.
 | 1 | `Uma vez` | Y and X | Once | 100 ms A and LT; 100 ms B and RT; 50 ms pause; 100 ms LB, RB and ↑ |
 | 2 | `Três vezes` | Turbo (Star) | 3 times, 250 ms pause | 200 ms left stick X 0 Y 127, Glide to step 2 on; 100 ms left stick X 255 Y 127; 100 ms pause |
 | 3 | `Até apertar` | PR | Until pressed again | 100 ms View and Menu with the right stick X 127 Y 0; 100 ms pause |
-| 4 | `408 passos` | L4 | Once | Import macro… `fixtures/ultimate-2/gui-check/long-macro.json`: 408 steps |
+| 4 | `406 passos` | L4 | Once | Import macro… `fixtures/ultimate-2/gui-check/long-macro.json`: 406 steps, the most the pad takes |
 
 If the imported macro is not started by L4, add L4.
 
