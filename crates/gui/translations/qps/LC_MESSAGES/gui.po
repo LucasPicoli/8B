@@ -2619,6 +2619,15 @@ msgstr ""
 "the same in the XInput and Switch modes, over the controller's cable.⟧"
 
 #: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid ""
+"On the Ultimate 2 Wireless it does the same in the XInput and DInput modes, "
+"over the controller's cable, and edits its motion sensor and lights."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~On the Ultimate 2 "
+"Wireless it does the same in the XInput and DInput modes, over the "
+"controller's cable, and edits its motion sensor and lights.⟧"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
 msgid "8B is an independent project, not made or endorsed by 8BitDo."
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~8B is an independent project, not made or endorsed "
@@ -2636,6 +2645,34 @@ msgid ""
 msgstr ""
 "⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~Editing a macro: the step table, with a "
 "step's stick and trigger values below⟧"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid ""
+"8B now edits the 8BitDo Ultimate 2 Wireless over its cable, in the XInput "
+"and DInput modes: buttons, sticks, triggers, vibration, motion sensor, "
+"lights and macros."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~8B now "
+"edits the 8BitDo Ultimate 2 Wireless over its cable, in the XInput and "
+"DInput modes: buttons, sticks, triggers, vibration, motion sensor, lights "
+"and macros.⟧"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid ""
+"The Ultimate 2 serves only the mode its switch is in, so switch modes on the "
+"controller to edit the other one."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~The Ultimate 2 serves only the "
+"mode its switch is in, so switch modes on the controller to edit the other "
+"one.⟧"
+
+#: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
+msgid ""
+"On firmware 1.10 the Ultimate 2 erases macro 2 of DInput profile 3 by "
+"itself, and 8B warns on that macro."
+msgstr ""
+"⟦~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~On firmware 1.10 the Ultimate 2 "
+"erases macro 2 of DInput profile 3 by itself, and 8B warns on that macro.⟧"
 
 #: ../../packaging/linux/io.github.LucasPicoli._8B.metainfo.xml
 msgid ""
