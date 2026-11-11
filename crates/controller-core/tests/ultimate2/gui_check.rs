@@ -114,7 +114,11 @@ fn check_phase() {
         let read = pad.dev.read_all_profiles().unwrap();
         for n in slots(mode) {
             let (want, want_macros) = load(&gui_check_file(&mode.to_string(), n));
-            let Some(profile) = read.profiles.iter().find(|p| p.mode == mode && p.source_slot == n)
+            // The read lists an empty slot too, with an empty id.
+            let Some(profile) = read
+                .profiles
+                .iter()
+                .find(|p| p.mode == mode && p.source_slot == n && !p.id.is_empty())
             else {
                 println!("{mode} slot {n}: FAILED, the slot is empty");
                 failed.push(format!("{mode} slot {n}: empty"));
