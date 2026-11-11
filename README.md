@@ -6,7 +6,7 @@
 
 **Read and edit the profiles stored on your 8BitDo controller, over USB, on Linux.**
 
-[Download](#download) · [Supported devices](#supported-devices) · [USB permission](#usb-permission) · [Build from source](#build-from-source) · [Contributing](#contributing) · [Licence](#licence)
+[Download](#download) · [Supported devices](#supported-devices) · [Unsupported devices](#unsupported-devices) · [USB permission](#usb-permission) · [Build from source](#build-from-source) · [Contributing](#contributing) · [Licence](#licence)
 
 ![8B editing a DInput profile: saved remaps in blue, unsaved edits in orange](docs/images/screenshot.png)
 
@@ -22,13 +22,18 @@ Pro 3|- Edit button mappings, sticks, triggers and vibration settings in every X
 Ultimate Bluetooth|- Edit button mappings, sticks, triggers and vibration settings in every XInput and Switch slot, over the cable</br>- Create and edit macros</br>- Import and export profiles as JSON
 Ultimate 2 Wireless|- Edit button mappings, sticks, triggers and vibration settings in every XInput and DInput slot, over the cable. The pad serves only the mode it is in, so switch it on the pad to edit the other</br>- Edit the motion sensor and the RGB lights</br>- Create and edit macros</br>- Import and export profiles as JSON
 
+## Unsupported devices
+
+Device|Reason
+---|---
+Ultimate 2C Wireless|The only function the controller supports over USB is firmware updates. It has no profiles to edit
+
 ## Roadmap
 
 - [ ] Accessibility
 - [x] Macro creation and editing
 - [ ] Support for more controllers
-- [ ] Internationalization (translated interface)
-- [ ] Firmware upgrades
+- [x] Internationalization (translated interface)
 
 ## Download
 
